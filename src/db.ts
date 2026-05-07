@@ -644,6 +644,21 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration vCV (cv_assessment) failed (non-fatal):', (err as Error).message);
   }
 
+  // vLANG: add languages and current_location to settings
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'languages')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN languages TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration vLANG: settings.languages column added');
+    }
+    if (!cols.some((c) => c.name === 'current_location')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN current_location TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration vLANG: settings.current_location column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration vLANG (languages/current_location) failed (non-fatal):', (err as Error).message);
+  }
+
   // v24: composite covering index for strong-match page + job-detail prev/next queries
   try {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_match_fetch
@@ -1037,6 +1052,8 @@ export interface SettingsRow {
   schedule_group_ids: string;   // JSON number[] | '' for all active
   scraping_provider: string;    // 'harvestapi' | 'valig'
   cv_comparison_prompt: string;
+  languages: string;            // comma-separated professional languages
+  current_location: string;    // user's current country
   updated_at: string;
 }
 

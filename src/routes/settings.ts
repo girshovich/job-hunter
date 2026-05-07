@@ -37,7 +37,8 @@ router.get('/', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
-  res.render('settings', { settings, groups: getGroups(db, profileId), cvs: getCvs(db, profileId), title: 'Settings', saved: false, error: null });
+  const saved = req.query.saved === '1';
+  res.render('settings', { settings, groups: getGroups(db, profileId), cvs: getCvs(db, profileId), title: 'Settings', saved, error: null });
 });
 
 router.post('/', (req: Request, res: Response) => {
@@ -64,6 +65,8 @@ router.post('/', (req: Request, res: Response) => {
         email_enabled = ?,
         scraping_provider = ?,
         timezone = ?,
+        languages = ?,
+        current_location = ?,
         updated_at = ?
       WHERE profile_id = ?
     `).run(
@@ -79,12 +82,13 @@ router.post('/', (req: Request, res: Response) => {
       (body.email_enabled === 'on' || body.email_enabled === '1') ? 1 : 0,
       validProviders.includes(provider) ? provider : 'harvestapi',
       String(body.timezone || 'UTC'),
+      String(body.languages || ''),
+      String(body.current_location || ''),
       new Date().toISOString(),
       profileId,
     );
 
-    const updated = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
-    res.render('settings', { settings: updated, groups: getGroups(db, profileId), cvs: getCvs(db, profileId), title: 'Settings', saved: true, error: null });
+    res.redirect('/settings?saved=1');
   } catch (err) {
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
     res.status(400).render('settings', {
