@@ -37,9 +37,9 @@ router.get('/preflight', (req: Request, res: Response) => {
       errors.push('No active Roles configured — add at least one Role in Settings.');
     } else {
       for (const g of activeGroups) {
-        if (!g.profile_description?.trim() || !g.scoring_criteria?.trim() || !g.scoring_guide?.trim()) {
+        if (!g.profile_description?.trim() || !g.scoring_criteria?.trim()) {
           const name = g.group_name ? `"${g.group_name}"` : `#${g.id}`;
-          errors.push(`Role ${name} is missing Profile Description, Scoring Criteria, or Scoring Guide — edit the Role in Settings.`);
+          errors.push(`Role ${name} is missing Profile Description or Scoring Criteria — edit the Role in Settings.`);
         }
       }
     }
@@ -327,7 +327,6 @@ interface GroupBody {
   industries_list: string;
   other_expectations: string;
   scoring_criteria: string;
-  scoring_guide: string;
   no_match_criteria: string;
   title_filter: string;
   score_no_match_max: number;
@@ -378,7 +377,6 @@ function parseGroupBody(body: unknown): GroupBody {
     industries_list: String(b.industries_list || ''),
     other_expectations: String(b.other_expectations || ''),
     scoring_criteria: String(b.scoring_criteria || ''),
-    scoring_guide: String(b.scoring_guide || ''),
     no_match_criteria: String(b.no_match_criteria || ''),
     title_filter: String(b.title_filter || '').trim(),
     score_no_match_max: noMatchMax,
@@ -408,8 +406,8 @@ router.post('/groups', (req: Request, res: Response) => {
     const now = new Date().toISOString();
 
     const result = db.prepare(`
-      INSERT INTO search_groups (profile_id, group_name, locations, keywords, job_type, work_modes, ai_system_prompt, profile_description, industries_list, other_expectations, scoring_criteria, scoring_guide, no_match_criteria, title_filter, score_no_match_max, score_weak_match_max, score_strong_match_min, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO search_groups (profile_id, group_name, locations, keywords, job_type, work_modes, ai_system_prompt, profile_description, industries_list, other_expectations, scoring_criteria, no_match_criteria, title_filter, score_no_match_max, score_weak_match_max, score_strong_match_min, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       profileId,
       body.group_name,
@@ -421,7 +419,6 @@ router.post('/groups', (req: Request, res: Response) => {
       body.industries_list,
       body.other_expectations,
       body.scoring_criteria,
-      body.scoring_guide,
       body.no_match_criteria,
       body.title_filter,
       body.score_no_match_max,
@@ -462,7 +459,7 @@ router.put('/groups/:id', (req: Request, res: Response) => {
       UPDATE search_groups
       SET group_name = ?, locations = ?, keywords = ?, job_type = ?, work_modes = ?,
           profile_description = ?, industries_list = ?, other_expectations = ?,
-          scoring_criteria = ?, scoring_guide = ?, no_match_criteria = ?,
+          scoring_criteria = ?, no_match_criteria = ?,
           title_filter = ?, score_no_match_max = ?, score_weak_match_max = ?, score_strong_match_min = ?, updated_at = ?
       WHERE id = ?
     `).run(
@@ -475,7 +472,6 @@ router.put('/groups/:id', (req: Request, res: Response) => {
       body.industries_list,
       body.other_expectations,
       body.scoring_criteria,
-      body.scoring_guide,
       body.no_match_criteria,
       body.title_filter,
       body.score_no_match_max,
