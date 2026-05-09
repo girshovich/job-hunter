@@ -1,0 +1,152 @@
+  <!-- ==================== PROFILE TAB ==================== -->
+  <div id="tab-pane-profile" class="<%= activeTab !== 'profile' ? 'hidden' : '' %>">
+  <form id="profile-form" method="post" action="/settings" class="space-y-6">
+    <input type="hidden" name="tab" value="profile">
+
+    <!-- LANGUAGES -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <div class="mb-3">
+        <h2 class="text-base font-semibold text-gray-900">Languages</h2>
+        <p class="text-xs text-gray-500 mt-0.5">Languages you know on a professional level</p>
+      </div>
+      <textarea name="languages" rows="2" placeholder="e.g. English, Russian, Armenian"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.languages || '' %></textarea>
+    </div>
+
+    <!-- CURRENT LOCATION -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <div class="mb-3">
+        <h2 class="text-base font-semibold text-gray-900">Current location (country)</h2>
+      </div>
+      <input type="text" name="current_location" value="<%= settings.current_location || '' %>"
+             placeholder="e.g. Cyprus"
+             class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+    </div>
+
+    <!-- EMAIL -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-2">
+          <h2 class="text-base font-semibold text-gray-900">Email</h2>
+          <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Optional</span>
+        </div>
+        <label class="flex items-center cursor-pointer ml-4">
+          <input type="checkbox" id="email-enabled-toggle" name="email_enabled" value="on"
+                 onchange="toggleEmailSection()"
+                 class="sr-only peer"
+                 <%= settings.email_enabled !== 0 ? 'checked' : '' %> />
+          <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-emerald-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
+        </label>
+      </div>
+      <p class="text-xs text-gray-500 mb-4">Send email report with new jobs</p>
+      <div id="email-body" class="space-y-3 mt-4 <%= settings.email_enabled !== 0 ? '' : 'hidden' %>">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Recipient</label>
+            <input type="email" name="email_recipient" value="<%= settings.email_recipient %>"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                   placeholder="you@example.com" />
+          </div>
+          <div>
+            <div class="flex items-center gap-1 mb-1">
+              <label class="text-xs font-medium text-gray-600">Sender</label>
+              <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer"
+                 class="text-gray-400 hover:text-blue-500 transition-colors" title="Must be a domain verified in Resend">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </a>
+            </div>
+            <input type="email" name="email_from" value="<%= settings.email_from %>"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                   placeholder="jobs@yourdomain.com" />
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-1 mb-1">
+            <label class="text-xs font-medium text-gray-600">Resend API Key</label>
+            <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer"
+               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your Resend API key">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </a>
+          </div>
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <input id="resend-key-input" type="password" name="resend_api_key" value="<%= settings.resend_api_key %>"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-9 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                     placeholder="re_…" autocomplete="off" />
+              <button type="button" onclick="toggleEye('resend-key-input', this)"
+                      class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              </button>
+            </div>
+            <button type="button" onclick="testApiKey('resend', 'resend-key-input', 'resend-test-status')"
+                    class="flex-shrink-0 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap">
+              Test key
+            </button>
+            <button type="button" id="test-email-btn" onclick="sendTestEmail(this)"
+                    class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+              Test Email
+            </button>
+          </div>
+          <p id="resend-test-status" class="text-xs mt-1 hidden"></p>
+          <p id="test-email-status" class="text-xs mt-1 hidden"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TIMEZONE -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <h2 class="text-base font-semibold text-gray-900 mb-1">Timezone</h2>
+      <p class="text-xs text-gray-500 mb-4">Used for all timestamps — logs, run times, and scheduled runs</p>
+      <select name="timezone" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+        <option value="UTC"                               <%= settings.timezone === 'UTC'                               ? 'selected' : '' %>>GMT+0 (UTC)</option>
+        <option value="Europe/London"                     <%= settings.timezone === 'Europe/London'                     ? 'selected' : '' %>>GMT+0 (London)</option>
+        <option value="Africa/Lagos"                      <%= settings.timezone === 'Africa/Lagos'                      ? 'selected' : '' %>>GMT+1 (Lagos)</option>
+        <option value="Europe/Paris"                      <%= settings.timezone === 'Europe/Paris'                      ? 'selected' : '' %>>GMT+1 (Paris)</option>
+        <option value="Africa/Cairo"                      <%= settings.timezone === 'Africa/Cairo'                      ? 'selected' : '' %>>GMT+2 (Cairo)</option>
+        <option value="Africa/Johannesburg"               <%= settings.timezone === 'Africa/Johannesburg'               ? 'selected' : '' %>>GMT+2 (Johannesburg)</option>
+        <option value="Asia/Kuwait"                       <%= settings.timezone === 'Asia/Kuwait'                       ? 'selected' : '' %>>GMT+3 (Kuwait)</option>
+        <option value="Asia/Riyadh"                       <%= settings.timezone === 'Asia/Riyadh'                       ? 'selected' : '' %>>GMT+3 (Riyadh)</option>
+        <option value="Europe/Istanbul"                   <%= settings.timezone === 'Europe/Istanbul'                   ? 'selected' : '' %>>GMT+3 (Istanbul)</option>
+        <option value="Europe/Moscow"                     <%= settings.timezone === 'Europe/Moscow'                     ? 'selected' : '' %>>GMT+3 (Moscow)</option>
+        <option value="Asia/Dubai"                        <%= settings.timezone === 'Asia/Dubai'                        ? 'selected' : '' %>>GMT+4 (Dubai)</option>
+        <option value="Asia/Yerevan"                      <%= settings.timezone === 'Asia/Yerevan'                      ? 'selected' : '' %>>GMT+4 (Yerevan)</option>
+        <option value="Asia/Karachi"                      <%= settings.timezone === 'Asia/Karachi'                      ? 'selected' : '' %>>GMT+5 (Karachi)</option>
+        <option value="Asia/Kolkata"                      <%= settings.timezone === 'Asia/Kolkata'                      ? 'selected' : '' %>>GMT+5:30 (Mumbai)</option>
+        <option value="Asia/Dhaka"                        <%= settings.timezone === 'Asia/Dhaka'                        ? 'selected' : '' %>>GMT+6 (Dhaka)</option>
+        <option value="Asia/Bangkok"                      <%= settings.timezone === 'Asia/Bangkok'                      ? 'selected' : '' %>>GMT+7 (Bangkok)</option>
+        <option value="Asia/Shanghai"                     <%= settings.timezone === 'Asia/Shanghai'                     ? 'selected' : '' %>>GMT+8 (Shanghai)</option>
+        <option value="Asia/Singapore"                    <%= settings.timezone === 'Asia/Singapore'                    ? 'selected' : '' %>>GMT+8 (Singapore)</option>
+        <option value="Asia/Seoul"                        <%= settings.timezone === 'Asia/Seoul'                        ? 'selected' : '' %>>GMT+9 (Seoul)</option>
+        <option value="Asia/Tokyo"                        <%= settings.timezone === 'Asia/Tokyo'                        ? 'selected' : '' %>>GMT+9 (Tokyo)</option>
+        <option value="Australia/Sydney"                  <%= settings.timezone === 'Australia/Sydney'                  ? 'selected' : '' %>>GMT+10 (Sydney)</option>
+        <option value="Pacific/Noumea"                    <%= settings.timezone === 'Pacific/Noumea'                    ? 'selected' : '' %>>GMT+11 (Noumea)</option>
+        <option value="Pacific/Auckland"                  <%= settings.timezone === 'Pacific/Auckland'                  ? 'selected' : '' %>>GMT+12 (Auckland)</option>
+        <option value="Pacific/Apia"                      <%= settings.timezone === 'Pacific/Apia'                      ? 'selected' : '' %>>GMT+13 (Apia)</option>
+        <option value="Atlantic/Azores"                   <%= settings.timezone === 'Atlantic/Azores'                   ? 'selected' : '' %>>GMT-1 (Azores)</option>
+        <option value="America/Noronha"                   <%= settings.timezone === 'America/Noronha'                   ? 'selected' : '' %>>GMT-2 (Noronha)</option>
+        <option value="America/Argentina/Buenos_Aires"    <%= settings.timezone === 'America/Argentina/Buenos_Aires'    ? 'selected' : '' %>>GMT-3 (Buenos Aires)</option>
+        <option value="America/Sao_Paulo"                 <%= settings.timezone === 'America/Sao_Paulo'                 ? 'selected' : '' %>>GMT-3 (São Paulo)</option>
+        <option value="America/Halifax"                   <%= settings.timezone === 'America/Halifax'                   ? 'selected' : '' %>>GMT-4 (Halifax)</option>
+        <option value="America/New_York"                  <%= settings.timezone === 'America/New_York'                  ? 'selected' : '' %>>GMT-5 (New York)</option>
+        <option value="America/Chicago"                   <%= settings.timezone === 'America/Chicago'                   ? 'selected' : '' %>>GMT-6 (Chicago)</option>
+        <option value="America/Denver"                    <%= settings.timezone === 'America/Denver'                    ? 'selected' : '' %>>GMT-7 (Denver)</option>
+        <option value="America/Los_Angeles"               <%= settings.timezone === 'America/Los_Angeles'               ? 'selected' : '' %>>GMT-8 (Los Angeles)</option>
+        <option value="America/Anchorage"                 <%= settings.timezone === 'America/Anchorage'                 ? 'selected' : '' %>>GMT-9 (Anchorage)</option>
+        <option value="Pacific/Honolulu"                  <%= settings.timezone === 'Pacific/Honolulu'                  ? 'selected' : '' %>>GMT-10 (Honolulu)</option>
+        <option value="Pacific/Pago_Pago"                 <%= settings.timezone === 'Pacific/Pago_Pago'                 ? 'selected' : '' %>>GMT-11 (Pago Pago)</option>
+      </select>
+    </div>
+
+    <!-- Profile save button -->
+    <div class="flex items-center gap-4 flex-wrap">
+      <button type="submit" id="profile-save-btn" disabled
+              class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+        Save Settings
+      </button>
+      <p class="text-xs text-gray-400">Last saved: <%= settings.profile_updated_at ? new Date(settings.profile_updated_at).toLocaleString('en-GB') : 'Never' %></p>
+    </div>
+
+  </form>
+  </div>

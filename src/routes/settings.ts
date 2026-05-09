@@ -38,7 +38,15 @@ router.get('/', (req: Request, res: Response) => {
   const profileId = req.profile.id;
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
   const saved = req.query.saved === '1';
-  res.render('settings', { settings, groups: getGroups(db, profileId), cvs: getCvs(db, profileId), title: 'Settings', saved, error: null });
+  const activeTab = ['profile', 'roles', 'ai'].includes(String(req.query.tab)) ? String(req.query.tab) : 'profile';
+
+  const latestGroup = db.prepare('SELECT MAX(updated_at) as t FROM search_groups WHERE profile_id = ?').get(profileId) as { t: string | null };
+  const latestCv = db.prepare('SELECT MAX(uploaded_at) as t FROM cvs WHERE profile_id = ?').get(profileId) as { t: string | null };
+  const latestBlacklist = db.prepare('SELECT MAX(created_at) as t FROM blacklisted_companies WHERE profile_id = ?').get(profileId) as { t: string | null };
+  const rolesTimestamps = [latestGroup.t, latestCv.t, latestBlacklist.t].filter(Boolean) as string[];
+  const rolesLastSaved = rolesTimestamps.length > 0 ? rolesTimestamps.sort().at(-1)! : null;
+
+  res.render('settings', { settings, groups: getGroups(db, profileId), cvs: getCvs(db, profileId), title: 'Settings', saved, error: null, activeTab, rolesLastSaved });
 });
 
 router.post('/', (req: Request, res: Response) => {
@@ -47,47 +55,65 @@ router.post('/', (req: Request, res: Response) => {
 
   try {
     const body = req.body as Record<string, string | string[]>;
+    const tab = (['profile', 'ai'] as string[]).includes(String(body.tab)) ? String(body.tab) : 'profile';
+    const now = new Date().toISOString();
 
-    db.prepare(`
-      UPDATE settings SET
-        ai_model = ?,
-        ai_model_hard = ?,
-        dedup_system_prompt = ?,
-        summary_prompt = ?,
-        cv_comparison_prompt = ?,
-        email_recipient = ?,
-        apify_api_token = ?,
-        openai_api_key = ?,
-        resend_api_key = ?,
-        email_from = ?,
-        email_enabled = ?,
-        timezone = ?,
-        languages = ?,
-        current_location = ?,
-        updated_at = ?
-      WHERE profile_id = ?
-    `).run(
-      String(body.ai_model || 'gpt-5.4-mini'),
-      String(body.ai_model_hard || 'gpt-5.4'),
-      String(body.dedup_system_prompt || ''),
-      String(body.summary_prompt || ''),
-      String(body.cv_comparison_prompt || ''),
-      String(body.email_recipient || ''),
-      String(body.apify_api_token || ''),
-      String(body.openai_api_key || ''),
-      String(body.resend_api_key || ''),
-      String(body.email_from || ''),
-      (body.email_enabled === 'on' || body.email_enabled === '1') ? 1 : 0,
-      String(body.timezone || 'UTC'),
-      String(body.languages || ''),
-      String(body.current_location || ''),
-      new Date().toISOString(),
-      profileId,
-    );
+    if (tab === 'profile') {
+      db.prepare(`
+        UPDATE settings SET
+          email_recipient = ?,
+          resend_api_key = ?,
+          email_from = ?,
+          email_enabled = ?,
+          timezone = ?,
+          languages = ?,
+          current_location = ?,
+          profile_updated_at = ?,
+          updated_at = ?
+        WHERE profile_id = ?
+      `).run(
+        String(body.email_recipient || ''),
+        String(body.resend_api_key || ''),
+        String(body.email_from || ''),
+        (body.email_enabled === 'on' || body.email_enabled === '1') ? 1 : 0,
+        String(body.timezone || 'UTC'),
+        String(body.languages || ''),
+        String(body.current_location || ''),
+        now,
+        now,
+        profileId,
+      );
+    } else {
+      db.prepare(`
+        UPDATE settings SET
+          ai_model = ?,
+          ai_model_hard = ?,
+          dedup_system_prompt = ?,
+          summary_prompt = ?,
+          cv_comparison_prompt = ?,
+          apify_api_token = ?,
+          openai_api_key = ?,
+          ai_updated_at = ?,
+          updated_at = ?
+        WHERE profile_id = ?
+      `).run(
+        String(body.ai_model || 'gpt-5.4-mini'),
+        String(body.ai_model_hard || 'gpt-5.4'),
+        String(body.dedup_system_prompt || ''),
+        String(body.summary_prompt || ''),
+        String(body.cv_comparison_prompt || ''),
+        String(body.apify_api_token || ''),
+        String(body.openai_api_key || ''),
+        now,
+        now,
+        profileId,
+      );
+    }
 
-    res.redirect('/settings?saved=1');
+    res.redirect(`/settings?tab=${tab}&saved=1`);
   } catch (err) {
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
+    const tab = String((req.body as Record<string, string>).tab || 'profile');
     res.status(400).render('settings', {
       settings,
       groups: getGroups(db, profileId),
@@ -95,6 +121,8 @@ router.post('/', (req: Request, res: Response) => {
       title: 'Settings',
       saved: false,
       error: (err as Error).message,
+      activeTab: tab,
+      rolesLastSaved: null,
     });
   }
 });
@@ -121,6 +149,8 @@ router.post('/cvs/upload', upload.single('cv_file'), (req: Request, res: Respons
       title: 'Settings',
       saved: false,
       error: 'No file provided or file type not allowed (PDF, TXT, MD only).',
+      activeTab: 'roles',
+      rolesLastSaved: null,
     });
     return;
   }
@@ -131,7 +161,7 @@ router.post('/cvs/upload', upload.single('cv_file'), (req: Request, res: Respons
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(profileId, req.file.originalname, req.file.mimetype, contentB64, req.file.size, new Date().toISOString());
 
-  res.redirect('/settings');
+  res.redirect('/settings?tab=roles');
 });
 
 // Delete CV

@@ -378,6 +378,21 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v27 (scraping_providers) failed (non-fatal):', (err as Error).message);
   }
 
+  // v28: add per-tab last-saved timestamps to settings
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'profile_updated_at')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN profile_updated_at TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v28: settings.profile_updated_at column added');
+    }
+    if (!cols.some((c) => c.name === 'ai_updated_at')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN ai_updated_at TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v28: settings.ai_updated_at column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v28 (profile/ai updated_at) failed (non-fatal):', (err as Error).message);
+  }
+
   // v16: add structured prompt fields to settings
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
@@ -903,6 +918,8 @@ function initSchema(db: Database): void {
       no_match_criteria      TEXT    NOT NULL DEFAULT '',
       scraping_provider      TEXT    NOT NULL DEFAULT 'harvestapi',
       scraping_providers     TEXT    NOT NULL DEFAULT '["harvestapi","valig"]',
+      profile_updated_at     TEXT    NOT NULL DEFAULT '',
+      ai_updated_at          TEXT    NOT NULL DEFAULT '',
       updated_at             TEXT    NOT NULL DEFAULT ''
     );
   `);
@@ -1081,6 +1098,8 @@ export interface SettingsRow {
   cv_comparison_prompt: string;
   languages: string;            // comma-separated professional languages
   current_location: string;    // user's current country
+  profile_updated_at: string;
+  ai_updated_at: string;
   updated_at: string;
 }
 
