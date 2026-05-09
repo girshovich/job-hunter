@@ -13,6 +13,7 @@ interface ScheduleEntry {
   timezone: string;
   dateRange: DateRange;
   groupIds: number[];
+  providers: string[];
 }
 
 const schedules = new Map<number, ScheduleEntry>();
@@ -23,6 +24,7 @@ export function startSchedule(
   timezone: string,
   dateRange: DateRange = '24h',
   groupIds: number[] = [],
+  providers: string[] = [],
 ): void {
   stopSchedule(profileId);
 
@@ -36,12 +38,13 @@ export function startSchedule(
     runPipeline('scheduled', profileId, {
       dateRange,
       groupIds: groupIds.length > 0 ? groupIds : undefined,
+      providers: providers.length > 0 ? providers : undefined,
     }).catch((err) =>
       console.error(`[cron] Profile ${profileId} pipeline failed:`, err),
     );
   }, { timezone });
 
-  schedules.set(profileId, { job, expression, timezone, dateRange, groupIds });
+  schedules.set(profileId, { job, expression, timezone, dateRange, groupIds, providers });
   console.log(`[cron] Profile ${profileId} schedule started: "${expression}" (${timezone})`);
 }
 
@@ -60,6 +63,7 @@ export function getScheduleStatus(profileId: number): {
   timezone: string | null;
   dateRange: DateRange | null;
   groupIds: number[] | null;
+  providers: string[] | null;
 } {
   const entry = schedules.get(profileId);
   return {
@@ -68,5 +72,6 @@ export function getScheduleStatus(profileId: number): {
     timezone: entry?.timezone ?? null,
     dateRange: entry?.dateRange ?? null,
     groupIds: entry?.groupIds ?? null,
+    providers: entry?.providers ?? null,
   };
 }

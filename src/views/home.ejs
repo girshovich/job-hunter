@@ -530,14 +530,15 @@ function openHowItWorks() {
         </button>
       </div>
       <ol class="px-6 py-5 space-y-3 text-sm text-gray-600 leading-relaxed list-none">
-        <li><span class="font-semibold text-gray-800">1. Fetch</span> — Apify scrapes LinkedIn for each Role's keywords × locations combination.</li>
-        <li><span class="font-semibold text-gray-800">2. Title filter</span> — removes jobs whose title doesn't contain your filter words (if configured per Role).</li>
+        <li><span class="font-semibold text-gray-800">1. Fetch</span> — scrapes LinkedIn for each Role's keywords × locations combination.</li>
+        <li><span class="font-semibold text-gray-800">2. Title filter</span> — removes jobs whose title doesn't match your filter words (per Role).</li>
         <li><span class="font-semibold text-gray-800">3. Blacklist</span> — removes jobs from blacklisted companies.</li>
-        <li><span class="font-semibold text-gray-800">4. Dedup by LinkedIn ID</span> — removes jobs already stored from previous runs (exact match).</li>
-        <li><span class="font-semibold text-gray-800">5. AI scoring</span> — one call per new job: scores it 0–100 against the Role's prompt → verdict (Strong / Weak / No Match) + short rationale.</li>
-        <li><span class="font-semibold text-gray-800">6. Dedup &amp; summary</span> — one call per Strong Match: checks whether the DB already has a job with the same company + title (repost detection), then writes a one-paragraph summary if it's genuinely new.</li>
-        <li><span class="font-semibold text-gray-800">7. Store</span> — all results saved locally (every verdict, including blacklisted and duplicates).</li>
-        <li><span class="font-semibold text-gray-800">8. Email digest</span> — strong matches emailed to you (if enabled in Settings).</li>
+        <li><span class="font-semibold text-gray-800">4. Dedup by ID</span> — removes jobs already seen in this or previous runs.</li>
+        <li><span class="font-semibold text-gray-800">5. AI scoring</span> <span class="text-xs text-gray-400">(easy model)</span> — scores each new job 0–100 against the Role's prompt → verdict + rationale.</li>
+        <li><span class="font-semibold text-gray-800">6. Duplicate check</span> <span class="text-xs text-gray-400">(easy → hard model)</span> — for Strong Matches with a known company history: titles-only pre-filter (easy), then full description dedup (hard) to detect reposts.</li>
+        <li><span class="font-semibold text-gray-800">7. Re-score Strong Matches</span> <span class="text-xs text-gray-400">(hard model)</span> — all Strong Matches from this run are re-scored with the more accurate model; verdict and score are updated.</li>
+        <li><span class="font-semibold text-gray-800">8. Store</span> — all results saved locally (every verdict, including blacklisted and duplicates).</li>
+        <li><span class="font-semibold text-gray-800">9. Email digest</span> — strong matches emailed to you (if enabled in Settings).</li>
       </ol>
     </div>`;
   document.body.appendChild(modal);

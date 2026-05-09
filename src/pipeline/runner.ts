@@ -79,7 +79,7 @@ export function getRunStatus(profileId: number = 1) {
 export interface RunOptions {
   groupIds?: number[];    // if provided, only run these groups (by id)
   dateRange?: DateRange;  // defaults to '24h'
-  provider?: string;      // override scraping provider for this run
+  providers?: string[];   // override settings.scraping_providers
 }
 
 export interface PipelineResult {
@@ -115,22 +115,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   }
 
   isRunningMap.set(profileId, true);
-  const startedAt = Date.now();
-  const ranAt = new Date().toISOString();
-  const errors: string[] = [];
-  let runId: number | null = null;
-
-  let jobsFetched = 0;
-  let jobsScored = 0;
-  let jobsStrongMatch = 0;
-  let jobsWeakMatch = 0;
-  let jobsNoMatch = 0;
-  let jobsDuplicate = 0;
-  let totalInputTokens = 0;
-  let totalCachedInputTokens = 0;
-  let totalOutputTokens = 0;
-  let totalApifyCostUsd = 0;
-  let apifyRunCount = 0;
+  const overallStart = Date.now();
+  const overallRanAt = new Date().toISOString();
 
   try {
     const db = getDb();
@@ -155,34 +141,14 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       .all(profileId) as BlacklistedCompanyRow[];
     const blacklistNames = new Set(blacklist.map((b) => b.company_name.toLowerCase().trim()));
 
-    const { groupIds, dateRange = '24h', provider: providerOverride } = options;
-    // provider override (from Run Once modal) takes priority, then settings, then fallback
-    const scrapingProvider = providerOverride || settings.scraping_provider || 'harvestapi';
+    const { groupIds, dateRange = '24h', providers: providersOverride } = options;
+    const providers = (providersOverride && providersOverride.length > 0)
+      ? providersOverride
+      : JSON.parse(settings.scraping_providers || '["harvestapi"]') as string[];
 
-    console.log(`[runner] Starting pipeline (${trigger}) — ${groups.length} group(s), ${blacklist.length} blacklisted company(ies)`);
+    console.log(`[runner] Starting pipeline (${trigger}) — ${groups.length} group(s), ${blacklist.length} blacklisted company(ies), ${providers.length} provider(s)`);
 
-    // Pre-compute targeted groups for progress tracking.
-    // When groupIds are specified (e.g. schedule snapshot), run those IDs regardless of is_active —
-    // deleted groups are naturally absent from `groups` and will be silently skipped.
-    // When no groupIds, fall back to is_active filtering (manual runs).
-    const activeGroups = groups.filter((g) =>
-      groupIds && groupIds.length > 0 ? groupIds.includes(g.id) : g.is_active
-    );
-    // Two progress slots per group (Fetch + AI Score) plus the initial Starting slot.
-    // This ensures progress always moves forward even when groups are processed sequentially.
-    const totalSections = activeGroups.length * 2 + 1;
-    const sw = 100 / totalSections;
-    let activeGroupIdx = 0;
-    setStage(profileId, 'Starting', 0, totalSections);
-
-    // Insert search_runs row NOW to get a stable run_id for job logs
-    runId = db.prepare(
-      `INSERT INTO search_runs (profile_id, ran_at, status, trigger, scraping_provider) VALUES (?, ?, 'running', ?, ?)`
-    ).run(profileId, ranAt, trigger, scrapingProvider).lastInsertRowid as number;
-
-    console.log(`[runner] Run ID: ${runId}`);
-
-    // Prepared statements (shared across groups)
+    // Prepared statements (shared across groups and providers)
     const insertJob = db.prepare(`
       INSERT OR IGNORE INTO jobs (
         profile_id, linkedin_job_id, title, company, location, country, work_mode, description,
@@ -204,18 +170,65 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    // In-memory dedup set — prevents re-scoring the same linkedin_job_id within a single run
-    // (NO_MATCH jobs are never written to DB, so filterNewJobs alone can't catch within-run dupes)
+    // Shared across all providers — prevents re-processing the same linkedin_job_id within one session
     const seenInRunJobIds = new Set<string>();
+    let lastResult: PipelineResult | null = null;
 
-    // In-run semantic dedup context: maps lowercase+trimmed company name → accepted STRONG_MATCH
-    // jobs from this run (not yet in DB). Prepended to DB results for dedupAndSummarise so the
-    // LLM can compare new jobs against same-company STRONG_MATCHes already accepted this run,
-    // even when they have different titles (not caught by seenStrongInRun).
-    const strongMatchesInRun = new Map<string, ExistingJob[]>();
+    for (const scrapingProvider of providers) {
+      const startedAt = Date.now();
+      const ranAt = new Date().toISOString();
+      const errors: string[] = [];
+      let runId: number | null = null;
 
-    // --- Per-group loop ---
-    for (const group of groups) {
+      let jobsFetched = 0;
+      let jobsScored = 0;
+      let jobsStrongMatch = 0;
+      let jobsWeakMatch = 0;
+      let jobsNoMatch = 0;
+      let jobsDuplicate = 0;
+      let totalInputTokens = 0;
+      let totalCachedInputTokens = 0;
+      let totalOutputTokens = 0;
+      let hardInputTokens = 0;
+      let hardCachedInputTokens = 0;
+      let hardOutputTokens = 0;
+      let totalApifyCostUsd = 0;
+      let apifyRunCount = 0;
+
+      // In-run semantic dedup context — reset per provider run
+      const strongMatchesInRun = new Map<string, ExistingJob[]>();
+
+      // Collects STRONG_MATCH non-duplicate jobs for hard-model re-scoring after all groups finish.
+      const strongMatchesForReScoring: Array<{
+        linkedinJobId: string;
+        job: JobPosting;
+        scoringSettings: SettingsRow;
+      }> = [];
+
+      try {
+        // Pre-compute targeted groups for progress tracking.
+        // When groupIds are specified (e.g. schedule snapshot), run those IDs regardless of is_active —
+        // deleted groups are naturally absent from `groups` and will be silently skipped.
+        // When no groupIds, fall back to is_active filtering (manual runs).
+        const activeGroups = groups.filter((g) =>
+          groupIds && groupIds.length > 0 ? groupIds.includes(g.id) : g.is_active
+        );
+        // Two progress slots per group (Fetch + AI Score) plus the initial Starting slot.
+        // This ensures progress always moves forward even when groups are processed sequentially.
+        const totalSections = activeGroups.length * 2 + 1;
+        const sw = 100 / totalSections;
+        let activeGroupIdx = 0;
+        setStage(profileId, 'Starting', 0, totalSections);
+
+        // Insert search_runs row NOW to get a stable run_id for job logs
+        runId = db.prepare(
+          `INSERT INTO search_runs (profile_id, ran_at, status, trigger, scraping_provider) VALUES (?, ?, 'running', ?, ?)`
+        ).run(profileId, ranAt, trigger, scrapingProvider).lastInsertRowid as number;
+
+        console.log(`[runner] Run ID: ${runId} (provider: ${scrapingProvider})`);
+
+        // --- Per-group loop ---
+        for (const group of groups) {
       if (groupIds && groupIds.length > 0) {
         // Running from a schedule snapshot (or explicit ID list): use IDs as-is, ignore is_active.
         // Deleted groups are already absent from `groups`; deactivated ones intentionally run.
@@ -410,9 +423,9 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
                 const dedup = await dedupAndSummarise(scored, dedupCandidates, settings, openAiKey);
                 isDuplicate = dedup.isDuplicate;
                 duplicateOfId = dedup.duplicateOfId && dedup.duplicateOfId > 0 ? dedup.duplicateOfId : null;
-                totalInputTokens += dedup.tokenUsage.inputTokens;
-                totalCachedInputTokens += dedup.tokenUsage.cachedInputTokens;
-                totalOutputTokens += dedup.tokenUsage.outputTokens;
+                hardInputTokens += dedup.tokenUsage.inputTokens;
+                hardCachedInputTokens += dedup.tokenUsage.cachedInputTokens;
+                hardOutputTokens += dedup.tokenUsage.outputTokens;
                 if (isDuplicate) {
                   console.log(`[runner] Semantic duplicate: "${scored.job.title}" at "${scored.job.company}" → original ID ${duplicateOfId}`);
                 }
@@ -516,7 +529,55 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         console.log(`[runner] Group ${group.id}: stored ${jobResults.length} jobs.`);
       }
 
+      // Collect non-duplicate STRONG_MATCHes for hard-model re-scoring after all groups finish
+      for (const { scored, isDuplicate } of jobResults) {
+        if (!isDuplicate && scored.verdict === 'STRONG_MATCH') {
+          strongMatchesForReScoring.push({
+            linkedinJobId: scored.job.jobId,
+            job: scored.job,
+            scoringSettings,
+          });
+        }
+      }
+
       activeGroupIdx++;
+    }
+
+    // 7a. Re-score all STRONG_MATCH jobs from this run using the hard model
+    if (strongMatchesForReScoring.length > 0) {
+      console.log(`[runner] Re-scoring ${strongMatchesForReScoring.length} strong match(es) with hard model (${settings.ai_model_hard})…`);
+      setStage(profileId, 'Re-scoring strong matches', 95, totalSections);
+
+      const updateRescored = db.prepare(`
+        UPDATE jobs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?, ai_summary = ?
+        WHERE linkedin_job_id = ? AND profile_id = ?
+      `);
+
+      for (const entry of strongMatchesForReScoring) {
+        try {
+          const hardSettings: SettingsRow = { ...entry.scoringSettings, ai_model: settings.ai_model_hard };
+          const result = await scoreJobs([entry.job], hardSettings, openAiKey);
+          const rescored = result.jobs[0];
+
+          hardInputTokens += result.tokenUsage.inputTokens;
+          hardCachedInputTokens += result.tokenUsage.cachedInputTokens;
+          hardOutputTokens += result.tokenUsage.outputTokens;
+
+          updateRescored.run(
+            rescored.score, rescored.verdict, rescored.rationale,
+            rescored.rejectionCategory, rescored.summary,
+            entry.linkedinJobId, profileId,
+          );
+
+          if (rescored.verdict !== 'STRONG_MATCH') {
+            jobsStrongMatch--;
+            if (rescored.verdict === 'WEAK_MATCH') jobsWeakMatch++;
+            else jobsNoMatch++;
+          }
+        } catch (err) {
+          console.warn(`[runner] Re-score failed for "${entry.job.title}" at "${entry.job.company}":`, (err as Error).message);
+        }
+      }
     }
 
     // 7. Send email report
@@ -545,7 +606,9 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     const durationMs = Date.now() - startedAt;
     const status = errors.length === 0 ? 'success' : 'partial_error';
 
-    const costOpenAiUsd = calcOpenAiCost(settings.ai_model, totalInputTokens, totalCachedInputTokens, totalOutputTokens);
+    const costOpenAiUsd =
+      (calcOpenAiCost(settings.ai_model, totalInputTokens, totalCachedInputTokens, totalOutputTokens) ?? 0) +
+      (calcOpenAiCost(settings.ai_model_hard, hardInputTokens, hardCachedInputTokens, hardOutputTokens) ?? 0);
     const costApifyUsd = apifyRunCount > 0 ? totalApifyCostUsd : null;
 
     db.prepare(`
@@ -565,37 +628,65 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
     console.log(`[runner] Pipeline complete in ${durationMs}ms — Status: ${status} (${trigger})`);
 
-    const result: PipelineResult = {
-      ranAt, durationMs, jobsFetched, jobsScored,
-      jobsStrongMatch, jobsWeakMatch, jobsNoMatch, jobsDuplicate,
-      status, errorLog: errors.length > 0 ? errors.join('\n') : null, trigger,
+        const result: PipelineResult = {
+          ranAt, durationMs, jobsFetched, jobsScored,
+          jobsStrongMatch, jobsWeakMatch, jobsNoMatch, jobsDuplicate,
+          status, errorLog: errors.length > 0 ? errors.join('\n') : null, trigger,
+        };
+        lastResult = result;
+        lastRunResultMap.set(profileId, result);
+
+      } catch (err) {
+        const durationMs = Date.now() - startedAt;
+        const errorMsg = (err as Error).message;
+        console.error(`[runner] Provider pipeline error (${scrapingProvider}):`, errorMsg);
+
+        try {
+          if (runId !== null) {
+            db.prepare(
+              `UPDATE search_runs SET status = 'failed', error_log = ?, duration_ms = ? WHERE id = ?`
+            ).run(errorMsg, durationMs, runId);
+          } else {
+            db.prepare(`
+              INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
+                jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger)
+              VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?)
+            `).run(profileId, ranAt, errorMsg, durationMs, trigger);
+          }
+        } catch (_) { /* ignore DB logging failure */ }
+
+        const result: PipelineResult = {
+          ranAt, durationMs, jobsFetched: 0, jobsScored: 0,
+          jobsStrongMatch: 0, jobsWeakMatch: 0, jobsNoMatch: 0, jobsDuplicate: 0,
+          status: 'failed', errorLog: errorMsg, trigger,
+        };
+        lastResult = result;
+        lastRunResultMap.set(profileId, result);
+      }
+    } // end providers loop
+
+    return lastResult ?? {
+      ranAt: overallRanAt, durationMs: Date.now() - overallStart,
+      jobsFetched: 0, jobsScored: 0, jobsStrongMatch: 0, jobsWeakMatch: 0, jobsNoMatch: 0, jobsDuplicate: 0,
+      status: 'failed', errorLog: 'No providers configured', trigger,
     };
-    lastRunResultMap.set(profileId, result);
-    return result;
 
   } catch (err) {
-    const durationMs = Date.now() - startedAt;
+    const durationMs = Date.now() - overallStart;
     const errorMsg = (err as Error).message;
     console.error('[runner] Fatal pipeline error:', errorMsg);
 
     try {
       const db = getDb();
-      if (runId !== null) {
-        db.prepare(
-          `UPDATE search_runs SET status = 'failed', error_log = ?, duration_ms = ? WHERE id = ?`
-        ).run(errorMsg, durationMs, runId);
-      } else {
-        // run_id was never created (e.g. DB unavailable at start); fall back to insert
-        db.prepare(`
-          INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
-            jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger)
-          VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?)
-        `).run(profileId, ranAt, errorMsg, durationMs, trigger);
-      }
+      db.prepare(`
+        INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
+          jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger)
+        VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?)
+      `).run(profileId, overallRanAt, errorMsg, durationMs, trigger);
     } catch (_) { /* ignore DB logging failure */ }
 
     const result: PipelineResult = {
-      ranAt, durationMs, jobsFetched: 0, jobsScored: 0,
+      ranAt: overallRanAt, durationMs, jobsFetched: 0, jobsScored: 0,
       jobsStrongMatch: 0, jobsWeakMatch: 0, jobsNoMatch: 0, jobsDuplicate: 0,
       status: 'failed', errorLog: errorMsg, trigger,
     };

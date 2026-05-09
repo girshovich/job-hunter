@@ -338,6 +338,20 @@
             </button>
           </div>
         </div>
+        <!-- Providers -->
+        <div>
+          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
+          <div class="space-y-1.5">
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="harvestapi" checked>
+              <span class="text-sm text-gray-700">LinkedIn: HarvestAPI</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="valig" checked>
+              <span class="text-sm text-gray-700">LinkedIn: Valig</span>
+            </label>
+          </div>
+        </div>
         <p id="sched-modal-msg" class="hidden text-xs"></p>
       </div>
       <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
@@ -387,6 +401,10 @@
         <div class="flex justify-between items-center">
           <span class="text-gray-500">Roles</span>
           <span id="sched-status-roles" class="font-medium text-gray-900"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-500">Providers</span>
+          <span id="sched-status-providers" class="font-medium text-gray-900"></span>
         </div>
       </div>
       <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
@@ -441,14 +459,19 @@
             </button>
           </div>
         </div>
-        <!-- Scraping provider -->
+        <!-- Providers -->
         <div>
-          <div class="text-sm font-medium text-gray-700 mb-1.5">Scraping provider</div>
-          <select id="run-provider-select" onchange="setRunProvider(this.value)"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="harvestapi">HarvestAPI</option>
-            <option value="valig">Valig</option>
-          </select>
+          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
+          <div class="space-y-1.5">
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="harvestapi" checked>
+              <span class="text-sm text-gray-700">LinkedIn: HarvestAPI</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="valig" checked>
+              <span class="text-sm text-gray-700">LinkedIn: Valig</span>
+            </label>
+          </div>
         </div>
         <p id="run-modal-msg" class="hidden text-xs text-red-600"></p>
       </div>
@@ -476,7 +499,6 @@
     let _schedDateRange = '24h';
     let _schedFrequency = 'daily';  // 'daily' | 'custom'
     let _runDateRange = '24h';
-    let _runProvider = 'harvestapi';
     let _runCallback = null;    // set by home.ejs to handle progress display
 
     const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -636,10 +658,17 @@
 
         // Render groups using is_active state
         renderSchedGroups(data.groups || []);
+
+        // Pre-fill provider checkboxes
+        const savedSchedProviders = data.scraping_providers || ['harvestapi', 'valig'];
+        document.querySelectorAll('.sched-provider-check').forEach(cb => {
+          cb.checked = savedSchedProviders.includes(cb.value);
+        });
       }).catch(() => {
         setSchedDateRange('24h');
         setSchedFrequency('daily');
         document.getElementById('sched-modal-groups').innerHTML = '<span class="text-sm text-red-500">Failed to load roles.</span>';
+        document.querySelectorAll('.sched-provider-check').forEach(cb => { cb.checked = true; });
       });
     }
 
@@ -664,6 +693,15 @@
           return;
         }
         scheduleDays = checked.sort((a, b) => parseInt(a) - parseInt(b)).join(',');
+      }
+
+      // Collect providers
+      const schedProviders = Array.from(document.querySelectorAll('.sched-provider-check:checked')).map(c => c.value);
+      if (schedProviders.length === 0) {
+        msgEl.textContent = 'Select at least one provider.';
+        msgEl.className = 'text-xs text-red-600';
+        msgEl.classList.remove('hidden');
+        return;
       }
 
       // Collect all toggle states
@@ -695,6 +733,7 @@
             timezone,
             schedule_date_range: _schedDateRange,
             schedule_days: scheduleDays,
+            providers: schedProviders,
           }),
         });
         const data = await res.json();
@@ -763,6 +802,12 @@
             document.getElementById('sched-status-roles').textContent = groupIds.length + ' of ' + groups.length + ' roles';
           }
         }
+
+        // Providers display
+        const providerLabels = { harvestapi: 'LinkedIn: HarvestAPI', valig: 'LinkedIn: Valig' };
+        const statusProviders = _scheduleData.scraping_providers || ['harvestapi', 'valig'];
+        document.getElementById('sched-status-providers').textContent =
+          statusProviders.map(p => providerLabels[p] || p).join(', ');
       }
       document.getElementById('schedule-status-modal').classList.remove('hidden');
     }
@@ -784,12 +829,6 @@
         btn.classList.toggle('border-gray-300', !isActive);
         btn.classList.toggle('hover:bg-gray-50', !isActive);
       });
-    }
-
-    function setRunProvider(provider) {
-      _runProvider = provider;
-      const sel = document.getElementById('run-provider-select');
-      if (sel && sel.value !== provider) sel.value = provider;
     }
 
     function renderRunGroups(groups) {
@@ -832,7 +871,10 @@
       document.getElementById('run-modal-submit').disabled = false;
       document.getElementById('run-modal-groups').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
       setRunDateRange('24h');
-      setRunProvider(_scheduleData?.scraping_provider || 'harvestapi');
+      const savedProviders = _scheduleData?.scraping_providers || ['harvestapi', 'valig'];
+      document.querySelectorAll('.run-provider-check').forEach(cb => {
+        cb.checked = savedProviders.includes(cb.value);
+      });
 
       try {
         const res = await fetch('/api/groups');
@@ -855,10 +897,20 @@
       }));
 
       const dateRange = _runDateRange;
+      const providers = Array.from(document.querySelectorAll('.run-provider-check:checked')).map(c => c.value);
 
       const submitBtn = document.getElementById('run-modal-submit');
+      const msgEl = document.getElementById('run-modal-msg');
+
+      if (providers.length === 0) {
+        msgEl.textContent = 'Select at least one provider.';
+        msgEl.classList.remove('hidden');
+        return;
+      }
+
       submitBtn.disabled = true;
       submitBtn.textContent = 'Starting…';
+      msgEl.classList.add('hidden');
 
       try {
         // Save is_active states (syncs with settings page)
@@ -873,7 +925,7 @@
         const res = await fetch('/api/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dateRange, provider: _runProvider }),
+          body: JSON.stringify({ dateRange, providers }),
         });
         const data = await res.json();
 

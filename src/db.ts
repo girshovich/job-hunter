@@ -366,6 +366,18 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v22 (search_runs.scraping_provider) failed (non-fatal):', (err as Error).message);
   }
 
+  // v27: add scraping_providers (JSON array) to settings, migrating from single scraping_provider
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'scraping_providers')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN scraping_providers TEXT NOT NULL DEFAULT '["harvestapi"]'`);
+      db.exec(`UPDATE settings SET scraping_providers = '["' || scraping_provider || '"]' WHERE scraping_provider IS NOT NULL AND scraping_provider != ''`);
+      console.log('[db] Migration v27: settings.scraping_providers column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v27 (scraping_providers) failed (non-fatal):', (err as Error).message);
+  }
+
   // v16: add structured prompt fields to settings
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
@@ -698,6 +710,17 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v25 (location_country seed) failed (non-fatal):', (err as Error).message);
   }
 
+  // v26: add ai_model_hard to settings (hard-task model: full dedup, re-scoring, CV compare)
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'ai_model_hard')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN ai_model_hard TEXT NOT NULL DEFAULT 'gpt-5.4'`);
+      console.log('[db] Migration v26: settings.ai_model_hard column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v26 (ai_model_hard) failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
@@ -859,7 +882,8 @@ function initSchema(db: Database): void {
       search_job_type        TEXT    NOT NULL DEFAULT 'fullTime',
       cron_schedule          TEXT    NOT NULL DEFAULT '0 7 * * *',
       ai_system_prompt       TEXT    NOT NULL DEFAULT '',
-      ai_model               TEXT    NOT NULL DEFAULT 'gpt-5.4',
+      ai_model               TEXT    NOT NULL DEFAULT 'gpt-5.4-mini',
+      ai_model_hard          TEXT    NOT NULL DEFAULT 'gpt-5.4',
       dedup_system_prompt    TEXT    NOT NULL DEFAULT '',
       score_no_match_max     INTEGER NOT NULL DEFAULT 50,
       score_weak_match_max   INTEGER NOT NULL DEFAULT 70,
@@ -878,6 +902,7 @@ function initSchema(db: Database): void {
       scoring_guide          TEXT    NOT NULL DEFAULT '',
       no_match_criteria      TEXT    NOT NULL DEFAULT '',
       scraping_provider      TEXT    NOT NULL DEFAULT 'harvestapi',
+      scraping_providers     TEXT    NOT NULL DEFAULT '["harvestapi","valig"]',
       updated_at             TEXT    NOT NULL DEFAULT ''
     );
   `);
@@ -1031,6 +1056,7 @@ export interface SettingsRow {
   cron_schedule: string;
   ai_system_prompt: string;
   ai_model: string;
+  ai_model_hard: string;
   dedup_system_prompt: string;
   summary_prompt: string;
   score_no_match_max: number;
@@ -1050,7 +1076,8 @@ export interface SettingsRow {
   no_match_criteria: string;
   schedule_date_range: string;  // '24h' | '7d' | 'month'
   schedule_group_ids: string;   // JSON number[] | '' for all active
-  scraping_provider: string;    // 'harvestapi' | 'valig'
+  scraping_provider: string;    // 'harvestapi' | 'valig' (legacy single value)
+  scraping_providers: string;  // JSON string[] e.g. '["harvestapi","valig"]'
   cv_comparison_prompt: string;
   languages: string;            // comma-separated professional languages
   current_location: string;    // user's current country

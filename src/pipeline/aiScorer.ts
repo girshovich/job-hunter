@@ -404,7 +404,7 @@ export async function dedupAndSummarise(
   try {
     const client = new OpenAI({ apiKey: openAiKey });
     const response = await client.responses.create({
-      model: settings.ai_model,
+      model: settings.ai_model_hard,
       input: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: buildDedupSummaryUserMessage(scoredJob, existingJobs) },

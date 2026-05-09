@@ -75,10 +75,21 @@ router.post('/run', async (req: Request, res: Response) => {
   if (b.dateRange === '7d') dateRange = '7d';
   else if (b.dateRange === 'month') dateRange = 'month';
 
-  // Parse optional provider override
-  const provider = (b.provider === 'harvestapi' || b.provider === 'valig') ? b.provider as string : undefined;
+  // Parse optional providers override
+  const validProviders = ['harvestapi', 'valig'];
+  const providers = Array.isArray(b.providers)
+    ? (b.providers as unknown[]).map(String).filter((p) => validProviders.includes(p))
+    : undefined;
 
-  const runOptions: RunOptions = { groupIds, dateRange, provider };
+  const resolvedProviders = providers?.length ? providers : undefined;
+  const runOptions: RunOptions = { groupIds, dateRange, providers: resolvedProviders };
+
+  // Persist provider selection as the new default for future runs
+  if (resolvedProviders) {
+    const db = getDb();
+    db.prepare('UPDATE settings SET scraping_providers = ? WHERE profile_id = ?')
+      .run(JSON.stringify(resolvedProviders), profileId);
+  }
 
   // Respond immediately, run in background
   res.json({ success: true, message: 'Pipeline started. Check dashboard for results.' });
@@ -208,7 +219,8 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
       return;
     }
 
-    const scrapingProvider = settings.scraping_provider || 'harvestapi';
+    const providers = JSON.parse(settings.scraping_providers || '["harvestapi"]') as string[];
+    const scrapingProvider = providers[0] || 'harvestapi';
     const allJobs: Array<{ title: string; company: string; url: string }> = [];
 
     for (const group of groups) {
@@ -249,7 +261,7 @@ router.get('/stats', (req: Request, res: Response) => {
 router.get('/schedule/status', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
-  const settings = db.prepare('SELECT email_send_time, timezone, schedule_date_range, schedule_group_ids, cron_schedule, scraping_provider FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'email_send_time' | 'timezone' | 'schedule_date_range' | 'schedule_group_ids' | 'cron_schedule' | 'scraping_provider'> | undefined;
+  const settings = db.prepare('SELECT email_send_time, timezone, schedule_date_range, schedule_group_ids, cron_schedule, scraping_providers FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'email_send_time' | 'timezone' | 'schedule_date_range' | 'schedule_group_ids' | 'cron_schedule' | 'scraping_providers'> | undefined;
   const savedGroupIds: number[] = settings?.schedule_group_ids ? JSON.parse(settings.schedule_group_ids) : [];
   const groups = db.prepare('SELECT id, group_name, is_active FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as Array<{ id: number; group_name: string; is_active: number }>;
   res.json({
@@ -259,7 +271,7 @@ router.get('/schedule/status', (req: Request, res: Response) => {
     timezone: settings?.timezone || 'Asia/Yerevan',
     schedule_date_range: settings?.schedule_date_range || '24h',
     schedule_group_ids: savedGroupIds,
-    scraping_provider: settings?.scraping_provider || 'harvestapi',
+    scraping_providers: JSON.parse(settings?.scraping_providers || '["harvestapi"]'),
     groups,
   });
 });
@@ -286,6 +298,13 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
     groupIds = activeNow.map((g) => g.id);
   }
 
+  // Parse and validate providers
+  const validSchedProviders = ['harvestapi', 'valig'];
+  const rawSchedProviders = Array.isArray(b.providers)
+    ? (b.providers as unknown[]).map(String).filter((p) => validSchedProviders.includes(p))
+    : [];
+  const schedProviders = rawSchedProviders.length > 0 ? rawSchedProviders : ['harvestapi'];
+
   const updates: string[] = [];
   const params: unknown[] = [];
   if (emailSendTime) {
@@ -300,14 +319,14 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   const timeVal = emailSendTime || '07:00';
   const [hStr, mStr] = timeVal.split(':');
   const expression = `${parseInt(mStr || '0', 10)} ${parseInt(hStr || '7', 10)} * * ${scheduleDays}`;
-  updates.push('cron_schedule = ?', 'schedule_date_range = ?', 'schedule_group_ids = ?', 'updated_at = ?');
-  params.push(expression, scheduleDateRange, JSON.stringify(groupIds), new Date().toISOString());
+  updates.push('cron_schedule = ?', 'schedule_date_range = ?', 'schedule_group_ids = ?', 'scraping_providers = ?', 'updated_at = ?');
+  params.push(expression, scheduleDateRange, JSON.stringify(groupIds), JSON.stringify(schedProviders), new Date().toISOString());
   db.prepare(`UPDATE settings SET ${updates.join(', ')} WHERE profile_id = ?`).run(...params, profileId);
 
   const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
   const tz = settings?.timezone || 'Asia/Yerevan';
-  startSchedule(profileId, expression, tz, scheduleDateRange, groupIds);
-  res.json({ success: true, expression, timezone: tz, schedule_date_range: scheduleDateRange, schedule_group_ids: groupIds });
+  startSchedule(profileId, expression, tz, scheduleDateRange, groupIds, schedProviders);
+  res.json({ success: true, expression, timezone: tz, schedule_date_range: scheduleDateRange, schedule_group_ids: groupIds, scraping_providers: schedProviders });
 });
 
 router.post('/schedule/stop', (req: Request, res: Response) => {
@@ -820,7 +839,7 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   if (!openaiKey) { res.status(400).json({ error: 'OpenAI API key not configured.' }); return; }
 
   const prompt = settings?.cv_comparison_prompt?.trim() || DEFAULT_CV_COMPARISON_PROMPT;
-  const model = settings?.ai_model || 'gpt-5.4';
+  const model = settings?.ai_model_hard || 'gpt-5.4';
   const jobText = `JOB TITLE: ${job.title}\nCOMPANY: ${job.company}\nLOCATION: ${job.location || 'N/A'}\nWORK MODE: ${job.work_mode || 'N/A'}\n\nDESCRIPTION:\n${(job.description || '').substring(0, 12000)}`;
 
   try {

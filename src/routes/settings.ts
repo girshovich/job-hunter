@@ -48,12 +48,10 @@ router.post('/', (req: Request, res: Response) => {
   try {
     const body = req.body as Record<string, string | string[]>;
 
-    const provider = String(body.scraping_provider || 'harvestapi');
-    const validProviders = ['harvestapi', 'valig'];
-
     db.prepare(`
       UPDATE settings SET
         ai_model = ?,
+        ai_model_hard = ?,
         dedup_system_prompt = ?,
         summary_prompt = ?,
         cv_comparison_prompt = ?,
@@ -63,14 +61,14 @@ router.post('/', (req: Request, res: Response) => {
         resend_api_key = ?,
         email_from = ?,
         email_enabled = ?,
-        scraping_provider = ?,
         timezone = ?,
         languages = ?,
         current_location = ?,
         updated_at = ?
       WHERE profile_id = ?
     `).run(
-      String(body.ai_model || 'gpt-5.4'),
+      String(body.ai_model || 'gpt-5.4-mini'),
+      String(body.ai_model_hard || 'gpt-5.4'),
       String(body.dedup_system_prompt || ''),
       String(body.summary_prompt || ''),
       String(body.cv_comparison_prompt || ''),
@@ -80,7 +78,6 @@ router.post('/', (req: Request, res: Response) => {
       String(body.resend_api_key || ''),
       String(body.email_from || ''),
       (body.email_enabled === 'on' || body.email_enabled === '1') ? 1 : 0,
-      validProviders.includes(provider) ? provider : 'harvestapi',
       String(body.timezone || 'UTC'),
       String(body.languages || ''),
       String(body.current_location || ''),
