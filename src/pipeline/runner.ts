@@ -592,7 +592,13 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
     if (settings.email_enabled !== 0) {
       try {
-        await sendDailyReport(emailStats, settings.email_recipient, resendApiKey, emailFrom);
+        const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
+        const recipientEmail = profileEmailRow?.email || '';
+        if (!recipientEmail) {
+          console.warn('[runner] No profile email configured, skipping email report.');
+        } else {
+          await sendDailyReport(emailStats, recipientEmail, resendApiKey, emailFrom);
+        }
       } catch (err) {
         const msg = `Email send error: ${(err as Error).message}`;
         console.error('[runner]', msg);

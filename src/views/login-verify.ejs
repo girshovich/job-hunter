@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Job Hunter — Login</title>
+  <title>Job Hunter — Enter Code</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -11,39 +11,42 @@
     <img src="/capy.png" alt="" class="w-28 h-28 object-contain rounded-xl" />
 
     <div class="w-full text-center">
-      <h1 class="text-lg font-semibold text-gray-900">
-        <% if (firstRun) { %>Create your account<% } else { %>Sign in<% } %>
-      </h1>
+      <h1 class="text-lg font-semibold text-gray-900">Check your email</h1>
       <p class="text-xs text-gray-500 mt-1">
-        <% if (firstRun) { %>
-          First run — enter your email to create the admin account.
-        <% } else { %>
-          Enter your email to receive a login code.
-        <% } %>
+        We sent a 6-digit code to<br/>
+        <span class="font-medium text-gray-700"><%= email %></span>
       </p>
     </div>
 
-    <% if (message) { %>
-      <p class="w-full text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-center -mb-2"><%= message %></p>
-    <% } %>
     <% if (error) { %>
       <p class="w-full text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center -mb-2"><%= error %></p>
     <% } %>
 
-    <form method="POST" action="/login/request" class="w-full flex flex-col gap-3">
+    <form method="POST" action="/login/verify" class="w-full flex flex-col gap-3">
+      <input type="hidden" name="email" value="<%= email %>" />
       <input
-        type="email"
-        name="email"
-        placeholder="you@example.com"
+        type="text"
+        name="code"
+        placeholder="000000"
         autofocus
         required
-        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        maxlength="6"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        class="w-full px-4 py-3 border border-gray-300 rounded-lg text-2xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <button
         type="submit"
         class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
       >
-        <% if (firstRun) { %>Create Account<% } else { %>Send Code<% } %>
+        Verify Code
+      </button>
+    </form>
+
+    <form method="POST" action="/login/request">
+      <input type="hidden" name="email" value="<%= email %>" />
+      <button type="submit" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+        Resend code
       </button>
     </form>
   </div>

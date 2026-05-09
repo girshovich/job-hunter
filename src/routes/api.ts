@@ -8,7 +8,7 @@ import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
-import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobRow, type CvRow, DEFAULT_CV_COMPARISON_PROMPT } from '../db';
+import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobRow, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
 import { config } from '../config';
 import { checkOpenAiBalance } from '../utils/openaiBalance';
 import OpenAI from 'openai';
@@ -124,8 +124,13 @@ router.post('/test-email', async (req: Request, res: Response) => {
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(req.profile.id) as SettingsRow;
     const resendApiKey = settings.resend_api_key || config.resendApiKey;
     const emailFrom = settings.email_from || config.emailFrom;
-    await sendTestEmail(settings.email_recipient, resendApiKey, emailFrom);
-    res.json({ success: true, message: `Test email sent to ${settings.email_recipient}` });
+    const profileRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(req.profile.id) as { email: string } | undefined;
+    const recipientEmail = profileRow?.email || '';
+    if (!recipientEmail) {
+      return res.status(400).json({ success: false, error: 'No profile email configured.' });
+    }
+    await sendTestEmail(recipientEmail, resendApiKey, emailFrom);
+    res.json({ success: true, message: `Test email sent to ${recipientEmail}` });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });
   }
@@ -199,6 +204,63 @@ router.post('/test/resend', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(400).json({ success: false, error: (err as Error).message });
   }
+});
+
+// ── Admin: create profile ──
+router.post('/profiles', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) {
+    return res.status(403).json({ success: false, error: 'Admin only.' });
+  }
+  const db = getDb();
+  const body = req.body as Record<string, string>;
+  const email = String(body.email || '').trim().toLowerCase();
+
+  if (!email || !email.includes('@') || !email.includes('.')) {
+    return res.status(400).json({ success: false, error: 'Invalid email.' });
+  }
+  const existing = db.prepare('SELECT id FROM profiles WHERE email = ?').get(email);
+  if (existing) {
+    return res.status(400).json({ success: false, error: 'A profile with this email already exists.' });
+  }
+
+  const now = new Date().toISOString();
+  const result = db.prepare('INSERT INTO profiles (email, is_admin, created_at) VALUES (?, 0, ?)').run(email, now);
+  const newId = result.lastInsertRowid as number;
+
+  const settingsExist = db.prepare('SELECT id FROM settings WHERE profile_id = ?').get(newId);
+  if (!settingsExist) {
+    db.prepare(`
+      INSERT INTO settings (profile_id, email_recipient, email_send_time, updated_at)
+      VALUES (?, ?, '07:00', ?)
+    `).run(newId, email, now);
+  }
+
+  res.json({ success: true, profile: { id: newId, email, is_admin: 0, created_at: now } });
+});
+
+// ── Admin: delete profile ──
+router.post('/profiles/:id/delete', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) {
+    return res.status(403).json({ success: false, error: 'Admin only.' });
+  }
+  const targetId = parseInt(req.params.id, 10);
+  if (targetId === req.profile.id) {
+    return res.status(400).json({ success: false, error: 'Cannot delete your own account.' });
+  }
+
+  const db = getDb();
+  const target = db.prepare('SELECT * FROM profiles WHERE id = ?').get(targetId) as ProfileRow | undefined;
+  if (!target) {
+    return res.status(404).json({ success: false, error: 'Profile not found.' });
+  }
+  if (target.is_admin === 1) {
+    return res.status(400).json({ success: false, error: 'Cannot delete the admin account.' });
+  }
+
+  db.prepare('DELETE FROM sessions WHERE profile_id = ?').run(targetId);
+  db.prepare('DELETE FROM profiles WHERE id = ?').run(targetId);
+
+  res.json({ success: true });
 });
 
 // Fetch-only preview — runs the Apify actor for all groups, returns raw job list, no scoring/storage

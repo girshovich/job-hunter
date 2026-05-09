@@ -1,8 +1,9 @@
-import * as crypto from 'crypto';
 import * as path from 'path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
 import { getDb } from './db';
+import type { ProfileRow, SessionRow } from './db';
+import { authRouter, SESSION_COOKIE, SESSION_DAYS } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
 import { settingsRouter } from './routes/settings';
 import { apiRouter } from './routes/api';
@@ -10,82 +11,61 @@ import { reportsRouter } from './routes/reports';
 import { jobsRouter } from './routes/jobs';
 import { analyticsRouter } from './routes/analytics';
 import { rundiffRouter } from './routes/rundiff';
-import { runPipeline } from './pipeline/runner';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
-
-// --- Express App ---
 
 const app = express();
 
-// Template engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Body parsing (before middleware that reads req.body)
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Static files (images, etc.) — served before auth
+// Static files served before auth gate
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Auth ---
-// Login page is registered before the auth middleware so it doesn't require auth.
-// It also runs before the layout helper, so res.render('login') sends the page directly.
+// ── Auth routes (unprotected) ──
+app.use('/', authRouter);
 
-const SESSION_TOKEN = config.dashboardPass
-  ? crypto.createHash('sha256').update('job-hunter-session-v1:' + config.dashboardPass).digest('hex')
-  : crypto.randomBytes(32).toString('hex');
-
-app.get('/login', (_req: Request, res: Response) => {
-  if (!config.dashboardPass) { res.redirect('/'); return; }
-  res.render('login', { error: null });
-});
-
-app.post('/login', (req: Request, res: Response) => {
-  const pass = String((req.body as Record<string, unknown>).password || '');
-  if (pass === config.dashboardPass) {
-    res.setHeader('Set-Cookie', `auth=${SESSION_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
-    res.redirect('/');
-  } else {
-    res.render('login', { error: 'Wrong password.' });
-  }
-});
-
-// Auth gate — protects all routes below
-app.use((_req: Request, res: Response, next: NextFunction) => {
-  if (!config.dashboardPass) { next(); return; }
-  const cookieHeader = _req.headers.cookie || '';
-  const match = cookieHeader.match(/(?:^|;\s*)auth=([^;]+)/);
-  if (match && match[1] === SESSION_TOKEN) { next(); return; }
-  res.redirect('/login');
-});
-
-// Profile middleware — reads active_profile_id cookie, attaches req.profile + res.locals.activeProfile
-const PROFILES: Record<number, string> = { 1: 'Mikhail', 2: 'Arina' };
-
+// ── Session auth gate ──
 app.use((req: Request, res: Response, next: NextFunction) => {
   const cookieHeader = req.headers.cookie || '';
-  const match = cookieHeader.match(/(?:^|;\s*)active_profile_id=(\d+)/);
-  const rawId = match ? parseInt(match[1], 10) : 1;
-  const profileId = (rawId === 1 || rawId === 2) ? rawId : 1;
-  req.profile = { id: profileId, name: PROFILES[profileId] };
+  const match = cookieHeader.match(/(?:^|;\s*)jh_session=([^;]+)/);
+  if (!match) { res.redirect('/login'); return; }
+
+  const db = getDb();
+  const token = match[1];
+  const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token) as SessionRow | undefined;
+
+  if (!session || new Date(session.expires_at) < new Date()) {
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly`);
+    res.redirect('/login');
+    return;
+  }
+
+  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(session.profile_id) as ProfileRow | undefined;
+  if (!profile) {
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly`);
+    res.redirect('/login');
+    return;
+  }
+
+  // Extend session (rolling 30 days)
+  const newExpiry = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+  const now = new Date().toISOString();
+  db.prepare('UPDATE sessions SET expires_at = ?, last_active = ? WHERE id = ?').run(newExpiry, now, session.id);
+
+  req.profile = {
+    id: profile.id,
+    email: profile.email,
+    displayName: profile.email.split('@')[0],
+    isAdmin: profile.is_admin === 1,
+  };
   res.locals.activeProfile = req.profile;
   next();
 });
 
-// Profile switch endpoint (must be before routers)
-app.post('/api/profile/switch', (req: Request, res: Response) => {
-  const rawId = parseInt(String((req.body as Record<string, unknown>).profile_id || '1'), 10);
-  const profileId = (rawId === 1 || rawId === 2) ? rawId : 1;
-  const redirectTo = req.headers.referer || '/';
-  res.setHeader(
-    'Set-Cookie',
-    `active_profile_id=${profileId}; Path=/; HttpOnly; SameSite=Lax`,
-  );
-  res.redirect(redirectTo);
-});
-
-// EJS layout helper — wraps views in layout.ejs
+// ── EJS layout wrapper ──
 app.use((req, res, next) => {
   const originalRender = res.render.bind(res);
   res.render = function (view: string, locals?: object) {
@@ -100,7 +80,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
+// ── Application routes ──
 app.use('/', dashboardRouter);
 app.use('/settings', settingsRouter);
 app.use('/api', apiRouter);
@@ -109,9 +89,12 @@ app.use('/jobs', jobsRouter);
 app.use('/analytics', analyticsRouter);
 app.use('/run-diff', rundiffRouter);
 
-// 404 handler
+// 404
 app.use((_req, res) => {
-  res.status(404).render('layout', { body: '<div class="py-20 text-center text-gray-400">Page not found.</div>', title: '404' });
+  res.status(404).render('layout', {
+    body: '<div class="py-20 text-center text-gray-400">Page not found.</div>',
+    title: '404',
+  });
 });
 
 // Error handler
@@ -123,28 +106,17 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   });
 });
 
-// --- Process-level error guards ---
-
 process.on('unhandledRejection', (reason) => {
-  console.error('[process] Unhandled rejection (server kept alive):', reason);
+  console.error('[process] Unhandled rejection:', reason);
 });
-
 process.on('uncaughtException', (err) => {
-  console.error('[process] Uncaught exception (server kept alive):', err);
+  console.error('[process] Uncaught exception:', err);
 });
-
-// --- Bootstrap ---
 
 async function start(): Promise<void> {
-  // Initialize DB (schema + seed)
   getDb();
-  console.log(`[db] SQLite ready at ${config.dbPath}`);
-
-  // Start web server
-  app.listen(config.port, () => {
-    console.log(`[server] Dashboard running at http://localhost:${config.port}`);
-    console.log(`[server] Auth: password-only login${config.dashboardPass ? '' : ' (DASHBOARD_PASS not set — open access)'}`);
-  });
+  console.log(`[server] Dashboard running at http://localhost:${config.port}`);
+  app.listen(config.port);
 }
 
 start().catch((err) => {

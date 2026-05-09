@@ -779,3 +779,74 @@ function initSettings(activeTab) {
   snapshotForm('profile');
   snapshotForm('ai');
 }
+
+// ── Admin: Profile CRUD ──
+
+async function createProfile() {
+  const input = document.getElementById('new-profile-email');
+  const msgEl = document.getElementById('profiles-msg');
+  const email = input.value.trim();
+  if (!email) return;
+
+  msgEl.classList.add('hidden');
+  try {
+    const res = await fetch('/api/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      msgEl.textContent = data.error || 'Failed to create profile.';
+      msgEl.className = 'text-xs mt-2 text-red-600';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+    const list = document.getElementById('profiles-list');
+    const initial = email.charAt(0).toUpperCase();
+    const handle = email.split('@')[0];
+    const div = document.createElement('div');
+    div.id = 'profile-row-' + data.profile.id;
+    div.className = 'flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200';
+    div.innerHTML = `
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${escHtml(initial)}</div>
+        <div class="min-w-0">
+          <p class="text-sm text-gray-900 font-medium truncate">${escHtml(handle)}</p>
+          <p class="text-xs text-gray-400 truncate">${escHtml(email)}</p>
+        </div>
+      </div>
+      <button type="button" onclick="deleteProfile(${data.profile.id}, '${escHtml(email)}')"
+              class="text-xs text-red-500 hover:text-red-700 hover:underline flex-shrink-0">Delete</button>`;
+    list.appendChild(div);
+    input.value = '';
+    msgEl.textContent = 'Profile created. They can now log in with their email.';
+    msgEl.className = 'text-xs mt-2 text-emerald-600';
+    msgEl.classList.remove('hidden');
+    setTimeout(() => msgEl.classList.add('hidden'), 4000);
+  } catch (e) {
+    msgEl.textContent = 'Network error.';
+    msgEl.className = 'text-xs mt-2 text-red-600';
+    msgEl.classList.remove('hidden');
+  }
+}
+
+async function deleteProfile(id, email) {
+  if (!confirm(`Delete profile "${email}"? Their data will not be erased but they will lose access.`)) return;
+  const msgEl = document.getElementById('profiles-msg');
+  try {
+    const res = await fetch(`/api/profiles/${id}/delete`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) {
+      msgEl.textContent = data.error || 'Failed to delete profile.';
+      msgEl.className = 'text-xs mt-2 text-red-600';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+    document.getElementById('profile-row-' + id)?.remove();
+  } catch (e) {
+    msgEl.textContent = 'Network error.';
+    msgEl.className = 'text-xs mt-2 text-red-600';
+    msgEl.classList.remove('hidden');
+  }
+}

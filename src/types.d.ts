@@ -1,7 +1,11 @@
-// Express Request augmentation — adds profile context set by profile middleware
-
+// Express Request augmentation — profile context set by session middleware
 declare namespace Express {
   interface Request {
-    profile: { id: number; name: string };
+    profile: {
+      id: number;
+      email: string;
+      displayName: string;  // email part before @
+      isAdmin: boolean;
+    };
   }
 }

@@ -138,6 +138,53 @@ export function getDb(): Database {
 }
 
 function runMigrations(db: Database): void {
+  // v29: profiles / sessions / otp_codes tables + seed from settings.email_recipient
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS profiles (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      email      TEXT NOT NULL UNIQUE,
+      is_admin   INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+    db.exec(`CREATE TABLE IF NOT EXISTS sessions (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      token       TEXT NOT NULL UNIQUE,
+      profile_id  INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at  TEXT NOT NULL,
+      last_active TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+    db.exec(`CREATE TABLE IF NOT EXISTS otp_codes (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      email      TEXT NOT NULL,
+      code       TEXT NOT NULL,
+      attempts   INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      used       INTEGER NOT NULL DEFAULT 0
+    )`);
+
+    // Seed profiles from settings.email_recipient (existing installs only)
+    const profileCount = (db.prepare('SELECT COUNT(*) as c FROM profiles').get() as { c: number }).c;
+    if (profileCount === 0) {
+      const rows = db.prepare(
+        `SELECT profile_id, email_recipient FROM settings
+         WHERE email_recipient != '' ORDER BY profile_id ASC`
+      ).all() as Array<{ profile_id: number; email_recipient: string }>;
+      for (const row of rows) {
+        const isAdmin = row.profile_id === 1 ? 1 : 0;
+        try {
+          db.prepare(
+            'INSERT OR IGNORE INTO profiles (id, email, is_admin) VALUES (?, ?, ?)'
+          ).run(row.profile_id, row.email_recipient.trim().toLowerCase(), isAdmin);
+          console.log(`[db] Migration v29: seeded profile id=${row.profile_id} (${row.email_recipient})`);
+        } catch (_) {}
+      }
+    }
+  } catch (err) {
+    console.warn('[db] Migration v29 (profiles/sessions/otp) failed:', (err as Error).message);
+  }
+
   // v6→v7: rename search_geocodes → search_locations, convert [{geocode,label}] → [string]
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
@@ -922,6 +969,42 @@ function initSchema(db: Database): void {
       ai_updated_at          TEXT    NOT NULL DEFAULT '',
       updated_at             TEXT    NOT NULL DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS profiles (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      email      TEXT NOT NULL UNIQUE,
+      is_admin   INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      token       TEXT NOT NULL UNIQUE,
+      profile_id  INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at  TEXT NOT NULL,
+      last_active TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS otp_codes (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      email      TEXT NOT NULL,
+      code       TEXT NOT NULL,
+      attempts   INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      used       INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS email_change_requests (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      new_email  TEXT NOT NULL,
+      token      TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      used       INTEGER NOT NULL DEFAULT 0
+    );
   `);
 }
 
@@ -1012,6 +1095,42 @@ function seedSettings(db: Database): void {
 }
 
 // ---- Row types ----
+
+export interface ProfileRow {
+  id: number;
+  email: string;
+  is_admin: number;   // 1 = admin, 0 = regular
+  created_at: string;
+}
+
+export interface SessionRow {
+  id: number;
+  token: string;
+  profile_id: number;
+  created_at: string;
+  expires_at: string;
+  last_active: string;
+}
+
+export interface OtpCodeRow {
+  id: number;
+  email: string;
+  code: string;
+  attempts: number;
+  created_at: string;
+  expires_at: string;
+  used: number;  // 0 = active, 1 = consumed/invalidated
+}
+
+export interface EmailChangeRequestRow {
+  id: number;
+  profile_id: number;
+  new_email: string;
+  token: string;
+  created_at: string;
+  expires_at: string;
+  used: number;  // 0 = pending, 1 = confirmed/cancelled
+}
 
 export interface JobRow {
   id: number;
