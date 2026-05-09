@@ -1,3 +1,21 @@
+// ---- Prompt defaults ----
+
+const _DEFAULT_SCORING_CRITERIA = [
+  'Profile matches expected experience (up to 40): domain, complexity, results, skills;',
+  'Role description matches any of the Desired roles (up to 40): compelling scope and responsibilities, seniority, title, team size;',
+  'Preferred industry (up to 10);',
+  'Company quality (up to 10): known brand, growth trajectory.',
+].join('\n');
+
+const _DEFAULT_NO_MATCH_CRITERIA = [
+  'a) job location isn\'t one of the preferred location areas',
+  'b) current location isn\'t one of the preferred location areas, and the job description explicitly says no visa or relocation help provided',
+  'c) job posting mostly written in any language besides the "preferred languages"',
+  'd) knowledge of any language besides the "preferred languages" is stated as mandatory',
+  'e) job is in online gambling or betting industry',
+  'f) job is a fixed-term contract',
+].join('\n');
+
 // ---- Preview Fetch ----
 
 async function fetchPreview(btn) {
@@ -280,8 +298,8 @@ function openGroupModal(id) {
     document.getElementById('modal-profile-description').value = tpl ? (tpl.profile_description || '') : '';
     document.getElementById('modal-industries').value = tpl ? (tpl.industries_list || '') : '';
     document.getElementById('modal-other-expectations').value = tpl ? (tpl.other_expectations || '') : '';
-    document.getElementById('modal-scoring-criteria').value = tpl ? (tpl.scoring_criteria || '') : '';
-    document.getElementById('modal-no-match-criteria').value = tpl ? (tpl.no_match_criteria || '') : '';
+    document.getElementById('modal-scoring-criteria').value = tpl ? (tpl.scoring_criteria || _DEFAULT_SCORING_CRITERIA) : _DEFAULT_SCORING_CRITERIA;
+    document.getElementById('modal-no-match-criteria').value = tpl ? (tpl.no_match_criteria || _DEFAULT_NO_MATCH_CRITERIA) : _DEFAULT_NO_MATCH_CRITERIA;
     document.getElementById('modal-no-match-max').value = '50';
     document.getElementById('modal-weak-match-max').value = '70';
     document.getElementById('modal-strong-match-min').value = '71';
@@ -303,8 +321,8 @@ function openGroupModal(id) {
     document.getElementById('modal-profile-description').value = g.profile_description || '';
     document.getElementById('modal-industries').value = g.industries_list || '';
     document.getElementById('modal-other-expectations').value = g.other_expectations || '';
-    document.getElementById('modal-scoring-criteria').value = g.scoring_criteria || '';
-    document.getElementById('modal-no-match-criteria').value = g.no_match_criteria || '';
+    document.getElementById('modal-scoring-criteria').value = g.scoring_criteria || _DEFAULT_SCORING_CRITERIA;
+    document.getElementById('modal-no-match-criteria').value = g.no_match_criteria || _DEFAULT_NO_MATCH_CRITERIA;
     document.getElementById('modal-no-match-max').value = g.score_no_match_max;
     document.getElementById('modal-weak-match-max').value = g.score_weak_match_max;
     document.getElementById('modal-strong-match-min').value = g.score_strong_match_min;

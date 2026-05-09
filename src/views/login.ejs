@@ -32,11 +32,13 @@
 
     <form method="POST" action="/login/request" class="w-full flex flex-col gap-3">
       <input
-        type="email"
+        type="text"
+        inputmode="email"
         name="email"
         placeholder="you@example.com"
         autofocus
-        required
+        autocomplete="email"
+        autocapitalize="off"
         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <button

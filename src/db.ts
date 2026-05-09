@@ -185,6 +185,34 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v29 (profiles/sessions/otp) failed:', (err as Error).message);
   }
 
+  // vDEFAULT: seed default scoring_criteria and no_match_criteria for groups that have none
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'vDEFAULT_scoring'`).get();
+    if (!done) {
+      const defaultScoringCriteria = [
+        'Profile matches expected experience (up to 40): domain, complexity, results, skills;',
+        'Role description matches any of the Desired roles (up to 40): compelling scope and responsibilities, seniority, title, team size;',
+        'Preferred industry (up to 10);',
+        'Company quality (up to 10): known brand, growth trajectory.',
+      ].join('\n');
+      const defaultNoMatchCriteria = [
+        'a) job location isn\'t one of the preferred location areas',
+        'b) current location isn\'t one of the preferred location areas, and the job description explicitly says no visa or relocation help provided',
+        'c) job posting mostly written in any language besides the "preferred languages"',
+        'd) knowledge of any language besides the "preferred languages" is stated as mandatory',
+        'e) job is in online gambling or betting industry',
+        'f) job is a fixed-term contract',
+      ].join('\n');
+      db.prepare(`UPDATE search_groups SET scoring_criteria = ? WHERE scoring_criteria = ''`).run(defaultScoringCriteria);
+      db.prepare(`UPDATE search_groups SET no_match_criteria = ? WHERE no_match_criteria = ''`).run(defaultNoMatchCriteria);
+      db.exec(`INSERT INTO _migrations VALUES ('vDEFAULT_scoring')`);
+      console.log('[db] Migration vDEFAULT_scoring: seeded default scoring_criteria and no_match_criteria');
+    }
+  } catch (err) {
+    console.warn('[db] Migration vDEFAULT_scoring failed (non-fatal):', (err as Error).message);
+  }
+
   // v6→v7: rename search_geocodes → search_locations, convert [{geocode,label}] → [string]
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
