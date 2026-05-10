@@ -142,5 +142,6 @@ export async function fetchWithStepStone(
   }
 
   console.log(`[stepstone] ${jobs.length} unique jobs after time-window filter (from ${totalItems} raw)`);
-  return { jobs, apifyCostUsd: null };
+  const apifyCostUsd = calls.length * 0.001 + totalItems * (1.00 / 1000);
+  return { jobs, apifyCostUsd };
 }

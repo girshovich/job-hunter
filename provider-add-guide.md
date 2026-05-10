@@ -1,33 +1,50 @@
 # Adding a New Scraping Provider
 
-This guide covers every file that must be changed when adding a new Apify-based job provider. Follow the steps in order. Each step has a "verify" note — do not skip them.
+This guide has two parts:
+1. **What to gather first** — information to find or ask the PM for before writing any code.
+2. **Implementation steps** — every file that must be changed, in order.
 
 ---
 
-## Conventions
+## Part 1 — Information to gather before starting
+
+Do not start implementing until you have answers to everything below. Some answers come from the Apify actor page; others require asking the PM.
+
+### Ask the PM
+
+| Question | Why it matters |
+|---|---|
+| What is the Apify actor ID? | Needed for `ACTOR_ID` constant and UI labels. |
+| What internal key should this provider use? (`<id>`, lowercase, no spaces) | Used as the `provider` field in the DB, URL params, and whitelist. |
+| What is the human-readable platform name? (`<Source>`) | Used in badges, "View on X" buttons, email reports. |
+| Which countries/regions should this provider cover? | Determines whether country-code mapping is needed (Step 1a). |
+| What is the actor's **result cost** ($/1,000 results) and **actor start cost**? | Required to implement cost tracking. Find on the actor's Apify page under the Pricing tab — screenshot and share. Do not guess. |
+| Does the actor have a separate external apply URL field (distinct from the job listing URL)? | Determines how `url` vs `applyUrl` are mapped. Getting this wrong shows the same URL for both "View on X" and "Apply on Website". |
+
+### Find yourself on the Apify actor page / console
+
+Run the actor once manually with representative inputs before writing any code. Confirm:
+
+- **Exact input field names** — actors vary: `title` vs `query` vs `keyword`, `location` vs `city`, `country` vs `countryCode`.
+- **Location format** — does it take a city name (`"Amsterdam"`), a country name (`"Netherlands"`), a country code (`"nl"`), or city + country code separately? The actor's own schema example is the ground truth.
+- **Country code values** — if the actor uses codes, check the exact allowed values. They are not always standard ISO 3166-1 alpha-2. (Indeed uses `"uk"` not `"gb"`.)
+- **Supported countries** — passing an unsupported country value causes a runtime error, not a graceful empty result. Get the full list.
+- **Date filter parameter** — what values does it accept? (`"1"`, `"7"`, `"last24Hours"`, an integer, etc.)
+- **Unique job ID field** — which output field uniquely identifies a job posting? (Used as `jobId` for deduplication.)
+- **Work mode field** — how does the actor encode remote/hybrid/onsite? (Numeric code, string, separate boolean?)
+- **Posted date field** — is it an ISO timestamp, a Unix epoch, a relative string? Does it need `.split('T')[0]`?
+
+### Conventions used in this document
 
 | Term | Meaning |
 |---|---|
 | `<id>` | Internal provider key, lowercase, no spaces. Examples: `glassdoor`, `xing` |
 | `<Source>` | Human-readable job platform name. Examples: `Glassdoor`, `Xing` |
 | `<Actor>` | Full Apify actor ID. Example: `apify/glassdoor-jobs-scraper` |
-| `<Letter>` | Single uppercase letter for the source badge. Examples: `G`, `X` |
-
-Decide all four before starting.
 
 ---
 
-## Step 0 — Verify the actor's input schema
-
-Before writing any code, run the actor manually on the Apify console with representative inputs and confirm:
-
-- **Exact field names** — actors vary (`title` vs `query` vs `keyword`, `location` vs `city`, `country` vs `countryCode`).
-- **Location format** — does it take a raw city name ("Amsterdam"), a country name ("Netherlands"), a country code ("nl"), or both separately?
-- **Country code values** — if the actor takes a code, check the exact allowed values. They are not always ISO 3166-1 alpha-2 (Indeed uses `"uk"` not `"gb"`).
-- **Supported countries** — some actors only cover a subset of countries. Passing an unsupported value causes a runtime error, not a graceful empty result.
-- **Date filter parameter** — what values does it accept for recency filtering? (`"1"`, `"7"`, `"last24Hours"`, an integer, etc.)
-
-Record all of this before moving to Step 1.
+## Part 2 — Implementation steps
 
 ---
 
@@ -74,8 +91,10 @@ export async function fetchWith<PascalId>(
   // ... build calls array (keyword × location) ...
   const seen = new Set<string>();
   const jobs: JobPosting[] = [];
-  // ... run actor, dedupe by jobId, filter by time window ...
-  return { jobs, apifyCostUsd: null };
+  let totalItems = 0;
+  // ... run actor, dedupe by jobId, filter by time window, count totalItems ...
+  const apifyCostUsd = calls.length * 0.001 + totalItems * (RESULT_PRICE_PER_1K / 1000);
+  return { jobs, apifyCostUsd };
 }
 ```
 
@@ -84,6 +103,7 @@ export async function fetchWith<PascalId>(
 - Always call `filterByTimeWindow(job, dateRange)` before adding to results.
 - Always truncate `description` to `20_000` chars.
 - Set `waitSecs: 900` on all `.call()` invocations.
+- **Never return `apifyCostUsd: null`** unless the actor's run object exposes `usageTotalUsd` reliably (HarvestAPI does; valig actors do not). For valig-based actors, calculate cost manually: `calls.length * 0.001 + totalItems * (pricePerResult / 1000)`. Find the actor's pricing on its Apify page — look for "Result" ($/1,000) and "Actor start" costs. `totalItems` is the raw item count before dedup/filtering, and `calls.length` is the number of `.call()` invocations.
 
 **Verify:** `npx tsc --noEmit` passes with no errors.
 
@@ -360,9 +380,21 @@ Then restart the server and:
 
 ## Checklist
 
+**Before coding**
 ```
-[ ] Step 0: actor schema verified manually on Apify console (field names, location format, country codes, date filter)
-[ ] src/pipeline/providers/<id>.ts — created, jobSource set correctly
+[ ] Actor ID confirmed
+[ ] Internal <id> and <Source> name agreed with PM
+[ ] Result cost ($/1,000) and actor start cost confirmed from Apify pricing tab
+[ ] Actor input schema verified by manual test run: field names, location format, country codes, date filter
+[ ] Unique job ID field identified
+[ ] Work mode field format understood
+[ ] External apply URL field clarified (is it separate from the listing URL?)
+[ ] Supported countries listed (if country-gated)
+```
+
+**Implementation**
+```
+[ ] src/pipeline/providers/<id>.ts — created, jobSource set correctly, apifyCostUsd calculated (not null)
 [ ] Step 1a (if country-gated): resolveCountries() wired up, toActorLocation() strips LinkedIn labels, unsupported countries skipped with log, HARDCODED map updated if needed, bad DB cache entries deleted
 [ ] src/pipeline/types.ts — JobSource union updated, providerToSource updated
 [ ] src/pipeline/fetcher.ts — new import + route added

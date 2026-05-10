@@ -200,5 +200,6 @@ export async function fetchWithIndeed(
   }
 
   console.log(`[indeed] ${jobs.length} unique jobs after time-window filter (from ${totalItems} raw)`);
-  return { jobs, apifyCostUsd: null };
+  const apifyCostUsd = calls.length * 0.001 + totalItems * (0.10 / 1000);
+  return { jobs, apifyCostUsd };
 }
