@@ -46,6 +46,14 @@ function calcOpenAiCost(model: string, inputTokens: number, cachedInputTokens: n
   );
 }
 
+// Strip common legal entity suffixes so "Every. GmbH" and "Every." share the same key.
+function normalizeCompany(name: string): string {
+  return name
+    .replace(/[\s,]+(GmbH(?:\s*&\s*Co\.?\s*KG)?|AG|SE|KG|Inc\.?|Ltd\.?|LLC|LLP|Corp\.?|S\.A\.|BV|NV|Srl|SpA|SA|Plc\.?|AB|ApS|AS|OÜ|Oy|SAS|SRL|Pte\.?)\s*$/i, '')
+    .trim()
+    .toLowerCase();
+}
+
 function matchesTitleFilter(title: string, filter: string): boolean {
   const titleWords = new Set(title.toLowerCase().split(/\W+/).filter(Boolean));
   return filter
@@ -404,17 +412,19 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         let summary: string | null = null;
 
         if (scored.verdict === 'STRONG_MATCH') {
-          const companyKey = scored.job.company.toLowerCase().trim();
+          const companyKey = normalizeCompany(scored.job.company);
 
           // Stage 1: gather all same-company saved jobs (any verdict, no title filter)
           const inRunEntries = strongMatchesInRun.get(companyKey) ?? [];
           // Assign temporary negative IDs to in-run entries (not yet in DB)
           const inRunWithIds: ExistingJob[] = inRunEntries.map((e, i) => ({ ...e, id: -(i + 1) }));
+          // Match on normalized key (exact) OR on names that extend it with a legal suffix ("Every." → "Every. GmbH").
           const dbCandidates = db.prepare(`
             SELECT id, title, description FROM jobs
-            WHERE lower(company) = lower(?) AND is_duplicate = 0
+            WHERE (lower(company) = ? OR lower(company) LIKE ? || ' %')
+            AND is_duplicate = 0
             ORDER BY fetched_at DESC
-          `).all(scored.job.company) as ExistingJob[];
+          `).all(companyKey, companyKey) as ExistingJob[];
           const allCandidates: ExistingJob[] = [...inRunWithIds, ...dbCandidates];
 
           if (allCandidates.length > 0) {

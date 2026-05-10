@@ -124,7 +124,7 @@ function buildLocation(loc: IndeedJob['location']): string {
 function mapToJobPosting(item: IndeedJob): JobPosting | null {
   const jobId = item.key || '';
   if (!jobId) return null;
-  const url = item.jobUrl || item.url || '';
+  const url = item.url || item.jobUrl || '';
   const applyUrl = (item.jobUrl && item.jobUrl !== item.url) ? item.jobUrl : null;
   const description = (item.description?.text || '').substring(0, 20_000);
 
