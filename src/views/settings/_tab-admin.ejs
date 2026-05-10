@@ -1,0 +1,401 @@
+<!-- ==================== ADMIN TAB ==================== -->
+<div id="tab-pane-admin" class="<%= activeTab !== 'admin' ? 'hidden' : '' %> space-y-4">
+
+  <!-- Email Delivery -->
+  <form id="admin-email-form" method="post" action="/settings" class="">
+    <input type="hidden" name="tab" value="admin">
+    <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
+      <h2 class="text-base font-semibold text-gray-900 mb-1">Email Delivery</h2>
+      <p class="text-xs text-gray-500 mb-4">Used to send login codes and job reports to all users.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Sender email</label>
+          <input type="email" name="email_from" value="<%= settings.email_from %>"
+                 placeholder="jobs@yourdomain.com"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <div class="flex items-center gap-1 mb-1">
+            <label class="text-xs font-medium text-gray-600">Resend API Key</label>
+            <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer"
+               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your Resend API key">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </a>
+          </div>
+          <div class="relative">
+            <input id="resend-key-input" type="password" name="resend_api_key" value="<%= settings.resend_api_key %>"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-9 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                   placeholder="re_…" autocomplete="off" />
+            <button type="button" onclick="toggleEye('resend-key-input', this)"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button type="button" onclick="testApiKey('resend', 'resend-key-input', 'resend-test-status')"
+                class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+          Test key
+        </button>
+        <button type="button" id="test-email-btn" onclick="sendTestEmail(this)"
+                class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          Test Email
+        </button>
+        <button type="submit"
+                class="px-4 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+          Save
+        </button>
+      </div>
+      <p id="resend-test-status" class="text-xs mt-1 hidden"></p>
+      <p id="test-email-status" class="text-xs mt-1 hidden"></p>
+    </div>
+  </form>
+
+  <!-- Profiles -->
+  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-base font-semibold text-gray-900">Profiles</h2>
+        <p class="text-xs text-gray-500 mt-0.5">Manage accounts that can log into this app.</p>
+      </div>
+    </div>
+    <div class="space-y-2 mb-4" id="profiles-list">
+      <% allProfiles.forEach(function(p) { %>
+      <div class="flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200" id="profile-row-<%= p.id %>">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            <%= p.email.charAt(0).toUpperCase() %>
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm text-gray-900 font-medium truncate"><%= p.email.split('@')[0] %></p>
+            <p class="text-xs text-gray-400 truncate"><%= p.email %></p>
+          </div>
+          <% if (p.is_admin) { %>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium flex-shrink-0">admin</span>
+          <% } %>
+        </div>
+        <% if (!p.is_admin) { %>
+        <button type="button" onclick="deleteProfile(<%= p.id %>, '<%= p.email %>')"
+                class="text-xs text-red-500 hover:text-red-700 hover:underline flex-shrink-0">Delete</button>
+        <% } %>
+      </div>
+      <% }); %>
+    </div>
+    <div class="flex items-center gap-2" id="create-profile-area">
+      <input type="email" id="new-profile-email" placeholder="newuser@example.com"
+             class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+      <button type="button" onclick="createProfile()"
+              class="flex-shrink-0 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-2 rounded-lg transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add
+      </button>
+    </div>
+    <p id="profiles-msg" class="text-xs mt-2 hidden"></p>
+  </div>
+
+  <!-- ATS Board Discovery -->
+  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">ATS Board Discovery</h2>
+    <p class="text-xs text-gray-500 mb-4">
+      Discovers company job boards on Greenhouse, Lever, and Ashby via Common Crawl.
+      Validates boards weekly to keep the list current.
+    </p>
+
+    <!-- Stats -->
+    <div id="ats-stats" class="mb-5">
+      <p class="text-xs text-gray-400">Loading…</p>
+    </div>
+
+    <!-- Manual run buttons -->
+    <div class="flex gap-2 mb-6">
+      <button id="ats-discover-btn" type="button" onclick="atsRunDiscovery()"
+              class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+        Run Discovery Now
+      </button>
+      <button id="ats-validate-btn" type="button" onclick="atsRunValidation()"
+              class="px-3 py-2 text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors">
+        Run Validation Now
+      </button>
+      <span id="ats-action-status" class="text-xs text-gray-500 self-center hidden"></span>
+    </div>
+
+    <!-- Schedules -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      <!-- Discovery schedule -->
+      <div class="rounded-xl border border-gray-200 p-4">
+        <div class="flex items-center gap-2 mb-1">
+          <span id="ats-disc-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
+          <span class="text-sm font-semibold text-gray-800">Discovery</span>
+          <span class="text-xs text-gray-400">monthly</span>
+        </div>
+        <p id="ats-disc-status" class="text-xs text-gray-500 mb-3">Not scheduled</p>
+
+        <div class="space-y-2 mb-3">
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500 w-20 flex-shrink-0">Day of month</span>
+            <select id="ats-disc-day"
+                    class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+              <% for (let d = 1; d <= 28; d++) { %>
+              <option value="<%= d %>"><%= d %><%= d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th' %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500 w-20 flex-shrink-0">Run at</span>
+            <input type="time" id="ats-disc-time" value="03:00"
+                   class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="ats-disc-save-btn" type="button" onclick="atsDiscSave(true)"
+                  class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+            Enable
+          </button>
+          <button id="ats-disc-stop-btn" type="button" onclick="atsDiscSave(false)"
+                  class="hidden px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors">
+            Stop
+          </button>
+        </div>
+      </div>
+
+      <!-- Validation schedule -->
+      <div class="rounded-xl border border-gray-200 p-4">
+        <div class="flex items-center gap-2 mb-1">
+          <span id="ats-val-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
+          <span class="text-sm font-semibold text-gray-800">Validation</span>
+          <span class="text-xs text-gray-400">weekly</span>
+        </div>
+        <p id="ats-val-status" class="text-xs text-gray-500 mb-3">Not scheduled</p>
+
+        <div class="space-y-2 mb-3">
+          <div>
+            <span class="text-xs text-gray-500 block mb-1.5">Days</span>
+            <div class="flex flex-wrap gap-1.5">
+              <% [['Mon','1'],['Tue','2'],['Wed','3'],['Thu','4'],['Fri','5'],['Sat','6'],['Sun','0']].forEach(function(pair) { %>
+              <label class="flex items-center gap-1 cursor-pointer select-none">
+                <input type="checkbox" class="ats-val-day w-3.5 h-3.5 accent-blue-600" value="<%= pair[1] %>">
+                <span class="text-xs text-gray-700"><%= pair[0] %></span>
+              </label>
+              <% }); %>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500 w-20 flex-shrink-0">Run at</span>
+            <input type="time" id="ats-val-time" value="04:00"
+                   class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="ats-val-save-btn" type="button" onclick="atsValSave(true)"
+                  class="px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
+            Enable
+          </button>
+          <button id="ats-val-stop-btn" type="button" onclick="atsValSave(false)"
+                  class="hidden px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors">
+            Stop
+          </button>
+        </div>
+      </div>
+
+    </div><!-- end schedule grid -->
+  </div><!-- end ATS card -->
+
+</div><!-- end tab-pane-admin -->
+
+<script>
+const _DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function _parseCronDisc(cron) {
+  const p = (cron || '0 3 1 * *').split(' ');
+  const min = parseInt(p[0]) || 0, hr = parseInt(p[1]) || 3, day = parseInt(p[2]) || 1;
+  return { day, time: String(hr).padStart(2,'0') + ':' + String(min).padStart(2,'0') };
+}
+
+function _parseCronVal(cron) {
+  const p = (cron || '0 4 * * 1').split(' ');
+  const min = parseInt(p[0]) || 0, hr = parseInt(p[1]) || 4;
+  const days = (p[4] || '1').split(',').map(Number).filter(n => !isNaN(n));
+  return { days, time: String(hr).padStart(2,'0') + ':' + String(min).padStart(2,'0') };
+}
+
+function _discStatusText(day) {
+  const suf = day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th';
+  return `Runs on the ${day}${suf} of each month`;
+}
+
+function _valStatusText(days) {
+  if (!days.length) return 'No days selected';
+  const names = days.map(d => _DAY_NAMES[d]).join(', ');
+  return `Runs every ${names}`;
+}
+
+function _setDiscActive(enabled, day, time) {
+  const dot = document.getElementById('ats-disc-dot');
+  const status = document.getElementById('ats-disc-status');
+  const saveBtn = document.getElementById('ats-disc-save-btn');
+  const stopBtn = document.getElementById('ats-disc-stop-btn');
+  dot.classList.toggle('bg-emerald-400', enabled);
+  dot.classList.toggle('animate-pulse', enabled);
+  dot.classList.toggle('bg-gray-300', !enabled);
+  status.textContent = enabled ? `${_discStatusText(day)} at ${time}` : 'Not scheduled';
+  saveBtn.textContent = enabled ? 'Save changes' : 'Enable';
+  stopBtn.classList.toggle('hidden', !enabled);
+}
+
+function _setValActive(enabled, days, time) {
+  const dot = document.getElementById('ats-val-dot');
+  const status = document.getElementById('ats-val-status');
+  const saveBtn = document.getElementById('ats-val-save-btn');
+  const stopBtn = document.getElementById('ats-val-stop-btn');
+  dot.classList.toggle('bg-emerald-400', enabled);
+  dot.classList.toggle('animate-pulse', enabled);
+  dot.classList.toggle('bg-gray-300', !enabled);
+  status.textContent = enabled ? `${_valStatusText(days)} at ${time}` : 'Not scheduled';
+  saveBtn.textContent = enabled ? 'Save changes' : 'Enable';
+  stopBtn.classList.toggle('hidden', !enabled);
+}
+
+async function loadAtsStats() {
+  try {
+    const res = await fetch('/api/ats/status');
+    const data = await res.json();
+
+    if (data.settings) {
+      const discEnabled = !!data.settings.ats_discovery_enabled;
+      const valEnabled  = !!data.settings.ats_validation_enabled;
+      const disc = _parseCronDisc(data.settings.ats_discovery_cron);
+      const val  = _parseCronVal(data.settings.ats_validation_cron);
+
+      document.getElementById('ats-disc-day').value = disc.day;
+      document.getElementById('ats-disc-time').value = disc.time;
+      _setDiscActive(discEnabled, disc.day, disc.time);
+
+      document.getElementById('ats-val-time').value = val.time;
+      document.querySelectorAll('.ats-val-day').forEach(cb => {
+        cb.checked = val.days.includes(parseInt(cb.value));
+      });
+      _setValActive(valEnabled, val.days, val.time);
+    }
+
+    const statsEl = document.getElementById('ats-stats');
+    if (!statsEl) return;
+    if (!data.boards || !data.boards.length) {
+      statsEl.innerHTML = '<p class="text-xs text-gray-400">No boards discovered yet. Run Discovery to populate.</p>';
+      return;
+    }
+    const map = Object.fromEntries(data.boards.map(r => [r.ats, r]));
+    const fmt = t => t ? new Date(t).toLocaleDateString() : '—';
+    statsEl.innerHTML = `
+      <table class="w-full text-xs text-left border-collapse">
+        <thead><tr class="text-gray-400 border-b">
+          <th class="pb-1 pr-4 font-medium">ATS</th>
+          <th class="pb-1 pr-4 font-medium">Total</th>
+          <th class="pb-1 pr-4 font-medium">Active</th>
+          <th class="pb-1 pr-4 font-medium">Last discovery</th>
+          <th class="pb-1 font-medium">Last validation</th>
+        </tr></thead>
+        <tbody>
+          ${['greenhouse','lever','ashby'].map(ats => {
+            const r = map[ats] || {};
+            return `<tr class="border-b border-gray-50">
+              <td class="py-1 pr-4 font-medium capitalize">${ats}</td>
+              <td class="py-1 pr-4">${r.total || 0}</td>
+              <td class="py-1 pr-4">${r.active || 0}</td>
+              <td class="py-1 pr-4">${fmt(r.last_discovered)}</td>
+              <td class="py-1">${fmt(r.last_validated)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } catch (e) {
+    const el = document.getElementById('ats-stats');
+    if (el) el.innerHTML = '<p class="text-xs text-red-400">Failed to load stats.</p>';
+  }
+}
+
+async function _atsPost(body) {
+  const res = await fetch('/api/ats/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+function _buildDiscCron() {
+  const time = document.getElementById('ats-disc-time').value || '03:00';
+  const [h, m] = time.split(':').map(Number);
+  const day = parseInt(document.getElementById('ats-disc-day').value) || 1;
+  return `${m} ${h} ${day} * *`;
+}
+
+function _buildValCron() {
+  const time = document.getElementById('ats-val-time').value || '04:00';
+  const [h, m] = time.split(':').map(Number);
+  const days = [...document.querySelectorAll('.ats-val-day:checked')].map(cb => cb.value);
+  return `${m} ${h} * * ${days.join(',') || '1'}`;
+}
+
+async function atsDiscSave(enable) {
+  const btn = document.getElementById('ats-disc-save-btn');
+  btn.disabled = true;
+  const cron = enable ? _buildDiscCron() : (document.getElementById('ats-disc-day') ? _buildDiscCron() : '0 3 1 * *');
+  const data = await _atsPost({
+    discovery_enabled: enable,
+    discovery_cron: cron,
+    validation_enabled: !!document.getElementById('ats-val-dot').classList.contains('bg-emerald-400'),
+    validation_cron: _buildValCron(),
+  });
+  btn.disabled = false;
+  if (data.error) { alert(data.error); return; }
+  const disc = _parseCronDisc(cron);
+  _setDiscActive(enable, disc.day, disc.time);
+}
+
+async function atsValSave(enable) {
+  const btn = document.getElementById('ats-val-save-btn');
+  btn.disabled = true;
+  const days = [...document.querySelectorAll('.ats-val-day:checked')].map(cb => cb.value);
+  if (enable && days.length === 0) { alert('Select at least one day.'); btn.disabled = false; return; }
+  const cron = _buildValCron();
+  const data = await _atsPost({
+    discovery_enabled: !!document.getElementById('ats-disc-dot').classList.contains('bg-emerald-400'),
+    discovery_cron: _buildDiscCron(),
+    validation_enabled: enable,
+    validation_cron: cron,
+  });
+  btn.disabled = false;
+  if (data.error) { alert(data.error); return; }
+  const val = _parseCronVal(cron);
+  _setValActive(enable, val.days, val.time);
+}
+
+async function atsRunDiscovery() {
+  const btn = document.getElementById('ats-discover-btn');
+  const status = document.getElementById('ats-action-status');
+  btn.disabled = true;
+  status.textContent = 'Discovery started — check server logs…';
+  status.classList.remove('hidden');
+  await fetch('/api/ats/discover', { method: 'POST' });
+  setTimeout(() => loadAtsStats(), 3000);
+  setTimeout(() => { btn.disabled = false; }, 10000);
+}
+
+async function atsRunValidation() {
+  const btn = document.getElementById('ats-validate-btn');
+  const status = document.getElementById('ats-action-status');
+  btn.disabled = true;
+  status.textContent = 'Validation started — check server logs…';
+  status.classList.remove('hidden');
+  await fetch('/api/ats/validate', { method: 'POST' });
+  setTimeout(() => loadAtsStats(), 3000);
+  setTimeout(() => { btn.disabled = false; }, 10000);
+}
+
+loadAtsStats();
+</script>

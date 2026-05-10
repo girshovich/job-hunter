@@ -8,6 +8,10 @@ import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
+import cron from 'node-cron';
+import { runDiscovery } from '../pipeline/atsDiscovery';
+import { runValidation } from '../pipeline/atsValidation';
+import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startAtsValidationCron, stopAtsValidationCron } from '../pipeline/atsScheduler';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobRow, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries } from '../pipeline/locationNormalizer';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -973,6 +977,76 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
+});
+
+// ── ATS Board Discovery & Validation (admin-only) ──
+
+router.get('/ats/status', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const boards = db.prepare(`
+    SELECT ats,
+           COUNT(*) AS total,
+           SUM(is_active) AS active,
+           MAX(discovered_at) AS last_discovered,
+           MAX(validated_at) AS last_validated
+    FROM ats_boards
+    GROUP BY ats
+  `).all() as Array<{ ats: string; total: number; active: number; last_discovered: string; last_validated: string }>;
+  const settings = db.prepare(`
+    SELECT ats_discovery_enabled, ats_discovery_cron, ats_validation_enabled, ats_validation_cron
+    FROM settings WHERE profile_id = ?
+  `).get(req.profile.id) as { ats_discovery_enabled: number; ats_discovery_cron: string; ats_validation_enabled: number; ats_validation_cron: string } | undefined;
+  res.json({ boards, settings });
+});
+
+router.post('/ats/discover', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  res.json({ started: true });
+  runDiscovery(getDb())
+    .then((r) => console.log('[ats-discovery] Manual run complete:', r))
+    .catch((e) => console.error('[ats-discovery] Manual run error:', e));
+});
+
+router.post('/ats/validate', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  res.json({ started: true });
+  runValidation(getDb())
+    .then((r) => console.log('[ats-validation] Manual run complete:', r))
+    .catch((e) => console.error('[ats-validation] Manual run error:', e));
+});
+
+router.post('/ats/settings', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const b = req.body as Record<string, unknown>;
+  const discoveryEnabled = !!b.discovery_enabled;
+  const discoveryCron = String(b.discovery_cron || '0 3 1 * *').trim();
+  const validationEnabled = !!b.validation_enabled;
+  const validationCron = String(b.validation_cron || '0 4 * * 1').trim();
+
+  if (!cron.validate(discoveryCron))
+    return res.status(400).json({ error: 'Invalid discovery cron expression' });
+  if (!cron.validate(validationCron))
+    return res.status(400).json({ error: 'Invalid validation cron expression' });
+
+  getDb().prepare(`
+    UPDATE settings
+    SET ats_discovery_enabled = ?, ats_discovery_cron = ?,
+        ats_validation_enabled = ?, ats_validation_cron = ?
+    WHERE profile_id = ?
+  `).run(
+    discoveryEnabled ? 1 : 0, discoveryCron,
+    validationEnabled ? 1 : 0, validationCron,
+    req.profile.id,
+  );
+
+  if (discoveryEnabled) startAtsDiscoveryCron(discoveryCron);
+  else stopAtsDiscoveryCron();
+
+  if (validationEnabled) startAtsValidationCron(validationCron);
+  else stopAtsValidationCron();
+
+  res.json({ success: true });
 });
 
 export { router as apiRouter };

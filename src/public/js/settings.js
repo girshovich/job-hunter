@@ -776,8 +776,11 @@ function activateTab(tabName) {
   const url = new URL(window.location);
   url.searchParams.set('tab', tabName);
   history.replaceState(null, '', url);
-  ['profile', 'roles', 'ai'].forEach(t => {
-    document.getElementById('tab-pane-' + t).classList.toggle('hidden', t !== tabName);
+  const tabs = ['profile', 'roles', 'ai'];
+  if (window._isAdmin) tabs.push('admin');
+  tabs.forEach(t => {
+    const pane = document.getElementById('tab-pane-' + t);
+    if (pane) pane.classList.toggle('hidden', t !== tabName);
     updateTabBtnStyle(t, t === tabName);
   });
 }
@@ -785,10 +788,17 @@ function activateTab(tabName) {
 function updateTabBtnStyle(tabName, isActive) {
   const btn = document.getElementById('tab-btn-' + tabName);
   if (!btn) return;
-  btn.classList.toggle('border-blue-600', isActive);
-  btn.classList.toggle('text-blue-600', isActive);
-  btn.classList.toggle('border-transparent', !isActive);
-  btn.classList.toggle('text-gray-500', !isActive);
+  if (tabName === 'admin') {
+    btn.classList.toggle('border-red-600', isActive);
+    btn.classList.toggle('text-red-600', isActive);
+    btn.classList.toggle('border-transparent', !isActive);
+    btn.classList.toggle('text-red-400', !isActive);
+  } else {
+    btn.classList.toggle('border-blue-600', isActive);
+    btn.classList.toggle('text-blue-600', isActive);
+    btn.classList.toggle('border-transparent', !isActive);
+    btn.classList.toggle('text-gray-500', !isActive);
+  }
 }
 
 function unsavedSave() {

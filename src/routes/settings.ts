@@ -46,7 +46,8 @@ router.get('/', (req: Request, res: Response) => {
   const profileId = req.profile.id;
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
   const saved = req.query.saved === '1';
-  const activeTab = ['profile', 'roles', 'ai'].includes(String(req.query.tab)) ? String(req.query.tab) : 'profile';
+  const validTabs = req.profile.isAdmin ? ['profile', 'roles', 'ai', 'admin'] : ['profile', 'roles', 'ai'];
+  const activeTab = validTabs.includes(String(req.query.tab)) ? String(req.query.tab) : 'profile';
 
   const latestGroup    = db.prepare('SELECT MAX(updated_at) as t FROM search_groups WHERE profile_id = ?').get(profileId) as { t: string | null };
   const latestCv       = db.prepare('SELECT MAX(uploaded_at) as t FROM cvs WHERE profile_id = ?').get(profileId) as { t: string | null };
@@ -89,8 +90,23 @@ router.post('/', async (req: Request, res: Response) => {
 
   try {
     const body = req.body as Record<string, string | string[]>;
-    const tab = (['profile', 'ai'] as string[]).includes(String(body.tab)) ? String(body.tab) : 'profile';
+    const tab = (['profile', 'ai', 'admin'] as string[]).includes(String(body.tab)) ? String(body.tab) : 'profile';
     const now = new Date().toISOString();
+
+    if (tab === 'admin') {
+      if (!req.profile.isAdmin) {
+        res.status(403).send('Forbidden');
+        return;
+      }
+      db.prepare(`UPDATE settings SET email_from = ?, resend_api_key = ?, updated_at = ? WHERE profile_id = ?`).run(
+        String(body.email_from || ''),
+        String(body.resend_api_key || ''),
+        now,
+        profileId,
+      );
+      res.redirect('/settings?tab=admin&saved=1');
+      return;
+    }
 
     if (tab === 'profile') {
       const isAdmin = req.profile.isAdmin;

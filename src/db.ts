@@ -840,6 +840,27 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration vNEW (search_runs.job_source) failed (non-fatal):', (err as Error).message);
   }
 
+  // v_ats_discovery: add ATS discovery/validation settings columns
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_ats_discovery'`).get();
+    if (!done) {
+      const cols = (db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[]).map((c) => c.name);
+      if (!cols.includes('ats_discovery_enabled'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_discovery_enabled INTEGER NOT NULL DEFAULT 0`);
+      if (!cols.includes('ats_discovery_cron'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_discovery_cron TEXT NOT NULL DEFAULT '0 3 1 * *'`);
+      if (!cols.includes('ats_validation_enabled'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_validation_enabled INTEGER NOT NULL DEFAULT 0`);
+      if (!cols.includes('ats_validation_cron'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_validation_cron TEXT NOT NULL DEFAULT '0 4 * * 1'`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_ats_discovery')`);
+      console.log('[db] Migration v_ats_discovery: ATS settings columns added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_ats_discovery failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
@@ -1062,6 +1083,19 @@ function initSchema(db: Database): void {
       expires_at TEXT NOT NULL,
       used       INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS ats_boards (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      ats           TEXT    NOT NULL,
+      slug          TEXT    NOT NULL,
+      company_name  TEXT,
+      is_active     INTEGER NOT NULL DEFAULT 1,
+      discovered_at TEXT    NOT NULL,
+      validated_at  TEXT,
+      UNIQUE (ats, slug)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ats_boards_ats    ON ats_boards(ats);
+    CREATE INDEX IF NOT EXISTS idx_ats_boards_active ON ats_boards(is_active);
   `);
 }
 
@@ -1279,6 +1313,10 @@ export interface SettingsRow {
   profile_updated_at: string;
   ai_updated_at: string;
   updated_at: string;
+  ats_discovery_enabled: number;
+  ats_discovery_cron: string;
+  ats_validation_enabled: number;
+  ats_validation_cron: string;
 }
 
 export interface CvRow {
