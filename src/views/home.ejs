@@ -141,14 +141,19 @@ function verdictChip(verdict) {
     <ul id="preflight-errors-list" class="space-y-0.5 text-xs text-red-600 list-disc list-inside"></ul>
   </div>
   <div id="home-run-progress" class="hidden mt-4">
-    <div class="flex items-center gap-3 text-sm text-gray-600">
-      <svg class="w-4 h-4 animate-spin text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-      </svg>
-      <span id="home-run-status-text">Starting</span>
+    <div class="flex items-center justify-between mb-1.5 gap-3">
+      <div class="flex items-center gap-2 min-w-0">
+        <svg class="w-3.5 h-3.5 animate-spin text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <span id="home-run-status-text" class="text-sm text-gray-600 truncate">Starting…</span>
+      </div>
+      <span id="home-run-pct" class="text-sm font-medium text-gray-500 flex-shrink-0 tabular-nums">0%</span>
     </div>
-    <div id="home-run-segments" class="flex gap-1 mt-2"></div>
+    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div id="home-run-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out" style="width:0%"></div>
+    </div>
   </div>
   <div id="home-run-result" class="hidden mt-4 text-sm"></div>
 </div>
@@ -229,7 +234,7 @@ function verdictChip(verdict) {
               </span>
               <% if (job.url) { %>
               <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer"
-                 title="View on LinkedIn"
+                 title="View on <%= job.job_source || 'LinkedIn' %>"
                  onclick="event.stopPropagation()"
                  class="text-gray-300 hover:text-gray-500 text-sm transition-colors">↗</a>
               <% } else { %>
@@ -322,58 +327,50 @@ async function homeRun(btn) {
   openRunModal();
 }
 
-let _segTotal = 0;
-function updateSegments(totalSections, pct) {
-  const container = document.getElementById('home-run-segments');
-  if (!totalSections || totalSections < 1) {
-    if (container.children.length !== 1 || !container.children[0].classList.contains('animate-pulse')) {
-      container.innerHTML = '<div class="flex-1 h-2 rounded-full bg-gray-200 animate-pulse"></div>';
-    }
-    return;
-  }
-  if (container.children.length !== totalSections) {
-    _segTotal = totalSections;
-    container.innerHTML = '';
-    for (let i = 0; i < totalSections; i++) {
-      const seg = document.createElement('div');
-      seg.className = 'flex-1 h-2 rounded-full bg-gray-200';
-      container.appendChild(seg);
-    }
-  }
-  const filled = Math.round((pct / 100) * totalSections);
-  for (let i = 0; i < totalSections; i++) {
-    const seg = container.children[i];
-    if (i < filled) {
-      seg.className = 'flex-1 h-2 rounded-full bg-emerald-500 transition-colors duration-500';
-    } else if (i === filled && filled < totalSections) {
-      seg.className = 'flex-1 h-2 rounded-full bg-emerald-200 animate-pulse';
-    } else {
-      seg.className = 'flex-1 h-2 rounded-full bg-gray-200 transition-colors duration-500';
-    }
+function updateProgress(stage) {
+  const bar = document.getElementById('home-run-bar');
+  const pctEl = document.getElementById('home-run-pct');
+  const statusText = document.getElementById('home-run-status-text');
+  const pct = stage ? stage.pct : 0;
+  bar.style.width = pct + '%';
+  pctEl.textContent = pct + '%';
+  if (!stage) { statusText.textContent = 'Starting…'; return; }
+  const s = stage;
+  if (s.providerCount > 1 && s.providerName) {
+    let label = `Provider ${s.providerIdx} of ${s.providerCount} · ${s.providerName}`;
+    if (s.roleLabel) label += ` · ${s.roleLabel}`;
+    if (s.roleCount > 1) label += ` (role ${s.roleIdx}/${s.roleCount})`;
+    if (s.action) label += ` · ${s.action}`;
+    statusText.textContent = label;
+  } else if (s.roleLabel && s.action) {
+    let label = s.roleLabel;
+    if (s.roleCount > 1) label += ` (role ${s.roleIdx}/${s.roleCount})`;
+    label += ` · ${s.action}`;
+    statusText.textContent = label;
+  } else {
+    statusText.textContent = s.text || 'Running…';
   }
 }
 
 function startPolling(btn) {
   const label = document.getElementById('home-run-label');
   const progress = document.getElementById('home-run-progress');
-  const statusText = document.getElementById('home-run-status-text');
   if (homeRunPoller) clearInterval(homeRunPoller);
   homeRunPoller = setInterval(async () => {
     try {
       const res = await fetch('/api/status');
       const data = await res.json();
-      if (data.stage) {
-        updateSegments(data.stage.totalSections || 0, data.stage.pct);
-        statusText.textContent = data.stage.text;
-      }
+      if (data.stage) updateProgress(data.stage);
       if (!data.isRunning && data.lastRun) {
         clearInterval(homeRunPoller);
-        updateSegments(_segTotal, 100);
+        updateProgress({ pct: 100 });
         const r = data.lastRun;
         const ok = r.status === 'success' || r.status === 'partial_error';
-        const tookSec = r.duration_ms ? ` (${(r.duration_ms / 1000).toFixed(0)}s)` : '';
+        const tookSec = r.duration_ms ? ` · ${(r.duration_ms / 1000).toFixed(0)}s` : '';
+        const errLine = r.error_log ? r.error_log.split('\n')[0] : 'unknown error';
         showRunResult(
-          ok ? `Done${tookSec} — fetched ${r.jobs_fetched}, strong matches: ${r.jobs_strong_match}. <a href="/" class="underline font-medium">Refresh</a>` : `Failed: ${r.error_log || 'unknown error'}`,
+          ok ? `Done${tookSec} · <a href="/" class="underline font-medium">Refresh to see new jobs</a>`
+             : `Run failed${tookSec} · ${errLine} · <a href="/reports" class="underline font-medium">View log</a>`,
           ok,
         );
         resetRunBtn(btn, label, progress);
@@ -387,15 +384,13 @@ function startHomeProgress(btn) {
   const label = document.getElementById('home-run-label');
   const progress = document.getElementById('home-run-progress');
   const result = document.getElementById('home-run-result');
-  const statusText = document.getElementById('home-run-status-text');
 
   btn.disabled = true;
   btn.classList.add('opacity-60', 'cursor-not-allowed');
   label.textContent = 'Running…';
   progress.classList.remove('hidden');
   result.classList.add('hidden');
-  updateSegments(0, 0);
-  statusText.textContent = 'Starting';
+  updateProgress(null);
   startPolling(btn);
 }
 
@@ -476,10 +471,7 @@ function syncRunState(data) {
   btn.classList.add('opacity-60', 'cursor-not-allowed');
   document.getElementById('home-run-label').textContent = 'Running…';
   document.getElementById('home-run-progress').classList.remove('hidden');
-  if (data.stage) {
-    updateSegments(data.stage.totalSections || 0, data.stage.pct);
-    document.getElementById('home-run-status-text').textContent = data.stage.text;
-  }
+  if (data.stage) updateProgress(data.stage);
   startPolling(btn);
 }
 fetch('/api/status').then(r => r.json()).then(syncRunState).catch(() => {});

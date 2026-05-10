@@ -342,9 +342,51 @@ function openGroupModal(id) {
   const modalBody = document.querySelector('#group-modal .overflow-y-auto');
   modalBody.addEventListener('input', updateModalSaveBtn);
   modalBody.addEventListener('change', updateModalSaveBtn);
+  document.getElementById('modal-locations').addEventListener('input', scheduleLocationHints);
 
   modal.classList.remove('hidden');
   document.getElementById('modal-locations').focus();
+
+  // Lazily resolve locations → Indeed countries
+  const locVal = document.getElementById('modal-locations').value.trim();
+  if (locVal) fetchLocationHints(locVal);
+  else document.getElementById('indeed-location-hints').classList.add('hidden');
+}
+
+let _locationHintTimer = null;
+function scheduleLocationHints() {
+  clearTimeout(_locationHintTimer);
+  _locationHintTimer = setTimeout(() => {
+    const val = document.getElementById('modal-locations').value.trim();
+    if (val) fetchLocationHints(val); else document.getElementById('indeed-location-hints').classList.add('hidden');
+  }, 600);
+}
+
+async function fetchLocationHints(locationsStr) {
+  const hintsEl = document.getElementById('indeed-location-hints');
+  const locations = locationsStr.split(',').map(s => s.trim()).filter(Boolean);
+  if (!locations.length) { hintsEl.classList.add('hidden'); return; }
+
+  hintsEl.textContent = 'Resolving Indeed countries…';
+  hintsEl.classList.remove('hidden');
+
+  try {
+    const res = await fetch('/api/resolve-locations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locations }),
+    });
+    const data = await res.json();
+    const parts = locations.map(loc => {
+      const r = data[loc];
+      if (!r) return `<span class="text-gray-400">${loc} → ?</span>`;
+      if (r.code) return `<span class="text-gray-500">${loc} → <span class="font-medium text-gray-700">${r.countryName} (${r.code})</span></span>`;
+      return `<span class="text-amber-600">${loc} → not supported by Indeed</span>`;
+    });
+    hintsEl.innerHTML = '<span class="text-gray-400">Indeed: </span>' + parts.join('<span class="text-gray-300 mx-1">·</span>');
+  } catch (_) {
+    hintsEl.classList.add('hidden');
+  }
 }
 
 function closeGroupModal() {
@@ -356,6 +398,8 @@ function closeGroupModal() {
   const modalBody = document.querySelector('#group-modal .overflow-y-auto');
   modalBody.removeEventListener('input', updateModalSaveBtn);
   modalBody.removeEventListener('change', updateModalSaveBtn);
+  document.getElementById('modal-locations').removeEventListener('input', scheduleLocationHints);
+  document.getElementById('indeed-location-hints').classList.add('hidden');
 }
 
 function togglePromptPreview() {

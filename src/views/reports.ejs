@@ -87,6 +87,12 @@ function scoreClass(score) {
       <% if (run.trigger === 'manual') { %>
       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">manual</span>
       <% } %>
+
+      <!-- Provider badge -->
+      <% const _pmap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)' }; %>
+      <% const runSrc = run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : 'LinkedIn'); %>
+      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+        title="<%= runSrc %>"><%= _pmap[run.scraping_provider] || run.scraping_provider || runSrc %></span>
     </div>
 
     <!-- Stats summary + cost button -->
@@ -110,10 +116,15 @@ function scoreClass(score) {
           title="Run costs"
         >$</button>
         <div id="cost-popup-<%= run.id %>" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
-          <% if (run.scraping_provider) { %>
+          <% if (run.job_source || run.scraping_provider) { %>
+          <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
+            <span>Source</span>
+            <span class="font-medium text-gray-700"><%= run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider) %></span>
+          </div>
           <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
             <span>Provider</span>
-            <span class="font-medium text-gray-700"><%= run.scraping_provider === 'harvestapi' ? 'HarvestAPI' : run.scraping_provider.charAt(0).toUpperCase() + run.scraping_provider.slice(1) %></span>
+            <% const providerDisplayMap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)' }; %>
+            <span class="font-medium text-gray-700"><%= providerDisplayMap[run.scraping_provider] || run.scraping_provider || '—' %></span>
           </div>
           <% } %>
           <% const totalCost = (run.cost_openai_usd ?? 0) + (run.cost_apify_usd ?? 0); %>

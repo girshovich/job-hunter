@@ -60,7 +60,7 @@ function buildEmailHtml(
         </div>` : ''}
         <div style="margin-top:12px;">
           <a href="${job.url || '#'}" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;">
-            View on LinkedIn →
+            View on ${escapeHtml(job.job_source || 'LinkedIn')} →
           </a>
         </div>
       </div>
@@ -234,6 +234,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
       original_ai_verdict: 'STRONG_MATCH',
       cv_assessment: null,
       country: 'United Kingdom',
+      job_source: 'LinkedIn',
     },
   ];
 

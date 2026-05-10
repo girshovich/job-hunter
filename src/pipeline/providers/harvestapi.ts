@@ -73,6 +73,7 @@ function mapToJobPosting(item: HarvestJob): JobPosting {
     postedDateConfidence: parsedDate.confidence,
     description: description.substring(0, 20_000),
     provider: 'harvestapi',
+    jobSource: 'LinkedIn',
   };
 }
 

@@ -20,6 +20,7 @@ const HARDCODED: Record<string, string> = {
   'greater dusseldorf area': 'Germany',
   'frankfurt rhine-main metropolitan area': 'Germany',
   'berlin metropolitan area': 'Germany',
+  'berlin area': 'Germany',
   'greater paris metropolitan region': 'France',
   'greater marseille metropolitan area': 'France',
   'greater chicago area': 'United States',

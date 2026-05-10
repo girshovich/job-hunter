@@ -80,6 +80,14 @@ function formatDate(iso) {
         <% if (job.applied) { %>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">✓ Applied</span>
         <% } %>
+        <% const sourceLabel = job.job_source || 'LinkedIn'; %>
+        <% const sourceBadgeColor =
+             sourceLabel === 'Indeed'    ? 'bg-blue-50 text-blue-700 border-blue-200' :
+             sourceLabel === 'StepStone' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                          'bg-sky-50 text-sky-700 border-sky-200'; %>
+        <span class="inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium <%= sourceBadgeColor %>">
+          <%= sourceLabel %>
+        </span>
       </div>
 
       <h1 class="text-xl font-bold text-gray-900 mb-1"><%= job.title %></h1>
@@ -130,7 +138,7 @@ function formatDate(iso) {
       <a href="<%= job.url %>" target="_blank"
          class="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-        View on LinkedIn
+        View on <%= sourceLabel %>
       </a>
       <% } %>
       <!-- Applied toggle -->

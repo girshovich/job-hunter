@@ -9,6 +9,7 @@ import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRo
 import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
+import { providerToSource } from './types';
 import { filterNewJobs } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { resolveCountries } from './locationNormalizer';
@@ -57,11 +58,15 @@ function matchesTitleFilter(title: string, filter: string): boolean {
 const isRunningMap = new Map<number, boolean>();
 const lastRunResultMap = new Map<number, PipelineResult | null>();
 
-interface StageInfo { text: string; pct: number; totalSections: number; }
+interface StageInfo {
+  text: string; pct: number; totalSections: number;
+  providerIdx?: number; providerCount?: number; providerName?: string;
+  roleIdx?: number; roleCount?: number; roleLabel?: string; action?: string;
+}
 const runStageMap = new Map<number, StageInfo>();
 
-function setStage(profileId: number, text: string, pct: number, totalSections: number): void {
-  runStageMap.set(profileId, { text, pct, totalSections });
+function setStage(profileId: number, text: string, pct: number, totalSections: number, extra?: Partial<StageInfo>): void {
+  runStageMap.set(profileId, { text, pct, totalSections, ...extra });
 }
 
 export function getIsRunning(profileId: number = 1): boolean {
@@ -154,8 +159,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         profile_id, linkedin_job_id, title, company, location, country, work_mode, description,
         url, posted_date, fetched_at, ai_score, ai_rationale, ai_summary, ai_verdict,
         is_duplicate, duplicate_of_job_id, seen, seen_at, group_id, rejection_category,
-        apply_url, provider, original_ai_verdict
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        apply_url, provider, original_ai_verdict, job_source
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const updateApplyUrl = db.prepare(`
@@ -170,9 +175,17 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    // Shared across all providers — prevents re-processing the same linkedin_job_id within one session
+    // Shared across all providers — keyed as "source::jobId" to avoid cross-source collisions
     const seenInRunJobIds = new Set<string>();
     let lastResult: PipelineResult | null = null;
+
+    // Pre-compute active groups once (same filter for all providers) for global progress tracking
+    const activeGroupsForProgress = groups.filter((g) =>
+      groupIds && groupIds.length > 0 ? groupIds.includes(g.id) : g.is_active
+    );
+    // Total progress slots across ALL providers: (providers × groups × 2 stages) + 1 per provider start
+    const globalTotalSections = providers.length * (activeGroupsForProgress.length * 2 + 1);
+    let globalSectionOffset = 0;
 
     for (const scrapingProvider of providers) {
       const startedAt = Date.now();
@@ -213,17 +226,17 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         const activeGroups = groups.filter((g) =>
           groupIds && groupIds.length > 0 ? groupIds.includes(g.id) : g.is_active
         );
-        // Two progress slots per group (Fetch + AI Score) plus the initial Starting slot.
-        // This ensures progress always moves forward even when groups are processed sequentially.
-        const totalSections = activeGroups.length * 2 + 1;
-        const sw = 100 / totalSections;
+        const providerIdx = providers.indexOf(scrapingProvider);
+        const providerPrefix = providers.length > 1 ? `[${providerIdx + 1}/${providers.length}] ` : '';
+        const sw = 100 / globalTotalSections;
         let activeGroupIdx = 0;
-        setStage(profileId, 'Starting', 0, totalSections);
+        setStage(profileId, `${providerPrefix}Starting`, Math.round(globalSectionOffset * sw), globalTotalSections,
+          { providerIdx: providerIdx + 1, providerCount: providers.length, providerName: providerToSource(scrapingProvider), action: 'Starting' });
 
         // Insert search_runs row NOW to get a stable run_id for job logs
         runId = db.prepare(
-          `INSERT INTO search_runs (profile_id, ran_at, status, trigger, scraping_provider) VALUES (?, ?, 'running', ?, ?)`
-        ).run(profileId, ranAt, trigger, scrapingProvider).lastInsertRowid as number;
+          `INSERT INTO search_runs (profile_id, ran_at, status, trigger, scraping_provider, job_source) VALUES (?, ?, 'running', ?, ?, ?)`
+        ).run(profileId, ranAt, trigger, scrapingProvider, providerToSource(scrapingProvider)).lastInsertRowid as number;
 
         console.log(`[runner] Run ID: ${runId} (provider: ${scrapingProvider})`);
 
@@ -254,7 +267,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       // 1. Fetch
       const roleLabel = group.group_name ? group.group_name : `Role ${activeGroupIdx + 1}`;
-      setStage(profileId, `${roleLabel}: Fetching`, Math.round((activeGroupIdx * 2 + 1) * sw), totalSections);
+      setStage(profileId, `${providerPrefix}${roleLabel}: Searching`, Math.round((globalSectionOffset + activeGroupIdx * 2 + 1) * sw), globalTotalSections,
+        { providerIdx: providerIdx + 1, providerCount: providers.length, providerName: providerToSource(scrapingProvider), roleIdx: activeGroupIdx + 1, roleCount: activeGroups.length, roleLabel, action: 'Searching' });
       let allFetched: JobPosting[] = [];
       try {
         const fetchResult = await fetchJobs({
@@ -318,10 +332,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       const withinRunDupes = [
         ...batchDupes,
-        ...allFetched.filter((j) => seenInRunJobIds.has(j.jobId)),
+        ...allFetched.filter((j) => seenInRunJobIds.has(`${j.jobSource ?? 'LinkedIn'}::${j.jobId}`)),
       ];
-      allFetched = allFetched.filter((j) => !seenInRunJobIds.has(j.jobId));
-      for (const j of allFetched) seenInRunJobIds.add(j.jobId);
+      allFetched = allFetched.filter((j) => !seenInRunJobIds.has(`${j.jobSource ?? 'LinkedIn'}::${j.jobId}`));
+      for (const j of allFetched) seenInRunJobIds.add(`${j.jobSource ?? 'LinkedIn'}::${j.jobId}`);
       if (withinRunDupes.length > 0) {
         console.log(`[runner] Group ${group.id}: ${withinRunDupes.length} within-run duplicate(s) skipped`);
         jobsDuplicate += withinRunDupes.length;
@@ -366,7 +380,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       let scoredJobs: ScoredJob[] = [];
       if (newJobs.length > 0) {
-        setStage(profileId, `${roleLabel}: AI Scoring`, Math.round((activeGroupIdx * 2 + 2) * sw), totalSections);
+        setStage(profileId, `${providerPrefix}${roleLabel}: Scoring with AI`, Math.round((globalSectionOffset + activeGroupIdx * 2 + 2) * sw), globalTotalSections,
+          { providerIdx: providerIdx + 1, providerCount: providers.length, providerName: providerToSource(scrapingProvider), roleIdx: activeGroupIdx + 1, roleCount: activeGroups.length, roleLabel, action: 'Scoring with AI' });
         const scoreResult = await scoreJobs(newJobs, scoringSettings, openAiKey);
         scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;
@@ -496,7 +511,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               0, null, null, 'BLACKLISTED',
               0, null, 0, null,
               group.id, null,
-              job.applyUrl || null, job.provider || 'harvestapi', 'BLACKLISTED',
+              job.applyUrl || null, job.provider || 'harvestapi', 'BLACKLISTED', job.jobSource ?? 'LinkedIn',
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
           }
@@ -521,7 +536,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               isDuplicate ? 1 : 0, duplicateOfId || null,
               isDuplicate ? 1 : 0, isDuplicate ? now : null,
               group.id, scored.rejectionCategory || null,
-              job.applyUrl || null, job.provider || 'harvestapi', scored.verdict,
+              job.applyUrl || null, job.provider || 'harvestapi', scored.verdict, job.jobSource ?? 'LinkedIn',
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
           }
@@ -546,7 +561,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     // 7a. Re-score all STRONG_MATCH jobs from this run using the hard model
     if (strongMatchesForReScoring.length > 0) {
       console.log(`[runner] Re-scoring ${strongMatchesForReScoring.length} strong match(es) with hard model (${settings.ai_model_hard})…`);
-      setStage(profileId, 'Re-scoring strong matches', 95, totalSections);
+      setStage(profileId, 'Re-scoring strong matches', Math.round((globalSectionOffset + activeGroups.length * 2) * sw), globalTotalSections,
+        { providerIdx: providerIdx + 1, providerCount: providers.length, providerName: providerToSource(scrapingProvider), action: 'Re-scoring' });
 
       const updateRescored = db.prepare(`
         UPDATE jobs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?, ai_summary = ?
@@ -641,6 +657,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         };
         lastResult = result;
         lastRunResultMap.set(profileId, result);
+        globalSectionOffset += activeGroups.length * 2 + 1;
 
       } catch (err) {
         const durationMs = Date.now() - startedAt;
@@ -661,6 +678,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           }
         } catch (_) { /* ignore DB logging failure */ }
 
+        globalSectionOffset += activeGroupsForProgress.length * 2 + 1;
         const result: PipelineResult = {
           ranAt, durationMs, jobsFetched: 0, jobsScored: 0,
           jobsStrongMatch: 0, jobsWeakMatch: 0, jobsNoMatch: 0, jobsDuplicate: 0,

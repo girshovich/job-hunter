@@ -811,6 +811,35 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v26 (ai_model_hard) failed (non-fatal):', (err as Error).message);
   }
 
+  // vNEW: add job_source to jobs, update unique index to (linkedin_job_id, job_source)
+  try {
+    const cols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'job_source')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN job_source TEXT NOT NULL DEFAULT 'LinkedIn'`);
+      db.exec(`UPDATE jobs SET job_source = 'Indeed'    WHERE provider = 'indeed'`);
+      db.exec(`UPDATE jobs SET job_source = 'StepStone' WHERE provider = 'stepstone'`);
+      db.exec(`DROP INDEX IF EXISTS idx_jobs_linkedin_id`);
+      db.exec(`CREATE UNIQUE INDEX idx_jobs_source_job_id ON jobs(linkedin_job_id, job_source)`);
+      console.log('[db] vNEW: jobs.job_source added, unique index updated to (linkedin_job_id, job_source)');
+    }
+  } catch (err) {
+    console.warn('[db] Migration vNEW (job_source) failed (non-fatal):', (err as Error).message);
+  }
+
+  // vNEW: add job_source to search_runs
+  try {
+    const cols = db.prepare(`PRAGMA table_info(search_runs)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'job_source')) {
+      db.exec(`ALTER TABLE search_runs ADD COLUMN job_source TEXT`);
+      db.exec(`UPDATE search_runs SET job_source = 'Indeed'    WHERE scraping_provider = 'indeed'`);
+      db.exec(`UPDATE search_runs SET job_source = 'StepStone' WHERE scraping_provider = 'stepstone'`);
+      db.exec(`UPDATE search_runs SET job_source = 'LinkedIn'  WHERE job_source IS NULL`);
+      console.log('[db] vNEW: search_runs.job_source added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration vNEW (search_runs.job_source) failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
@@ -1189,6 +1218,7 @@ export interface JobRow {
   original_ai_verdict: string | null;
   cv_assessment: string | null;
   country: string | null;
+  job_source: string;
 }
 
 export interface SearchRunRow {
@@ -1208,6 +1238,7 @@ export interface SearchRunRow {
   cost_openai_usd: number | null;
   cost_apify_usd: number | null;
   scraping_provider: string | null;
+  job_source: string | null;
 }
 
 export interface SettingsRow {

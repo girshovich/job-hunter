@@ -50,6 +50,7 @@ function mapToJobPosting(item: ValigJob): JobPosting {
     postedDateConfidence: postedDate ? 'HIGH' : 'LOW',
     description: description.substring(0, 20_000),
     provider: 'valig',
+    jobSource: 'LinkedIn',
   };
 }
 

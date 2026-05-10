@@ -9,6 +9,8 @@ import { sendTestEmail } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobRow, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
+import { resolveCountries } from '../pipeline/locationNormalizer';
+import { INDEED_CODE } from '../pipeline/providers/indeed';
 import { config } from '../config';
 import { checkOpenAiBalance } from '../utils/openaiBalance';
 import OpenAI from 'openai';
@@ -76,7 +78,7 @@ router.post('/run', async (req: Request, res: Response) => {
   else if (b.dateRange === 'month') dateRange = 'month';
 
   // Parse optional providers override
-  const validProviders = ['harvestapi', 'valig'];
+  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone'];
   const providers = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validProviders.includes(p))
     : undefined;
@@ -465,6 +467,25 @@ function parseGroupBody(body: unknown): GroupBody {
     score_strong_match_min: strongMin,
   };
 }
+
+// Resolve location strings → Indeed country codes (used by the role edit modal)
+router.post('/resolve-locations', async (req: Request, res: Response) => {
+  try {
+    const raw = (req.body as Record<string, unknown>).locations;
+    const locations = Array.isArray(raw) ? (raw as unknown[]).map(String).filter(Boolean) : [];
+    if (locations.length === 0) { res.json({}); return; }
+    const countryNames = await resolveCountries(locations);
+    const result: Record<string, { countryName: string | null; code: string | null }> = {};
+    for (const loc of locations) {
+      const countryName = countryNames.get(loc) ?? null;
+      const code = countryName ? (INDEED_CODE[countryName.toLowerCase().trim()] ?? null) : null;
+      result[loc] = { countryName, code };
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
 
 // GET /api/groups — list groups for active profile
 router.get('/groups', (req: Request, res: Response) => {

@@ -137,7 +137,7 @@ function renderTable(groups, idPrefix, hideCol) {
                   class="${noteClass}" title="${noteTitle}">${noteSvg}</button>
         </div>
       </td>`;
-      html += `<td class="pl-2 pr-5 py-3.5 text-center align-top" style="white-space:nowrap;">${job.url ? `<a href="${escHtml(job.url)}" target="_blank" rel="noopener noreferrer" title="View on LinkedIn" class="text-gray-300 hover:text-gray-500 text-sm">↗</a>` : '<span class="text-gray-200">—</span>'}</td>`;
+      html += `<td class="pl-2 pr-5 py-3.5 text-center align-top" style="white-space:nowrap;">${job.url ? `<a href="${escHtml(job.url)}" target="_blank" rel="noopener noreferrer" title="View on ${escHtml(job.job_source || 'LinkedIn')}" class="text-gray-300 hover:text-gray-500 text-sm">↗</a>` : '<span class="text-gray-200">—</span>'}</td>`;
       html += '</tr>';
     });
   });

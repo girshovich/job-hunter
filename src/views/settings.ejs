@@ -83,6 +83,7 @@
         <textarea id="modal-locations" rows="2"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="London, Spain"></textarea>
+        <div id="indeed-location-hints" class="hidden mt-1.5 text-xs text-gray-400 leading-relaxed"></div>
       </div>
 
       <div>
@@ -219,7 +220,7 @@
             <button type="button" onclick="togglePromptPreview()"
                     class="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800">
               <svg id="preview-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Full Prompt Preview
+              Prompt Preview
             </button>
             <div id="prompt-preview-container" class="hidden mt-2">
               <pre id="prompt-preview" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto"></pre>

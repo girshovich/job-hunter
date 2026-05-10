@@ -2,6 +2,14 @@
  * Shared types and utilities for scraping providers.
  */
 
+export type JobSource = 'LinkedIn' | 'Indeed' | 'StepStone';
+
+export function providerToSource(provider: string): JobSource {
+  if (provider === 'indeed')    return 'Indeed';
+  if (provider === 'stepstone') return 'StepStone';
+  return 'LinkedIn';
+}
+
 export interface JobPosting {
   jobId: string;
   title: string;
@@ -13,7 +21,8 @@ export interface JobPosting {
   postedDate: string | null;
   postedDateConfidence: 'HIGH' | 'LOW';
   description: string;
-  provider: string; // 'harvestapi' | 'valig'
+  provider: string;
+  jobSource: JobSource;
 }
 
 export interface SearchFilters {

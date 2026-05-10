@@ -150,6 +150,7 @@ function qs(overrides) {
           <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
           <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Verdict</th>
           <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Date</th>
+          <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden xl:table-cell">Source</th>
           <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Link</th>
         </tr>
       </thead>
@@ -181,6 +182,15 @@ function qs(overrides) {
           </td>
           <td class="px-4 py-4 text-xs text-gray-400 hidden lg:table-cell whitespace-nowrap">
             <%= formatDate(job.fetched_at) %>
+          </td>
+          <td class="px-4 py-4 text-center hidden xl:table-cell">
+            <% const src = job.job_source || 'LinkedIn'; %>
+            <span class="px-1.5 py-0.5 rounded text-xs font-medium
+              <%= src === 'Indeed'    ? 'bg-blue-50 text-blue-700' :
+                  src === 'StepStone' ? 'bg-orange-50 text-orange-700' :
+                  'bg-sky-50 text-sky-700' %>">
+              <%= src %>
+            </span>
           </td>
           <td class="px-4 py-4 text-center">
             <% if (job.url) { %>

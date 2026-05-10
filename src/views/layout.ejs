@@ -344,11 +344,19 @@
           <div class="space-y-1.5">
             <label class="flex items-center gap-2.5 cursor-pointer">
               <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="harvestapi" checked>
-              <span class="text-sm text-gray-700">LinkedIn: HarvestAPI</span>
+              <span class="text-sm text-gray-700">LinkedIn: harvestapi</span>
             </label>
             <label class="flex items-center gap-2.5 cursor-pointer">
               <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="valig" checked>
-              <span class="text-sm text-gray-700">LinkedIn: Valig</span>
+              <span class="text-sm text-gray-700">LinkedIn: valig (L)</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="indeed">
+              <span class="text-sm text-gray-700">Indeed: valig (I)</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="stepstone">
+              <span class="text-sm text-gray-700">StepStone: valig (S)</span>
             </label>
           </div>
         </div>
@@ -465,11 +473,19 @@
           <div class="space-y-1.5">
             <label class="flex items-center gap-2.5 cursor-pointer">
               <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="harvestapi" checked>
-              <span class="text-sm text-gray-700">LinkedIn: HarvestAPI</span>
+              <span class="text-sm text-gray-700">LinkedIn: harvestapi</span>
             </label>
             <label class="flex items-center gap-2.5 cursor-pointer">
               <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="valig" checked>
-              <span class="text-sm text-gray-700">LinkedIn: Valig</span>
+              <span class="text-sm text-gray-700">LinkedIn: valig (L)</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="indeed">
+              <span class="text-sm text-gray-700">Indeed: valig (I)</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="stepstone">
+              <span class="text-sm text-gray-700">StepStone: valig (S)</span>
             </label>
           </div>
         </div>
@@ -804,7 +820,7 @@
         }
 
         // Providers display
-        const providerLabels = { harvestapi: 'LinkedIn: HarvestAPI', valig: 'LinkedIn: Valig' };
+        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)' };
         const statusProviders = _scheduleData.scraping_providers || ['harvestapi', 'valig'];
         document.getElementById('sched-status-providers').textContent =
           statusProviders.map(p => providerLabels[p] || p).join(', ');
@@ -871,16 +887,25 @@
       document.getElementById('run-modal-submit').disabled = false;
       document.getElementById('run-modal-groups').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
       setRunDateRange('24h');
-      const savedProviders = _scheduleData?.scraping_providers || ['harvestapi', 'valig'];
+
+      const [schedRes, groupsRes] = await Promise.allSettled([
+        fetch('/api/schedule/status'),
+        fetch('/api/groups'),
+      ]);
+
+      // Restore last-used provider selection; fall back to all checked
+      let savedProviders = null;
+      if (schedRes.status === 'fulfilled') {
+        try { savedProviders = (await schedRes.value.json()).scraping_providers; } catch (_) {}
+      }
       document.querySelectorAll('.run-provider-check').forEach(cb => {
-        cb.checked = savedProviders.includes(cb.value);
+        cb.checked = savedProviders ? savedProviders.includes(cb.value) : true;
       });
 
-      try {
-        const res = await fetch('/api/groups');
-        const data = await res.json();
-        renderRunGroups(data.groups || []);
-      } catch (e) {
+      if (groupsRes.status === 'fulfilled') {
+        try { renderRunGroups((await groupsRes.value.json()).groups || []); }
+        catch (_) { document.getElementById('run-modal-groups').innerHTML = '<span class="text-sm text-red-500">Failed to load roles.</span>'; }
+      } else {
         document.getElementById('run-modal-groups').innerHTML = '<span class="text-sm text-red-500">Failed to load roles.</span>';
       }
     }
