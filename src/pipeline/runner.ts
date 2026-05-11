@@ -578,6 +578,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         UPDATE jobs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?, ai_summary = ?
         WHERE linkedin_job_id = ? AND profile_id = ?
       `);
+      const updateRescoredLog = db.prepare(`
+        UPDATE run_job_logs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?
+        WHERE run_id = ? AND linkedin_job_id = ?
+      `);
 
       for (const entry of strongMatchesForReScoring) {
         try {
@@ -593,6 +597,11 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
             rescored.score, rescored.verdict, rescored.rationale,
             rescored.rejectionCategory, rescored.summary,
             entry.linkedinJobId, profileId,
+          );
+          updateRescoredLog.run(
+            rescored.score, rescored.verdict, rescored.rationale,
+            rescored.rejectionCategory,
+            runId, entry.linkedinJobId,
           );
 
           if (rescored.verdict !== 'STRONG_MATCH') {
