@@ -62,14 +62,29 @@ export async function runLeverDiscovery(
   console.log('[lever-discovery] Starting HuggingFace discovery via Python script');
   if (runId) emitToRun(runId, { msg: 'Querying HuggingFace dataset via Python (this takes ~2 min)…' });
 
-  await new Promise<void>((resolve, reject) => {
-    // Use uv run (no venv needed) if available, otherwise fall back to python3.
-  // Set LEVER_PYTHON_CMD env var to override (e.g. a venv path).
-  const pythonCmd = process.env.LEVER_PYTHON_CMD;
-  const [cmd, args] = pythonCmd
-    ? [pythonCmd, [scriptPath, '--skip-validation', '--output', path.join(scriptDir, 'lever_companies.csv')]]
-    : ['uv',      ['run', '--with', 'duckdb', '--with', 'pandas', scriptPath, '--skip-validation', '--output', path.join(scriptDir, 'lever_companies.csv')]];
+  // Resolve uv binary: check common install locations so it works even when
+  // ~/.local/bin isn't in the PATH inherited by the Node process.
+  function resolveUv(): string {
+    if (process.env.UV_PATH) return process.env.UV_PATH;
+    const candidates = [
+      '/root/.local/bin/uv',
+      `${process.env.HOME}/.local/bin/uv`,
+      '/usr/local/bin/uv',
+      'uv',
+    ];
+    for (const c of candidates) {
+      try { if (c !== 'uv') fs.accessSync(c, fs.constants.X_OK); return c; } catch { /* try next */ }
+    }
+    return 'uv';
+  }
 
+  const scriptArgs = ['--skip-validation', '--output', path.join(scriptDir, 'lever_companies.csv')];
+  const pythonCmd  = process.env.LEVER_PYTHON_CMD;
+  const [cmd, args] = pythonCmd
+    ? [pythonCmd, [scriptPath, ...scriptArgs]]
+    : [resolveUv(), ['run', '--with', 'duckdb', '--with', 'pandas', scriptPath, ...scriptArgs]];
+
+  await new Promise<void>((resolve, reject) => {
   const proc = cp.spawn(cmd, args, { cwd: scriptDir });
 
     proc.stdout.on('data', (chunk: Buffer) => {
