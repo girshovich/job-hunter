@@ -99,8 +99,8 @@
   <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">ATS Board Discovery</h2>
     <p class="text-xs text-gray-500 mb-4">
-      Discovers company job boards on Greenhouse, Lever, and Ashby via Common Crawl.
-      Validates boards weekly to keep the list current.
+      Discovers Greenhouse and Ashby boards via Common Crawl, and Lever companies via HuggingFace.
+      Validates all boards weekly to keep the list current.
     </p>
 
     <!-- Stats -->
@@ -129,20 +129,38 @@
     <!-- Schedules -->
     <div class="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
 
-      <!-- Discovery row -->
+      <!-- Discovery row: Greenhouse & Ashby via CDX -->
       <div class="flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-3 min-w-0">
           <span id="ats-disc-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
           <div>
             <div class="flex items-baseline gap-1.5">
               <span class="text-sm font-medium text-gray-800">Discovery</span>
-              <span class="text-xs text-gray-400">monthly</span>
+              <span class="text-xs text-gray-400">Greenhouse &amp; Ashby · monthly</span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">1st of month · 08:00 · <span id="ats-disc-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">via Common Crawl · 1st of month · 08:00 · <span id="ats-disc-tz">UTC</span></p>
           </div>
         </div>
         <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
           <input type="checkbox" id="ats-disc-toggle" class="sr-only peer" onchange="atsDiscToggle(this.checked)">
+          <div class="w-9 h-5 bg-gray-200 rounded-full transition-colors peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
+        </label>
+      </div>
+
+      <!-- Discovery row: Lever via HuggingFace -->
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span id="ats-lever-disc-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
+          <div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-sm font-medium text-gray-800">Discovery</span>
+              <span class="text-xs text-gray-400">Lever · monthly</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">via HuggingFace · 1st of month · 08:00 · <span id="ats-lever-disc-tz">UTC</span></p>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+          <input type="checkbox" id="ats-lever-disc-toggle" class="sr-only peer" onchange="atsLeverDiscToggle(this.checked)">
           <div class="w-9 h-5 bg-gray-200 rounded-full transition-colors peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
         </label>
       </div>
@@ -166,10 +184,14 @@
       </div>
 
       <!-- Run now row -->
-      <div class="flex items-center gap-2 px-4 py-3 bg-gray-50">
+      <div class="flex items-center gap-2 px-4 py-3 bg-gray-50 flex-wrap">
         <button id="ats-discover-btn" type="button" onclick="atsRunDiscovery()"
                 class="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
-          Run Discovery Now
+          Run Discovery Now (GH &amp; Ashby)
+        </button>
+        <button id="ats-lever-discover-btn" type="button" onclick="atsRunLeverDiscovery()"
+                class="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+          Run Discovery Now (Lever)
         </button>
         <button id="ats-validate-btn" type="button" onclick="atsRunValidation()"
                 class="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
@@ -193,14 +215,17 @@ function _setDot(id, enabled) {
   dot.classList.toggle('bg-gray-300', !enabled);
 }
 
-function _applyScheduleState(discEnabled, valEnabled, tz) {
+function _applyScheduleState(discEnabled, leverDiscEnabled, valEnabled, tz) {
   const tzLabel = tz || 'UTC';
-  document.getElementById('ats-disc-toggle').checked = discEnabled;
-  document.getElementById('ats-val-toggle').checked  = valEnabled;
-  document.getElementById('ats-disc-tz').textContent = tzLabel;
-  document.getElementById('ats-val-tz').textContent  = tzLabel;
-  _setDot('ats-disc-dot', discEnabled);
-  _setDot('ats-val-dot',  valEnabled);
+  document.getElementById('ats-disc-toggle').checked       = discEnabled;
+  document.getElementById('ats-lever-disc-toggle').checked = leverDiscEnabled;
+  document.getElementById('ats-val-toggle').checked        = valEnabled;
+  document.getElementById('ats-disc-tz').textContent       = tzLabel;
+  document.getElementById('ats-lever-disc-tz').textContent = tzLabel;
+  document.getElementById('ats-val-tz').textContent        = tzLabel;
+  _setDot('ats-disc-dot',       discEnabled);
+  _setDot('ats-lever-disc-dot', leverDiscEnabled);
+  _setDot('ats-val-dot',        valEnabled);
 }
 
 async function loadAtsStats() {
@@ -211,6 +236,7 @@ async function loadAtsStats() {
     if (data.settings) {
       _applyScheduleState(
         !!data.settings.ats_discovery_enabled,
+        !!data.settings.ats_lever_disc_enabled,
         !!data.settings.ats_validation_enabled,
         data.settings.timezone,
       );
@@ -252,11 +278,11 @@ async function loadAtsStats() {
   }
 }
 
-async function _atsToggle(discEnabled, valEnabled) {
-  const res  = await fetch('/api/ats/settings', {
+async function _atsToggle(discEnabled, leverDiscEnabled, valEnabled) {
+  const res = await fetch('/api/ats/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ discovery_enabled: discEnabled, validation_enabled: valEnabled }),
+    body: JSON.stringify({ discovery_enabled: discEnabled, lever_disc_enabled: leverDiscEnabled, validation_enabled: valEnabled }),
   });
   return res.json();
 }
@@ -264,34 +290,61 @@ async function _atsToggle(discEnabled, valEnabled) {
 async function atsDiscToggle(enabled) {
   const toggle = document.getElementById('ats-disc-toggle');
   toggle.disabled = true;
-  const data = await _atsToggle(enabled, document.getElementById('ats-val-toggle').checked);
+  const data = await _atsToggle(enabled, document.getElementById('ats-lever-disc-toggle').checked, document.getElementById('ats-val-toggle').checked);
   toggle.disabled = false;
   if (data.error) { alert(data.error); toggle.checked = !enabled; return; }
   _setDot('ats-disc-dot', enabled);
   document.getElementById('ats-disc-tz').textContent = data.timezone || 'UTC';
 }
 
+async function atsLeverDiscToggle(enabled) {
+  const toggle = document.getElementById('ats-lever-disc-toggle');
+  toggle.disabled = true;
+  const data = await _atsToggle(document.getElementById('ats-disc-toggle').checked, enabled, document.getElementById('ats-val-toggle').checked);
+  toggle.disabled = false;
+  if (data.error) { alert(data.error); toggle.checked = !enabled; return; }
+  _setDot('ats-lever-disc-dot', enabled);
+  document.getElementById('ats-lever-disc-tz').textContent = data.timezone || 'UTC';
+}
+
 async function atsValToggle(enabled) {
   const toggle = document.getElementById('ats-val-toggle');
   toggle.disabled = true;
-  const data = await _atsToggle(document.getElementById('ats-disc-toggle').checked, enabled);
+  const data = await _atsToggle(document.getElementById('ats-disc-toggle').checked, document.getElementById('ats-lever-disc-toggle').checked, enabled);
   toggle.disabled = false;
   if (data.error) { alert(data.error); toggle.checked = !enabled; return; }
   _setDot('ats-val-dot', enabled);
   document.getElementById('ats-val-tz').textContent = data.timezone || 'UTC';
 }
 
+function _atsDisableAllButtons() {
+  document.getElementById('ats-discover-btn').disabled       = true;
+  document.getElementById('ats-lever-discover-btn').disabled = true;
+  document.getElementById('ats-validate-btn').disabled       = true;
+}
+
+function _atsEnableAllButtons() {
+  document.getElementById('ats-discover-btn').disabled       = false;
+  document.getElementById('ats-lever-discover-btn').disabled = false;
+  document.getElementById('ats-validate-btn').disabled       = false;
+}
+
 async function atsRunDiscovery() {
-  document.getElementById('ats-discover-btn').disabled = true;
-  document.getElementById('ats-validate-btn').disabled = true;
+  _atsDisableAllButtons();
   const res = await fetch('/api/ats/discover', { method: 'POST' });
   const { runId } = await res.json();
-  _atsStartStream(runId, 'Discovery');
+  _atsStartStream(runId, 'Discovery (GH & Ashby)');
+}
+
+async function atsRunLeverDiscovery() {
+  _atsDisableAllButtons();
+  const res = await fetch('/api/ats/discover-lever', { method: 'POST' });
+  const { runId } = await res.json();
+  _atsStartStream(runId, 'Discovery (Lever)');
 }
 
 async function atsRunValidation() {
-  document.getElementById('ats-discover-btn').disabled = true;
-  document.getElementById('ats-validate-btn').disabled = true;
+  _atsDisableAllButtons();
   const res = await fetch('/api/ats/validate', { method: 'POST' });
   const { runId } = await res.json();
   _atsStartStream(runId, 'Validation');
@@ -341,8 +394,7 @@ function _atsStreamDone(label, cancelled) {
   dot.classList.remove('animate-pulse', 'bg-blue-400');
   dot.classList.add(cancelled ? 'bg-gray-300' : 'bg-emerald-400');
   document.getElementById('ats-run-stop-btn').classList.add('hidden');
-  document.getElementById('ats-discover-btn').disabled = false;
-  document.getElementById('ats-validate-btn').disabled = false;
+  _atsEnableAllButtons();
   setTimeout(() => loadAtsStats(), 1000);
 }
 

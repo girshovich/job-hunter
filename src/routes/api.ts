@@ -9,8 +9,9 @@ import { sendTestEmail } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
 import { runDiscovery } from '../pipeline/atsDiscovery';
+import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
-import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startAtsValidationCron, stopAtsValidationCron } from '../pipeline/atsScheduler';
+import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron } from '../pipeline/atsScheduler';
 import { activeRuns } from '../pipeline/atsRunState';
 import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobRow, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
@@ -999,9 +1000,9 @@ router.get('/ats/status', (req: Request, res: Response) => {
     GROUP BY ats
   `).all() as Array<{ ats: string; total: number; active: number; last_discovered: string; last_validated: string }>;
   const settings = db.prepare(`
-    SELECT ats_discovery_enabled, ats_validation_enabled, timezone
+    SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled, timezone
     FROM settings WHERE profile_id = ?
-  `).get(req.profile.id) as { ats_discovery_enabled: number; ats_validation_enabled: number; timezone: string } | undefined;
+  `).get(req.profile.id) as { ats_discovery_enabled: number; ats_lever_disc_enabled: number; ats_validation_enabled: number; timezone: string } | undefined;
   res.json({ boards, settings });
 });
 
@@ -1013,6 +1014,17 @@ router.post('/ats/discover', (req: Request, res: Response) => {
   runDiscovery(getDb(), runId)
     .then((r) => console.log('[ats-discovery] Manual run complete:', r))
     .catch((e) => console.error('[ats-discovery] Manual run error:', e))
+    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+});
+
+router.post('/ats/discover-lever', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const runId = randomUUID();
+  activeRuns.set(runId, { type: 'discovery', cancelled: false, listeners: new Set() });
+  res.json({ runId });
+  runLeverDiscovery(getDb(), runId)
+    .then((r) => console.log('[lever-discovery] Manual run complete:', r))
+    .catch((e) => console.error('[lever-discovery] Manual run error:', e))
     .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
 });
 
@@ -1054,8 +1066,9 @@ router.delete('/ats/run/:runId', (req: Request, res: Response) => {
 router.post('/ats/settings', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const b = req.body as Record<string, unknown>;
-  const discoveryEnabled = !!b.discovery_enabled;
-  const validationEnabled = !!b.validation_enabled;
+  const discoveryEnabled     = !!b.discovery_enabled;
+  const leverDiscEnabled     = !!b.lever_disc_enabled;
+  const validationEnabled    = !!b.validation_enabled;
 
   const db = getDb();
   const row = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(req.profile.id) as { timezone: string } | undefined;
@@ -1063,17 +1076,22 @@ router.post('/ats/settings', (req: Request, res: Response) => {
 
   db.prepare(`
     UPDATE settings
-    SET ats_discovery_enabled = ?, ats_discovery_cron = ?,
+    SET ats_discovery_enabled  = ?, ats_discovery_cron  = ?,
+        ats_lever_disc_enabled = ?, ats_lever_disc_cron = ?,
         ats_validation_enabled = ?, ats_validation_cron = ?
     WHERE profile_id = ?
   `).run(
-    discoveryEnabled ? 1 : 0, DISC_CRON,
+    discoveryEnabled  ? 1 : 0, DISC_CRON,
+    leverDiscEnabled  ? 1 : 0, DISC_CRON,
     validationEnabled ? 1 : 0, VAL_CRON,
     req.profile.id,
   );
 
   if (discoveryEnabled) startAtsDiscoveryCron(DISC_CRON, tz);
   else stopAtsDiscoveryCron();
+
+  if (leverDiscEnabled) startLeverDiscoveryCron(DISC_CRON, tz);
+  else stopLeverDiscoveryCron();
 
   if (validationEnabled) startAtsValidationCron(VAL_CRON, tz);
   else stopAtsValidationCron();

@@ -1,10 +1,12 @@
 import cron from 'node-cron';
 import { runDiscovery } from './atsDiscovery';
+import { runLeverDiscovery } from './leverDiscovery';
 import { runValidation } from './atsValidation';
 import { getDb } from '../db';
 
-let discoveryTask: ReturnType<typeof cron.schedule> | null = null;
-let validationTask: ReturnType<typeof cron.schedule> | null = null;
+let discoveryTask:      ReturnType<typeof cron.schedule> | null = null;
+let leverDiscoveryTask: ReturnType<typeof cron.schedule> | null = null;
+let validationTask:     ReturnType<typeof cron.schedule> | null = null;
 
 export function startAtsDiscoveryCron(expression: string, timezone = 'UTC'): void {
   discoveryTask?.stop();
@@ -28,6 +30,30 @@ export function stopAtsDiscoveryCron(): void {
   discoveryTask?.stop();
   discoveryTask = null;
   console.log('[ats-discovery] Cron stopped');
+}
+
+export function startLeverDiscoveryCron(expression: string, timezone = 'UTC'): void {
+  leverDiscoveryTask?.stop();
+  if (!cron.validate(expression)) {
+    console.warn(`[lever-discovery] Invalid cron expression "${expression}" — using fallback "0 8 1 * *"`);
+    expression = '0 8 1 * *';
+  }
+  leverDiscoveryTask = cron.schedule(expression, async () => {
+    console.log('[lever-discovery] Starting scheduled discovery run');
+    try {
+      const result = await runLeverDiscovery(getDb());
+      console.log('[lever-discovery] Done:', result);
+    } catch (err) {
+      console.error('[lever-discovery] Error:', err);
+    }
+  }, { timezone });
+  console.log(`[lever-discovery] Cron scheduled: "${expression}" (${timezone})`);
+}
+
+export function stopLeverDiscoveryCron(): void {
+  leverDiscoveryTask?.stop();
+  leverDiscoveryTask = null;
+  console.log('[lever-discovery] Cron stopped');
 }
 
 export function startAtsValidationCron(expression: string, timezone = 'UTC'): void {

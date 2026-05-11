@@ -3,7 +3,6 @@ import { emitToRun, isCancelled } from './atsRunState';
 
 const ATS_DOMAINS: Record<string, string> = {
   'boards.greenhouse.io': 'greenhouse',
-  'jobs.lever.co':        'lever',
   'jobs.ashbyhq.com':     'ashby',
 };
 

@@ -861,6 +861,61 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_ats_discovery failed (non-fatal):', (err as Error).message);
   }
 
+  // v_lever_discovery: add Lever-specific discovery settings column + one-time CSV import
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_lever_discovery'`).get();
+    if (!done) {
+      const cols = (db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[]).map((c) => c.name);
+      if (!cols.includes('ats_lever_disc_enabled'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_lever_disc_enabled INTEGER NOT NULL DEFAULT 0`);
+      if (!cols.includes('ats_lever_disc_cron'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_lever_disc_cron TEXT NOT NULL DEFAULT '0 8 1 * *'`);
+
+      // One-time import from lever_companies.csv if it exists and no Lever rows are present
+      const leverCount = (db.prepare(`SELECT COUNT(*) AS c FROM ats_boards WHERE ats = 'lever'`).get() as { c: number }).c;
+      if (leverCount === 0) {
+        const fs = require('fs') as typeof import('fs');
+        const path = require('path') as typeof import('path');
+        // Check app root first, then parent dir for legacy local layout
+        const csvPath = fs.existsSync(path.resolve(process.cwd(), 'lever_companies.csv'))
+          ? path.resolve(process.cwd(), 'lever_companies.csv')
+          : path.resolve(process.cwd(), '..', 'lever_companies.csv');
+        if (fs.existsSync(csvPath)) {
+          const lines = fs.readFileSync(csvPath, 'utf8').trim().split(/\r?\n/);
+          const headers = lines[0].split(',').map((h: string) => h.trim());
+          const slugIdx    = headers.indexOf('lever_slug');
+          const nameIdx    = headers.indexOf('company_name');
+          const statusIdx  = headers.indexOf('validation_status');
+          const valAtIdx   = headers.indexOf('validated_at');
+          const insert = db.prepare(`
+            INSERT INTO ats_boards (ats, slug, company_name, is_active, discovered_at, validated_at)
+            VALUES ('lever', ?, ?, ?, ?, ?)
+            ON CONFLICT (ats, slug) DO NOTHING
+          `);
+          const now = new Date().toISOString();
+          let imported = 0;
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            const slug    = cols[slugIdx]?.trim();
+            const name    = cols[nameIdx]?.trim() || null;
+            const status  = cols[statusIdx]?.trim();
+            const valAt   = cols[valAtIdx]?.trim() || null;
+            if (!slug) continue;
+            const isActive = status === 'valid' ? 1 : 0;
+            const result = insert.run(slug, name, isActive, now, valAt) as { changes: number };
+            if (result.changes > 0) imported++;
+          }
+          console.log(`[db] Migration v_lever_discovery: imported ${imported} Lever companies from CSV`);
+        }
+      }
+
+      db.exec(`INSERT INTO _migrations VALUES ('v_lever_discovery')`);
+      console.log('[db] Migration v_lever_discovery: Lever settings columns added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_lever_discovery failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
