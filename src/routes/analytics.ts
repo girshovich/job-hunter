@@ -58,19 +58,19 @@ router.get('/', (req: Request, res: Response) => {
   const totals = db.prepare<{ total: number; strong: number; applied: number }>(`
     SELECT
       COUNT(*) as total,
-      SUM(CASE WHEN ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
-      SUM(CASE WHEN applied = 1 AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 THEN 1 ELSE 0 END) as applied
-    FROM jobs WHERE profile_id = ?
+      SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
+      SUM(CASE WHEN jps.applied = 1 AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
+    FROM job_profile_states jps WHERE jps.profile_id = ?
   `).get(profileId) as { total: number; strong: number; applied: number };
 
   // Status breakdown (all verdicts as counts)
   interface StatusRow { status: string; count: number }
   const statusBreakdown = db.prepare<StatusRow>(`
     SELECT
-      CASE WHEN is_duplicate = 1 THEN 'DUPLICATE'
-           ELSE COALESCE(ai_verdict, 'UNKNOWN') END as status,
+      CASE WHEN jps.is_duplicate = 1 THEN 'DUPLICATE'
+           ELSE COALESCE(jps.ai_verdict, 'UNKNOWN') END as status,
       COUNT(*) as count
-    FROM jobs WHERE profile_id = ?
+    FROM job_profile_states jps WHERE jps.profile_id = ?
     GROUP BY status
     ORDER BY count DESC
   `).all(profileId) as StatusRow[];
@@ -86,12 +86,12 @@ router.get('/', (req: Request, res: Response) => {
   }
   const groupRows = db.prepare<GroupStat>(`
     SELECT
-      group_id,
+      jps.group_id,
       COUNT(*) as total,
-      SUM(CASE WHEN ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
-      SUM(CASE WHEN applied = 1 AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 THEN 1 ELSE 0 END) as applied
-    FROM jobs WHERE profile_id = ?
-    GROUP BY group_id
+      SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
+      SUM(CASE WHEN jps.applied = 1 AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
+    FROM job_profile_states jps WHERE jps.profile_id = ?
+    GROUP BY jps.group_id
   `).all(profileId) as GroupStat[];
 
   const groupStatMap = new Map<number | null, GroupStat>();
@@ -104,9 +104,11 @@ router.get('/', (req: Request, res: Response) => {
 
   // Per-country stats (strong matches only, non-duplicate)
   interface JobLocationRow { location: string | null; applied: number }
-  const allStrongJobs = db.prepare<JobLocationRow>(
-    `SELECT location, applied FROM jobs WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0`,
-  ).all(profileId) as JobLocationRow[];
+  const allStrongJobs = db.prepare<JobLocationRow>(`
+    SELECT j.location, jps.applied FROM jobs j
+    JOIN job_profile_states jps ON jps.job_id = j.id
+    WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+  `).all(profileId) as JobLocationRow[];
 
   const countryMap = new Map<string, { strong: number; applied: number }>();
   for (const job of allStrongJobs) {
@@ -124,13 +126,13 @@ router.get('/', (req: Request, res: Response) => {
   interface DayVerdictRow { day: string; group_id: number | null; verdict: string; count: number }
   const dailyGroupRaw = db.prepare<DayVerdictRow>(`
     SELECT
-      strftime('%Y-%m-%d', fetched_at) as day,
-      group_id,
-      CASE WHEN is_duplicate = 1 THEN 'DUPLICATE' ELSE ai_verdict END as verdict,
+      strftime('%Y-%m-%d', jps.fetched_at) as day,
+      jps.group_id,
+      CASE WHEN jps.is_duplicate = 1 THEN 'DUPLICATE' ELSE jps.ai_verdict END as verdict,
       COUNT(*) as count
-    FROM jobs
-    WHERE profile_id = ? AND date(fetched_at) >= date('now', '-13 days')
-    GROUP BY day, group_id, verdict
+    FROM job_profile_states jps
+    WHERE jps.profile_id = ? AND date(jps.fetched_at) >= date('now', '-13 days')
+    GROUP BY day, jps.group_id, verdict
     ORDER BY day
   `).all(profileId) as DayVerdictRow[];
 
@@ -138,13 +140,13 @@ router.get('/', (req: Request, res: Response) => {
   interface MonthVerdictRow { month: string; group_id: number | null; verdict: string; count: number }
   const monthlyRaw = db.prepare<MonthVerdictRow>(`
     SELECT
-      strftime('%Y-%m', fetched_at) as month,
-      group_id,
-      CASE WHEN is_duplicate = 1 THEN 'DUPLICATE' ELSE ai_verdict END as verdict,
+      strftime('%Y-%m', jps.fetched_at) as month,
+      jps.group_id,
+      CASE WHEN jps.is_duplicate = 1 THEN 'DUPLICATE' ELSE jps.ai_verdict END as verdict,
       COUNT(*) as count
-    FROM jobs
-    WHERE profile_id = ? AND strftime('%Y-%m', fetched_at) >= strftime('%Y-%m', 'now', '-11 months')
-    GROUP BY month, group_id, verdict
+    FROM job_profile_states jps
+    WHERE jps.profile_id = ? AND strftime('%Y-%m', jps.fetched_at) >= strftime('%Y-%m', 'now', '-11 months')
+    GROUP BY month, jps.group_id, verdict
     ORDER BY month
   `).all(profileId) as MonthVerdictRow[];
 
@@ -152,19 +154,19 @@ router.get('/', (req: Request, res: Response) => {
   interface StrongQualityRow { day: string; category: string; count: number }
   const strongQualityRaw = db.prepare<StrongQualityRow>(`
     SELECT
-      strftime('%Y-%m-%d', fetched_at) as day,
+      strftime('%Y-%m-%d', jps.fetched_at) as day,
       CASE
-        WHEN ai_verdict = 'STRONG_MATCH' AND (original_ai_verdict = 'STRONG_MATCH' OR original_ai_verdict IS NULL) THEN 'kept'
-        WHEN ai_verdict = 'STRONG_MATCH' AND original_ai_verdict != 'STRONG_MATCH' THEN 'promoted'
-        WHEN ai_verdict != 'STRONG_MATCH' AND original_ai_verdict = 'STRONG_MATCH' THEN 'demoted'
+        WHEN jps.ai_verdict = 'STRONG_MATCH' AND (jps.original_ai_verdict = 'STRONG_MATCH' OR jps.original_ai_verdict IS NULL) THEN 'kept'
+        WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.original_ai_verdict != 'STRONG_MATCH' THEN 'promoted'
+        WHEN jps.ai_verdict != 'STRONG_MATCH' AND jps.original_ai_verdict = 'STRONG_MATCH' THEN 'demoted'
         ELSE NULL
       END as category,
       COUNT(*) as count
-    FROM jobs
-    WHERE profile_id = ?
-      AND is_duplicate = 0
-      AND (ai_verdict = 'STRONG_MATCH' OR original_ai_verdict = 'STRONG_MATCH')
-      AND date(fetched_at) >= date('now', '-13 days')
+    FROM job_profile_states jps
+    WHERE jps.profile_id = ?
+      AND jps.is_duplicate = 0
+      AND (jps.ai_verdict = 'STRONG_MATCH' OR jps.original_ai_verdict = 'STRONG_MATCH')
+      AND date(jps.fetched_at) >= date('now', '-13 days')
     GROUP BY day, category
     HAVING category IS NOT NULL
     ORDER BY day
@@ -174,19 +176,19 @@ router.get('/', (req: Request, res: Response) => {
   interface StrongQualityMonthRow { month: string; category: string; count: number }
   const strongQualityMonthlyRaw = db.prepare<StrongQualityMonthRow>(`
     SELECT
-      strftime('%Y-%m', fetched_at) as month,
+      strftime('%Y-%m', jps.fetched_at) as month,
       CASE
-        WHEN ai_verdict = 'STRONG_MATCH' AND (original_ai_verdict = 'STRONG_MATCH' OR original_ai_verdict IS NULL) THEN 'kept'
-        WHEN ai_verdict = 'STRONG_MATCH' AND original_ai_verdict != 'STRONG_MATCH' THEN 'promoted'
-        WHEN ai_verdict != 'STRONG_MATCH' AND original_ai_verdict = 'STRONG_MATCH' THEN 'demoted'
+        WHEN jps.ai_verdict = 'STRONG_MATCH' AND (jps.original_ai_verdict = 'STRONG_MATCH' OR jps.original_ai_verdict IS NULL) THEN 'kept'
+        WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.original_ai_verdict != 'STRONG_MATCH' THEN 'promoted'
+        WHEN jps.ai_verdict != 'STRONG_MATCH' AND jps.original_ai_verdict = 'STRONG_MATCH' THEN 'demoted'
         ELSE NULL
       END as category,
       COUNT(*) as count
-    FROM jobs
-    WHERE profile_id = ?
-      AND is_duplicate = 0
-      AND (ai_verdict = 'STRONG_MATCH' OR original_ai_verdict = 'STRONG_MATCH')
-      AND strftime('%Y-%m', fetched_at) >= strftime('%Y-%m', 'now', '-11 months')
+    FROM job_profile_states jps
+    WHERE jps.profile_id = ?
+      AND jps.is_duplicate = 0
+      AND (jps.ai_verdict = 'STRONG_MATCH' OR jps.original_ai_verdict = 'STRONG_MATCH')
+      AND strftime('%Y-%m', jps.fetched_at) >= strftime('%Y-%m', 'now', '-11 months')
     GROUP BY month, category
     HAVING category IS NOT NULL
     ORDER BY month

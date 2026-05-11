@@ -945,6 +945,84 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration (seed default group) failed (non-fatal):', (err as Error).message);
   }
+
+  // vMT: split jobs into canonical jobs + per-user job_profile_states
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const vmtDone = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'vMT_job_profile_states'`).get();
+    if (!vmtDone) {
+      db.transaction(() => {
+        db.exec(`CREATE TABLE jobs_backup_vMT AS SELECT * FROM jobs`);
+        db.exec(`CREATE TABLE IF NOT EXISTS job_profile_states (
+          job_id              INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          profile_id          INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+          group_id            INTEGER REFERENCES search_groups(id),
+          fetched_at          TEXT    NOT NULL,
+          ai_score            INTEGER NOT NULL DEFAULT 0,
+          ai_verdict          TEXT    NOT NULL DEFAULT 'PENDING',
+          original_ai_verdict TEXT,
+          ai_rationale        TEXT,
+          ai_summary          TEXT,
+          rejection_category  TEXT,
+          cv_assessment       TEXT,
+          is_duplicate        INTEGER NOT NULL DEFAULT 0,
+          duplicate_of_job_id INTEGER REFERENCES jobs(id),
+          seen                INTEGER NOT NULL DEFAULT 0,
+          seen_at             TEXT,
+          applied             INTEGER NOT NULL DEFAULT 0,
+          user_notes          TEXT,
+          PRIMARY KEY (job_id, profile_id)
+        )`);
+        db.exec(`INSERT OR IGNORE INTO job_profile_states (
+            job_id, profile_id, group_id, fetched_at,
+            ai_score, ai_verdict, original_ai_verdict, ai_rationale, ai_summary,
+            rejection_category, cv_assessment,
+            is_duplicate, duplicate_of_job_id,
+            seen, seen_at, applied, user_notes
+          )
+          SELECT
+            id, profile_id, group_id, fetched_at,
+            COALESCE(ai_score, 0),
+            COALESCE(ai_verdict, 'PENDING'),
+            original_ai_verdict, ai_rationale, ai_summary,
+            rejection_category, cv_assessment,
+            COALESCE(is_duplicate, 0), duplicate_of_job_id,
+            COALESCE(seen, 0), seen_at,
+            COALESCE(applied, 0), user_notes
+          FROM jobs`);
+        db.exec(`CREATE TABLE jobs_new (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          linkedin_job_id TEXT    NOT NULL,
+          job_source      TEXT    NOT NULL DEFAULT 'LinkedIn',
+          provider        TEXT    NOT NULL DEFAULT 'harvestapi',
+          title           TEXT    NOT NULL,
+          company         TEXT    NOT NULL,
+          location        TEXT,
+          work_mode       TEXT,
+          description     TEXT    NOT NULL,
+          url             TEXT,
+          apply_url       TEXT,
+          posted_date     TEXT,
+          country         TEXT,
+          fetched_at      TEXT    NOT NULL
+        )`);
+        db.exec(`INSERT INTO jobs_new
+          SELECT id, linkedin_job_id, job_source, provider,
+                 title, company, location, work_mode, description,
+                 url, apply_url, posted_date, country, fetched_at
+          FROM jobs`);
+        db.exec(`DROP TABLE jobs`);
+        db.exec(`ALTER TABLE jobs_new RENAME TO jobs`);
+        db.exec(`CREATE UNIQUE INDEX idx_jobs_source_job_id ON jobs(linkedin_job_id, job_source)`);
+        db.exec(`CREATE INDEX idx_jobs_company ON jobs(company)`);
+        db.exec(`CREATE INDEX idx_jobs_fetched_at ON jobs(fetched_at)`);
+        db.exec(`INSERT INTO _migrations VALUES ('vMT_job_profile_states')`);
+      });
+      console.log('[db] Migration vMT_job_profile_states: jobs split into canonical + job_profile_states');
+    }
+  } catch (err) {
+    console.warn('[db] Migration vMT_job_profile_states failed:', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -992,9 +1070,28 @@ function initSchema(db: Database): void {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_linkedin_id ON jobs(linkedin_job_id);
     CREATE INDEX IF NOT EXISTS idx_jobs_company       ON jobs(company);
-    CREATE INDEX IF NOT EXISTS idx_jobs_seen          ON jobs(seen);
-    CREATE INDEX IF NOT EXISTS idx_jobs_verdict       ON jobs(ai_verdict);
     CREATE INDEX IF NOT EXISTS idx_jobs_fetched_at    ON jobs(fetched_at);
+
+    CREATE TABLE IF NOT EXISTS job_profile_states (
+      job_id              INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      profile_id          INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      group_id            INTEGER REFERENCES search_groups(id),
+      fetched_at          TEXT    NOT NULL,
+      ai_score            INTEGER NOT NULL DEFAULT 0,
+      ai_verdict          TEXT    NOT NULL DEFAULT 'PENDING',
+      original_ai_verdict TEXT,
+      ai_rationale        TEXT,
+      ai_summary          TEXT,
+      rejection_category  TEXT,
+      cv_assessment       TEXT,
+      is_duplicate        INTEGER NOT NULL DEFAULT 0,
+      duplicate_of_job_id INTEGER REFERENCES jobs(id),
+      seen                INTEGER NOT NULL DEFAULT 0,
+      seen_at             TEXT,
+      applied             INTEGER NOT NULL DEFAULT 0,
+      user_notes          TEXT,
+      PRIMARY KEY (job_id, profile_id)
+    );
 
     CREATE TABLE IF NOT EXISTS search_runs (
       id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1157,8 +1254,13 @@ function initSchema(db: Database): void {
 // Create profile_id indexes after migrations have added the columns (safe with IF NOT EXISTS)
 function ensureProfileIndexes(db: Database): void {
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_profile_id ON jobs(profile_id)`); } catch (_) {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_seen ON jobs(seen)`); } catch (_) {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_verdict ON jobs(ai_verdict)`); } catch (_) {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_profile ON search_runs(profile_id)`); } catch (_) {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_blacklist_profile ON blacklisted_companies(profile_id)`); } catch (_) {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_match_fetch ON job_profile_states(profile_id, ai_verdict, is_duplicate, fetched_at, ai_score, job_id)`); } catch (_) {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_dedup ON job_profile_states(profile_id, is_duplicate)`); } catch (_) {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_job_id ON job_profile_states(job_id)`); } catch (_) {}
 }
 
 function seedSettings(db: Database): void {
@@ -1280,35 +1382,42 @@ export interface EmailChangeRequestRow {
 
 export interface JobRow {
   id: number;
-  profile_id: number;
   linkedin_job_id: string;
+  job_source: string;
+  provider: string;
   title: string;
   company: string;
   location: string | null;
   work_mode: string | null;
   description: string;
   url: string | null;
+  apply_url: string | null;
   posted_date: string | null;
+  country: string | null;
+  fetched_at: string;
+}
+
+export interface JobProfileStateRow {
+  job_id: number;
+  profile_id: number;
+  group_id: number | null;
   fetched_at: string;
   ai_score: number;
+  ai_verdict: string;
+  original_ai_verdict: string | null;
   ai_rationale: string | null;
   ai_summary: string | null;
-  ai_verdict: string;
   rejection_category: string | null;
+  cv_assessment: string | null;
   is_duplicate: number;
   duplicate_of_job_id: number | null;
   seen: number;
   seen_at: string | null;
-  group_id: number | null;
   applied: number;
   user_notes: string | null;
-  apply_url: string | null;
-  provider: string;
-  original_ai_verdict: string | null;
-  cv_assessment: string | null;
-  country: string | null;
-  job_source: string;
 }
+
+export type JobWithState = JobRow & JobProfileStateRow;
 
 export interface SearchRunRow {
   id: number;

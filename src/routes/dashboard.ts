@@ -3,7 +3,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type JobRow, type SearchRunRow, type SearchGroupRow, type SettingsRow, type CvRow } from '../db';
+import { getDb, type JobWithState, type SearchRunRow, type SearchGroupRow, type SettingsRow, type CvRow } from '../db';
 
 const router = Router();
 
@@ -19,33 +19,33 @@ router.get('/', (req: Request, res: Response) => {
   // Jobs from the last pipeline run
   const lastRunAt = lastRun?.ran_at ?? null;
 
-  // Live counts — recalculate from jobs table so manual verdict changes are reflected
+  // Live counts — recalculate from job_profile_states so manual verdict changes are reflected
   const liveLastRunStats = lastRunAt
     ? (db.prepare(`
         SELECT
-          SUM(CASE WHEN ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
-          SUM(CASE WHEN ai_verdict = 'WEAK_MATCH'   AND is_duplicate = 0 THEN 1 ELSE 0 END) as weak,
-          SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicate
-        FROM jobs WHERE profile_id = ? AND fetched_at >= ?
+          SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
+          SUM(CASE WHEN jps.ai_verdict = 'WEAK_MATCH'   AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as weak,
+          SUM(CASE WHEN jps.is_duplicate = 1 THEN 1 ELSE 0 END) as duplicate
+        FROM job_profile_states jps
+        WHERE jps.profile_id = ? AND jps.fetched_at >= ?
       `).get(profileId, lastRunAt) as { strong: number; weak: number; duplicate: number } | undefined)
     : undefined;
 
   const lastRunJobs = lastRunAt
-    ? (db
-        .prepare(
-          `SELECT * FROM jobs
-           WHERE profile_id = ? AND fetched_at >= ? AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'
-           ORDER BY ai_score DESC`,
-        )
-        .all(profileId, lastRunAt) as JobRow[])
+    ? (db.prepare(`
+        SELECT j.*, jps.*
+        FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+        WHERE jps.profile_id = ? AND jps.fetched_at >= ? AND jps.is_duplicate = 0 AND jps.ai_verdict = 'STRONG_MATCH'
+        ORDER BY jps.ai_score DESC
+      `).all(profileId, lastRunAt) as JobWithState[])
     : [];
 
   const newCount = db
-    .prepare(`SELECT COUNT(*) as c FROM jobs WHERE profile_id = ? AND seen = 0 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`)
+    .prepare(`SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND seen = 0 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`)
     .get(profileId) as { c: number };
 
   const seenCount = db
-    .prepare(`SELECT COUNT(*) as c FROM jobs WHERE profile_id = ? AND seen = 1 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`)
+    .prepare(`SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND seen = 1 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`)
     .get(profileId) as { c: number };
 
   const allTimeStats = db.prepare(`
@@ -63,18 +63,18 @@ router.get('/', (req: Request, res: Response) => {
   };
 
   const locationBreakdown = lastRunAt
-    ? (db
-        .prepare(
-          `SELECT location, COUNT(*) as count FROM jobs
-           WHERE profile_id = ? AND fetched_at >= ? AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH' AND location IS NOT NULL
-           GROUP BY location ORDER BY count DESC LIMIT 10`,
-        )
-        .all(profileId, lastRunAt) as Array<{ location: string; count: number }>)
+    ? (db.prepare(`
+        SELECT j.location, COUNT(*) as count
+        FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+        WHERE jps.profile_id = ? AND jps.fetched_at >= ? AND jps.is_duplicate = 0
+          AND jps.ai_verdict = 'STRONG_MATCH' AND j.location IS NOT NULL
+        GROUP BY j.location ORDER BY count DESC LIMIT 10
+      `).all(profileId, lastRunAt) as Array<{ location: string; count: number }>)
     : [];
 
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow | undefined;
   const groupCount = (db.prepare('SELECT COUNT(*) as c FROM search_groups WHERE profile_id = ?').get(profileId) as { c: number }).c;
-  const appliedCount = (db.prepare(`SELECT COUNT(*) as c FROM jobs WHERE profile_id = ? AND applied = 1 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`).get(profileId) as { c: number }).c;
+  const appliedCount = (db.prepare(`SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND applied = 1 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`).get(profileId) as { c: number }).c;
 
   // Onboarding checklist steps
   const checklist = {
@@ -129,14 +129,14 @@ router.get('/history', (req: Request, res: Response) => {
         ? null
         : parseInt(String(groupParam), 10);
 
-  const conditions: string[] = ['j.profile_id = ?'];
+  const conditions: string[] = ['jps.profile_id = ?'];
   const params: (string | number)[] = [profileId];
 
   // DUPLICATE filter maps to is_duplicate=1; other verdicts filter by ai_verdict
   if (verdict === 'DUPLICATE') {
-    conditions.push('j.is_duplicate = 1');
+    conditions.push('jps.is_duplicate = 1');
   } else if (verdict && ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH'].includes(verdict)) {
-    conditions.push('j.ai_verdict = ?');
+    conditions.push('jps.ai_verdict = ?');
     params.push(verdict);
   }
   if (company) {
@@ -147,40 +147,44 @@ router.get('/history', (req: Request, res: Response) => {
     conditions.push('j.country = ?');
     params.push(country);
   }
-  if (scoreMin !== null) { conditions.push('j.ai_score >= ?'); params.push(scoreMin); }
-  if (scoreMax !== null) { conditions.push('j.ai_score <= ?'); params.push(scoreMax); }
-  if (dateFrom) { conditions.push('j.fetched_at >= ?'); params.push(dateFrom); }
-  if (dateTo)   { conditions.push('j.fetched_at <= ?'); params.push(dateTo + 'T23:59:59Z'); }
+  if (scoreMin !== null) { conditions.push('jps.ai_score >= ?'); params.push(scoreMin); }
+  if (scoreMax !== null) { conditions.push('jps.ai_score <= ?'); params.push(scoreMax); }
+  if (dateFrom) { conditions.push('jps.fetched_at >= ?'); params.push(dateFrom); }
+  if (dateTo)   { conditions.push('jps.fetched_at <= ?'); params.push(dateTo + 'T23:59:59Z'); }
   if (groupId === null) {
-    conditions.push('j.group_id IS NULL');
+    conditions.push('jps.group_id IS NULL');
   } else if (groupId !== undefined && !isNaN(groupId)) {
-    conditions.push('j.group_id = ?');
+    conditions.push('jps.group_id = ?');
     params.push(groupId);
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
+  const fromClause = `FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id`;
 
   const total = (
-    db.prepare(`SELECT COUNT(*) as c FROM jobs j ${where}`).get(...params) as { c: number }
+    db.prepare(`SELECT COUNT(*) as c ${fromClause} ${where}`).get(...params) as { c: number }
   ).c;
 
   const jobs = db
     .prepare(`
-      SELECT * FROM jobs j
+      SELECT j.*, jps.* ${fromClause}
       ${where}
-      ORDER BY j.fetched_at DESC
+      ORDER BY jps.fetched_at DESC
       LIMIT ? OFFSET ?
     `)
-    .all(...params, limit, offset) as JobRow[];
+    .all(...params, limit, offset) as JobWithState[];
 
   const totalPages = Math.ceil(total / limit);
   const groups = db.prepare('SELECT id, group_name FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as Pick<SearchGroupRow, 'id' | 'group_name'>[];
   const histSettings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
 
   // Distinct countries for dropdown — resolved by locationNormalizer
-  const countryRows = db.prepare(
-    `SELECT DISTINCT country FROM jobs WHERE profile_id = ? AND country IS NOT NULL AND country != '' ORDER BY country ASC`,
-  ).all(profileId) as Array<{ country: string }>;
+  const countryRows = db.prepare(`
+    SELECT DISTINCT j.country FROM jobs j
+    JOIN job_profile_states jps ON jps.job_id = j.id
+    WHERE jps.profile_id = ? AND j.country IS NOT NULL AND j.country != ''
+    ORDER BY j.country ASC
+  `).all(profileId) as Array<{ country: string }>;
   const countries = countryRows.map(r => r.country);
 
   res.render('history', {
@@ -201,42 +205,51 @@ router.get('/job/:id', (req: Request, res: Response) => {
   const db = getDb();
   const id = parseInt(req.params.id, 10);
 
-  const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id) as JobRow | undefined;
+  const profileId = req.profile.id;
+  const job = db.prepare(`
+    SELECT j.*, jps.*
+    FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    WHERE j.id = ? AND jps.profile_id = ?
+  `).get(id, profileId) as JobWithState | undefined;
   if (!job) {
     res.status(404).render('404', { title: 'Not Found' });
     return;
   }
 
   // Duplicate chain
-  let original: JobRow | undefined;
+  let original: JobWithState | undefined;
   if (job.duplicate_of_job_id) {
-    original = db
-      .prepare('SELECT * FROM jobs WHERE id = ?')
-      .get(job.duplicate_of_job_id) as JobRow | undefined;
+    original = db.prepare(`
+      SELECT j.*, jps.*
+      FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+      WHERE j.id = ? AND jps.profile_id = ?
+    `).get(job.duplicate_of_job_id, profileId) as JobWithState | undefined;
   }
 
-  const duplicatesOfThis = db
-    .prepare('SELECT * FROM jobs WHERE duplicate_of_job_id = ? ORDER BY fetched_at DESC')
-    .all(job.id) as JobRow[];
+  const duplicatesOfThis = db.prepare(`
+    SELECT j.*, jps.*
+    FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    WHERE jps.duplicate_of_job_id = ? AND jps.profile_id = ?
+    ORDER BY jps.fetched_at DESC
+  `).all(job.id, profileId) as JobWithState[];
 
   const from = String(req.query.from || 'history');
   const backUrl   = from === 'jobs' ? '/jobs' : from === 'home' ? '/' : '/history';
   const backLabel = 'Back';
 
   // Prev/Next navigation — scoped to same profile, order matches the source page
-  const profileId = req.profile.id;
   let prevId: number | null = null;
   let nextId: number | null = null;
   if (from === 'jobs') {
     // Sort order: fetched_at DESC, ai_score DESC, id DESC (matches jobs page)
     // prev = item that appears above current = "bigger" in sort terms
     const prevRow = db.prepare(`
-      SELECT id FROM jobs
-      WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
-        AND (fetched_at > ?
-          OR (fetched_at = ? AND ai_score > ?)
-          OR (fetched_at = ? AND ai_score = ? AND id > ?))
-      ORDER BY fetched_at ASC, ai_score ASC, id ASC LIMIT 1
+      SELECT j.id FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+      WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+        AND (jps.fetched_at > ?
+          OR (jps.fetched_at = ? AND jps.ai_score > ?)
+          OR (jps.fetched_at = ? AND jps.ai_score = ? AND j.id > ?))
+      ORDER BY jps.fetched_at ASC, jps.ai_score ASC, j.id ASC LIMIT 1
     `).get(profileId,
         job.fetched_at,
         job.fetched_at, job.ai_score,
@@ -245,12 +258,12 @@ router.get('/job/:id', (req: Request, res: Response) => {
 
     // next = item that appears below current = "smaller" in sort terms
     const nextRow = db.prepare(`
-      SELECT id FROM jobs
-      WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
-        AND (fetched_at < ?
-          OR (fetched_at = ? AND ai_score < ?)
-          OR (fetched_at = ? AND ai_score = ? AND id < ?))
-      ORDER BY fetched_at DESC, ai_score DESC, id DESC LIMIT 1
+      SELECT j.id FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+      WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+        AND (jps.fetched_at < ?
+          OR (jps.fetched_at = ? AND jps.ai_score < ?)
+          OR (jps.fetched_at = ? AND jps.ai_score = ? AND j.id < ?))
+      ORDER BY jps.fetched_at DESC, jps.ai_score DESC, j.id DESC LIMIT 1
     `).get(profileId,
         job.fetched_at,
         job.fetched_at, job.ai_score,
@@ -260,10 +273,10 @@ router.get('/job/:id', (req: Request, res: Response) => {
     const day = job.fetched_at ? String(job.fetched_at).slice(0, 10) : null;
     if (day) {
       const sameDayIds = db.prepare(`
-        SELECT id FROM jobs
-        WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
-          AND strftime('%Y-%m-%d', fetched_at) = ?
-        ORDER BY ai_score DESC
+        SELECT j.id FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+        WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+          AND strftime('%Y-%m-%d', jps.fetched_at) = ?
+        ORDER BY jps.ai_score DESC
       `).all(profileId, day) as Array<{ id: number }>;
       const idx = sameDayIds.findIndex((r) => r.id === id);
       if (idx > 0) prevId = sameDayIds[idx - 1].id;

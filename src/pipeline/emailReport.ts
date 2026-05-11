@@ -4,7 +4,7 @@
  */
 
 import { Resend } from 'resend';
-import { getDb, type JobRow, type SearchRunRow } from '../db';
+import { getDb, type JobWithState } from '../db';
 
 interface RunStats {
   jobsFetched: number;
@@ -22,7 +22,7 @@ function scoreColor(score: number): string {
 }
 
 function buildEmailHtml(
-  jobs: JobRow[],
+  jobs: JobWithState[],
   stats: RunStats,
   recipientEmail: string,
 ): string {
@@ -137,17 +137,17 @@ export async function sendDailyReport(
   recipientEmail: string,
   resendApiKey: string,
   emailFrom: string,
+  profileId: number,
 ): Promise<{ sent: boolean; jobCount: number }> {
   const db = getDb();
 
-  // Collect all unseen, non-duplicate strong match jobs
-  const jobs = db
-    .prepare(
-      `SELECT * FROM jobs
-       WHERE seen = 0 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'
-       ORDER BY ai_score DESC, fetched_at DESC`,
-    )
-    .all() as JobRow[];
+  // Collect unseen, non-duplicate strong match jobs for this profile only
+  const jobs = db.prepare(`
+    SELECT j.*, jps.*
+    FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    WHERE jps.profile_id = ? AND jps.seen = 0 AND jps.is_duplicate = 0 AND jps.ai_verdict = 'STRONG_MATCH'
+    ORDER BY jps.ai_score DESC, jps.fetched_at DESC
+  `).all(profileId) as JobWithState[];
 
   const dateStr = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -182,11 +182,11 @@ export async function sendDailyReport(
   // Mark all included jobs as seen
   if (jobs.length > 0) {
     const now = new Date().toISOString();
-    const ids = jobs.map((j) => j.id);
+    const ids = jobs.map((j) => j.job_id);
     const placeholders = ids.map(() => '?').join(',');
     db.prepare(
-      `UPDATE jobs SET seen = 1, seen_at = ? WHERE id IN (${placeholders})`,
-    ).run(now, ...ids);
+      `UPDATE job_profile_states SET seen = 1, seen_at = ? WHERE job_id IN (${placeholders}) AND profile_id = ?`,
+    ).run(now, ...ids, profileId);
     console.log(`[email] Marked ${ids.length} jobs as seen.`);
   }
 
@@ -203,38 +203,38 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
     duplicates: 2,
   };
 
-  const mockJobs: JobRow[] = [
+  const mockJobs: JobWithState[] = [
     {
       id: 1,
-      profile_id: 1,
       linkedin_job_id: 'test-001',
+      job_source: 'LinkedIn',
+      provider: 'harvestapi',
       title: 'Senior Product Manager — Platform',
       company: 'Acme Corp',
       location: 'London, UK (Hybrid)',
       work_mode: 'hybrid',
       description: 'Test job description',
       url: 'https://linkedin.com',
+      apply_url: null,
       posted_date: new Date().toISOString().split('T')[0],
+      country: 'United Kingdom',
       fetched_at: new Date().toISOString(),
+      job_id: 1,
+      profile_id: 1,
+      group_id: null,
       ai_score: 87,
-      ai_rationale:
-        'Excellent match — senior IC PM role at a high-growth B2B SaaS company with strong platform scope. Hybrid in London aligns well with preferences.',
-      ai_summary: 'Acme Corp builds a B2B SaaS platform for enterprise workflow automation.',
       ai_verdict: 'STRONG_MATCH',
+      original_ai_verdict: 'STRONG_MATCH',
+      ai_rationale: 'Excellent match — senior IC PM role at a high-growth B2B SaaS company with strong platform scope. Hybrid in London aligns well with preferences.',
+      ai_summary: 'Acme Corp builds a B2B SaaS platform for enterprise workflow automation.',
       rejection_category: null,
+      cv_assessment: null,
       is_duplicate: 0,
       duplicate_of_job_id: null,
       seen: 0,
       seen_at: null,
-      group_id: null,
       applied: 0,
       user_notes: null,
-      apply_url: null,
-      provider: 'harvestapi',
-      original_ai_verdict: 'STRONG_MATCH',
-      cv_assessment: null,
-      country: 'United Kingdom',
-      job_source: 'LinkedIn',
     },
   ];
 

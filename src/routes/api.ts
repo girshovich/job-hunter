@@ -14,7 +14,7 @@ import { runValidation } from '../pipeline/atsValidation';
 import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron } from '../pipeline/atsScheduler';
 import { activeRuns } from '../pipeline/atsRunState';
 import { randomUUID } from 'crypto';
-import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobRow, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
+import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries } from '../pipeline/locationNormalizer';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
 import { config } from '../config';
@@ -317,9 +317,9 @@ router.get('/stats', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
 
-  const totalJobs = (db.prepare('SELECT COUNT(*) as c FROM jobs WHERE profile_id = ?').get(profileId) as { c: number }).c;
+  const totalJobs = (db.prepare('SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ?').get(profileId) as { c: number }).c;
   const newJobs = (
-    db.prepare(`SELECT COUNT(*) as c FROM jobs WHERE profile_id = ? AND seen = 0 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`).get(profileId) as { c: number }
+    db.prepare(`SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND seen = 0 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`).get(profileId) as { c: number }
   ).c;
   const lastRun = db.prepare('SELECT * FROM search_runs WHERE profile_id = ? ORDER BY ran_at DESC LIMIT 1').get(profileId);
 
@@ -650,7 +650,7 @@ router.delete('/groups/:id', (req: Request, res: Response) => {
   try {
     db.transaction(() => {
       // Orphan any referencing rows (data is preserved, group_id → null)
-      db.prepare('UPDATE jobs SET group_id = NULL WHERE group_id = ?').run(id);
+      db.prepare('UPDATE job_profile_states SET group_id = NULL WHERE group_id = ?').run(id);
       db.prepare('UPDATE run_job_logs SET group_id = NULL WHERE group_id = ?').run(id);
       const changes = db.prepare('DELETE FROM search_groups WHERE id = ? AND profile_id = ?').run(id, profileId).changes;
       if (changes === 0) throw Object.assign(new Error('Group not found.'), { status: 404 });
@@ -681,17 +681,15 @@ router.patch('/jobs/:id/verdict', (req: Request, res: Response) => {
   }
 
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM jobs WHERE id = ?').get(id);
-  if (!existing) {
-    res.status(404).json({ success: false, error: 'Job not found.' });
+  const changes = db.prepare(`
+    UPDATE job_profile_states SET ai_verdict = ?, is_duplicate = ?
+    WHERE job_id = ? AND profile_id = ?
+  `).run(verdict, verdict === 'DUPLICATE' ? 1 : 0, id, req.profile.id).changes;
+
+  if (changes === 0) {
+    res.status(403).json({ success: false, error: 'Forbidden' });
     return;
   }
-
-  db.prepare('UPDATE jobs SET ai_verdict = ?, is_duplicate = ? WHERE id = ?').run(
-    verdict,
-    verdict === 'DUPLICATE' ? 1 : 0,
-    id,
-  );
 
   res.json({ success: true });
 });
@@ -725,28 +723,33 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
 
   db.prepare('UPDATE run_job_logs SET ai_verdict = ? WHERE id = ?').run(verdict, logId);
 
-  const existingJob = db.prepare('SELECT id FROM jobs WHERE linkedin_job_id = ?').get(log.linkedin_job_id) as { id: number } | undefined;
+  const now = new Date().toISOString();
+  const existingJob = db.prepare('SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = ?')
+    .get(log.linkedin_job_id, 'LinkedIn') as { id: number } | undefined;
   let internalJobId: number;
   if (existingJob) {
-    db.prepare('UPDATE jobs SET ai_verdict = ?, is_duplicate = ? WHERE id = ?').run(
-      verdict, verdict === 'DUPLICATE' ? 1 : 0, existingJob.id,
-    );
+    db.prepare(`
+      UPDATE job_profile_states SET ai_verdict = ?, is_duplicate = ?
+      WHERE job_id = ? AND profile_id = ?
+    `).run(verdict, verdict === 'DUPLICATE' ? 1 : 0, existingJob.id, profileId);
     internalJobId = existingJob.id;
   } else {
-    const result = db.prepare(`
-      INSERT INTO jobs (profile_id, linkedin_job_id, title, company, location, description, url,
-                        fetched_at, ai_score, ai_rationale, ai_verdict, is_duplicate, seen, group_id, rejection_category,
-                        original_ai_verdict)
-      VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-    `).run(
-      profileId, log.linkedin_job_id, log.title, log.company, log.location,
-      log.url, log.logged_at,
-      log.ai_score ?? 0, log.ai_rationale,
-      verdict, verdict === 'DUPLICATE' ? 1 : 0,
-      log.group_id, log.rejection_category,
-      log.ai_verdict,
-    );
-    internalJobId = result.lastInsertRowid;
+    db.prepare(`
+      INSERT OR IGNORE INTO jobs
+        (linkedin_job_id, job_source, provider, title, company, location, description, url, fetched_at)
+      VALUES (?, 'LinkedIn', 'unknown', ?, ?, ?, '', ?, ?)
+    `).run(log.linkedin_job_id, log.title, log.company, log.location, log.url, log.logged_at);
+    const { id: jobId } = db.prepare(`SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = 'LinkedIn'`)
+      .get(log.linkedin_job_id) as { id: number };
+    db.prepare(`
+      INSERT OR IGNORE INTO job_profile_states
+        (job_id, profile_id, group_id, fetched_at, ai_score, ai_verdict, original_ai_verdict,
+         is_duplicate, rejection_category, seen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(jobId, profileId, log.group_id, now,
+           log.ai_score ?? 0, verdict, log.ai_verdict,
+           verdict === 'DUPLICATE' ? 1 : 0, log.rejection_category);
+    internalJobId = jobId;
   }
 
   res.json({ success: true, internal_job_id: internalJobId });
@@ -759,8 +762,10 @@ router.patch('/jobs/:id/applied', (req: Request, res: Response) => {
   const b = req.body as Record<string, unknown>;
   const applied = b.applied === true || b.applied === 1 ? 1 : 0;
   const db = getDb();
-  const changes = db.prepare('UPDATE jobs SET applied = ? WHERE id = ?').run(applied, id).changes;
-  if (!changes) { res.status(404).json({ success: false, error: 'Job not found.' }); return; }
+  const changes = db.prepare(`
+    UPDATE job_profile_states SET applied = ? WHERE job_id = ? AND profile_id = ?
+  `).run(applied, id, req.profile.id).changes;
+  if (changes === 0) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
   res.json({ success: true });
 });
 
@@ -795,8 +800,10 @@ router.patch('/jobs/:id/notes', (req: Request, res: Response) => {
   const b = req.body as Record<string, unknown>;
   const notes = String(b.notes ?? '').trim().slice(0, 5000);
   const db = getDb();
-  const changes = db.prepare('UPDATE jobs SET user_notes = ? WHERE id = ?').run(notes || null, id).changes;
-  if (!changes) { res.status(404).json({ success: false, error: 'Job not found.' }); return; }
+  const changes = db.prepare(`
+    UPDATE job_profile_states SET user_notes = ? WHERE job_id = ? AND profile_id = ?
+  `).run(notes || null, id, req.profile.id).changes;
+  if (changes === 0) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
   res.json({ success: true });
 });
 
@@ -918,7 +925,11 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   const cvId = parseInt(String(body.cv_id || '0'), 10);
   if (!cvId || isNaN(cvId)) { res.status(400).json({ error: 'cv_id is required.' }); return; }
 
-  const job = db.prepare('SELECT * FROM jobs WHERE id = ? AND profile_id = ?').get(jobId, profileId) as JobRow | undefined;
+  const job = db.prepare(`
+    SELECT j.*, jps.*
+    FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    WHERE j.id = ? AND jps.profile_id = ?
+  `).get(jobId, profileId) as JobWithState | undefined;
   if (!job) { res.status(404).json({ error: 'Job not found.' }); return; }
 
   const cv = db.prepare('SELECT * FROM cvs WHERE id = ? AND profile_id = ?').get(cvId, profileId) as CvRow | undefined;
@@ -975,7 +986,7 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
 
     if (!responseText) throw new Error('Empty response from OpenAI');
 
-    db.prepare('UPDATE jobs SET cv_assessment = ? WHERE id = ?').run(responseText, jobId);
+    db.prepare('UPDATE job_profile_states SET cv_assessment = ? WHERE job_id = ? AND profile_id = ?').run(responseText, jobId, profileId);
     res.json({ ok: true, assessment: responseText });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

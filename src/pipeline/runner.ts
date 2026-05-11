@@ -162,18 +162,28 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     console.log(`[runner] Starting pipeline (${trigger}) — ${groups.length} group(s), ${blacklist.length} blacklisted company(ies), ${providers.length} provider(s)`);
 
     // Prepared statements (shared across groups and providers)
-    const insertJob = db.prepare(`
+    const insertCanonicalJob = db.prepare(`
       INSERT OR IGNORE INTO jobs (
-        profile_id, linkedin_job_id, title, company, location, country, work_mode, description,
-        url, posted_date, fetched_at, ai_score, ai_rationale, ai_summary, ai_verdict,
-        is_duplicate, duplicate_of_job_id, seen, seen_at, group_id, rejection_category,
-        apply_url, provider, original_ai_verdict, job_source
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
+        description, url, apply_url, posted_date, fetched_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const selectJobId = db.prepare(
+      `SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = ?`
+    );
+
+    const insertJobState = db.prepare(`
+      INSERT OR IGNORE INTO job_profile_states (
+        job_id, profile_id, group_id, fetched_at,
+        ai_score, ai_verdict, original_ai_verdict, ai_rationale, ai_summary,
+        rejection_category, is_duplicate, duplicate_of_job_id, seen, seen_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const updateApplyUrl = db.prepare(`
       UPDATE jobs SET apply_url = ?
-      WHERE linkedin_job_id = ? AND profile_id = ? AND apply_url IS NULL
+      WHERE linkedin_job_id = ? AND job_source = ? AND apply_url IS NULL
     `);
 
     const insertJobLog = db.prepare(`
@@ -221,7 +231,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       // Collects STRONG_MATCH non-duplicate jobs for hard-model re-scoring after all groups finish.
       const strongMatchesForReScoring: Array<{
-        linkedinJobId: string;
+        jobId: number;
         job: JobPosting;
         scoringSettings: SettingsRow;
       }> = [];
@@ -420,11 +430,13 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           const inRunWithIds: ExistingJob[] = inRunEntries.map((e, i) => ({ ...e, id: -(i + 1) }));
           // Match on normalized key (exact) OR on names that extend it with a legal suffix ("Every." → "Every. GmbH").
           const dbCandidates = db.prepare(`
-            SELECT id, title, description FROM jobs
-            WHERE (lower(company) = ? OR lower(company) LIKE ? || ' %')
-            AND is_duplicate = 0
-            ORDER BY fetched_at DESC
-          `).all(companyKey, companyKey) as ExistingJob[];
+            SELECT j.id, j.title, j.description FROM jobs j
+            JOIN job_profile_states jps ON jps.job_id = j.id
+            WHERE (lower(j.company) = ? OR lower(j.company) LIKE ? || ' %')
+              AND jps.is_duplicate = 0
+              AND jps.profile_id = ?
+            ORDER BY jps.fetched_at DESC
+          `).all(companyKey, companyKey, profileId) as ExistingJob[];
           const allCandidates: ExistingJob[] = [...inRunWithIds, ...dbCandidates];
 
           if (allCandidates.length > 0) {
@@ -514,16 +526,20 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         db.transaction(() => {
           for (const job of blacklistedJobs) {
             const country = job.location ? (countryMap.get(job.location) ?? null) : null;
-            insertJob.run(
-              profileId, job.jobId, job.title, job.company,
-              job.location || null, country, job.workMode || null, job.description || '',
-              job.url || null, job.postedDate || null, now,
-              0, null, null, 'BLACKLISTED',
-              0, null, 0, null,
-              group.id, null,
-              job.applyUrl || null, job.provider || 'harvestapi', 'BLACKLISTED', job.jobSource ?? 'LinkedIn',
+            const jobSource = job.jobSource ?? 'LinkedIn';
+            insertCanonicalJob.run(
+              job.jobId, jobSource, job.provider || 'harvestapi',
+              job.title, job.company, job.location || null, country, job.workMode || null,
+              job.description || '', job.url || null, job.applyUrl || null,
+              job.postedDate || null, now,
             );
-            if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
+            const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertJobState.run(
+              jobId, profileId, group.id, now,
+              0, 'BLACKLISTED', 'BLACKLISTED', null, null, null,
+              0, null, 0, null,
+            );
+            if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${blacklistedJobs.length} blacklisted job(s).`);
@@ -532,41 +548,46 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       // 6. Store all scored jobs (strong/weak/no-match/duplicate) in one pass
       if (jobResults.length > 0) {
         const now = new Date().toISOString();
+        const jobIdByKey = new Map<string, number>();
         db.transaction(() => {
           for (const { scored, isDuplicate, duplicateOfId, summary } of jobResults) {
             const { job } = scored;
             const country = job.location ? (countryMap.get(job.location) ?? null) : null;
-            insertJob.run(
-              profileId, job.jobId, job.title, job.company,
-              job.location || null, country, job.workMode || null, job.description || '',
-              job.url || null, job.postedDate || null, now,
-              scored.score, scored.rationale || null,
-              summary || null,
-              scored.verdict,
-              isDuplicate ? 1 : 0, duplicateOfId || null,
-              isDuplicate ? 1 : 0, isDuplicate ? now : null,
-              group.id, scored.rejectionCategory || null,
-              job.applyUrl || null, job.provider || 'harvestapi', scored.verdict, job.jobSource ?? 'LinkedIn',
+            const jobSource = job.jobSource ?? 'LinkedIn';
+            insertCanonicalJob.run(
+              job.jobId, jobSource, job.provider || 'harvestapi',
+              job.title, job.company, job.location || null, country, job.workMode || null,
+              job.description || '', job.url || null, job.applyUrl || null,
+              job.postedDate || null, now,
             );
-            if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
+            const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            jobIdByKey.set(`${jobSource}::${job.jobId}`, jobId);
+            insertJobState.run(
+              jobId, profileId, group.id, now,
+              scored.score, scored.verdict, scored.verdict,
+              scored.rationale || null, summary || null, scored.rejectionCategory || null,
+              isDuplicate ? 1 : 0, isDuplicate && duplicateOfId ? duplicateOfId : null,
+              isDuplicate ? 1 : 0, isDuplicate ? now : null,
+            );
+            if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${jobResults.length} jobs.`);
-      }
 
-      // Collect non-duplicate STRONG_MATCHes for hard-model re-scoring after all groups finish
-      for (const { scored, isDuplicate } of jobResults) {
-        if (!isDuplicate && scored.verdict === 'STRONG_MATCH') {
-          strongMatchesForReScoring.push({
-            linkedinJobId: scored.job.jobId,
-            job: scored.job,
-            scoringSettings,
-          });
+        // Collect non-duplicate STRONG_MATCHes for hard-model re-scoring after all groups finish
+        for (const { scored, isDuplicate } of jobResults) {
+          if (!isDuplicate && scored.verdict === 'STRONG_MATCH') {
+            const jobSource = scored.job.jobSource ?? 'LinkedIn';
+            const jobId = jobIdByKey.get(`${jobSource}::${scored.job.jobId}`);
+            if (jobId !== undefined) {
+              strongMatchesForReScoring.push({ jobId, job: scored.job, scoringSettings });
+            }
+          }
         }
       }
 
       activeGroupIdx++;
-    }
+    } // end group loop
 
     // 7a. Re-score all STRONG_MATCH jobs from this run using the hard model
     if (strongMatchesForReScoring.length > 0) {
@@ -575,8 +596,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         { providerIdx: providerIdx + 1, providerCount: providers.length, providerName: providerToSource(scrapingProvider), action: 'Re-scoring' });
 
       const updateRescored = db.prepare(`
-        UPDATE jobs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?, ai_summary = ?
-        WHERE linkedin_job_id = ? AND profile_id = ?
+        UPDATE job_profile_states SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?, ai_summary = ?
+        WHERE job_id = ? AND profile_id = ?
       `);
       const updateRescoredLog = db.prepare(`
         UPDATE run_job_logs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?
@@ -596,12 +617,12 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           updateRescored.run(
             rescored.score, rescored.verdict, rescored.rationale,
             rescored.rejectionCategory, rescored.summary,
-            entry.linkedinJobId, profileId,
+            entry.jobId, profileId,
           );
           updateRescoredLog.run(
             rescored.score, rescored.verdict, rescored.rationale,
             rescored.rejectionCategory,
-            runId, entry.linkedinJobId,
+            runId, entry.job.jobId,
           );
 
           if (rescored.verdict !== 'STRONG_MATCH') {
@@ -632,7 +653,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         if (!recipientEmail) {
           console.warn('[runner] No profile email configured, skipping email report.');
         } else {
-          await sendDailyReport(emailStats, recipientEmail, resendApiKey, emailFrom);
+          await sendDailyReport(emailStats, recipientEmail, resendApiKey, emailFrom, profileId);
         }
       } catch (err) {
         const msg = `Email send error: ${(err as Error).message}`;
