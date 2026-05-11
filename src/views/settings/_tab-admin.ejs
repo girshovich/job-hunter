@@ -202,6 +202,93 @@
     </div><!-- end schedule rows -->
   </div><!-- end ATS card -->
 
+  <!-- Job Pool — Greenhouse & Ashby -->
+  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Job Pool — Greenhouse &amp; Ashby</h2>
+    <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+      Greenhouse and Ashby public APIs have no search filters — they return all open jobs for each company.
+      Instead of querying thousands of companies on every run, jobs are pre-fetched here into a shared pool.
+      When a profile run includes Greenhouse or Ashby it queries this pool locally and applies your keyword,
+      location and date filters — no live API call happens during the run.
+    </p>
+
+    <!-- Pool counts -->
+    <div id="pool-counts" class="flex gap-4 mb-5">
+      <p class="text-xs text-gray-400">Loading…</p>
+    </div>
+
+    <!-- Live fetch log -->
+    <div id="pool-run-log" class="hidden mb-4">
+      <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span id="pool-run-dot" class="w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0"></span>
+            <span id="pool-run-title" class="text-xs font-medium text-gray-700">Running…</span>
+          </div>
+          <button id="pool-run-stop-btn" type="button" onclick="poolStopRun()"
+                  class="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors">
+            Stop
+          </button>
+        </div>
+        <div id="pool-run-progress" class="text-xs text-gray-400 mb-1.5 hidden"></div>
+        <div id="pool-run-lines" class="text-xs font-mono text-gray-500 max-h-36 overflow-y-auto space-y-0.5"></div>
+      </div>
+    </div>
+
+    <!-- Schedule rows -->
+    <div class="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+
+      <!-- Greenhouse row -->
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span id="pool-gh-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
+          <div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-sm font-medium text-gray-800">Greenhouse</span>
+              <span class="text-xs text-gray-400">daily</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">Every day · 08:00 · <span id="pool-gh-tz">UTC</span></p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 ml-4 flex-shrink-0">
+          <button id="pool-gh-fetch-btn" type="button" onclick="poolFetch('greenhouse')"
+                  class="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors">
+            Fetch now
+          </button>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="pool-gh-toggle" class="sr-only peer" onchange="poolToggle('gh', this.checked)">
+            <div class="w-9 h-5 bg-gray-200 rounded-full transition-colors peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Ashby row -->
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span id="pool-ashby-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
+          <div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-sm font-medium text-gray-800">Ashby</span>
+              <span class="text-xs text-gray-400">daily</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">Every day · 08:00 · <span id="pool-ashby-tz">UTC</span></p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 ml-4 flex-shrink-0">
+          <button id="pool-ashby-fetch-btn" type="button" onclick="poolFetch('ashby')"
+                  class="px-3 py-1.5 text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-lg transition-colors">
+            Fetch now
+          </button>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="pool-ashby-toggle" class="sr-only peer" onchange="poolToggle('ashby', this.checked)">
+            <div class="w-9 h-5 bg-gray-200 rounded-full transition-colors peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
+          </label>
+        </div>
+      </div>
+
+    </div><!-- end pool rows -->
+  </div><!-- end pool card -->
+
 </div><!-- end tab-pane-admin -->
 
 <script>
@@ -240,6 +327,14 @@ async function loadAtsStats() {
         !!data.settings.ats_validation_enabled,
         data.settings.timezone,
       );
+      _applyPoolState(
+        !!data.settings.ats_pool_gh_enabled,
+        !!data.settings.ats_pool_ashby_enabled,
+        data.settings.timezone,
+      );
+    }
+    if (data.poolCounts) {
+      _renderPoolCounts(data.poolCounts.greenhouse, data.poolCounts.ashby);
     }
 
     const statsEl = document.getElementById('ats-stats');
@@ -409,4 +504,133 @@ async function atsStopRun() {
 }
 
 loadAtsStats();
+</script>
+
+<script>
+let _poolRunId = null;
+let _poolEventSource = null;
+
+function _applyPoolState(ghEnabled, ashbyEnabled, tz) {
+  const tzLabel = tz || 'UTC';
+  document.getElementById('pool-gh-toggle').checked    = ghEnabled;
+  document.getElementById('pool-ashby-toggle').checked = ashbyEnabled;
+  document.getElementById('pool-gh-tz').textContent    = tzLabel;
+  document.getElementById('pool-ashby-tz').textContent = tzLabel;
+  const ghDot    = document.getElementById('pool-gh-dot');
+  const ashbyDot = document.getElementById('pool-ashby-dot');
+  ghDot.classList.toggle('bg-emerald-400', ghEnabled);
+  ghDot.classList.toggle('animate-pulse',  ghEnabled);
+  ghDot.classList.toggle('bg-gray-300',   !ghEnabled);
+  ashbyDot.classList.toggle('bg-emerald-400', ashbyEnabled);
+  ashbyDot.classList.toggle('animate-pulse',  ashbyEnabled);
+  ashbyDot.classList.toggle('bg-gray-300',   !ashbyEnabled);
+}
+
+function _renderPoolCounts(ghCount, ashbyCount) {
+  const el = document.getElementById('pool-counts');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="flex items-center gap-1.5 text-xs">
+      <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+      <span class="text-gray-600 font-medium">${ghCount.toLocaleString()}</span>
+      <span class="text-gray-400">Greenhouse jobs in pool</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs">
+      <span class="w-2 h-2 rounded-full bg-violet-400 inline-block"></span>
+      <span class="text-gray-600 font-medium">${ashbyCount.toLocaleString()}</span>
+      <span class="text-gray-400">Ashby jobs in pool</span>
+    </div>`;
+}
+
+async function poolToggle(provider, enabled) {
+  const ghEnabled    = provider === 'gh'    ? enabled : document.getElementById('pool-gh-toggle').checked;
+  const ashbyEnabled = provider === 'ashby' ? enabled : document.getElementById('pool-ashby-toggle').checked;
+  const toggleEl = document.getElementById(`pool-${provider}-toggle`);
+  toggleEl.disabled = true;
+  try {
+    const res = await fetch('/api/ats/pool/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gh_enabled: ghEnabled, ashby_enabled: ashbyEnabled }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); toggleEl.checked = !enabled; return; }
+    _applyPoolState(
+      document.getElementById('pool-gh-toggle').checked,
+      document.getElementById('pool-ashby-toggle').checked,
+      data.timezone,
+    );
+  } catch { toggleEl.checked = !enabled; }
+  toggleEl.disabled = false;
+}
+
+async function poolFetch(provider) {
+  document.getElementById('pool-gh-fetch-btn').disabled    = true;
+  document.getElementById('pool-ashby-fetch-btn').disabled = true;
+  const endpoint = provider === 'greenhouse' ? '/api/ats/pool/fetch-greenhouse' : '/api/ats/pool/fetch-ashby';
+  const label    = provider === 'greenhouse' ? 'Greenhouse' : 'Ashby';
+  const res = await fetch(endpoint, { method: 'POST' });
+  const { runId } = await res.json();
+  _poolStartStream(runId, label + ' pool fetch');
+}
+
+function _poolStartStream(runId, label) {
+  _poolRunId = runId;
+  const logEl      = document.getElementById('pool-run-log');
+  const titleEl    = document.getElementById('pool-run-title');
+  const linesEl    = document.getElementById('pool-run-lines');
+  const progressEl = document.getElementById('pool-run-progress');
+  const dotEl      = document.getElementById('pool-run-dot');
+  const stopBtn    = document.getElementById('pool-run-stop-btn');
+
+  logEl.classList.remove('hidden');
+  titleEl.textContent = label + ' running…';
+  linesEl.innerHTML = '';
+  progressEl.classList.add('hidden');
+  dotEl.className = 'w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0';
+  stopBtn.classList.remove('hidden');
+  stopBtn.disabled = false;
+  stopBtn.textContent = 'Stop';
+
+  _poolEventSource = new EventSource('/api/ats/stream/' + runId);
+
+  _poolEventSource.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    if (ev.msg && ev.msg !== '') {
+      const line = document.createElement('div');
+      line.textContent = ev.msg;
+      linesEl.appendChild(line);
+      linesEl.scrollTop = linesEl.scrollHeight;
+    }
+    if (ev.total) {
+      progressEl.textContent = `${ev.processed || 0} / ${ev.total} boards`;
+      progressEl.classList.remove('hidden');
+    }
+    if (ev.done) _poolStreamDone(label, ev.cancelled);
+  };
+
+  _poolEventSource.onerror = () => _poolStreamDone(label, false);
+}
+
+function _poolStreamDone(label, cancelled) {
+  if (_poolEventSource) { _poolEventSource.close(); _poolEventSource = null; }
+  _poolRunId = null;
+  document.getElementById('pool-run-title').textContent = cancelled ? label + ' cancelled' : label + ' complete';
+  const dot = document.getElementById('pool-run-dot');
+  dot.classList.remove('animate-pulse', 'bg-blue-400');
+  dot.classList.add(cancelled ? 'bg-gray-300' : 'bg-emerald-400');
+  document.getElementById('pool-run-stop-btn').classList.add('hidden');
+  document.getElementById('pool-gh-fetch-btn').disabled    = false;
+  document.getElementById('pool-ashby-fetch-btn').disabled = false;
+  // Refresh pool counts after fetch
+  setTimeout(() => loadAtsStats(), 500);
+}
+
+async function poolStopRun() {
+  if (!_poolRunId) return;
+  const btn = document.getElementById('pool-run-stop-btn');
+  btn.disabled = true;
+  btn.textContent = 'Stopping…';
+  await fetch('/api/ats/run/' + _poolRunId, { method: 'DELETE' });
+}
 </script>

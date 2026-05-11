@@ -11,7 +11,8 @@ import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/sche
 import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
-import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron } from '../pipeline/atsScheduler';
+import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron } from '../pipeline/atsScheduler';
+import { fetchGreenhousePool, fetchAshbyPool } from '../pipeline/atsPoolFetcher';
 import { activeRuns } from '../pipeline/atsRunState';
 import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
@@ -1011,10 +1012,16 @@ router.get('/ats/status', (req: Request, res: Response) => {
     GROUP BY ats
   `).all() as Array<{ ats: string; total: number; active: number; last_discovered: string; last_validated: string }>;
   const settings = db.prepare(`
-    SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled, timezone
+    SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled,
+           ats_pool_gh_enabled, ats_pool_ashby_enabled, timezone
     FROM settings WHERE profile_id = ?
-  `).get(req.profile.id) as { ats_discovery_enabled: number; ats_lever_disc_enabled: number; ats_validation_enabled: number; timezone: string } | undefined;
-  res.json({ boards, settings });
+  `).get(req.profile.id) as {
+    ats_discovery_enabled: number; ats_lever_disc_enabled: number; ats_validation_enabled: number;
+    ats_pool_gh_enabled: number; ats_pool_ashby_enabled: number; timezone: string;
+  } | undefined;
+  const ghCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Greenhouse'`).get() as { c: number }).c;
+  const ashbyCount = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Ashby'`).get() as { c: number }).c;
+  res.json({ boards, settings, poolCounts: { greenhouse: ghCount, ashby: ashbyCount } });
 });
 
 router.post('/ats/discover', (req: Request, res: Response) => {
@@ -1072,6 +1079,51 @@ router.delete('/ats/run/:runId', (req: Request, res: Response) => {
   if (!run) { res.status(404).json({ error: 'Run not found.' }); return; }
   run.cancelled = true;
   res.json({ success: true });
+});
+
+router.post('/ats/pool/fetch-greenhouse', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const runId = randomUUID();
+  activeRuns.set(runId, { type: 'pool-fetch' as 'discovery', cancelled: false, listeners: new Set() });
+  res.json({ runId });
+  fetchGreenhousePool(getDb(), runId)
+    .then((r) => console.log('[gh-pool] Manual fetch complete:', r))
+    .catch((e) => console.error('[gh-pool] Manual fetch error:', e))
+    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+});
+
+router.post('/ats/pool/fetch-ashby', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const runId = randomUUID();
+  activeRuns.set(runId, { type: 'pool-fetch' as 'validation', cancelled: false, listeners: new Set() });
+  res.json({ runId });
+  fetchAshbyPool(getDb(), runId)
+    .then((r) => console.log('[ashby-pool] Manual fetch complete:', r))
+    .catch((e) => console.error('[ashby-pool] Manual fetch error:', e))
+    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+});
+
+router.post('/ats/pool/settings', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const b = req.body as Record<string, unknown>;
+  const ghEnabled    = !!b.gh_enabled;
+  const ashbyEnabled = !!b.ashby_enabled;
+
+  const db = getDb();
+  const row = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(req.profile.id) as { timezone: string } | undefined;
+  const tz = row?.timezone || 'UTC';
+
+  db.prepare(`
+    UPDATE settings SET ats_pool_gh_enabled = ?, ats_pool_ashby_enabled = ? WHERE profile_id = ?
+  `).run(ghEnabled ? 1 : 0, ashbyEnabled ? 1 : 0, req.profile.id);
+
+  if (ghEnabled) startGhPoolCron('0 8 * * *', tz);
+  else stopGhPoolCron();
+
+  if (ashbyEnabled) startAshbyPoolCron('0 8 * * *', tz);
+  else stopAshbyPoolCron();
+
+  res.json({ success: true, timezone: tz });
 });
 
 router.post('/ats/settings', (req: Request, res: Response) => {

@@ -12,7 +12,7 @@ import { jobsRouter } from './routes/jobs';
 import { analyticsRouter } from './routes/analytics';
 import { rundiffRouter } from './routes/rundiff';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
-import { startAtsDiscoveryCron, startAtsValidationCron } from './pipeline/atsScheduler';
+import { startAtsDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron } from './pipeline/atsScheduler';
 
 const app = express();
 
@@ -121,13 +121,16 @@ async function start(): Promise<void> {
   const adminProfile = db.prepare(`SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1`).get() as { id: number } | undefined;
   if (adminProfile) {
     const atsSettings = db.prepare(`
-      SELECT ats_discovery_enabled, ats_discovery_cron, ats_validation_enabled, ats_validation_cron, timezone
+      SELECT ats_discovery_enabled, ats_discovery_cron, ats_validation_enabled, ats_validation_cron,
+             ats_pool_gh_enabled, ats_pool_ashby_enabled, timezone
       FROM settings WHERE profile_id = ?
     `).get(adminProfile.id) as {
       ats_discovery_enabled: number;
       ats_discovery_cron: string;
       ats_validation_enabled: number;
       ats_validation_cron: string;
+      ats_pool_gh_enabled: number;
+      ats_pool_ashby_enabled: number;
       timezone: string;
     } | undefined;
     const atsTz = atsSettings?.timezone || 'UTC';
@@ -137,7 +140,14 @@ async function start(): Promise<void> {
     if (atsSettings?.ats_validation_enabled) {
       startAtsValidationCron(atsSettings.ats_validation_cron || '0 8 * * 0', atsTz);
     }
+    if (atsSettings?.ats_pool_gh_enabled) {
+      startGhPoolCron('0 8 * * *', atsTz);
+    }
+    if (atsSettings?.ats_pool_ashby_enabled) {
+      startAshbyPoolCron('0 8 * * *', atsTz);
+    }
   }
+  startPoolCleanupCron();
 
   console.log(`[server] Dashboard running at http://localhost:${config.port}`);
   app.listen(config.port);

@@ -916,6 +916,22 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_lever_discovery failed (non-fatal):', (err as Error).message);
   }
 
+  // v_ats_pool: add pool fetch toggle columns to settings
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_ats_pool'`).get();
+    if (!done) {
+      const cols = (db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[]).map((c) => c.name);
+      if (!cols.includes('ats_pool_gh_enabled'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_pool_gh_enabled INTEGER NOT NULL DEFAULT 0`);
+      if (!cols.includes('ats_pool_ashby_enabled'))
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_pool_ashby_enabled INTEGER NOT NULL DEFAULT 0`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_ats_pool')`);
+      console.log('[db] Migration v_ats_pool: ATS pool settings columns added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_ats_pool failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
@@ -1481,6 +1497,8 @@ export interface SettingsRow {
   ats_discovery_cron: string;
   ats_validation_enabled: number;
   ats_validation_cron: string;
+  ats_pool_gh_enabled: number;
+  ats_pool_ashby_enabled: number;
 }
 
 export interface CvRow {
