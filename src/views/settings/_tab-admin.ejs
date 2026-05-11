@@ -108,183 +108,117 @@
       <p class="text-xs text-gray-400">Loading…</p>
     </div>
 
-    <!-- Manual run buttons -->
-    <div class="flex gap-2 mb-6">
-      <button id="ats-discover-btn" type="button" onclick="atsRunDiscovery()"
-              class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
-        Run Discovery Now
-      </button>
-      <button id="ats-validate-btn" type="button" onclick="atsRunValidation()"
-              class="px-3 py-2 text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors">
-        Run Validation Now
-      </button>
-      <span id="ats-action-status" class="text-xs text-gray-500 self-center hidden"></span>
+    <!-- Live run log (shown while a manual run is active) -->
+    <div id="ats-run-log" class="hidden mb-4">
+      <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span id="ats-run-dot" class="w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0"></span>
+            <span id="ats-run-title" class="text-xs font-medium text-gray-700">Running…</span>
+          </div>
+          <button id="ats-run-stop-btn" type="button" onclick="atsStopRun()"
+                  class="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors">
+            Stop
+          </button>
+        </div>
+        <div id="ats-run-progress" class="text-xs text-gray-400 mb-1.5 hidden"></div>
+        <div id="ats-run-lines" class="text-xs font-mono text-gray-500 max-h-36 overflow-y-auto space-y-0.5"></div>
+      </div>
     </div>
 
     <!-- Schedules -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
 
-      <!-- Discovery schedule -->
-      <div class="rounded-xl border border-gray-200 p-4">
-        <div class="flex items-center gap-2 mb-1">
+      <!-- Discovery row -->
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
           <span id="ats-disc-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
-          <span class="text-sm font-semibold text-gray-800">Discovery</span>
-          <span class="text-xs text-gray-400">monthly</span>
-        </div>
-        <p id="ats-disc-status" class="text-xs text-gray-500 mb-3">Not scheduled</p>
-
-        <div class="space-y-2 mb-3">
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-500 w-20 flex-shrink-0">Day of month</span>
-            <select id="ats-disc-day"
-                    class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 bg-white">
-              <% for (let d = 1; d <= 28; d++) { %>
-              <option value="<%= d %>"><%= d %><%= d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th' %></option>
-              <% } %>
-            </select>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-500 w-20 flex-shrink-0">Run at</span>
-            <input type="time" id="ats-disc-time" value="03:00"
-                   class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button id="ats-disc-save-btn" type="button" onclick="atsDiscSave(true)"
-                  class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-            Enable
-          </button>
-          <button id="ats-disc-stop-btn" type="button" onclick="atsDiscSave(false)"
-                  class="hidden px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors">
-            Stop
-          </button>
-        </div>
-      </div>
-
-      <!-- Validation schedule -->
-      <div class="rounded-xl border border-gray-200 p-4">
-        <div class="flex items-center gap-2 mb-1">
-          <span id="ats-val-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
-          <span class="text-sm font-semibold text-gray-800">Validation</span>
-          <span class="text-xs text-gray-400">weekly</span>
-        </div>
-        <p id="ats-val-status" class="text-xs text-gray-500 mb-3">Not scheduled</p>
-
-        <div class="space-y-2 mb-3">
           <div>
-            <span class="text-xs text-gray-500 block mb-1.5">Days</span>
-            <div class="flex flex-wrap gap-1.5">
-              <% [['Mon','1'],['Tue','2'],['Wed','3'],['Thu','4'],['Fri','5'],['Sat','6'],['Sun','0']].forEach(function(pair) { %>
-              <label class="flex items-center gap-1 cursor-pointer select-none">
-                <input type="checkbox" class="ats-val-day w-3.5 h-3.5 accent-blue-600" value="<%= pair[1] %>">
-                <span class="text-xs text-gray-700"><%= pair[0] %></span>
-              </label>
-              <% }); %>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-sm font-medium text-gray-800">Discovery</span>
+              <span class="text-xs text-gray-400">monthly</span>
             </div>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-500 w-20 flex-shrink-0">Run at</span>
-            <input type="time" id="ats-val-time" value="04:00"
-                   class="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
+            <p class="text-xs text-gray-400 mt-0.5">1st of month · 08:00 · <span id="ats-disc-tz">UTC</span></p>
           </div>
         </div>
-
-        <div class="flex items-center gap-2">
-          <button id="ats-val-save-btn" type="button" onclick="atsValSave(true)"
-                  class="px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
-            Enable
-          </button>
-          <button id="ats-val-stop-btn" type="button" onclick="atsValSave(false)"
-                  class="hidden px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors">
-            Stop
-          </button>
-        </div>
+        <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+          <input type="checkbox" id="ats-disc-toggle" class="sr-only peer" onchange="atsDiscToggle(this.checked)">
+          <div class="w-9 h-5 bg-gray-200 rounded-full transition-colors peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
+        </label>
       </div>
 
-    </div><!-- end schedule grid -->
+      <!-- Validation row -->
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span id="ats-val-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
+          <div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-sm font-medium text-gray-800">Validation</span>
+              <span class="text-xs text-gray-400">weekly</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">Every Sunday · 08:00 · <span id="ats-val-tz">UTC</span></p>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+          <input type="checkbox" id="ats-val-toggle" class="sr-only peer" onchange="atsValToggle(this.checked)">
+          <div class="w-9 h-5 bg-gray-200 rounded-full transition-colors peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
+        </label>
+      </div>
+
+      <!-- Run now row -->
+      <div class="flex items-center gap-2 px-4 py-3 bg-gray-50">
+        <button id="ats-discover-btn" type="button" onclick="atsRunDiscovery()"
+                class="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+          Run Discovery Now
+        </button>
+        <button id="ats-validate-btn" type="button" onclick="atsRunValidation()"
+                class="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+          Run Validation Now
+        </button>
+      </div>
+
+    </div><!-- end schedule rows -->
   </div><!-- end ATS card -->
 
 </div><!-- end tab-pane-admin -->
 
 <script>
-const _DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let _atsRunId = null;
+let _atsEventSource = null;
 
-function _parseCronDisc(cron) {
-  const p = (cron || '0 3 1 * *').split(' ');
-  const min = parseInt(p[0]) || 0, hr = parseInt(p[1]) || 3, day = parseInt(p[2]) || 1;
-  return { day, time: String(hr).padStart(2,'0') + ':' + String(min).padStart(2,'0') };
-}
-
-function _parseCronVal(cron) {
-  const p = (cron || '0 4 * * 1').split(' ');
-  const min = parseInt(p[0]) || 0, hr = parseInt(p[1]) || 4;
-  const days = (p[4] || '1').split(',').map(Number).filter(n => !isNaN(n));
-  return { days, time: String(hr).padStart(2,'0') + ':' + String(min).padStart(2,'0') };
-}
-
-function _discStatusText(day) {
-  const suf = day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th';
-  return `Runs on the ${day}${suf} of each month`;
-}
-
-function _valStatusText(days) {
-  if (!days.length) return 'No days selected';
-  const names = days.map(d => _DAY_NAMES[d]).join(', ');
-  return `Runs every ${names}`;
-}
-
-function _setDiscActive(enabled, day, time) {
-  const dot = document.getElementById('ats-disc-dot');
-  const status = document.getElementById('ats-disc-status');
-  const saveBtn = document.getElementById('ats-disc-save-btn');
-  const stopBtn = document.getElementById('ats-disc-stop-btn');
+function _setDot(id, enabled) {
+  const dot = document.getElementById(id);
   dot.classList.toggle('bg-emerald-400', enabled);
   dot.classList.toggle('animate-pulse', enabled);
   dot.classList.toggle('bg-gray-300', !enabled);
-  status.textContent = enabled ? `${_discStatusText(day)} at ${time}` : 'Not scheduled';
-  saveBtn.textContent = enabled ? 'Save changes' : 'Enable';
-  stopBtn.classList.toggle('hidden', !enabled);
 }
 
-function _setValActive(enabled, days, time) {
-  const dot = document.getElementById('ats-val-dot');
-  const status = document.getElementById('ats-val-status');
-  const saveBtn = document.getElementById('ats-val-save-btn');
-  const stopBtn = document.getElementById('ats-val-stop-btn');
-  dot.classList.toggle('bg-emerald-400', enabled);
-  dot.classList.toggle('animate-pulse', enabled);
-  dot.classList.toggle('bg-gray-300', !enabled);
-  status.textContent = enabled ? `${_valStatusText(days)} at ${time}` : 'Not scheduled';
-  saveBtn.textContent = enabled ? 'Save changes' : 'Enable';
-  stopBtn.classList.toggle('hidden', !enabled);
+function _applyScheduleState(discEnabled, valEnabled, tz) {
+  const tzLabel = tz || 'UTC';
+  document.getElementById('ats-disc-toggle').checked = discEnabled;
+  document.getElementById('ats-val-toggle').checked  = valEnabled;
+  document.getElementById('ats-disc-tz').textContent = tzLabel;
+  document.getElementById('ats-val-tz').textContent  = tzLabel;
+  _setDot('ats-disc-dot', discEnabled);
+  _setDot('ats-val-dot',  valEnabled);
 }
 
 async function loadAtsStats() {
   try {
-    const res = await fetch('/api/ats/status');
+    const res  = await fetch('/api/ats/status');
     const data = await res.json();
 
     if (data.settings) {
-      const discEnabled = !!data.settings.ats_discovery_enabled;
-      const valEnabled  = !!data.settings.ats_validation_enabled;
-      const disc = _parseCronDisc(data.settings.ats_discovery_cron);
-      const val  = _parseCronVal(data.settings.ats_validation_cron);
-
-      document.getElementById('ats-disc-day').value = disc.day;
-      document.getElementById('ats-disc-time').value = disc.time;
-      _setDiscActive(discEnabled, disc.day, disc.time);
-
-      document.getElementById('ats-val-time').value = val.time;
-      document.querySelectorAll('.ats-val-day').forEach(cb => {
-        cb.checked = val.days.includes(parseInt(cb.value));
-      });
-      _setValActive(valEnabled, val.days, val.time);
+      _applyScheduleState(
+        !!data.settings.ats_discovery_enabled,
+        !!data.settings.ats_validation_enabled,
+        data.settings.timezone,
+      );
     }
 
     const statsEl = document.getElementById('ats-stats');
     if (!statsEl) return;
-    if (!data.boards || !data.boards.length) {
+    if (!data.boards?.length) {
       statsEl.innerHTML = '<p class="text-xs text-gray-400">No boards discovered yet. Run Discovery to populate.</p>';
       return;
     }
@@ -312,89 +246,112 @@ async function loadAtsStats() {
           }).join('')}
         </tbody>
       </table>`;
-  } catch (e) {
+  } catch {
     const el = document.getElementById('ats-stats');
     if (el) el.innerHTML = '<p class="text-xs text-red-400">Failed to load stats.</p>';
   }
 }
 
-async function _atsPost(body) {
-  const res = await fetch('/api/ats/settings', {
+async function _atsToggle(discEnabled, valEnabled) {
+  const res  = await fetch('/api/ats/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ discovery_enabled: discEnabled, validation_enabled: valEnabled }),
   });
   return res.json();
 }
 
-function _buildDiscCron() {
-  const time = document.getElementById('ats-disc-time').value || '03:00';
-  const [h, m] = time.split(':').map(Number);
-  const day = parseInt(document.getElementById('ats-disc-day').value) || 1;
-  return `${m} ${h} ${day} * *`;
+async function atsDiscToggle(enabled) {
+  const toggle = document.getElementById('ats-disc-toggle');
+  toggle.disabled = true;
+  const data = await _atsToggle(enabled, document.getElementById('ats-val-toggle').checked);
+  toggle.disabled = false;
+  if (data.error) { alert(data.error); toggle.checked = !enabled; return; }
+  _setDot('ats-disc-dot', enabled);
+  document.getElementById('ats-disc-tz').textContent = data.timezone || 'UTC';
 }
 
-function _buildValCron() {
-  const time = document.getElementById('ats-val-time').value || '04:00';
-  const [h, m] = time.split(':').map(Number);
-  const days = [...document.querySelectorAll('.ats-val-day:checked')].map(cb => cb.value);
-  return `${m} ${h} * * ${days.join(',') || '1'}`;
-}
-
-async function atsDiscSave(enable) {
-  const btn = document.getElementById('ats-disc-save-btn');
-  btn.disabled = true;
-  const cron = enable ? _buildDiscCron() : (document.getElementById('ats-disc-day') ? _buildDiscCron() : '0 3 1 * *');
-  const data = await _atsPost({
-    discovery_enabled: enable,
-    discovery_cron: cron,
-    validation_enabled: !!document.getElementById('ats-val-dot').classList.contains('bg-emerald-400'),
-    validation_cron: _buildValCron(),
-  });
-  btn.disabled = false;
-  if (data.error) { alert(data.error); return; }
-  const disc = _parseCronDisc(cron);
-  _setDiscActive(enable, disc.day, disc.time);
-}
-
-async function atsValSave(enable) {
-  const btn = document.getElementById('ats-val-save-btn');
-  btn.disabled = true;
-  const days = [...document.querySelectorAll('.ats-val-day:checked')].map(cb => cb.value);
-  if (enable && days.length === 0) { alert('Select at least one day.'); btn.disabled = false; return; }
-  const cron = _buildValCron();
-  const data = await _atsPost({
-    discovery_enabled: !!document.getElementById('ats-disc-dot').classList.contains('bg-emerald-400'),
-    discovery_cron: _buildDiscCron(),
-    validation_enabled: enable,
-    validation_cron: cron,
-  });
-  btn.disabled = false;
-  if (data.error) { alert(data.error); return; }
-  const val = _parseCronVal(cron);
-  _setValActive(enable, val.days, val.time);
+async function atsValToggle(enabled) {
+  const toggle = document.getElementById('ats-val-toggle');
+  toggle.disabled = true;
+  const data = await _atsToggle(document.getElementById('ats-disc-toggle').checked, enabled);
+  toggle.disabled = false;
+  if (data.error) { alert(data.error); toggle.checked = !enabled; return; }
+  _setDot('ats-val-dot', enabled);
+  document.getElementById('ats-val-tz').textContent = data.timezone || 'UTC';
 }
 
 async function atsRunDiscovery() {
-  const btn = document.getElementById('ats-discover-btn');
-  const status = document.getElementById('ats-action-status');
-  btn.disabled = true;
-  status.textContent = 'Discovery started — check server logs…';
-  status.classList.remove('hidden');
-  await fetch('/api/ats/discover', { method: 'POST' });
-  setTimeout(() => loadAtsStats(), 3000);
-  setTimeout(() => { btn.disabled = false; }, 10000);
+  document.getElementById('ats-discover-btn').disabled = true;
+  document.getElementById('ats-validate-btn').disabled = true;
+  const res = await fetch('/api/ats/discover', { method: 'POST' });
+  const { runId } = await res.json();
+  _atsStartStream(runId, 'Discovery');
 }
 
 async function atsRunValidation() {
-  const btn = document.getElementById('ats-validate-btn');
-  const status = document.getElementById('ats-action-status');
+  document.getElementById('ats-discover-btn').disabled = true;
+  document.getElementById('ats-validate-btn').disabled = true;
+  const res = await fetch('/api/ats/validate', { method: 'POST' });
+  const { runId } = await res.json();
+  _atsStartStream(runId, 'Validation');
+}
+
+function _atsStartStream(runId, label) {
+  _atsRunId = runId;
+  const logEl      = document.getElementById('ats-run-log');
+  const titleEl    = document.getElementById('ats-run-title');
+  const linesEl    = document.getElementById('ats-run-lines');
+  const progressEl = document.getElementById('ats-run-progress');
+  const dotEl      = document.getElementById('ats-run-dot');
+  const stopBtn    = document.getElementById('ats-run-stop-btn');
+
+  logEl.classList.remove('hidden');
+  titleEl.textContent = label + ' running…';
+  linesEl.innerHTML = '';
+  progressEl.classList.add('hidden');
+  dotEl.className = 'w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0';
+  stopBtn.classList.remove('hidden');
+  stopBtn.disabled = false;
+  stopBtn.textContent = 'Stop';
+
+  _atsEventSource = new EventSource('/api/ats/stream/' + runId);
+
+  _atsEventSource.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    const line = document.createElement('div');
+    line.textContent = ev.msg;
+    linesEl.appendChild(line);
+    linesEl.scrollTop = linesEl.scrollHeight;
+    if (ev.total) {
+      progressEl.textContent = `${ev.processed || 0} / ${ev.total} boards`;
+      progressEl.classList.remove('hidden');
+    }
+    if (ev.done) _atsStreamDone(label, ev.cancelled);
+  };
+
+  _atsEventSource.onerror = () => _atsStreamDone(label, false);
+}
+
+function _atsStreamDone(label, cancelled) {
+  if (_atsEventSource) { _atsEventSource.close(); _atsEventSource = null; }
+  _atsRunId = null;
+  document.getElementById('ats-run-title').textContent = cancelled ? label + ' cancelled' : label + ' complete';
+  const dot = document.getElementById('ats-run-dot');
+  dot.classList.remove('animate-pulse', 'bg-blue-400');
+  dot.classList.add(cancelled ? 'bg-gray-300' : 'bg-emerald-400');
+  document.getElementById('ats-run-stop-btn').classList.add('hidden');
+  document.getElementById('ats-discover-btn').disabled = false;
+  document.getElementById('ats-validate-btn').disabled = false;
+  setTimeout(() => loadAtsStats(), 1000);
+}
+
+async function atsStopRun() {
+  if (!_atsRunId) return;
+  const btn = document.getElementById('ats-run-stop-btn');
   btn.disabled = true;
-  status.textContent = 'Validation started — check server logs…';
-  status.classList.remove('hidden');
-  await fetch('/api/ats/validate', { method: 'POST' });
-  setTimeout(() => loadAtsStats(), 3000);
-  setTimeout(() => { btn.disabled = false; }, 10000);
+  btn.textContent = 'Stopping…';
+  await fetch('/api/ats/run/' + _atsRunId, { method: 'DELETE' });
 }
 
 loadAtsStats();

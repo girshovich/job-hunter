@@ -1,4 +1,5 @@
 import type { Database } from '../db';
+import { emitToRun, isCancelled } from './atsRunState';
 
 const ATS_DOMAINS: Record<string, string> = {
   'boards.greenhouse.io': 'greenhouse',
@@ -62,10 +63,19 @@ async function fetchCdxPage(snapshotId: string, domain: string, offset: number):
   }).filter(Boolean) as CdxRecord[];
 }
 
-export async function runDiscovery(db: Database): Promise<{ inserted: number; skipped: number }> {
+export async function runDiscovery(db: Database, runId?: string): Promise<{ inserted: number; skipped: number }> {
   console.log('[ats-discovery] Starting discovery run');
-  const snapshots = await fetchSnapshots();
+
+  let snapshots: CollInfo[];
+  try {
+    snapshots = await fetchSnapshots();
+  } catch (err) {
+    if (runId) emitToRun(runId, { msg: `Failed to fetch snapshots: ${(err as Error).message}`, done: true });
+    throw err;
+  }
+
   console.log(`[ats-discovery] Using snapshots: ${snapshots.map((s) => s.id).join(', ')}`);
+  if (runId) emitToRun(runId, { msg: `Snapshots: ${snapshots.map((s) => s.id).join(', ')}` });
 
   const upsert = db.prepare<{ lastInsertRowid: number; changes: number }>(`
     INSERT INTO ats_boards (ats, slug, is_active, discovered_at)
@@ -77,13 +87,19 @@ export async function runDiscovery(db: Database): Promise<{ inserted: number; sk
   let skipped = 0;
   const now = new Date().toISOString();
 
-  for (const snapshot of snapshots) {
+  outer: for (const snapshot of snapshots) {
     for (const [domain, ats] of Object.entries(ATS_DOMAINS)) {
+      if (runId && isCancelled(runId)) break outer;
+
       let offset = 0;
       let page = 0;
       while (true) {
+        if (runId && isCancelled(runId)) break outer;
+
         page++;
         console.log(`[ats-discovery] ${snapshot.id} / ${domain} page ${page} (offset ${offset})`);
+        if (runId) emitToRun(runId, { msg: `${domain} page ${page}`, inserted, skipped });
+
         const records = await fetchCdxPage(snapshot.id, domain, offset);
         if (records.length === 0) break;
 
@@ -96,6 +112,7 @@ export async function runDiscovery(db: Database): Promise<{ inserted: number; sk
           else skipped++;
         }
         console.log(`[ats-discovery]   → ${records.length} URLs, ${pageInserted} new slugs`);
+        if (runId) emitToRun(runId, { msg: `  ${records.length} URLs → ${pageInserted} new`, inserted, skipped });
 
         if (records.length < 50000) break;
         offset += records.length;
@@ -103,6 +120,8 @@ export async function runDiscovery(db: Database): Promise<{ inserted: number; sk
     }
   }
 
+  const cancelled = runId ? isCancelled(runId) : false;
   console.log(`[ats-discovery] Done. inserted=${inserted} skipped=${skipped}`);
+  if (runId) emitToRun(runId, { msg: `Done — ${inserted} new, ${skipped} already known`, done: true, cancelled, inserted, skipped });
   return { inserted, skipped };
 }

@@ -8,10 +8,11 @@ import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
-import cron from 'node-cron';
 import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
 import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startAtsValidationCron, stopAtsValidationCron } from '../pipeline/atsScheduler';
+import { activeRuns } from '../pipeline/atsRunState';
+import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobRow, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries } from '../pipeline/locationNormalizer';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -982,6 +983,9 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
 
 // ── ATS Board Discovery & Validation (admin-only) ──
 
+const DISC_CRON = '0 8 1 * *';
+const VAL_CRON  = '0 8 * * 0';
+
 router.get('/ats/status', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const db = getDb();
@@ -995,59 +999,86 @@ router.get('/ats/status', (req: Request, res: Response) => {
     GROUP BY ats
   `).all() as Array<{ ats: string; total: number; active: number; last_discovered: string; last_validated: string }>;
   const settings = db.prepare(`
-    SELECT ats_discovery_enabled, ats_discovery_cron, ats_validation_enabled, ats_validation_cron
+    SELECT ats_discovery_enabled, ats_validation_enabled, timezone
     FROM settings WHERE profile_id = ?
-  `).get(req.profile.id) as { ats_discovery_enabled: number; ats_discovery_cron: string; ats_validation_enabled: number; ats_validation_cron: string } | undefined;
+  `).get(req.profile.id) as { ats_discovery_enabled: number; ats_validation_enabled: number; timezone: string } | undefined;
   res.json({ boards, settings });
 });
 
 router.post('/ats/discover', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  res.json({ started: true });
-  runDiscovery(getDb())
+  const runId = randomUUID();
+  activeRuns.set(runId, { type: 'discovery', cancelled: false, listeners: new Set() });
+  res.json({ runId });
+  runDiscovery(getDb(), runId)
     .then((r) => console.log('[ats-discovery] Manual run complete:', r))
-    .catch((e) => console.error('[ats-discovery] Manual run error:', e));
+    .catch((e) => console.error('[ats-discovery] Manual run error:', e))
+    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
 });
 
 router.post('/ats/validate', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  res.json({ started: true });
-  runValidation(getDb())
+  const runId = randomUUID();
+  activeRuns.set(runId, { type: 'validation', cancelled: false, listeners: new Set() });
+  res.json({ runId });
+  runValidation(getDb(), runId)
     .then((r) => console.log('[ats-validation] Manual run complete:', r))
-    .catch((e) => console.error('[ats-validation] Manual run error:', e));
+    .catch((e) => console.error('[ats-validation] Manual run error:', e))
+    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+});
+
+router.get('/ats/stream/:runId', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) { res.status(403).end(); return; }
+  const run = activeRuns.get(req.params.runId);
+  if (!run) { res.status(404).end(); return; }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (data: string) => res.write(data);
+  run.listeners.add(send);
+  req.on('close', () => run.listeners.delete(send));
+});
+
+router.delete('/ats/run/:runId', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const run = activeRuns.get(req.params.runId);
+  if (!run) { res.status(404).json({ error: 'Run not found.' }); return; }
+  run.cancelled = true;
+  res.json({ success: true });
 });
 
 router.post('/ats/settings', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const b = req.body as Record<string, unknown>;
   const discoveryEnabled = !!b.discovery_enabled;
-  const discoveryCron = String(b.discovery_cron || '0 3 1 * *').trim();
   const validationEnabled = !!b.validation_enabled;
-  const validationCron = String(b.validation_cron || '0 4 * * 1').trim();
 
-  if (!cron.validate(discoveryCron))
-    return res.status(400).json({ error: 'Invalid discovery cron expression' });
-  if (!cron.validate(validationCron))
-    return res.status(400).json({ error: 'Invalid validation cron expression' });
+  const db = getDb();
+  const row = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(req.profile.id) as { timezone: string } | undefined;
+  const tz = row?.timezone || 'UTC';
 
-  getDb().prepare(`
+  db.prepare(`
     UPDATE settings
     SET ats_discovery_enabled = ?, ats_discovery_cron = ?,
         ats_validation_enabled = ?, ats_validation_cron = ?
     WHERE profile_id = ?
   `).run(
-    discoveryEnabled ? 1 : 0, discoveryCron,
-    validationEnabled ? 1 : 0, validationCron,
+    discoveryEnabled ? 1 : 0, DISC_CRON,
+    validationEnabled ? 1 : 0, VAL_CRON,
     req.profile.id,
   );
 
-  if (discoveryEnabled) startAtsDiscoveryCron(discoveryCron);
+  if (discoveryEnabled) startAtsDiscoveryCron(DISC_CRON, tz);
   else stopAtsDiscoveryCron();
 
-  if (validationEnabled) startAtsValidationCron(validationCron);
+  if (validationEnabled) startAtsValidationCron(VAL_CRON, tz);
   else stopAtsValidationCron();
 
-  res.json({ success: true });
+  res.json({ success: true, timezone: tz });
 });
 
 export { router as apiRouter };
