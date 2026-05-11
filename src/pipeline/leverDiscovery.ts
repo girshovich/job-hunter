@@ -80,7 +80,7 @@ export async function runLeverDiscovery(
     ].filter(Boolean) as string[];
 
     for (const p of uvCandidates) {
-      try { fs.accessSync(p, fs.constants.X_OK); return [p, ['run', '--with', 'duckdb', '--with', 'pandas', scriptPath, ...scriptArgs]]; }
+      try { fs.accessSync(p, fs.constants.X_OK); return [p, ['run', '--with', 'duckdb', '--with', 'pandas', '--with', 'aiohttp', scriptPath, ...scriptArgs]]; }
       catch { /* try next */ }
     }
 
