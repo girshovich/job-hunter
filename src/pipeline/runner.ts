@@ -10,7 +10,7 @@ import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { providerToSource } from './types';
-import { filterNewJobs } from './deduplicator';
+import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { resolveCountries } from './locationNormalizer';
 import { sendDailyReport, type RunStats } from './emailReport';
@@ -387,6 +387,23 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         });
       }
 
+      // 3c. URL-level dedup — cross-source repost detection (no LLM cost)
+      const { uniqueJobs: newJobsToScore, urlDuplicates } = filterDuplicatesByUrl(newJobs, profileId);
+
+      if (urlDuplicates.length > 0) {
+        jobsDuplicate += urlDuplicates.length;
+        const loggedAt = new Date().toISOString();
+        db.transaction(() => {
+          for (const { job } of urlDuplicates) {
+            insertJobLog.run(
+              runId, group.id, job.jobId, job.title, job.company,
+              job.location || null, job.url || null,
+              null, 'DUPLICATE', null, null, loggedAt,
+            );
+          }
+        });
+      }
+
       // 4. Score all new jobs (Call 1: scoring)
       const scoringSettings: SettingsRow = {
         ...settings,
@@ -397,10 +414,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       };
 
       let scoredJobs: ScoredJob[] = [];
-      if (newJobs.length > 0) {
+      if (newJobsToScore.length > 0) {
         setStage(profileId, `${providerPrefix}${roleLabel}: Scoring with AI`, Math.round((globalSectionOffset + activeGroupIdx * 2 + 2) * sw), globalTotalSections,
           { providerIdx: providerIdx + 1, providerCount: providers.length, providerName: providerToSource(scrapingProvider), roleIdx: activeGroupIdx + 1, roleCount: activeGroups.length, roleLabel, action: 'Scoring with AI' });
-        const scoreResult = await scoreJobs(newJobs, scoringSettings, openAiKey);
+        const scoreResult = await scoreJobs(newJobsToScore, scoringSettings, openAiKey);
         scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;
         totalInputTokens += scoreResult.tokenUsage.inputTokens;
@@ -517,6 +534,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       const allLocations = [
         ...blacklistedJobs.map(j => j.location).filter(Boolean) as string[],
         ...jobResults.map(r => r.scored.job.location).filter(Boolean) as string[],
+        ...urlDuplicates.map(d => d.job.location).filter(Boolean) as string[],
       ];
       const countryMap = await resolveCountries(allLocations);
 
@@ -546,7 +564,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       }
 
       // 6. Store all scored jobs (strong/weak/no-match/duplicate) in one pass
-      if (jobResults.length > 0) {
+      if (jobResults.length > 0 || urlDuplicates.length > 0) {
         const now = new Date().toISOString();
         const jobIdByKey = new Map<string, number>();
         db.transaction(() => {
@@ -568,6 +586,24 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               scored.rationale || null, summary || null, scored.rejectionCategory || null,
               isDuplicate ? 1 : 0, isDuplicate && duplicateOfId ? duplicateOfId : null,
               isDuplicate ? 1 : 0, isDuplicate ? now : null,
+            );
+            if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+          }
+          // Store URL-duplicate jobs (cross-source reposts) — canonical entry written, state marked duplicate
+          for (const { job, duplicateOfId } of urlDuplicates) {
+            const country = job.location ? (countryMap.get(job.location) ?? null) : null;
+            const jobSource = job.jobSource ?? 'LinkedIn';
+            insertCanonicalJob.run(
+              job.jobId, jobSource, job.provider || 'harvestapi',
+              job.title, job.company, job.location || null, country, job.workMode || null,
+              job.description || '', job.url || null, job.applyUrl || null,
+              job.postedDate || null, now,
+            );
+            const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertJobState.run(
+              jobId, profileId, group.id, now,
+              0, 'DUPLICATE', 'DUPLICATE', null, null, null,
+              1, duplicateOfId, 1, now,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
           }

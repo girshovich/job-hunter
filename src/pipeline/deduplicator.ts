@@ -7,6 +7,11 @@
 import { getDb } from '../db';
 import type { JobPosting } from './fetcher';
 
+export interface UrlDuplicate {
+  job: JobPosting;
+  duplicateOfId: number;
+}
+
 /**
  * Filters out jobs whose (linkedin_job_id, job_source) pair already exists in the DB.
  * Returns new (unseen) jobs and the provider-level duplicates separately.
@@ -40,4 +45,54 @@ export function filterNewJobs(jobs: JobPosting[]): { newJobs: JobPosting[]; prov
     console.log(`[deduplicator] Skipped ${providerDupes.length} already-stored jobs (provider-level dedup, source-scoped).`);
   }
   return { newJobs, providerDupes };
+}
+
+/**
+ * URL-level dedup — checks whether a job's url or applyUrl matches any existing job
+ * that this profile has already encountered.  Runs after provider-level dedup so the
+ * new job's jobId is guaranteed to be unique; the URL match indicates a cross-source
+ * repost (e.g. same role on LinkedIn and Greenhouse).
+ */
+export function filterDuplicatesByUrl(
+  jobs: JobPosting[],
+  profileId: number,
+): { uniqueJobs: JobPosting[]; urlDuplicates: UrlDuplicate[] } {
+  if (jobs.length === 0) return { uniqueJobs: [], urlDuplicates: [] };
+
+  const db = getDb();
+
+  // Load all url/apply_url values for jobs this profile has already seen
+  const existingRows = db.prepare(`
+    SELECT j.id, j.url, j.apply_url
+    FROM jobs j
+    JOIN job_profile_states jps ON jps.job_id = j.id
+    WHERE jps.profile_id = ? AND (j.url IS NOT NULL OR j.apply_url IS NOT NULL)
+  `).all(profileId) as Array<{ id: number; url: string | null; apply_url: string | null }>;
+
+  const urlToId = new Map<string, number>();
+  for (const row of existingRows) {
+    if (row.url)       urlToId.set(row.url, row.id);
+    if (row.apply_url) urlToId.set(row.apply_url, row.id);
+  }
+
+  const uniqueJobs: JobPosting[] = [];
+  const urlDuplicates: UrlDuplicate[] = [];
+
+  for (const job of jobs) {
+    const matchId =
+      (job.url       && urlToId.get(job.url))      ||
+      (job.applyUrl  && urlToId.get(job.applyUrl))  ||
+      null;
+
+    if (matchId) {
+      urlDuplicates.push({ job, duplicateOfId: matchId });
+    } else {
+      uniqueJobs.push(job);
+    }
+  }
+
+  if (urlDuplicates.length > 0) {
+    console.log(`[deduplicator] ${urlDuplicates.length} URL-duplicate(s) detected (cross-source repost).`);
+  }
+  return { uniqueJobs, urlDuplicates };
 }

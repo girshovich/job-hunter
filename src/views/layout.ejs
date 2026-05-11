@@ -358,6 +358,14 @@
               <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="stepstone">
               <span class="text-sm text-gray-700">StepStone: valig (S)</span>
             </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="greenhouse">
+              <span class="text-sm text-gray-700">Greenhouse (ATS)</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="ashby">
+              <span class="text-sm text-gray-700">Ashby (ATS)</span>
+            </label>
           </div>
         </div>
         <p id="sched-modal-msg" class="hidden text-xs"></p>
@@ -486,6 +494,14 @@
             <label class="flex items-center gap-2.5 cursor-pointer">
               <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="stepstone">
               <span class="text-sm text-gray-700">StepStone: valig (S)</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="greenhouse">
+              <span class="text-sm text-gray-700">Greenhouse (ATS)</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="ashby">
+              <span class="text-sm text-gray-700">Ashby (ATS)</span>
             </label>
           </div>
         </div>
@@ -820,7 +836,7 @@
         }
 
         // Providers display
-        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)' };
+        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)' };
         const statusProviders = _scheduleData.scraping_providers || ['harvestapi', 'valig'];
         document.getElementById('sched-status-providers').textContent =
           statusProviders.map(p => providerLabels[p] || p).join(', ');

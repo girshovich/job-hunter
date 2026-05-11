@@ -84,7 +84,7 @@ router.post('/run', async (req: Request, res: Response) => {
   else if (b.dateRange === 'month') dateRange = 'month';
 
   // Parse optional providers override
-  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone'];
+  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby'];
   const providers = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validProviders.includes(p))
     : undefined;
@@ -475,18 +475,18 @@ function parseGroupBody(body: unknown): GroupBody {
   };
 }
 
-// Resolve location strings → Indeed country codes (used by the role edit modal)
+// Resolve location strings → country name + Indeed/Greenhouse/Ashby mapping (used by the role edit modal)
 router.post('/resolve-locations', async (req: Request, res: Response) => {
   try {
     const raw = (req.body as Record<string, unknown>).locations;
     const locations = Array.isArray(raw) ? (raw as unknown[]).map(String).filter(Boolean) : [];
     if (locations.length === 0) { res.json({}); return; }
     const countryNames = await resolveCountries(locations);
-    const result: Record<string, { countryName: string | null; code: string | null }> = {};
+    const result: Record<string, { countryName: string | null; code: string | null; atsSupported: boolean }> = {};
     for (const loc of locations) {
       const countryName = countryNames.get(loc) ?? null;
       const code = countryName ? (INDEED_CODE[countryName.toLowerCase().trim()] ?? null) : null;
-      result[loc] = { countryName, code };
+      result[loc] = { countryName, code, atsSupported: countryName != null };
     }
     res.json(result);
   } catch (err) {

@@ -89,8 +89,8 @@ function scoreClass(score) {
       <% } %>
 
       <!-- Provider badge -->
-      <% const _pmap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)' }; %>
-      <% const runSrc = run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : 'LinkedIn'); %>
+      <% const _pmap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)' }; %>
+      <% const runSrc = run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : 'LinkedIn'); %>
       <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
         title="<%= runSrc %>"><%= _pmap[run.scraping_provider] || run.scraping_provider || runSrc %></span>
     </div>
@@ -119,11 +119,11 @@ function scoreClass(score) {
           <% if (run.job_source || run.scraping_provider) { %>
           <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
             <span>Source</span>
-            <span class="font-medium text-gray-700"><%= run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider) %></span>
+            <span class="font-medium text-gray-700"><%= run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider) %></span>
           </div>
           <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
             <span>Provider</span>
-            <% const providerDisplayMap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)' }; %>
+            <% const providerDisplayMap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)' }; %>
             <span class="font-medium text-gray-700"><%= providerDisplayMap[run.scraping_provider] || run.scraping_provider || '—' %></span>
           </div>
           <% } %>

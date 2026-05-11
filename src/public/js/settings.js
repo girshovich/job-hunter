@@ -367,7 +367,7 @@ async function fetchLocationHints(locationsStr) {
   const locations = locationsStr.split(',').map(s => s.trim()).filter(Boolean);
   if (!locations.length) { hintsEl.classList.add('hidden'); return; }
 
-  hintsEl.textContent = 'Resolving Indeed countries…';
+  hintsEl.textContent = 'Resolving countries…';
   hintsEl.classList.remove('hidden');
 
   try {
@@ -377,13 +377,26 @@ async function fetchLocationHints(locationsStr) {
       body: JSON.stringify({ locations }),
     });
     const data = await res.json();
-    const parts = locations.map(loc => {
+
+    // Indeed row
+    const indeedParts = locations.map(loc => {
       const r = data[loc];
       if (!r) return `<span class="text-gray-400">${loc} → ?</span>`;
       if (r.code) return `<span class="text-gray-500">${loc} → <span class="font-medium text-gray-700">${r.countryName} (${r.code})</span></span>`;
       return `<span class="text-amber-600">${loc} → not supported by Indeed</span>`;
     });
-    hintsEl.innerHTML = '<span class="text-gray-400">Indeed: </span>' + parts.join('<span class="text-gray-300 mx-1">·</span>');
+
+    // Greenhouse / Ashby row (country-level keyword match)
+    const atsParts = locations.map(loc => {
+      const r = data[loc];
+      if (!r) return `<span class="text-gray-400">${loc} → ?</span>`;
+      if (r.atsSupported) return `<span class="text-gray-500">${loc} → <span class="font-medium text-gray-700">${r.countryName}</span></span>`;
+      return `<span class="text-amber-600">${loc} → country not resolved</span>`;
+    });
+
+    hintsEl.innerHTML =
+      '<div><span class="text-gray-400">Indeed: </span>' + indeedParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
+      '<div class="mt-0.5"><span class="text-gray-400">Greenhouse / Ashby: </span>' + atsParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>';
   } catch (_) {
     hintsEl.classList.add('hidden');
   }

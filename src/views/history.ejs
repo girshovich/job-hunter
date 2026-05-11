@@ -186,8 +186,10 @@ function qs(overrides) {
           <td class="px-4 py-4 text-center hidden xl:table-cell">
             <% const src = job.job_source || 'LinkedIn'; %>
             <span class="px-1.5 py-0.5 rounded text-xs font-medium
-              <%= src === 'Indeed'    ? 'bg-blue-50 text-blue-700' :
-                  src === 'StepStone' ? 'bg-orange-50 text-orange-700' :
+              <%= src === 'Indeed'     ? 'bg-blue-50 text-blue-700'     :
+                  src === 'StepStone'  ? 'bg-orange-50 text-orange-700' :
+                  src === 'Greenhouse' ? 'bg-green-50 text-green-700'   :
+                  src === 'Ashby'      ? 'bg-violet-50 text-violet-700' :
                   'bg-sky-50 text-sky-700' %>">
               <%= src %>
             </span>
