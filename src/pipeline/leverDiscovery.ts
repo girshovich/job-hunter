@@ -59,54 +59,64 @@ export async function runLeverDiscovery(
   const scriptDir  = path.dirname(scriptPath);
   const rawCsvPath = path.join(scriptDir, 'lever_slugs_raw.csv');
 
-  console.log('[lever-discovery] Starting HuggingFace discovery via Python script');
-  if (runId) emitToRun(runId, { msg: 'Querying HuggingFace dataset via Python (this takes ~2 min)…' });
+  // Brief pause so the client's EventSource has time to connect before we emit.
+  await new Promise((r) => setTimeout(r, 600));
 
-  // Resolve uv binary: check common install locations so it works even when
-  // ~/.local/bin isn't in the PATH inherited by the Node process.
-  function resolveUv(): string {
-    if (process.env.UV_PATH) return process.env.UV_PATH;
-    const candidates = [
+  console.log('[lever-discovery] Starting HuggingFace discovery via Python script');
+  if (runId) emitToRun(runId, { msg: 'Fetching company list from HuggingFace… (takes about 2 minutes)' });
+
+  const scriptArgs = ['--skip-validation', '--output', path.join(scriptDir, 'lever_companies.csv')];
+
+  // Priority: LEVER_PYTHON_CMD env var → uv (checks common paths) → python3 fallback
+  function buildCommand(): [string, string[]] {
+    if (process.env.LEVER_PYTHON_CMD)
+      return [process.env.LEVER_PYTHON_CMD, [scriptPath, ...scriptArgs]];
+
+    const uvCandidates = [
+      process.env.UV_PATH,
       '/root/.local/bin/uv',
       `${process.env.HOME}/.local/bin/uv`,
       '/usr/local/bin/uv',
-      'uv',
-    ];
-    for (const c of candidates) {
-      try { if (c !== 'uv') fs.accessSync(c, fs.constants.X_OK); return c; } catch { /* try next */ }
+    ].filter(Boolean) as string[];
+
+    for (const p of uvCandidates) {
+      try { fs.accessSync(p, fs.constants.X_OK); return [p, ['run', '--with', 'duckdb', '--with', 'pandas', scriptPath, ...scriptArgs]]; }
+      catch { /* try next */ }
     }
-    return 'uv';
+
+    // Fall back to plain python3 (e.g. macOS dev with pip-installed packages)
+    return ['python3', [scriptPath, ...scriptArgs]];
   }
 
-  const scriptArgs = ['--skip-validation', '--output', path.join(scriptDir, 'lever_companies.csv')];
-  const pythonCmd  = process.env.LEVER_PYTHON_CMD;
-  const [cmd, args] = pythonCmd
-    ? [pythonCmd, [scriptPath, ...scriptArgs]]
-    : [resolveUv(), ['run', '--with', 'duckdb', '--with', 'pandas', scriptPath, ...scriptArgs]];
-
+  const [cmd, args] = buildCommand();
+  console.log(`[lever-discovery] Using command: ${cmd}`);
   await new Promise<void>((resolve, reject) => {
   const proc = cp.spawn(cmd, args, { cwd: scriptDir });
 
     proc.stdout.on('data', (chunk: Buffer) => {
+      // Log Python output to server console only — not surfaced in the UI
       const line = chunk.toString().trim();
-      if (line) {
-        console.log('[lever-discovery]', line);
-        if (runId && !isCancelled(runId)) emitToRun(runId, { msg: line });
-      }
+      if (line) console.log('[lever-discovery]', line);
     });
 
     proc.stderr.on('data', (chunk: Buffer) => {
-      // Python progress bars and warnings go to stderr — show as info, not errors
       const line = chunk.toString().trim();
       if (line) console.log('[lever-discovery]', line);
     });
 
     proc.on('close', (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`Python script exited with code ${code}`));
+      else reject(new Error(`Script exited with code ${code}`));
     });
 
-    proc.on('error', (err) => reject(err));
+    proc.on('error', (err) => reject(
+      new Error(`Failed to spawn "${cmd}": ${err.message}`)
+    ));
+  }).catch((err: Error) => {
+    const msg = err.message;
+    console.error('[lever-discovery]', msg);
+    if (runId) emitToRun(runId, { msg, done: true });
+    throw err;
   });
 
   if (!fs.existsSync(rawCsvPath)) {
@@ -116,7 +126,7 @@ export async function runLeverDiscovery(
   }
 
   const csvRows = readRawCsv(rawCsvPath);
-  if (runId) emitToRun(runId, { msg: `${csvRows.length} slugs found. Inserting into database…` });
+  if (runId) emitToRun(runId, { msg: `Found ${csvRows.length.toLocaleString()} companies. Saving to database…` });
 
   const upsert = db.prepare(`
     INSERT INTO ats_boards (ats, slug, company_name, is_active, discovered_at)
@@ -137,8 +147,10 @@ export async function runLeverDiscovery(
 
   const cancelled = runId ? isCancelled(runId) : false;
   const doneMsg   = cancelled
-    ? `Cancelled — ${inserted} new, ${skipped} already known`
-    : `Done — ${inserted} new, ${skipped} already known`;
+    ? `Cancelled — ${inserted.toLocaleString()} new companies added`
+    : inserted > 0
+      ? `Done — ${inserted.toLocaleString()} new companies added (${skipped.toLocaleString()} already known)`
+      : `Done — no new companies (all ${skipped.toLocaleString()} already in database)`;
 
   console.log(`[lever-discovery] inserted=${inserted} skipped=${skipped}`);
   if (runId) emitToRun(runId, { msg: doneMsg, done: true, cancelled, inserted, skipped });
