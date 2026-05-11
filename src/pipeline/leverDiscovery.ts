@@ -67,24 +67,35 @@ export async function runLeverDiscovery(
 
   const scriptArgs = ['--skip-validation', '--output', path.join(scriptDir, 'lever_companies.csv')];
 
-  // Priority: LEVER_PYTHON_CMD env var → uv (checks common paths) → python3 fallback
+  // Priority: LEVER_PYTHON_CMD env var → uv (PATH lookup + common fallback paths) → python3
+  function findUv(): string | null {
+    try {
+      const result = cp.execSync('which uv', { encoding: 'utf8' }).trim();
+      if (result) return result;
+    } catch { /* not in PATH */ }
+
+    const candidates = [
+      process.env.UV_PATH,
+      `${process.env.HOME}/.local/bin/uv`,
+      '/root/.local/bin/uv',
+      '/usr/local/bin/uv',
+    ].filter(Boolean) as string[];
+
+    for (const p of candidates) {
+      try { fs.accessSync(p, fs.constants.X_OK); return p; }
+      catch { /* try next */ }
+    }
+    return null;
+  }
+
   function buildCommand(): [string, string[]] {
     if (process.env.LEVER_PYTHON_CMD)
       return [process.env.LEVER_PYTHON_CMD, [scriptPath, ...scriptArgs]];
 
-    const uvCandidates = [
-      process.env.UV_PATH,
-      '/root/.local/bin/uv',
-      `${process.env.HOME}/.local/bin/uv`,
-      '/usr/local/bin/uv',
-    ].filter(Boolean) as string[];
+    const uvPath = findUv();
+    if (uvPath)
+      return [uvPath, ['run', '--with', 'duckdb', '--with', 'pandas', '--with', 'aiohttp', '--with', 'tqdm', scriptPath, ...scriptArgs]];
 
-    for (const p of uvCandidates) {
-      try { fs.accessSync(p, fs.constants.X_OK); return [p, ['run', '--with', 'duckdb', '--with', 'pandas', '--with', 'aiohttp', '--with', 'tqdm', scriptPath, ...scriptArgs]]; }
-      catch { /* try next */ }
-    }
-
-    // Fall back to plain python3 (e.g. macOS dev with pip-installed packages)
     return ['python3', [scriptPath, ...scriptArgs]];
   }
 
