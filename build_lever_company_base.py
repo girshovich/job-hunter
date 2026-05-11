@@ -65,7 +65,7 @@ def slug_to_name(slug: str) -> str:
 def fetch_raw_slugs(limit: Optional[int] = None) -> List[dict]:
     """Query HuggingFace Parquet via DuckDB and return one row per Lever slug."""
     conn = duckdb.connect()
-    conn.execute("LOAD httpfs;")
+    conn.execute("INSTALL httpfs; LOAD httpfs;")
 
     limit_clause = f"LIMIT {limit}" if limit else ""
 
