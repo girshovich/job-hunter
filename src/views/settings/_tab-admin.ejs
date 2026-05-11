@@ -395,7 +395,9 @@ function _atsStreamDone(label, cancelled) {
   dot.classList.add(cancelled ? 'bg-gray-300' : 'bg-emerald-400');
   document.getElementById('ats-run-stop-btn').classList.add('hidden');
   _atsEnableAllButtons();
-  setTimeout(() => loadAtsStats(), 1000);
+  const statsEl = document.getElementById('ats-stats');
+  if (statsEl) statsEl.innerHTML = '<p class="text-xs text-gray-400">Updating…</p>';
+  setTimeout(() => loadAtsStats(), 500);
 }
 
 async function atsStopRun() {
