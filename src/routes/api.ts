@@ -367,7 +367,7 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   }
 
   // Parse and validate providers
-  const validSchedProviders = ['harvestapi', 'valig'];
+  const validSchedProviders = ['harvestapi', 'valig', 'indeed', 'stepstone'];
   const rawSchedProviders = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validSchedProviders.includes(p))
     : [];
@@ -394,7 +394,8 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
   const tz = settings?.timezone || 'Asia/Yerevan';
   startSchedule(profileId, expression, tz, scheduleDateRange, groupIds, schedProviders);
-  res.json({ success: true, expression, timezone: tz, schedule_date_range: scheduleDateRange, schedule_group_ids: groupIds, scraping_providers: schedProviders });
+  const allGroups = db.prepare('SELECT id, group_name, is_active FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as Array<{ id: number; group_name: string; is_active: number }>;
+  res.json({ success: true, expression, timezone: tz, schedule_date_range: scheduleDateRange, schedule_group_ids: groupIds, scraping_providers: schedProviders, groups: allGroups });
 });
 
 router.post('/schedule/stop', (req: Request, res: Response) => {
