@@ -6,3 +6,5 @@ logs/
 *.db
 *.db-shm
 *.db-wal
+lever_companies.csv
+lever_slugs_raw.csv
