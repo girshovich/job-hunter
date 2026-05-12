@@ -916,6 +916,41 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_lever_discovery failed (non-fatal):', (err as Error).message);
   }
 
+  // vMT_repair: if job_profile_states is empty but jobs_backup_vMT has data, restore from backup
+  try {
+    const jpsCount = (db.prepare(`SELECT COUNT(*) AS c FROM job_profile_states`).get() as { c: number }).c;
+    const backupExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='jobs_backup_vMT'`).get();
+    if (jpsCount === 0 && backupExists) {
+      const backupCount = (db.prepare(`SELECT COUNT(*) AS c FROM jobs_backup_vMT`).get() as { c: number }).c;
+      if (backupCount > 0) {
+        const result = db.prepare(`
+          INSERT OR IGNORE INTO job_profile_states (
+            job_id, profile_id, group_id, fetched_at,
+            ai_score, ai_verdict, original_ai_verdict, ai_rationale, ai_summary,
+            rejection_category, cv_assessment,
+            is_duplicate, duplicate_of_job_id,
+            seen, seen_at, applied, user_notes
+          )
+          SELECT
+            b.id, b.profile_id, b.group_id, b.fetched_at,
+            COALESCE(b.ai_score, 0),
+            COALESCE(b.ai_verdict, 'PENDING'),
+            b.original_ai_verdict, b.ai_rationale, b.ai_summary,
+            b.rejection_category, b.cv_assessment,
+            COALESCE(b.is_duplicate, 0), b.duplicate_of_job_id,
+            COALESCE(b.seen, 0), b.seen_at,
+            COALESCE(b.applied, 0), b.user_notes
+          FROM jobs_backup_vMT b
+          WHERE EXISTS (SELECT 1 FROM jobs j WHERE j.id = b.id)
+            AND b.profile_id IS NOT NULL
+        `).run() as { changes: number };
+        console.log(`[db] vMT_repair: restored ${result.changes} job_profile_states rows from backup`);
+      }
+    }
+  } catch (err) {
+    console.warn('[db] vMT_repair failed (non-fatal):', (err as Error).message);
+  }
+
   // v_ats_pool: add pool fetch toggle columns to settings
   try {
     const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_ats_pool'`).get();
