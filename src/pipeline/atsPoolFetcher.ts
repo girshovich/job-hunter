@@ -98,7 +98,7 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
     INSERT INTO jobs (linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
                       description, url, apply_url, posted_date, fetched_at)
     VALUES (?, 'Greenhouse', 'greenhouse', ?, ?, ?, NULL, 'onsite', ?, ?, ?, ?, ?)
-    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET fetched_at = excluded.fetched_at
+    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET fetched_at = excluded.fetched_at, company = excluded.company
   `);
 
   let fetched = 0;
@@ -205,7 +205,7 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
     INSERT INTO jobs (linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
                       description, url, apply_url, posted_date, fetched_at)
     VALUES (?, 'Ashby', 'ashby', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET fetched_at = excluded.fetched_at
+    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET fetched_at = excluded.fetched_at, company = excluded.company
   `);
 
   let fetched = 0;

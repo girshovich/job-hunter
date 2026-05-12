@@ -1089,6 +1089,34 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration v_rjl_job_source failed (non-fatal):', (err as Error).message);
   }
+
+  // v_rjl_job_source_backfill: correct job_source for existing Ashby/Greenhouse run log rows
+  // that were inserted after the column was added with DEFAULT 'LinkedIn'.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_rjl_job_source_backfill'`).get();
+    if (!done) {
+      db.exec(`
+        UPDATE run_job_logs
+        SET job_source = (
+          SELECT COALESCE(sr.job_source, 'LinkedIn')
+          FROM search_runs sr
+          WHERE sr.id = run_job_logs.run_id
+        )
+        WHERE job_source = 'LinkedIn'
+          AND EXISTS (
+            SELECT 1 FROM search_runs sr
+            WHERE sr.id = run_job_logs.run_id
+              AND sr.job_source IS NOT NULL
+              AND sr.job_source != 'LinkedIn'
+          )
+      `);
+      db.exec(`INSERT INTO _migrations VALUES ('v_rjl_job_source_backfill')`);
+      console.log('[db] Migration v_rjl_job_source_backfill: corrected job_source for ATS run log rows');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_rjl_job_source_backfill failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
