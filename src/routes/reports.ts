@@ -139,7 +139,7 @@ router.get('/', (req: Request, res: Response) => {
       .prepare<JobLogWithInternalId>(
         `SELECT rjl.*, j.id AS internal_job_id
          FROM run_job_logs rjl
-         LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id
+         LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
          WHERE rjl.run_id IN (${placeholders})`,
       )
       .all(...preloadIds);
@@ -189,7 +189,7 @@ router.get('/runs/:id/logs', (req: Request, res: Response) => {
     .prepare<JobLogWithInternalId>(
       `SELECT rjl.*, j.id AS internal_job_id
        FROM run_job_logs rjl
-       LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id
+       LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
        WHERE rjl.run_id = ?`,
     )
     .all(runId);

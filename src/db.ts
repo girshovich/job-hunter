@@ -1074,6 +1074,21 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration vMT_job_profile_states failed:', (err as Error).message);
   }
+
+  // v_rjl_job_source: add job_source to run_job_logs so the JOIN in reports can be source-scoped
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_rjl_job_source'`).get();
+    if (!done) {
+      const cols = (db.prepare(`PRAGMA table_info(run_job_logs)`).all() as { name: string }[]).map((c) => c.name);
+      if (!cols.includes('job_source'))
+        db.exec(`ALTER TABLE run_job_logs ADD COLUMN job_source TEXT NOT NULL DEFAULT 'LinkedIn'`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_rjl_job_source')`);
+      console.log('[db] Migration v_rjl_job_source: job_source added to run_job_logs');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_rjl_job_source failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {

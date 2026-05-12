@@ -188,9 +188,9 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
     const insertJobLog = db.prepare(`
       INSERT INTO run_job_logs (
-        run_id, group_id, linkedin_job_id, title, company, location, url,
+        run_id, group_id, linkedin_job_id, job_source, title, company, location, url,
         ai_score, ai_verdict, ai_rationale, rejection_category, logged_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // Shared across all providers — keyed as "source::jobId" to avoid cross-source collisions
@@ -232,6 +232,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       // Collects STRONG_MATCH non-duplicate jobs for hard-model re-scoring after all groups finish.
       const strongMatchesForReScoring: Array<{
         jobId: number;
+        groupId: number;
         job: JobPosting;
         scoringSettings: SettingsRow;
       }> = [];
@@ -321,7 +322,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           db.transaction(() => {
             for (const job of titleFiltered) {
               insertJobLog.run(
-                runId, group.id, job.jobId, job.title, job.company,
+                runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
                 job.location || null, job.url || null,
                 null, 'FILTERED', null, null, loggedAt,
               );
@@ -361,7 +362,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         db.transaction(() => {
           for (const job of withinRunDupes) {
             insertJobLog.run(
-              runId, group.id, job.jobId, job.title, job.company,
+              runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
               job.location || null, job.url || null,
               null, 'DUPLICATE', null, null, loggedAt,
             );
@@ -379,7 +380,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         db.transaction(() => {
           for (const job of providerDupes) {
             insertJobLog.run(
-              runId, group.id, job.jobId, job.title, job.company,
+              runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
               job.location || null, job.url || null,
               null, 'DUPLICATE', null, null, loggedAt,
             );
@@ -396,7 +397,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         db.transaction(() => {
           for (const { job } of urlDuplicates) {
             insertJobLog.run(
-              runId, group.id, job.jobId, job.title, job.company,
+              runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
               job.location || null, job.url || null,
               null, 'DUPLICATE', null, null, loggedAt,
             );
@@ -514,7 +515,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       db.transaction(() => {
         for (const job of blacklistedJobs) {
           insertJobLog.run(
-            runId, group.id, job.jobId, job.title, job.company,
+            runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
             job.location || null, job.url || null,
             null, 'BLACKLISTED', null, null, loggedAt,
           );
@@ -522,7 +523,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         for (const { scored, isDuplicate } of jobResults) {
           const logVerdict = isDuplicate ? 'DUPLICATE' : scored.verdict;
           insertJobLog.run(
-            runId, group.id, scored.job.jobId, scored.job.title, scored.job.company,
+            runId, group.id, scored.job.jobId, scored.job.jobSource ?? 'LinkedIn', scored.job.title, scored.job.company,
             scored.job.location || null, scored.job.url || null,
             scored.score, logVerdict, scored.rationale || null,
             scored.rejectionCategory || null, loggedAt,
@@ -616,7 +617,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
             const jobSource = scored.job.jobSource ?? 'LinkedIn';
             const jobId = jobIdByKey.get(`${jobSource}::${scored.job.jobId}`);
             if (jobId !== undefined) {
-              strongMatchesForReScoring.push({ jobId, job: scored.job, scoringSettings });
+              strongMatchesForReScoring.push({ jobId, groupId: group.id, job: scored.job, scoringSettings });
             }
           }
         }
@@ -637,7 +638,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       `);
       const updateRescoredLog = db.prepare(`
         UPDATE run_job_logs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?
-        WHERE run_id = ? AND linkedin_job_id = ?
+        WHERE run_id = ? AND linkedin_job_id = ? AND group_id = ?
       `);
 
       for (const entry of strongMatchesForReScoring) {
@@ -658,7 +659,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           updateRescoredLog.run(
             rescored.score, rescored.verdict, rescored.rationale,
             rescored.rejectionCategory,
-            runId, entry.job.jobId,
+            runId, entry.job.jobId, entry.groupId,
           );
 
           if (rescored.verdict !== 'STRONG_MATCH') {
