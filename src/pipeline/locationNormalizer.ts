@@ -1,7 +1,7 @@
 import { getDb } from '../db';
 
 // Strings Nominatim can't resolve — regional labels and LinkedIn-specific metro area names
-const HARDCODED: Record<string, string> = {
+export const HARDCODED: Record<string, string> = {
   'emea': 'EMEA',
   'dach': 'DACH',
   'european union': 'European Union',
@@ -39,7 +39,10 @@ const USER_AGENT = 'JobHunterApp/1.0 (self-hosted job search tool)';
 
 async function nominatimLookup(location: string): Promise<string | null> {
   const url = `${NOMINATIM_URL}?q=${encodeURIComponent(location)}&format=json&addressdetails=1&limit=1`;
-  const resp = await fetch(url, { headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' } });
+  const resp = await fetch(url, {
+    headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
+    signal: AbortSignal.timeout(8_000),
+  });
   if (!resp.ok) return null;
   const data = await resp.json() as Array<{ address?: { country?: string } }>;
   return data[0]?.address?.country ?? null;
@@ -47,6 +50,45 @@ async function nominatimLookup(location: string): Promise<string | null> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Synchronous version — hardcoded map + DB cache only, no HTTP.
+ * Returns resolved countries and a flag indicating whether any locations
+ * could not be resolved (caller decides how to handle unknowns).
+ */
+export function resolveCountriesFromCache(
+  locations: string[],
+): { countries: Set<string>; hasUnresolved: boolean } {
+  const db = getDb();
+  const resolved = new Map<string, string | null>();
+  const unique = [...new Set(locations.filter(Boolean))];
+
+  for (const loc of unique) {
+    const h = HARDCODED[loc.toLowerCase().trim()];
+    if (h) resolved.set(loc, h);
+  }
+
+  const uncached = unique.filter((loc) => !resolved.has(loc));
+  if (uncached.length > 0) {
+    const placeholders = uncached.map(() => '?').join(',');
+    const rows = db
+      .prepare<{ location: string; country: string }>(
+        `SELECT location, country FROM location_country WHERE location IN (${placeholders})`,
+      )
+      .all(...uncached);
+    for (const row of rows) resolved.set(row.location, row.country || null);
+  }
+
+  const countries = new Set<string>();
+  for (const country of resolved.values()) {
+    if (country) countries.add(country.toLowerCase());
+  }
+
+  return {
+    countries,
+    hasUnresolved: unique.some((loc) => !resolved.has(loc)),
+  };
 }
 
 /**

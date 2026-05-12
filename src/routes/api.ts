@@ -12,7 +12,7 @@ import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
 import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron } from '../pipeline/atsScheduler';
-import { fetchGreenhousePool, fetchAshbyPool } from '../pipeline/atsPoolFetcher';
+import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries } from '../pipeline/atsPoolFetcher';
 import { activeRuns } from '../pipeline/atsRunState';
 import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
@@ -1100,6 +1100,17 @@ router.post('/ats/pool/fetch-ashby', (req: Request, res: Response) => {
   fetchAshbyPool(getDb(), runId)
     .then((r) => console.log('[ashby-pool] Manual fetch complete:', r))
     .catch((e) => console.error('[ashby-pool] Manual fetch error:', e))
+    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+});
+
+router.post('/ats/pool/resolve-countries', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const runId = randomUUID();
+  activeRuns.set(runId, { type: 'pool-fetch' as 'discovery', cancelled: false, listeners: new Set() });
+  res.json({ runId });
+  resolvePoolCountries(getDb(), runId)
+    .then((r) => console.log('[pool] Resolve countries complete:', r))
+    .catch((e) => console.error('[pool] Resolve countries error:', e))
     .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
 });
 

@@ -117,6 +117,16 @@ process.on('uncaughtException', (err) => {
 async function start(): Promise<void> {
   const db = getDb();
 
+  // Mark any runs that were still 'running' when the server last stopped as failed.
+  // This prevents them from showing as stuck "Running" in the UI indefinitely.
+  const staleCount = db.prepare(
+    `UPDATE search_runs SET status = 'failed', error_log = 'Server stopped during run'
+     WHERE status = 'running'`
+  ).run().changes;
+  if (staleCount > 0) {
+    console.log(`[startup] Marked ${staleCount} stale 'running' run(s) as failed`);
+  }
+
   // Boot ATS crons from admin settings
   const adminProfile = db.prepare(`SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1`).get() as { id: number } | undefined;
   if (adminProfile) {

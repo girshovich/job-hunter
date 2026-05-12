@@ -286,6 +286,26 @@
         </div>
       </div>
 
+      <!-- Resolve countries row -->
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="w-2 h-2 rounded-full bg-gray-200 flex-shrink-0"></span>
+          <div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-sm font-medium text-gray-800">Resolve job countries</span>
+              <span class="text-xs text-gray-400">one-time / manual</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">Geocodes pool job locations via Nominatim and stores results for fast filtering</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 ml-4 flex-shrink-0">
+          <button id="pool-resolve-btn" type="button" onclick="poolResolveCountries()"
+                  class="px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors">
+            Resolve now
+          </button>
+        </div>
+      </div>
+
     </div><!-- end pool rows -->
   </div><!-- end pool card -->
 
@@ -564,17 +584,29 @@ async function poolToggle(provider, enabled) {
   toggleEl.disabled = false;
 }
 
-async function poolFetch(provider) {
+function _poolDisableAllButtons() {
   document.getElementById('pool-gh-fetch-btn').disabled    = true;
   document.getElementById('pool-ashby-fetch-btn').disabled = true;
+  document.getElementById('pool-resolve-btn').disabled     = true;
+}
+
+async function poolFetch(provider) {
+  _poolDisableAllButtons();
   const endpoint = provider === 'greenhouse' ? '/api/ats/pool/fetch-greenhouse' : '/api/ats/pool/fetch-ashby';
   const label    = provider === 'greenhouse' ? 'Greenhouse' : 'Ashby';
   const res = await fetch(endpoint, { method: 'POST' });
   const { runId } = await res.json();
-  _poolStartStream(runId, label + ' pool fetch');
+  _poolStartStream(runId, label + ' pool fetch', 'boards');
 }
 
-function _poolStartStream(runId, label) {
+async function poolResolveCountries() {
+  _poolDisableAllButtons();
+  const res = await fetch('/api/ats/pool/resolve-countries', { method: 'POST' });
+  const { runId } = await res.json();
+  _poolStartStream(runId, 'Resolving job countries', 'locations');
+}
+
+function _poolStartStream(runId, label, unit = 'boards') {
   _poolRunId = runId;
   const logEl      = document.getElementById('pool-run-log');
   const titleEl    = document.getElementById('pool-run-title');
@@ -603,7 +635,7 @@ function _poolStartStream(runId, label) {
       linesEl.scrollTop = linesEl.scrollHeight;
     }
     if (ev.total) {
-      progressEl.textContent = `${ev.processed || 0} / ${ev.total} boards`;
+      progressEl.textContent = `${ev.processed || 0} / ${ev.total} ${unit}`;
       progressEl.classList.remove('hidden');
     }
     if (ev.done) _poolStreamDone(label, ev.cancelled);
@@ -622,7 +654,7 @@ function _poolStreamDone(label, cancelled) {
   document.getElementById('pool-run-stop-btn').classList.add('hidden');
   document.getElementById('pool-gh-fetch-btn').disabled    = false;
   document.getElementById('pool-ashby-fetch-btn').disabled = false;
-  // Refresh pool counts after fetch
+  document.getElementById('pool-resolve-btn').disabled     = false;
   setTimeout(() => loadAtsStats(), 500);
 }
 

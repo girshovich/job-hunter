@@ -738,8 +738,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       } catch (err) {
         const durationMs = Date.now() - startedAt;
-        const errorMsg = (err as Error).message;
-        console.error(`[runner] Provider pipeline error (${scrapingProvider}):`, errorMsg);
+        const errorMsg = (err instanceof Error)
+          ? (err.message || err.constructor.name || String(err))
+          : String(err);
+        console.error(`[runner] Provider pipeline error (${scrapingProvider}):`, err);
 
         try {
           if (runId !== null) {
@@ -774,8 +776,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
   } catch (err) {
     const durationMs = Date.now() - overallStart;
-    const errorMsg = (err as Error).message;
-    console.error('[runner] Fatal pipeline error:', errorMsg);
+    const errorMsg = (err instanceof Error)
+      ? (err.message || err.constructor.name || String(err))
+      : String(err);
+    console.error('[runner] Fatal pipeline error:', err);
 
     try {
       const db = getDb();
