@@ -6,7 +6,7 @@
 import type { Database } from '../db';
 import { emitToRun, isCancelled } from './atsRunState';
 import { parsePostedDate } from './types';
-import { HARDCODED } from './locationNormalizer';
+import { HARDCODED, COUNTRY_NAMES } from './locationNormalizer';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT    = 'JobHunterApp/1.0 (self-hosted job search tool)';
@@ -335,40 +335,48 @@ export async function resolvePoolCountries(
       continue;
     }
 
-    // 3. Nominatim — clean up compound/multi-city location strings before querying:
-    //    a) strip "[object Object]" noise from old bad rows
-    //    b) take the first ';'-delimited segment
-    //    c) if an em/en-dash separates a country prefix from a city list
-    //       (e.g. "US – Seattle, San Jose, Portland"), take just the prefix ("US")
-    //    d) if still a 3+-part comma list (e.g. "Seattle, Portland, NY"), take first 2
+    // 3. Resolve via direct country-name lookup or Nominatim.
+    //    Pre-processing: strip "[object Object]" noise, take the first ';'-delimited segment,
+    //    strip em/en-dash city-list suffixes, trim 3+-part comma lists to first 2 parts.
     let country: string | null = null;
     const locForQuery = (() => {
       const cleaned  = loc.replace(/\[object Object\]/gi, '').trim();
       const firstSeg = cleaned.split(';')[0].trim();
-      const dashParts = firstSeg.split(/\s*[–—]\s*/); // em-dash or en-dash
+      const dashParts = firstSeg.split(/\s*[–—]\s*/);
       const candidate = dashParts[0].trim().replace(/,\s*$/, '');
       const parts = candidate.split(',').map((s) => s.trim()).filter(Boolean);
       return parts.length > 2 ? parts.slice(0, 2).join(', ') : candidate;
     })();
-    try {
-      if (!locForQuery) throw new Error('empty query');
-      const url = `${NOMINATIM_URL}?q=${encodeURIComponent(locForQuery)}&format=json&addressdetails=1&limit=1`;
-      const resp = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (resp.ok) {
-        const data = await resp.json() as Array<{ address?: { country?: string } }>;
-        country = data[0]?.address?.country ?? null;
-      }
-    } catch { /* timeout/network error — leave as null */ }
 
-    cacheUpsert.run(loc, country ?? '', new Date().toISOString());
-    if (country) { updateJobs.run(country, loc); resolved++; }
-    nominatimCalls++;
+    // 3a. Direct country-name recognition (avoids a Nominatim round-trip)
+    const directCountry = COUNTRY_NAMES[locForQuery.toLowerCase().trim()];
+    if (directCountry) {
+      country = directCountry;
+    } else {
+      // 3b. Nominatim
+      try {
+        if (!locForQuery) throw new Error('empty query');
+        const url = `${NOMINATIM_URL}?q=${encodeURIComponent(locForQuery)}&format=json&addressdetails=1&limit=1`;
+        const resp = await fetch(url, {
+          headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (resp.ok) {
+          const data = await resp.json() as Array<{ address?: { country?: string } }>;
+          country = data[0]?.address?.country ?? null;
+        }
+      } catch { /* timeout/network error — leave as null */ }
+      nominatimCalls++;
+      if (i < locs.length - 1) await new Promise((r) => setTimeout(r, 1100));
+    }
+
+    // Only cache successful resolutions so failures can be retried next run
+    if (country) {
+      cacheUpsert.run(loc, country, new Date().toISOString());
+      updateJobs.run(country, loc);
+      resolved++;
+    }
     emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${loc}" → ${country || 'unknown'}`, processed: i + 1, total });
-
-    if (i < locs.length - 1) await new Promise((r) => setTimeout(r, 1100));
   }
 
   const durationMs = Date.now() - start;
