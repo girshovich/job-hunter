@@ -932,7 +932,7 @@ function runMigrations(db: Database): void {
             seen, seen_at, applied, user_notes
           )
           SELECT
-            b.id, b.profile_id, b.group_id, b.fetched_at,
+            b.id, b.profile_id, b.group_id, COALESCE(b.fetched_at, datetime('now')),
             COALESCE(b.ai_score, 0),
             COALESCE(b.ai_verdict, 'PENDING'),
             b.original_ai_verdict, b.ai_rationale, b.ai_summary,
