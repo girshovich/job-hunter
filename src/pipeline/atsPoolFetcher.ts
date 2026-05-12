@@ -336,20 +336,27 @@ export async function resolvePoolCountries(
     }
 
     // 3. Resolve via direct country-name lookup or Nominatim.
-    //    Pre-processing: strip "[object Object]" noise, take the first ';'-delimited segment,
-    //    strip em/en-dash city-list suffixes, trim 3+-part comma lists to first 2 parts.
     let country: string | null = null;
+
+    // 3a. Extract country from parenthetical hints, e.g. "San Francisco or Remote (United States)"
+    const parenCountry = [...loc.matchAll(/\(([^)]+)\)/g)]
+      .map(m => COUNTRY_NAMES[m[1].trim().toLowerCase()])
+      .find(Boolean) ?? null;
+
+    // 3b. Build cleaned query: strip noise/parens, take first ';'-segment,
+    //     split on em/en/plain-hyphen work-mode suffixes (e.g. "Atlanta - Onsite"),
+    //     trim 3+-part comma lists to first 2 parts.
     const locForQuery = (() => {
       const cleaned  = loc.replace(/\[object Object\]/gi, '').replace(/\([^)]*\)/g, '').trim();
       const firstSeg = cleaned.split(';')[0].trim();
-      const dashParts = firstSeg.split(/\s*[–—]\s*/);
+      const dashParts = firstSeg.split(/\s*[–—]\s*|\s+-\s+/);
       const candidate = dashParts[0].trim().replace(/,\s*$/, '');
       const parts = candidate.split(',').map((s) => s.trim()).filter(Boolean);
       return parts.length > 2 ? parts.slice(0, 2).join(', ') : candidate;
     })();
 
-    // 3a. Direct country-name recognition (avoids a Nominatim round-trip)
-    const directCountry = COUNTRY_NAMES[locForQuery.toLowerCase().trim()];
+    // 3c. Direct country-name recognition (avoids a Nominatim round-trip)
+    const directCountry = parenCountry ?? COUNTRY_NAMES[locForQuery.toLowerCase().trim()];
     if (directCountry) {
       country = directCountry;
     } else {
