@@ -340,7 +340,7 @@ export async function resolvePoolCountries(
     //    strip em/en-dash city-list suffixes, trim 3+-part comma lists to first 2 parts.
     let country: string | null = null;
     const locForQuery = (() => {
-      const cleaned  = loc.replace(/\[object Object\]/gi, '').trim();
+      const cleaned  = loc.replace(/\[object Object\]/gi, '').replace(/\([^)]*\)/g, '').trim();
       const firstSeg = cleaned.split(';')[0].trim();
       const dashParts = firstSeg.split(/\s*[–—]\s*/);
       const candidate = dashParts[0].trim().replace(/,\s*$/, '');
