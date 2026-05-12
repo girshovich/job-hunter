@@ -7,6 +7,7 @@ import type { Database } from '../db';
 import { emitToRun, isCancelled } from './atsRunState';
 import { parsePostedDate } from './types';
 import { HARDCODED, COUNTRY_NAMES } from './locationNormalizer';
+import COUNTRIES_LIST from './countries.json';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT    = 'JobHunterApp/1.0 (self-hosted job search tool)';
@@ -315,7 +316,18 @@ export async function resolvePoolCountries(
     if (isCancelled(runId ?? '')) break;
     const loc = locs[i].location;
 
-    // 1. Hardcoded map
+    // 1. Country-name substring scan — find the first known country mentioned in the string
+    const locLower = loc.toLowerCase();
+    const containedCountry = COUNTRIES_LIST.find(name => locLower.includes(name.toLowerCase())) ?? null;
+    if (containedCountry) {
+      updateJobs.run(containedCountry, loc);
+      cacheUpsert.run(loc, containedCountry, new Date().toISOString());
+      resolved++;
+      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${loc}" → ${containedCountry}`, processed: i + 1, total });
+      continue;
+    }
+
+    // 2. Hardcoded map
     const hardcoded = HARDCODED[loc.toLowerCase().trim()];
     if (hardcoded) {
       updateJobs.run(hardcoded, loc);
@@ -325,7 +337,7 @@ export async function resolvePoolCountries(
       continue;
     }
 
-    // 2. DB cache
+    // 3. DB cache
     const cached = db.prepare(
       `SELECT country FROM location_country WHERE location = ?`,
     ).get(loc) as { country: string } | undefined;
@@ -335,32 +347,35 @@ export async function resolvePoolCountries(
       continue;
     }
 
-    // 3. Resolve via direct country-name lookup or Nominatim.
+    // 4. Resolve via direct country-name lookup or Nominatim.
     let country: string | null = null;
 
-    // 3a. Extract country from parenthetical hints, e.g. "San Francisco or Remote (United States)"
+    // 4a. Extract country from parenthetical hints, e.g. "San Francisco or Remote (United States)"
     const parenCountry = [...loc.matchAll(/\(([^)]+)\)/g)]
       .map(m => COUNTRY_NAMES[m[1].trim().toLowerCase()])
       .find(Boolean) ?? null;
 
-    // 3b. Build cleaned query: strip noise/parens, take first ';'-segment,
-    //     split on em/en/plain-hyphen work-mode suffixes (e.g. "Atlanta - Onsite"),
-    //     trim 3+-part comma lists to first 2 parts.
+    // 4b. Build cleaned query for Nominatim.
     const locForQuery = (() => {
       const cleaned  = loc.replace(/\[object Object\]/gi, '').replace(/\([^)]*\)/g, '').trim();
       const firstSeg = cleaned.split(';')[0].trim();
-      const dashParts = firstSeg.split(/\s*[–—]\s*|\s+-\s+/);
-      const candidate = dashParts[0].trim().replace(/,\s*$/, '');
+      // "Anywhere in France, Belgium, Spain" → take first country after prefix
+      const anywhereMatch = firstSeg.match(/^anywhere\s+in\s+(.*)/i);
+      if (anywhereMatch) return anywhereMatch[1].split(',')[0].trim();
+      // split on em/en-dash, space-hyphen-space, or space-slash-space (work-mode suffixes)
+      const dashParts = firstSeg.split(/\s*[–—]\s*|\s+-\s+|\s+\/\s+/);
+      // strip "or …" alternatives e.g. "New York City or San Francisco"
+      const candidate = dashParts[0].trim().replace(/\s+or\s+.*/i, '').replace(/,\s*$/, '');
       const parts = candidate.split(',').map((s) => s.trim()).filter(Boolean);
       return parts.length > 2 ? parts.slice(0, 2).join(', ') : candidate;
     })();
 
-    // 3c. Direct country-name recognition (avoids a Nominatim round-trip)
+    // 4c. Direct country-name recognition (avoids a Nominatim round-trip)
     const directCountry = parenCountry ?? COUNTRY_NAMES[locForQuery.toLowerCase().trim()];
     if (directCountry) {
       country = directCountry;
     } else {
-      // 3b. Nominatim
+      // 4d. Nominatim
       try {
         if (!locForQuery) throw new Error('empty query');
         const url = `${NOMINATIM_URL}?q=${encodeURIComponent(locForQuery)}&format=json&addressdetails=1&limit=1`;
