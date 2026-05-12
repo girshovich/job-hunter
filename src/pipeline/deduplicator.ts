@@ -13,10 +13,12 @@ export interface UrlDuplicate {
 }
 
 /**
- * Filters out jobs whose (linkedin_job_id, job_source) pair already exists in the DB.
+ * Filters out jobs already scored for this profile by checking job_profile_states.
+ * Profile-scoped so each user independently scores any job, even if another profile
+ * has already processed it.
  * Returns new (unseen) jobs and the provider-level duplicates separately.
  */
-export function filterNewJobs(jobs: JobPosting[]): { newJobs: JobPosting[]; providerDupes: JobPosting[] } {
+export function filterNewJobs(jobs: JobPosting[], profileId: number): { newJobs: JobPosting[]; providerDupes: JobPosting[] } {
   if (jobs.length === 0) return { newJobs: [], providerDupes: [] };
 
   const db = getDb();
@@ -32,13 +34,16 @@ export function filterNewJobs(jobs: JobPosting[]): { newJobs: JobPosting[]; prov
 
   for (const [source, group] of bySource) {
     const placeholders = group.map(() => '?').join(',');
-    const rows = db
-      .prepare(`SELECT linkedin_job_id FROM jobs WHERE job_source = ? AND linkedin_job_id IN (${placeholders})`)
-      .all(source, ...group.map((j) => j.jobId)) as Array<{ linkedin_job_id: string }>;
+    const rows = db.prepare(`
+      SELECT j.linkedin_job_id
+      FROM jobs j
+      JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
+      WHERE j.job_source = ? AND j.linkedin_job_id IN (${placeholders})
+    `).all(profileId, source, ...group.map((j) => j.jobId)) as Array<{ linkedin_job_id: string }>;
     for (const row of rows) existingIds.add(`${source}::${row.linkedin_job_id}`);
   }
 
-  const newJobs      = jobs.filter((j) => !existingIds.has(`${j.jobSource ?? 'LinkedIn'}::${j.jobId}`));
+  const newJobs       = jobs.filter((j) => !existingIds.has(`${j.jobSource ?? 'LinkedIn'}::${j.jobId}`));
   const providerDupes = jobs.filter((j) =>  existingIds.has(`${j.jobSource ?? 'LinkedIn'}::${j.jobId}`));
 
   if (providerDupes.length > 0) {

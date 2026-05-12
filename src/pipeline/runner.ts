@@ -371,7 +371,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       }
 
       // 3b. Provider-level dedup — filter jobs already stored in DB from previous runs
-      const { newJobs, providerDupes } = filterNewJobs(allFetched);
+      const { newJobs, providerDupes } = filterNewJobs(allFetched, profileId);
       console.log(`[runner] Group ${group.id}: ${newJobs.length} new after provider dedup`);
 
       if (providerDupes.length > 0) {
