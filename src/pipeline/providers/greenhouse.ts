@@ -75,10 +75,7 @@ export async function fetchWithGreenhouse(
     const inPlaceholders = countryList.map(() => '?').join(', ');
     const likeClauses    = countryList.map(() => `LOWER(COALESCE(location, '')) LIKE ?`).join(' OR ');
     locationClause = `AND (
-      work_mode = 'remote'
-      OR LOWER(COALESCE(location, '')) LIKE '%remote%'
-      OR LOWER(COALESCE(location, '')) LIKE '%anywhere%'
-      OR LOWER(country) IN (${inPlaceholders})
+      LOWER(country) IN (${inPlaceholders})
       OR (country IS NULL AND (${likeClauses}))
     )`;
     locationParams = [

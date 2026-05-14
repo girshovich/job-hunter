@@ -72,6 +72,12 @@ export async function fetchWithAshby(
   const keywordClauses = filters.keywords.map(() => `LOWER(title) LIKE ?`).join(' OR ');
   const keywordParams  = filters.keywords.map((k) => `%${k.toLowerCase()}%`);
 
+  // Work mode filter: Ashby provides usable workplace type data in the pool.
+  const workModes = filters.workModes.map((m) => m.toLowerCase()).filter(Boolean);
+  const workModeClause = workModes.length > 0
+    ? `AND LOWER(COALESCE(work_mode, 'onsite')) IN (${workModes.map(() => '?').join(', ')})`
+    : '';
+
   // Primary: match jobs.country (populated by resolve-countries / post-fetch sweep).
   // Fallback: LIKE on raw location string for jobs whose country is still NULL.
   let locationClause = '';
@@ -81,10 +87,7 @@ export async function fetchWithAshby(
     const inPlaceholders = countryList.map(() => '?').join(', ');
     const likeClauses    = countryList.map(() => `LOWER(COALESCE(location, '')) LIKE ?`).join(' OR ');
     locationClause = `AND (
-      work_mode = 'remote'
-      OR LOWER(COALESCE(location, '')) LIKE '%remote%'
-      OR LOWER(COALESCE(location, '')) LIKE '%anywhere%'
-      OR LOWER(country) IN (${inPlaceholders})
+      LOWER(country) IN (${inPlaceholders})
       OR (country IS NULL AND (${likeClauses}))
     )`;
     locationParams = [
@@ -99,10 +102,11 @@ export async function fetchWithAshby(
     WHERE job_source = 'Ashby'
       AND (posted_date IS NULL OR posted_date >= ?)
       AND (${keywordClauses || '1=1'})
+      ${workModeClause}
       ${locationClause}
   `;
 
-  const rows = db.prepare(sql).all(cutoffISO, ...keywordParams, ...locationParams) as JobRow[];
+  const rows = db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[];
   const jobs = rows.map(rowToPosting);
 
   console.log(`[ashby] ${jobs.length} pool jobs matched via SQL (${filters.keywords.join(', ')} / ${filters.locations.join(', ')})`);

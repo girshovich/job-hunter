@@ -8,6 +8,7 @@ import { emitToRun, isCancelled } from './atsRunState';
 import { parsePostedDate } from './types';
 import { HARDCODED, COUNTRY_NAMES } from './locationNormalizer';
 import COUNTRIES_LIST from './countries.json';
+import { resolveAshbyCompanyName } from './ashbyCompanyName';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT    = 'JobHunterApp/1.0 (self-hosted job search tool)';
@@ -143,6 +144,7 @@ interface AshbyJobRaw {
   descriptionPlain: string | null;
   publishedAt: string | null;
   isRemote: boolean | null;
+  workplaceType?: string | null;
 }
 
 interface AshbyApiResponse {
@@ -162,19 +164,31 @@ interface AshbyJobToInsert {
   description: string;
 }
 
-async function fetchAshbyBoard(slug: string, storedName: string): Promise<AshbyJobToInsert[]> {
+interface AshbyBoardFetchResult {
+  companyName: string;
+  jobs: AshbyJobToInsert[];
+}
+
+function mapAshbyWorkMode(job: AshbyJobRaw): string {
+  const workplaceType = (job.workplaceType || '').toLowerCase();
+  if (workplaceType.includes('hybrid')) return 'hybrid';
+  if (workplaceType.includes('remote') || job.isRemote) return 'remote';
+  return 'onsite';
+}
+
+async function fetchAshbyBoard(slug: string, storedName: string | null): Promise<AshbyBoardFetchResult | null> {
   let res: Response;
   try {
     res = await fetch(
       `https://api.ashbyhq.com/posting-api/job-board/${slug}`,
       { signal: AbortSignal.timeout(15_000) },
     );
-  } catch { return []; }
-  if (!res.ok) return [];
+  } catch { return null; }
+  if (!res.ok) return null;
   let data: AshbyApiResponse;
-  try { data = await res.json() as AshbyApiResponse; } catch { return []; }
-  const companyName = data.organization?.name || storedName || slug;
-  return (data.jobs ?? []).map((job): AshbyJobToInsert => {
+  try { data = await res.json() as AshbyApiResponse; } catch { return null; }
+  const companyName = await resolveAshbyCompanyName(slug, data, storedName);
+  const jobs = (data.jobs ?? []).map((job): AshbyJobToInsert => {
     const { date: postedDate } = parsePostedDate(job.publishedAt ?? undefined);
     const allLocs = [job.location, ...(job.secondaryLocations ?? [])]
       .filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
@@ -183,13 +197,14 @@ async function fetchAshbyBoard(slug: string, storedName: string): Promise<AshbyJ
       title:           job.title || '',
       company:         companyName,
       location:        allLocs.join('; ') || null,
-      work_mode:       job.isRemote ? 'remote' : 'onsite',
+      work_mode:       mapAshbyWorkMode(job),
       url:             job.jobUrl || '',
       apply_url:       job.applyUrl || null,
       posted_date:     postedDate,
       description:     (job.descriptionHtml || job.descriptionPlain || '').substring(0, 20_000),
     };
   });
+  return { companyName, jobs };
 }
 
 export async function fetchAshbyPool(db: Database, runId?: string): Promise<PoolFetchResult> {
@@ -205,7 +220,20 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
     INSERT INTO jobs (linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
                       description, url, apply_url, posted_date, fetched_at)
     VALUES (?, 'Ashby', 'ashby', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET fetched_at = excluded.fetched_at, company = excluded.company
+    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
+      fetched_at  = excluded.fetched_at,
+      title       = excluded.title,
+      company     = excluded.company,
+      location    = excluded.location,
+      country     = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
+      description = excluded.description,
+      url         = excluded.url,
+      apply_url   = COALESCE(excluded.apply_url, jobs.apply_url),
+      posted_date = excluded.posted_date
+  `);
+  const updateBoardName = db.prepare(`
+    UPDATE ats_boards SET company_name = ?
+    WHERE ats = 'ashby' AND slug = ? AND (company_name IS NULL OR company_name != ?)
   `);
 
   let fetched = 0;
@@ -213,13 +241,16 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
 
   await withConcurrencyMap(slugs, 10, async ({ slug, company_name }) => {
     if (isCancelled(runId ?? '')) return;
-    const jobs = await fetchAshbyBoard(slug, company_name || slug);
-    db.transaction(() => {
-      for (const j of jobs) {
-        upsert.run(j.linkedin_job_id, j.title, j.company, j.location, j.work_mode, j.description, j.url, j.apply_url, j.posted_date, now);
-        fetched++;
-      }
-    });
+    const result = await fetchAshbyBoard(slug, company_name);
+    if (result) {
+      db.transaction(() => {
+        updateBoardName.run(result.companyName, slug, result.companyName);
+        for (const j of result.jobs) {
+          upsert.run(j.linkedin_job_id, j.title, j.company, j.location, j.work_mode, j.description, j.url, j.apply_url, j.posted_date, now);
+          fetched++;
+        }
+      });
+    }
     processed++;
     if (processed % 100 === 0 || processed === slugs.length) {
       emitToRun(runId ?? '', { msg: `${processed}/${slugs.length} boards`, processed, total: slugs.length });

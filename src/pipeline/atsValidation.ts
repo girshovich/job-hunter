@@ -1,5 +1,6 @@
 import type { Database } from '../db';
 import { emitToRun, isCancelled } from './atsRunState';
+import { resolveAshbyCompanyName } from './ashbyCompanyName';
 
 interface AtsBoard {
   id: number;
@@ -34,7 +35,7 @@ async function withConcurrency<T>(
 
 async function extractCompanyName(ats: string, slug: string, body: unknown): Promise<string | null> {
   if (ats === 'ashby') {
-    return (body as { organization?: { name?: string } })?.organization?.name ?? null;
+    return resolveAshbyCompanyName(slug, body as { organization?: { name?: string } } | null);
   }
   if (ats === 'greenhouse') {
     try {
