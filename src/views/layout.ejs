@@ -260,20 +260,27 @@
   </div>
 
   <!-- Schedule Setup Modal -->
-  <div id="schedule-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div id="schedule-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeScheduleModal()"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+    <div class="relative bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-sm h-[calc(100dvh-1rem)] md:h-auto overflow-hidden flex flex-col">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <h2 class="font-semibold text-gray-900">Run Schedule</h2>
         <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
-      <div class="px-6 py-4 space-y-4 max-h-[75vh] overflow-y-auto">
+      <div class="px-6 py-4 space-y-4 flex-1 overflow-y-auto md:max-h-[75vh]">
         <!-- Roles -->
         <div>
           <div class="text-sm font-medium text-gray-700 mb-2">Roles to run</div>
           <div id="sched-modal-groups" class="space-y-1">
+            <span class="text-sm text-gray-400">Loading…</span>
+          </div>
+        </div>
+        <!-- Providers -->
+        <div>
+          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
+          <div id="sched-provider-options" class="space-y-1.5">
             <span class="text-sm text-gray-400">Loading…</span>
           </div>
         </div>
@@ -287,11 +294,11 @@
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Frequency</label>
           <div class="flex gap-2 mb-2">
             <button type="button" id="freq-daily" onclick="setSchedFrequency('daily')"
-                    class="freq-btn flex-1 py-1.5 px-3 rounded-lg border text-sm font-medium transition-colors">
+                    class="freq-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Daily
             </button>
             <button type="button" id="freq-custom" onclick="setSchedFrequency('custom')"
-                    class="freq-btn flex-1 py-1.5 px-3 rounded-lg border text-sm font-medium transition-colors">
+                    class="freq-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Specific days
             </button>
           </div>
@@ -325,52 +332,22 @@
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Search period</label>
           <div class="flex gap-2">
             <button type="button" id="sched-dr-24h" onclick="setSchedDateRange('24h')"
-                    class="sched-dr-btn flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors">
+                    class="sched-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Last 24h
             </button>
             <button type="button" id="sched-dr-7d" onclick="setSchedDateRange('7d')"
-                    class="sched-dr-btn flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors">
+                    class="sched-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Last 7 days
             </button>
             <button type="button" id="sched-dr-month" onclick="setSchedDateRange('month')"
-                    class="sched-dr-btn flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors">
+                    class="sched-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Month
             </button>
           </div>
         </div>
-        <!-- Providers -->
-        <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
-          <div class="space-y-1.5">
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="harvestapi" checked>
-              <span class="text-sm text-gray-700">LinkedIn: harvestapi</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="valig" checked>
-              <span class="text-sm text-gray-700">LinkedIn: valig (L)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="indeed">
-              <span class="text-sm text-gray-700">Indeed: valig (I)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="stepstone">
-              <span class="text-sm text-gray-700">StepStone: valig (S)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer" title="Queries pre-fetched pool — fetch jobs in Settings → Admin → Job Pool first">
-              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="greenhouse">
-              <span class="text-sm text-gray-700">Greenhouse (ATS)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer" title="Queries pre-fetched pool — fetch jobs in Settings → Admin → Job Pool first">
-              <input type="checkbox" class="sched-provider-check w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="ashby">
-              <span class="text-sm text-gray-700">Ashby (ATS)</span>
-            </label>
-          </div>
-        </div>
         <p id="sched-modal-msg" class="hidden text-xs"></p>
       </div>
-      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0 bg-white">
         <button type="button" onclick="closeScheduleModal()"
                 class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
           Cancel
@@ -410,6 +387,39 @@
       </div>
       <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
         <button type="button" onclick="closeSchedRolePicker()"
+                class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule Provider Picker (used when provider options do not fit inline) -->
+  <div id="schedule-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
+    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-sm md:rounded-2xl md:shadow-2xl md:overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div>
+          <h2 class="font-semibold text-gray-900">Select providers</h2>
+          <p id="sched-provider-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
+        </div>
+        <button type="button" onclick="closeSchedProviderPicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
+        <button type="button" onclick="setAllSchedProviders(true)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+          Select all
+        </button>
+        <button type="button" onclick="setAllSchedProviders(false)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          Clear
+        </button>
+      </div>
+      <div id="sched-provider-picker-list" class="flex-1 overflow-y-auto px-6 py-3 space-y-1">
+      </div>
+      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
+        <button type="button" onclick="closeSchedProviderPicker()"
                 class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
           Done
         </button>
@@ -473,20 +483,27 @@
   </div>
 
   <!-- Run Once Modal -->
-  <div id="run-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div id="run-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeRunModal()"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+    <div class="relative bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-sm h-[calc(100dvh-1rem)] md:h-auto overflow-hidden flex flex-col">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <h2 class="font-semibold text-gray-900">Run Once</h2>
         <button onclick="closeRunModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
-      <div class="px-6 py-5 space-y-4">
+      <div class="px-6 py-4 space-y-4 flex-1 overflow-y-auto md:max-h-[75vh]">
         <!-- Roles -->
         <div>
           <div class="text-sm font-medium text-gray-700 mb-2">Roles to run</div>
-          <div id="run-modal-groups" class="space-y-1 max-h-44 overflow-y-auto">
+          <div id="run-modal-groups" class="space-y-1">
+            <span class="text-sm text-gray-400">Loading…</span>
+          </div>
+        </div>
+        <!-- Providers -->
+        <div>
+          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
+          <div id="run-provider-options" class="space-y-1.5">
             <span class="text-sm text-gray-400">Loading…</span>
           </div>
         </div>
@@ -495,52 +512,22 @@
           <div class="text-sm font-medium text-gray-700 mb-2">Search period</div>
           <div class="flex gap-2 mb-2">
             <button type="button" id="run-dr-24h" onclick="setRunDateRange('24h')"
-                    class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-sm font-medium transition-colors">
+                    class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Last 24h
             </button>
             <button type="button" id="run-dr-7d" onclick="setRunDateRange('7d')"
-                    class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-sm font-medium transition-colors">
+                    class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Last 7 days
             </button>
             <button type="button" id="run-dr-month" onclick="setRunDateRange('month')"
-                    class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-sm font-medium transition-colors">
+                    class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-xs md:text-sm font-medium transition-colors">
               Month
             </button>
           </div>
         </div>
-        <!-- Providers -->
-        <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
-          <div class="space-y-1.5">
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="harvestapi" checked>
-              <span class="text-sm text-gray-700">LinkedIn: harvestapi</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="valig" checked>
-              <span class="text-sm text-gray-700">LinkedIn: valig (L)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="indeed">
-              <span class="text-sm text-gray-700">Indeed: valig (I)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer">
-              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="stepstone">
-              <span class="text-sm text-gray-700">StepStone: valig (S)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer" title="Queries pre-fetched pool — fetch jobs in Settings → Admin → Job Pool first">
-              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="greenhouse">
-              <span class="text-sm text-gray-700">Greenhouse (ATS)</span>
-            </label>
-            <label class="flex items-center gap-2.5 cursor-pointer" title="Queries pre-fetched pool — fetch jobs in Settings → Admin → Job Pool first">
-              <input type="checkbox" class="run-provider-check w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" value="ashby">
-              <span class="text-sm text-gray-700">Ashby (ATS)</span>
-            </label>
-          </div>
-        </div>
         <p id="run-modal-msg" class="hidden text-xs text-red-600"></p>
       </div>
-      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0 bg-white">
         <button type="button" onclick="closeRunModal()"
                 class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
           Cancel
@@ -557,6 +544,72 @@
     </div>
   </div>
 
+  <!-- Run Once Role Picker (used when a profile has many roles) -->
+  <div id="run-role-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
+    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-sm md:rounded-2xl md:shadow-2xl md:overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div>
+          <h2 class="font-semibold text-gray-900">Select roles</h2>
+          <p id="run-role-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
+        </div>
+        <button type="button" onclick="closeRunRolePicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
+        <button type="button" onclick="setAllRunRoles(true)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+          Select all
+        </button>
+        <button type="button" onclick="setAllRunRoles(false)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          Clear
+        </button>
+      </div>
+      <div id="run-role-picker-list" class="flex-1 overflow-y-auto px-6 py-3 space-y-1">
+      </div>
+      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
+        <button type="button" onclick="closeRunRolePicker()"
+                class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Run Once Provider Picker -->
+  <div id="run-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
+    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-sm md:rounded-2xl md:shadow-2xl md:overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div>
+          <h2 class="font-semibold text-gray-900">Select providers</h2>
+          <p id="run-provider-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
+        </div>
+        <button type="button" onclick="closeRunProviderPicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
+        <button type="button" onclick="setAllRunProviders(true)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+          Select all
+        </button>
+        <button type="button" onclick="setAllRunProviders(false)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          Clear
+        </button>
+      </div>
+      <div id="run-provider-picker-list" class="flex-1 overflow-y-auto px-6 py-3 space-y-1">
+      </div>
+      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
+        <button type="button" onclick="closeRunProviderPicker()"
+                class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ---- Global state ----
     let _scheduleActive = false;
@@ -564,10 +617,21 @@
     let _schedDateRange = '24h';
     let _schedFrequency = 'daily';  // 'daily' | 'custom'
     let _schedGroups = [];
+    let _schedProviders = [];
     let _runDateRange = '24h';
+    let _runGroups = [];
+    let _runProviders = [];
     let _runCallback = null;    // set by home.ejs to handle progress display
 
     const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const SCHED_PROVIDER_OPTIONS = [
+      { value: 'harvestapi', label: 'LinkedIn: harvestapi' },
+      { value: 'valig', label: 'LinkedIn: valig (L)' },
+      { value: 'indeed', label: 'Indeed: valig (I)' },
+      { value: 'stepstone', label: 'StepStone: valig (S)' },
+      { value: 'greenhouse', label: 'Greenhouse (ATS)' },
+      { value: 'ashby', label: 'Ashby (ATS)' },
+    ];
 
     function escHtml(str) {
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -741,7 +805,7 @@
     function closeSchedRolePicker() {
       document.getElementById('schedule-role-picker').classList.add('hidden');
       document.getElementById('schedule-role-picker').classList.remove('md:flex');
-      renderSchedGroupSummary();
+      if (_schedGroups.length) renderSchedGroupSummary();
     }
 
     function setSchedGroupState(id, checked) {
@@ -773,8 +837,93 @@
       renderSchedRolePicker();
     }
 
+    function renderSchedProviders(selectedValues) {
+      const selected = selectedValues || ['harvestapi', 'valig'];
+      _schedProviders = SCHED_PROVIDER_OPTIONS.map(p => ({
+        ...p,
+        checked: selected.includes(p.value),
+      }));
+      renderSchedProviderSummary();
+    }
+
+    function renderSchedProviderRow(provider, inputClass, onChange) {
+      return `
+        <label class="flex items-center gap-2.5 cursor-pointer py-1">
+          <input type="checkbox" class="${inputClass} w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                 value="${provider.value}" ${provider.checked ? 'checked' : ''} onchange="${onChange}">
+          <span class="text-sm text-gray-700 min-w-0 truncate">${escHtml(provider.label)}</span>
+        </label>`;
+    }
+
+    function getSchedProviderSummaryText() {
+      const selected = _schedProviders.filter(p => p.checked);
+      return selected.length + ' of ' + _schedProviders.length + ' selected';
+    }
+
+    function renderSchedProviderSummary() {
+      const container = document.getElementById('sched-provider-options');
+      const selected = _schedProviders.filter(p => p.checked);
+      const preview = selected.slice(0, 2).map(p => escHtml(p.label)).join(', ');
+      const more = selected.length > 2 ? ' +' + (selected.length - 2) + ' more' : '';
+      const previewText = preview ? preview + more : 'No providers selected';
+
+      container.innerHTML = `
+        <button type="button" onclick="openSchedProviderPicker()"
+                class="w-full rounded-xl border border-gray-200 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-sm font-medium text-gray-900">${getSchedProviderSummaryText()}</div>
+              <div class="text-xs text-gray-500 truncate mt-0.5">${previewText}</div>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </button>`;
+    }
+
+    function renderSchedProviderPicker() {
+      document.getElementById('sched-provider-picker-count').textContent = getSchedProviderSummaryText();
+      document.getElementById('sched-provider-picker-list').innerHTML = _schedProviders.map(p =>
+        renderSchedProviderRow(p, 'sched-provider-picker-check', 'onSchedProviderPickerToggle(this)')
+      ).join('');
+    }
+
+    function openSchedProviderPicker() {
+      renderSchedProviderPicker();
+      document.getElementById('schedule-provider-picker').classList.remove('hidden');
+      document.getElementById('schedule-provider-picker').classList.add('md:flex');
+    }
+
+    function closeSchedProviderPicker() {
+      document.getElementById('schedule-provider-picker').classList.add('hidden');
+      document.getElementById('schedule-provider-picker').classList.remove('md:flex');
+      if (_schedProviders.length) renderSchedProviderSummary();
+    }
+
+    function setSchedProviderState(value, checked) {
+      _schedProviders = _schedProviders.map(p => (
+        p.value === value ? { ...p, checked } : p
+      ));
+    }
+
+    function onSchedProviderToggle(checkbox) {
+      setSchedProviderState(checkbox.value, checkbox.checked);
+    }
+
+    function onSchedProviderPickerToggle(checkbox) {
+      onSchedProviderToggle(checkbox);
+      document.getElementById('sched-provider-picker-count').textContent = getSchedProviderSummaryText();
+    }
+
+    function setAllSchedProviders(checked) {
+      _schedProviders = _schedProviders.map(p => ({ ...p, checked }));
+      renderSchedProviderPicker();
+    }
+
     function openScheduleModal() {
       document.getElementById('sched-modal-groups').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
+      document.getElementById('sched-provider-options').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
       document.getElementById('sched-modal-msg').classList.add('hidden');
       document.getElementById('sched-start-btn').disabled = false;
       document.getElementById('sched-start-btn').innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Start Schedule';
@@ -804,20 +953,19 @@
 
         // Pre-fill provider checkboxes
         const savedSchedProviders = data.scraping_providers || ['harvestapi', 'valig'];
-        document.querySelectorAll('.sched-provider-check').forEach(cb => {
-          cb.checked = savedSchedProviders.includes(cb.value);
-        });
+        renderSchedProviders(savedSchedProviders);
       }).catch(() => {
         setSchedDateRange('24h');
         setSchedFrequency('daily');
         document.getElementById('sched-modal-groups').innerHTML = '<span class="text-sm text-red-500">Failed to load roles.</span>';
-        document.querySelectorAll('.sched-provider-check').forEach(cb => { cb.checked = true; });
+        renderSchedProviders(['harvestapi', 'valig']);
       });
     }
 
     function closeScheduleModal() {
       document.getElementById('schedule-modal').classList.add('hidden');
       closeSchedRolePicker();
+      closeSchedProviderPicker();
     }
 
     async function startScheduleFromModal() {
@@ -840,7 +988,7 @@
       }
 
       // Collect providers
-      const schedProviders = Array.from(document.querySelectorAll('.sched-provider-check:checked')).map(c => c.value);
+      const schedProviders = _schedProviders.filter(p => p.checked).map(p => p.value);
       if (schedProviders.length === 0) {
         msgEl.textContent = 'Select at least one provider.';
         msgEl.className = 'text-xs text-red-600';
@@ -977,27 +1125,94 @@
 
     function renderRunGroups(groups) {
       const container = document.getElementById('run-modal-groups');
+      _runGroups = (groups || []).map(g => ({
+        ...g,
+        is_active: !!g.is_active,
+      }));
       if (!groups || groups.length === 0) {
         container.innerHTML = '<span class="text-sm text-gray-400">No roles configured.</span>';
         return;
       }
-      container.innerHTML = groups.map(g => {
-        const on = !!g.is_active;
-        return `
-          <div class="flex items-center justify-between py-2 px-1">
-            <span class="text-sm text-gray-800">${escHtml(g.group_name || 'Role #' + g.id)}</span>
-            <label class="flex items-center cursor-pointer">
-              <input type="checkbox" class="run-group-check sr-only" value="${g.id}"
-                     ${on ? 'checked' : ''} onchange="onRunGroupToggle(this)" />
-              <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}">
-                <div class="absolute top-0.5 ${on ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
-              </div>
-            </label>
-          </div>`;
-      }).join('');
+      renderRunGroupSummary();
+    }
+
+    function renderRunGroupRow(g, inputClass, onChange) {
+      const on = !!g.is_active;
+      return `
+        <div class="flex items-center justify-between py-2 px-1">
+          <span class="text-sm text-gray-800 flex-1 min-w-0 pr-3 truncate">${escHtml(g.group_name || 'Role #' + g.id)}</span>
+          <label class="flex items-center cursor-pointer flex-shrink-0">
+            <input type="checkbox" class="${inputClass} sr-only" value="${g.id}"
+                   ${on ? 'checked' : ''} onchange="${onChange}" />
+            <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}">
+              <div class="absolute top-0.5 ${on ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
+            </div>
+          </label>
+        </div>`;
+    }
+
+    function getRunGroupSummaryText() {
+      const selected = _runGroups.filter(g => g.is_active);
+      if (_runGroups.length === 0) return 'No roles configured';
+      return selected.length + ' of ' + _runGroups.length + ' selected';
+    }
+
+    function renderRunGroupSummary() {
+      const container = document.getElementById('run-modal-groups');
+      if (_runGroups.length <= 5) {
+        container.innerHTML = _runGroups.map(g =>
+          renderRunGroupRow(g, 'run-group-check', 'onRunGroupToggle(this)')
+        ).join('');
+        return;
+      }
+
+      const selected = _runGroups.filter(g => g.is_active);
+      const preview = selected.slice(0, 2).map(g => escHtml(g.group_name || 'Role #' + g.id)).join(', ');
+      const more = selected.length > 2 ? ' +' + (selected.length - 2) + ' more' : '';
+      const previewText = preview ? preview + more : 'No roles selected';
+
+      container.innerHTML = `
+        <button type="button" onclick="openRunRolePicker()"
+                class="w-full rounded-xl border border-gray-200 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-sm font-medium text-gray-900">${getRunGroupSummaryText()}</div>
+              <div class="text-xs text-gray-500 truncate mt-0.5">${previewText}</div>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </button>`;
+    }
+
+    function renderRunRolePicker() {
+      document.getElementById('run-role-picker-count').textContent = getRunGroupSummaryText();
+      document.getElementById('run-role-picker-list').innerHTML = _runGroups.map(g =>
+        renderRunGroupRow(g, 'run-role-picker-check', 'onRunRolePickerToggle(this)')
+      ).join('');
+    }
+
+    function openRunRolePicker() {
+      renderRunRolePicker();
+      document.getElementById('run-role-picker').classList.remove('hidden');
+      document.getElementById('run-role-picker').classList.add('md:flex');
+    }
+
+    function closeRunRolePicker() {
+      document.getElementById('run-role-picker').classList.add('hidden');
+      document.getElementById('run-role-picker').classList.remove('md:flex');
+      if (_runGroups.length) renderRunGroupSummary();
+    }
+
+    function setRunGroupState(id, checked) {
+      _runGroups = _runGroups.map(g => (
+        parseInt(g.id, 10) === parseInt(id, 10) ? { ...g, is_active: checked } : g
+      ));
     }
 
     function onRunGroupToggle(checkbox) {
+      setRunGroupState(checkbox.value, checkbox.checked);
       const track = checkbox.nextElementSibling;
       const thumb = track.firstElementChild;
       if (checkbox.checked) {
@@ -1009,11 +1224,106 @@
       }
     }
 
+    function onRunRolePickerToggle(checkbox) {
+      onRunGroupToggle(checkbox);
+      document.getElementById('run-role-picker-count').textContent = getRunGroupSummaryText();
+    }
+
+    function setAllRunRoles(checked) {
+      _runGroups = _runGroups.map(g => ({ ...g, is_active: checked }));
+      renderRunRolePicker();
+    }
+
+    function renderRunProviders(selectedValues) {
+      const selected = selectedValues || SCHED_PROVIDER_OPTIONS.map(p => p.value);
+      _runProviders = SCHED_PROVIDER_OPTIONS.map(p => ({
+        ...p,
+        checked: selected.includes(p.value),
+      }));
+      renderRunProviderSummary();
+    }
+
+    function renderRunProviderRow(provider, inputClass, onChange) {
+      return `
+        <label class="flex items-center gap-2.5 cursor-pointer py-1">
+          <input type="checkbox" class="${inputClass} w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                 value="${provider.value}" ${provider.checked ? 'checked' : ''} onchange="${onChange}">
+          <span class="text-sm text-gray-700 min-w-0 truncate">${escHtml(provider.label)}</span>
+        </label>`;
+    }
+
+    function getRunProviderSummaryText() {
+      const selected = _runProviders.filter(p => p.checked);
+      return selected.length + ' of ' + _runProviders.length + ' selected';
+    }
+
+    function renderRunProviderSummary() {
+      const container = document.getElementById('run-provider-options');
+      const selected = _runProviders.filter(p => p.checked);
+      const preview = selected.slice(0, 2).map(p => escHtml(p.label)).join(', ');
+      const more = selected.length > 2 ? ' +' + (selected.length - 2) + ' more' : '';
+      const previewText = preview ? preview + more : 'No providers selected';
+
+      container.innerHTML = `
+        <button type="button" onclick="openRunProviderPicker()"
+                class="w-full rounded-xl border border-gray-200 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-sm font-medium text-gray-900">${getRunProviderSummaryText()}</div>
+              <div class="text-xs text-gray-500 truncate mt-0.5">${previewText}</div>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </button>`;
+    }
+
+    function renderRunProviderPicker() {
+      document.getElementById('run-provider-picker-count').textContent = getRunProviderSummaryText();
+      document.getElementById('run-provider-picker-list').innerHTML = _runProviders.map(p =>
+        renderRunProviderRow(p, 'run-provider-picker-check', 'onRunProviderPickerToggle(this)')
+      ).join('');
+    }
+
+    function openRunProviderPicker() {
+      renderRunProviderPicker();
+      document.getElementById('run-provider-picker').classList.remove('hidden');
+      document.getElementById('run-provider-picker').classList.add('md:flex');
+    }
+
+    function closeRunProviderPicker() {
+      document.getElementById('run-provider-picker').classList.add('hidden');
+      document.getElementById('run-provider-picker').classList.remove('md:flex');
+      if (_runProviders.length) renderRunProviderSummary();
+    }
+
+    function setRunProviderState(value, checked) {
+      _runProviders = _runProviders.map(p => (
+        p.value === value ? { ...p, checked } : p
+      ));
+    }
+
+    function onRunProviderToggle(checkbox) {
+      setRunProviderState(checkbox.value, checkbox.checked);
+    }
+
+    function onRunProviderPickerToggle(checkbox) {
+      onRunProviderToggle(checkbox);
+      document.getElementById('run-provider-picker-count').textContent = getRunProviderSummaryText();
+    }
+
+    function setAllRunProviders(checked) {
+      _runProviders = _runProviders.map(p => ({ ...p, checked }));
+      renderRunProviderPicker();
+    }
+
     async function openRunModal() {
       document.getElementById('run-modal').classList.remove('hidden');
       document.getElementById('run-modal-msg').classList.add('hidden');
       document.getElementById('run-modal-submit').disabled = false;
       document.getElementById('run-modal-groups').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
+      document.getElementById('run-provider-options').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
       setRunDateRange('24h');
 
       const [schedRes, groupsRes] = await Promise.allSettled([
@@ -1026,9 +1336,7 @@
       if (schedRes.status === 'fulfilled') {
         try { savedProviders = (await schedRes.value.json()).scraping_providers; } catch (_) {}
       }
-      document.querySelectorAll('.run-provider-check').forEach(cb => {
-        cb.checked = savedProviders ? savedProviders.includes(cb.value) : true;
-      });
+      renderRunProviders(savedProviders || SCHED_PROVIDER_OPTIONS.map(p => p.value));
 
       if (groupsRes.status === 'fulfilled') {
         try { renderRunGroups((await groupsRes.value.json()).groups || []); }
@@ -1040,17 +1348,18 @@
 
     function closeRunModal() {
       document.getElementById('run-modal').classList.add('hidden');
+      closeRunRolePicker();
+      closeRunProviderPicker();
     }
 
     async function submitRun() {
-      const allToggles = document.querySelectorAll('.run-group-check');
-      const groupStates = Array.from(allToggles).map(c => ({
-        id: parseInt(c.value, 10),
-        is_active: c.checked,
+      const groupStates = _runGroups.map(g => ({
+        id: parseInt(g.id, 10),
+        is_active: !!g.is_active,
       }));
 
       const dateRange = _runDateRange;
-      const providers = Array.from(document.querySelectorAll('.run-provider-check:checked')).map(c => c.value);
+      const providers = _runProviders.filter(p => p.checked).map(p => p.value);
 
       const submitBtn = document.getElementById('run-modal-submit');
       const msgEl = document.getElementById('run-modal-msg');
