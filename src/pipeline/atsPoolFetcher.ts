@@ -317,19 +317,40 @@ function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'Greenhou
 export async function resolvePoolCountries(
   db: Database,
   runId?: string,
+  options: { recheckUnknowns?: boolean } = {},
 ): Promise<{ resolved: number; total: number; durationMs: number }> {
   const start = Date.now();
+  const recheckUnknowns = !!options.recheckUnknowns;
 
-  const locs = db.prepare(
-    `SELECT DISTINCT location FROM jobs
-     WHERE job_source IN ('Ashby', 'Greenhouse') AND location IS NOT NULL AND country IS NULL`,
-  ).all() as { location: string }[];
+  const locs = recheckUnknowns
+    ? db.prepare(
+      `SELECT DISTINCT j.location FROM jobs j
+       JOIN location_country lc ON lc.location = j.location AND lc.country = ''
+       WHERE j.job_source IN ('Ashby', 'Greenhouse') AND j.location IS NOT NULL AND j.country IS NULL`,
+    ).all() as { location: string }[]
+    : db.prepare(
+      `SELECT DISTINCT j.location FROM jobs j
+       LEFT JOIN location_country lc ON lc.location = j.location
+       WHERE j.job_source IN ('Ashby', 'Greenhouse')
+         AND j.location IS NOT NULL
+         AND j.country IS NULL
+         AND (lc.location IS NULL OR lc.country != '')`,
+    ).all() as { location: string }[];
 
   const total = locs.length;
-  emitToRun(runId ?? '', { msg: `Found ${total} unique unresolved location(s)…`, total });
+  emitToRun(runId ?? '', {
+    msg: recheckUnknowns
+      ? `Found ${total} previously unknown location(s)…`
+      : `Found ${total} new/cacheable unresolved location(s)…`,
+    total,
+  });
 
   if (total === 0) {
-    emitToRun(runId ?? '', { msg: 'All pool job locations already resolved.', done: true, inserted: 0 });
+    emitToRun(runId ?? '', {
+      msg: recheckUnknowns ? 'No cached unknown locations to re-check.' : 'No new pool job locations to resolve.',
+      done: true,
+      inserted: 0,
+    });
     return { resolved: 0, total: 0, durationMs: Date.now() - start };
   }
 
@@ -369,7 +390,7 @@ export async function resolvePoolCountries(
     }
 
     // 3. DB cache
-    const cached = db.prepare(
+    const cached = recheckUnknowns ? undefined : db.prepare(
       `SELECT country FROM location_country WHERE location = ?`,
     ).get(loc) as { country: string } | undefined;
     if (cached !== undefined) {
@@ -423,11 +444,12 @@ export async function resolvePoolCountries(
       if (i < locs.length - 1) await new Promise((r) => setTimeout(r, 1100));
     }
 
-    // Only cache successful resolutions so failures can be retried next run
     if (country) {
       cacheUpsert.run(loc, country, new Date().toISOString());
       updateJobs.run(country, loc);
       resolved++;
+    } else {
+      cacheUpsert.run(loc, '', new Date().toISOString());
     }
     emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${loc}" → ${country || 'unknown'}`, processed: i + 1, total });
   }

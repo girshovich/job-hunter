@@ -84,6 +84,79 @@ router.get('/', (req: Request, res: Response) => {
   });
 });
 
+router.get('/unresolved-locations', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  const db = getDb();
+  const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+  const perPage = 50;
+  const q = String(req.query.q || '').trim();
+  const offset = (page - 1) * perPage;
+  const whereSearch = q ? `AND LOWER(j.location) LIKE ?` : '';
+  const params = q ? [`%${q.toLowerCase()}%`] : [];
+
+  const total = (db.prepare(`
+    SELECT COUNT(*) AS c FROM (
+      SELECT j.location
+      FROM jobs j
+      JOIN location_country lc ON lc.location = j.location AND lc.country = ''
+      WHERE j.job_source IN ('Greenhouse', 'Ashby')
+        AND j.location IS NOT NULL
+        AND j.country IS NULL
+        ${whereSearch}
+      GROUP BY j.location
+    )
+  `).get(...params) as { c: number }).c;
+
+  const rows = db.prepare(`
+    SELECT j.location,
+           COUNT(*) AS job_count,
+           GROUP_CONCAT(DISTINCT j.job_source) AS providers,
+           MAX(lc.created_at) AS last_checked
+    FROM jobs j
+    JOIN location_country lc ON lc.location = j.location AND lc.country = ''
+    WHERE j.job_source IN ('Greenhouse', 'Ashby')
+      AND j.location IS NOT NULL
+      AND j.country IS NULL
+      ${whereSearch}
+    GROUP BY j.location
+    ORDER BY job_count DESC, j.location ASC
+    LIMIT ? OFFSET ?
+  `).all(...params, perPage, offset) as Array<{
+    location: string;
+    job_count: number;
+    providers: string;
+    last_checked: string;
+  }>;
+
+  const exampleStmt = db.prepare(`
+    SELECT company, title, job_source
+    FROM jobs
+    WHERE job_source IN ('Greenhouse', 'Ashby')
+      AND location = ?
+      AND country IS NULL
+    ORDER BY fetched_at DESC
+    LIMIT 3
+  `);
+  const locations = rows.map((row) => ({
+    ...row,
+    examples: exampleStmt.all(row.location) as Array<{ company: string; title: string; job_source: string }>,
+  }));
+
+  res.render('unresolved-locations', {
+    title: 'Unresolved Locations',
+    locations,
+    total,
+    page,
+    perPage,
+    q,
+    pageCount: Math.max(1, Math.ceil(total / perPage)),
+  });
+});
+
 router.post('/', async (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;

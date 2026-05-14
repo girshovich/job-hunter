@@ -1021,7 +1021,42 @@ router.get('/ats/status', (req: Request, res: Response) => {
   } | undefined;
   const ghCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Greenhouse'`).get() as { c: number }).c;
   const ashbyCount = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Ashby'`).get() as { c: number }).c;
-  res.json({ boards, settings, poolCounts: { greenhouse: ghCount, ashby: ashbyCount } });
+  const unknownLocationCount = (db.prepare(`
+    SELECT COUNT(DISTINCT j.location) AS c
+    FROM jobs j
+    JOIN location_country lc ON lc.location = j.location AND lc.country = ''
+    WHERE j.job_source IN ('Greenhouse', 'Ashby')
+      AND j.location IS NOT NULL
+      AND j.country IS NULL
+  `).get() as { c: number }).c;
+  const newUnresolvedLocationCount = (db.prepare(`
+    SELECT COUNT(DISTINCT j.location) AS c
+    FROM jobs j
+    LEFT JOIN location_country lc ON lc.location = j.location
+    WHERE j.job_source IN ('Greenhouse', 'Ashby')
+      AND j.location IS NOT NULL
+      AND j.country IS NULL
+      AND lc.location IS NULL
+  `).get() as { c: number }).c;
+  const resolvedLocationCount = (db.prepare(`
+    SELECT COUNT(DISTINCT location) AS c
+    FROM jobs
+    WHERE job_source IN ('Greenhouse', 'Ashby')
+      AND location IS NOT NULL
+      AND country IS NOT NULL
+      AND country != ''
+  `).get() as { c: number }).c;
+  res.json({
+    boards,
+    settings,
+    poolCounts: {
+      greenhouse: ghCount,
+      ashby: ashbyCount,
+      resolvedLocations: resolvedLocationCount,
+      unknownLocations: unknownLocationCount,
+      newUnresolvedLocations: newUnresolvedLocationCount,
+    },
+  });
 });
 
 router.post('/ats/discover', (req: Request, res: Response) => {
@@ -1111,6 +1146,17 @@ router.post('/ats/pool/resolve-countries', (req: Request, res: Response) => {
   resolvePoolCountries(getDb(), runId)
     .then((r) => console.log('[pool] Resolve countries complete:', r))
     .catch((e) => console.error('[pool] Resolve countries error:', e))
+    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+});
+
+router.post('/ats/pool/recheck-unknown-countries', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const runId = randomUUID();
+  activeRuns.set(runId, { type: 'pool-fetch' as 'discovery', cancelled: false, listeners: new Set() });
+  res.json({ runId });
+  resolvePoolCountries(getDb(), runId, { recheckUnknowns: true })
+    .then((r) => console.log('[pool] Re-check unknown countries complete:', r))
+    .catch((e) => console.error('[pool] Re-check unknown countries error:', e))
     .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
 });
 
