@@ -273,7 +273,7 @@
         <!-- Roles -->
         <div>
           <div class="text-sm font-medium text-gray-700 mb-2">Roles to run</div>
-          <div id="sched-modal-groups" class="space-y-1 max-h-36 overflow-y-auto">
+          <div id="sched-modal-groups" class="space-y-1">
             <span class="text-sm text-gray-400">Loading…</span>
           </div>
         </div>
@@ -379,6 +379,39 @@
                 class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           Start Schedule
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule Role Picker (used when a profile has many roles) -->
+  <div id="schedule-role-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
+    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-sm md:rounded-2xl md:shadow-2xl md:overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div>
+          <h2 class="font-semibold text-gray-900">Select roles</h2>
+          <p id="sched-role-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
+        </div>
+        <button type="button" onclick="closeSchedRolePicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
+        <button type="button" onclick="setAllSchedRoles(true)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+          Select all
+        </button>
+        <button type="button" onclick="setAllSchedRoles(false)"
+                class="flex-1 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          Clear
+        </button>
+      </div>
+      <div id="sched-role-picker-list" class="flex-1 overflow-y-auto px-6 py-3 space-y-1">
+      </div>
+      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
+        <button type="button" onclick="closeSchedRolePicker()"
+                class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          Done
         </button>
       </div>
     </div>
@@ -530,6 +563,7 @@
     let _scheduleData = null;   // latest data from /api/schedule/status
     let _schedDateRange = '24h';
     let _schedFrequency = 'daily';  // 'daily' | 'custom'
+    let _schedGroups = [];
     let _runDateRange = '24h';
     let _runCallback = null;    // set by home.ejs to handle progress display
 
@@ -630,27 +664,94 @@
 
     function renderSchedGroups(groups) {
       const container = document.getElementById('sched-modal-groups');
+      _schedGroups = (groups || []).map(g => ({
+        ...g,
+        is_active: !!g.is_active,
+      }));
       if (!groups || groups.length === 0) {
         container.innerHTML = '<span class="text-sm text-gray-400">No roles configured.</span>';
         return;
       }
-      container.innerHTML = groups.map(g => {
-        const on = !!g.is_active;
-        return `
-          <div class="flex items-center justify-between py-2 px-1">
-            <span class="text-sm text-gray-800 flex-1">${escHtml(g.group_name || 'Role #' + g.id)}</span>
-            <label class="flex items-center cursor-pointer">
-              <input type="checkbox" class="sched-group-check sr-only" value="${g.id}"
-                     ${on ? 'checked' : ''} onchange="onSchedGroupToggle(this)" />
-              <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}">
-                <div class="absolute top-0.5 ${on ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
-              </div>
-            </label>
-          </div>`;
-      }).join('');
+      renderSchedGroupSummary();
+    }
+
+    function renderSchedGroupRow(g, inputClass, onChange) {
+      const on = !!g.is_active;
+      return `
+        <div class="flex items-center justify-between py-2 px-1">
+          <span class="text-sm text-gray-800 flex-1 min-w-0 pr-3 truncate">${escHtml(g.group_name || 'Role #' + g.id)}</span>
+          <label class="flex items-center cursor-pointer flex-shrink-0">
+            <input type="checkbox" class="${inputClass} sr-only" value="${g.id}"
+                   ${on ? 'checked' : ''} onchange="${onChange}" />
+            <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}">
+              <div class="absolute top-0.5 ${on ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
+            </div>
+          </label>
+        </div>`;
+    }
+
+    function getSchedGroupSummaryText() {
+      const selected = _schedGroups.filter(g => g.is_active);
+      if (_schedGroups.length === 0) return 'No roles configured';
+      return selected.length + ' of ' + _schedGroups.length + ' selected';
+    }
+
+    function renderSchedGroupSummary() {
+      const container = document.getElementById('sched-modal-groups');
+      if (_schedGroups.length <= 5) {
+        container.innerHTML = _schedGroups.map(g =>
+          renderSchedGroupRow(g, 'sched-group-check', 'onSchedGroupToggle(this)')
+        ).join('');
+        return;
+      }
+
+      const selected = _schedGroups.filter(g => g.is_active);
+      const preview = selected.slice(0, 2).map(g => escHtml(g.group_name || 'Role #' + g.id)).join(', ');
+      const more = selected.length > 2 ? ' +' + (selected.length - 2) + ' more' : '';
+      const previewText = preview ? preview + more : 'No roles selected';
+
+      container.innerHTML = `
+        <button type="button" onclick="openSchedRolePicker()"
+                class="w-full rounded-xl border border-gray-200 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-sm font-medium text-gray-900">${getSchedGroupSummaryText()}</div>
+              <div class="text-xs text-gray-500 truncate mt-0.5">${previewText}</div>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </button>`;
+    }
+
+    function renderSchedRolePicker() {
+      document.getElementById('sched-role-picker-count').textContent = getSchedGroupSummaryText();
+      document.getElementById('sched-role-picker-list').innerHTML = _schedGroups.map(g =>
+        renderSchedGroupRow(g, 'sched-role-picker-check', 'onSchedRolePickerToggle(this)')
+      ).join('');
+    }
+
+    function openSchedRolePicker() {
+      renderSchedRolePicker();
+      document.getElementById('schedule-role-picker').classList.remove('hidden');
+      document.getElementById('schedule-role-picker').classList.add('md:flex');
+    }
+
+    function closeSchedRolePicker() {
+      document.getElementById('schedule-role-picker').classList.add('hidden');
+      document.getElementById('schedule-role-picker').classList.remove('md:flex');
+      renderSchedGroupSummary();
+    }
+
+    function setSchedGroupState(id, checked) {
+      _schedGroups = _schedGroups.map(g => (
+        parseInt(g.id, 10) === parseInt(id, 10) ? { ...g, is_active: checked } : g
+      ));
     }
 
     function onSchedGroupToggle(checkbox) {
+      setSchedGroupState(checkbox.value, checkbox.checked);
       const track = checkbox.nextElementSibling;
       const thumb = track.firstElementChild;
       if (checkbox.checked) {
@@ -660,6 +761,16 @@
         track.classList.replace('bg-emerald-500', 'bg-gray-300');
         thumb.classList.replace('left-4', 'left-0.5');
       }
+    }
+
+    function onSchedRolePickerToggle(checkbox) {
+      onSchedGroupToggle(checkbox);
+      document.getElementById('sched-role-picker-count').textContent = getSchedGroupSummaryText();
+    }
+
+    function setAllSchedRoles(checked) {
+      _schedGroups = _schedGroups.map(g => ({ ...g, is_active: checked }));
+      renderSchedRolePicker();
     }
 
     function openScheduleModal() {
@@ -706,6 +817,7 @@
 
     function closeScheduleModal() {
       document.getElementById('schedule-modal').classList.add('hidden');
+      closeSchedRolePicker();
     }
 
     async function startScheduleFromModal() {
@@ -736,11 +848,11 @@
         return;
       }
 
-      // Collect all toggle states
-      const allSchedToggles = document.querySelectorAll('.sched-group-check');
-      const schedGroupStates = Array.from(allSchedToggles).map(c => ({
-        id: parseInt(c.value, 10),
-        is_active: c.checked,
+      // Collect all role states. Large profiles render as a summary picker, so use
+      // the in-memory state instead of relying only on visible inline controls.
+      const schedGroupStates = _schedGroups.map(g => ({
+        id: parseInt(g.id, 10),
+        is_active: !!g.is_active,
       }));
 
       btn.disabled = true;
