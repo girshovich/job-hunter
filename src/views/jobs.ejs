@@ -5,10 +5,7 @@ function scoreTextColor(score) {
   return 'text-gray-600 bg-gray-100';
 }
 function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z');
-  const dayMon = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  return `<span style="display:block;line-height:1.4;">${dayMon}</span><span style="display:block;color:#9ca3af;line-height:1.4;">${d.getFullYear()}</span>`;
+  return formatDateTimeToMinutes(iso, typeof timezone !== 'undefined' ? timezone : 'UTC');
 }
 // Strip markdown bold markers (**text**) from AI-generated summaries
 function stripMd(text) {
@@ -16,13 +13,7 @@ function stripMd(text) {
   return String(text).replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*/g, '');
 }
 function verdictChip(verdict) {
-  const chips = {
-    STRONG_MATCH: '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong ▾</span>',
-    WEAK_MATCH:   '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">Weak ▾</span>',
-    NO_MATCH:     '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-500 whitespace-nowrap">No match ▾</span>',
-    DUPLICATE:    '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Dup ▾</span>',
-  };
-  return chips[verdict] || '';
+  return renderVerdictChip(verdict, { editable: isVerdictEditable(verdict) });
 }
 %>
 
@@ -38,24 +29,24 @@ function verdictChip(verdict) {
 
 <!-- Group tabs -->
 <% if (tabGroups.length > 0 || orphanCount > 0) { %>
-<div class="flex gap-1 flex-wrap mb-6 border-b border-gray-200">
+<div class="flex gap-2 flex-wrap mb-6">
   <a href="/jobs"
-     class="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap
-            <%= (!activeGroupId && !activeOthers) ? 'bg-white border border-b-white border-gray-200 text-blue-600 -mb-px' : 'text-gray-500 hover:text-gray-700' %>">
-    All <span class="text-xs text-gray-400 ml-0.5">(<%= total %>)</span>
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-full border transition-colors whitespace-nowrap
+            <%= (!activeGroupId && !activeOthers) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
+    All <span class="text-xs opacity-70">(<%= total %>)</span>
   </a>
   <% tabGroups.forEach(g => { %>
   <a href="/jobs?group=<%= g.id %>"
-     class="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap
-            <%= activeGroupId === g.id ? 'bg-white border border-b-white border-gray-200 text-blue-600 -mb-px' : 'text-gray-500 hover:text-gray-700' %>">
-    <%= g.group_name || ('Group ' + g.id) %> <span class="text-xs text-gray-400 ml-0.5">(<%= g.job_count %>)</span>
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-full border transition-colors whitespace-nowrap
+            <%= activeGroupId === g.id ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
+    <%= g.group_name || ('Group ' + g.id) %> <span class="text-xs opacity-70">(<%= g.job_count %>)</span>
   </a>
   <% }); %>
   <% if (orphanCount > 0) { %>
   <a href="/jobs?group=others"
-     class="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap
-            <%= activeOthers ? 'bg-white border border-b-white border-gray-200 text-blue-600 -mb-px' : 'text-gray-500 hover:text-gray-700' %>">
-    Others <span class="text-xs text-gray-400 ml-0.5">(<%= orphanCount %>)</span>
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-full border transition-colors whitespace-nowrap
+            <%= activeOthers ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
+    Others <span class="text-xs opacity-70">(<%= orphanCount %>)</span>
   </a>
   <% } %>
 </div>
@@ -73,27 +64,24 @@ function verdictChip(verdict) {
 <%# Shared table macro — renders group headers + job rows for any groups array %>
 <%
 function renderTable(groups, idPrefix, hideCol) {
-  // hideCol: 'date' when grouped by date, 'location' when grouped by location
-  const showDate = hideCol !== 'date';
-  const showLoc  = hideCol !== 'location';
-  const colCount = 7 + (showDate ? 1 : 0) + (showLoc ? 1 : 0); // always 8
-  let html = '<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">';
-  html += '<table class="w-full" style="table-layout:fixed;">';
+  const jobsMatchColumns = getJobRowColumns('jobs-match', 'desktop');
+  const widthFor = (cols, key, fallback) => (cols.find(col => col.key === key) || {}).width || fallback;
+  let html = '<div class="job-list-container">';
+  html += `<table class="${getJobTableClass()}">`;
   html += '<colgroup>';
-  html += '<col style="width:120px;">';
-  html += '<col style="width:190px;">';
-  html += '<col>';
-  html += '<col style="width:50px;">';
-  html += '<col style="width:88px;">';
-  if (showDate) html += '<col style="width:80px;">';
-  if (showLoc)  html += '<col style="width:140px;">';
-  html += '<col style="width:110px;">';
-  html += '<col style="width:28px;">';
-  html += '</colgroup><tbody>';
+  html += `<col style="width:${widthFor(jobsMatchColumns, 'position', 'auto')};">`;
+  html += `<col style="width:${widthFor(jobsMatchColumns, 'summary', 'auto')};">`;
+  html += `<col style="width:${widthFor(jobsMatchColumns, 'location', '180px')};">`;
+  html += `<col style="width:${widthFor(jobsMatchColumns, 'score', '64px')};">`;
+  html += `<col style="width:${widthFor(jobsMatchColumns, 'verdict', '96px')};">`;
+  html += `<col style="width:${widthFor(jobsMatchColumns, 'applied', '116px')};">`;
+  html += `<col style="width:${widthFor(jobsMatchColumns, 'source', '64px')};">`;
+  html += '</colgroup>';
+  html += '<tbody>';
   groups.forEach((group, gi) => {
     const label = group.location || group.label;
     html += `<tr class="bg-gray-50 cursor-pointer select-none" onclick="toggleGroup('${idPrefix}',${gi})">`;
-    html += `<td colspan="${colCount}" class="px-5 py-3.5 ${gi > 0 ? 'border-t border-gray-200' : ''}">`;
+    html += `<td colspan="7" class="px-5 py-3.5 ${gi > 0 ? 'border-t border-gray-200' : ''}">`;
     html += '<div class="flex items-center justify-between">';
     html += '<div class="flex items-center gap-2.5">';
     html += `<svg id="chevron-${idPrefix}-${gi}" style="width:13px;height:13px;flex-shrink:0;transform:rotate(90deg);transition:transform 0.15s;" fill="none" stroke="#9ca3af" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`;
@@ -101,43 +89,20 @@ function renderTable(groups, idPrefix, hideCol) {
     html += '</div>';
     html += `<span class="text-xs text-gray-400 font-medium">${group.jobs.length} job${group.jobs.length !== 1 ? 's' : ''}</span>`;
     html += '</div></td></tr>';
+    html += renderJobTableHeader('jobs-match').replace('<thead class="bg-gray-50"><tr>', `<tr class="job-row-${idPrefix}-${gi} bg-gray-50">`).replace('</tr></thead>', '</tr>');
     group.jobs.forEach(job => {
       const jobVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
-      html += `<tr class="job-row-${idPrefix}-${gi} border-t border-gray-100 hover:bg-blue-50/30 transition-colors cursor-pointer" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
-      const _cnTable = locals.companyNotes && locals.companyNotes[job.company];
-      const _companyHtmlTable = _cnTable
-        ? `<button data-note="${escHtml(_cnTable)}" data-company="${escHtml(job.company)}" onclick="openCompanyNotePopover(event,this)" class="text-sm font-semibold text-gray-600 leading-snug text-left" style="display:block;word-break:break-word;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;background:none;border:none;padding:0;cursor:pointer;">${escHtml(job.company)}</button>`
-        : `<span class="text-sm font-semibold text-gray-600 leading-snug" style="display:block;word-break:break-word;">${escHtml(job.company)}</span>`;
-      html += `<td class="pl-5 pr-3 py-3.5 align-top" style="overflow:hidden;">${_companyHtmlTable}</td>`;
-      html += `<td class="px-3 py-3.5 align-top" style="overflow:hidden;"><span class="text-sm font-semibold text-gray-900 leading-snug" style="display:block;">${escHtml(job.title)}</span></td>`;
-      const summary = job.ai_summary ? escHtml(stripMd(job.ai_summary)) : '<span class="text-gray-300 italic">—</span>';
-      html += `<td class="px-3 py-3.5 align-top text-xs leading-relaxed text-gray-600" style="overflow:hidden;"><span style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${summary}</span></td>`;
-      html += `<td class="px-3 py-3.5 text-center align-top" style="white-space:nowrap;"><span class="inline-block font-bold text-xs score-badge ${scoreTextColor(job.ai_score)} px-2 rounded">${job.ai_score}%</span></td>`;
-      html += `<td class="px-2 py-3.5 align-top"><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${jobVerdict}" data-chip-style="compact">${verdictChip(jobVerdict)}</button></td>`;
-      if (showDate) html += `<td class="pl-3 pr-3 py-3.5 text-xs text-gray-600 align-top font-medium">${fmtDate(job.fetched_at)}</td>`;
-      if (showLoc) {
-        const loc = job.location ? `<span class="text-xs text-gray-500 leading-snug" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escHtml(job.location)}</span>` : '<span class="text-gray-300 text-xs">—</span>';
-        html += `<td class="px-3 py-3.5 align-top">${loc}</td>`;
-      }
-      const appliedClass = job.applied
-        ? 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap'
-        : 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap';
-      const appliedLabel = job.applied ? '✓ Applied' : 'Applied';
-      const noteEsc = escHtml(job.user_notes || '');
-      const noteClass = job.user_notes ? 'text-yellow-500 hover:text-yellow-600 transition-colors' : 'opacity-20 hover:opacity-50 transition-opacity text-gray-500';
-      const noteTitle = job.user_notes ? escHtml((job.user_notes.split('\n')[0] || '').slice(0, 60)) : 'Add note';
-      const noteSvg = job.user_notes
-        ? '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>'
-        : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>';
-      html += `<td class="py-3.5 px-2 align-top">
-        <div class="flex items-center gap-1.5">
-          <button onclick="quickToggleApplied(event,${job.id},this)"
-                  class="${appliedClass}" data-applied="${job.applied ? '1' : '0'}" style="width:76px;text-align:center;">${appliedLabel}</button>
-          <button data-job-id="${job.id}" data-note="${noteEsc}" onclick="openNotePopover(event,this)"
-                  class="${noteClass}" title="${noteTitle}">${noteSvg}</button>
-        </div>
+      html += `<tr class="job-row-${idPrefix}-${gi} ${getJobTableRowClass()}" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
+      html += `<td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company)}</td>`;
+      const summary = job.ai_summary ? stripMd(job.ai_summary) : null;
+      html += `<td class="${getJobTableCellClass()}">${renderJobSummaryCell(summary)}</td>`;
+      html += `<td class="${getJobTableCellClass()}">${renderLocationCell(job.location)}</td>`;
+      html += `<td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score)}</td>`;
+      html += `<td class="${getJobTableCellClass('verdict')}"><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${jobVerdict}" data-chip-style="compact">${verdictChip(jobVerdict)}</button></td>`;
+      html += `<td class="${getJobTableCellClass('applied')}">
+        ${renderAppliedSelector(job.applied, { onclick: `quickToggleApplied(event,${job.id},this)`, 'data-applied': job.applied ? '1' : '0' })}
       </td>`;
-      html += `<td class="pl-2 pr-5 py-3.5 text-center align-top" style="white-space:nowrap;">${job.url ? `<a href="${escHtml(job.url)}" target="_blank" rel="noopener noreferrer" title="View on ${escHtml(job.job_source || 'LinkedIn')}" class="text-gray-300 hover:text-gray-500 text-sm">↗</a>` : '<span class="text-gray-200">—</span>'}</td>`;
+      html += `<td class="${getJobTableCellClass('source')}">${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</td>`;
       html += '</tr>';
     });
   });
@@ -147,7 +112,7 @@ function renderTable(groups, idPrefix, hideCol) {
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function renderCards(groups, idPrefix) {
-  let html = '<div class="space-y-2">';
+  let html = `<div class="${getJobMobileListClass()}">`;
   groups.forEach((group, gi) => {
     const label = group.location || group.label;
     html += `<div class="flex items-center gap-2 px-1 pt-3 pb-1 cursor-pointer" onclick="toggleMobileGroup('${idPrefix}',${gi})">`;
@@ -156,38 +121,23 @@ function renderCards(groups, idPrefix) {
     html += `<span class="text-xs text-gray-400">${group.jobs.length} job${group.jobs.length !== 1 ? 's' : ''}</span>`;
     html += '</div>';
     group.jobs.forEach(job => {
-      const scoreColor = scoreTextColor(job.ai_score);
       const summary = job.ai_summary ? escHtml(stripMd(job.ai_summary)) : '';
-      const appliedClass = job.applied
-        ? 'text-xs px-2 py-1 rounded-full bg-emerald-500 text-white border border-emerald-500 whitespace-nowrap'
-        : 'text-xs px-2 py-1 rounded-full border border-gray-200 text-gray-400 whitespace-nowrap';
-      const appliedLabel = job.applied ? '✓ Applied' : 'Applied';
-      const noteEsc = escHtml(job.user_notes || '');
-      const noteClass = job.user_notes ? 'text-yellow-500' : 'opacity-20 text-gray-500';
-      const noteSvg = job.user_notes
-        ? '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>'
-        : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>';
-      html += `<div class="job-card-m-${idPrefix}-${gi} bg-white rounded-xl border border-gray-200 shadow-sm p-4 cursor-pointer" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
+      html += `<div class="job-card-m-${idPrefix}-${gi} ${getJobMobileCardClass()}" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
       const cardVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
-      html += `<div class="flex items-start justify-between gap-2 mb-2">`;
-      const _cnCard = locals.companyNotes && locals.companyNotes[job.company];
-      const _companyHtmlCard = _cnCard
-        ? `<button data-note="${escHtml(_cnCard)}" data-company="${escHtml(job.company)}" onclick="openCompanyNotePopover(event,this)" class="text-xs text-gray-500 mt-0.5 text-left" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;background:none;border:none;padding:0;cursor:pointer;">${escHtml(job.company)}</button>`
-        : `<div class="text-xs text-gray-500 mt-0.5">${escHtml(job.company)}</div>`;
-      html += `<div class="flex-1 min-w-0"><div class="font-semibold text-gray-900 text-sm leading-snug">${escHtml(job.title)}</div>${_companyHtmlCard}</div>`;
-      html += `<div class="flex flex-col items-end gap-1 flex-shrink-0"><span class="inline-block font-bold text-xs score-badge ${scoreColor} px-2 py-0.5 rounded">${job.ai_score}%</span><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${cardVerdict}" data-chip-style="compact">${verdictChip(cardVerdict)}</button></div>`;
+      html += `<div class="flex items-start justify-between gap-3">`;
+      html += `<span class="job-identity-title text-sm font-semibold text-gray-900">${escHtml(job.title)}</span>`;
+      html += `<div class="flex-shrink-0">${renderScoreCell(job.ai_score)}</div>`;
+      html += `</div>`;
+      html += `<div class="mt-1 flex items-start justify-between gap-3">`;
+      html += `<span class="job-identity-meta text-xs text-gray-500">${escHtml(job.company || 'Unknown company')}</span>`;
+      html += `<div class="flex-shrink-0"><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${cardVerdict}" data-chip-style="compact">${verdictChip(cardVerdict)}</button></div>`;
       html += `</div>`;
       if (summary) {
-        html += `<div class="text-xs text-gray-500 leading-relaxed mb-3" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${summary}</div>`;
+        html += `<div class="job-summary-text text-xs text-gray-500 leading-relaxed mt-3">${summary}</div>`;
       }
-      html += `<div class="flex items-center justify-between gap-2 mt-2">`;
-      html += `<div class="flex items-center gap-2">`;
-      html += `<button onclick="quickToggleApplied(event,${job.id},this)" class="${appliedClass}" data-applied="${job.applied ? '1' : '0'}" style="width:76px;text-align:center;">${appliedLabel}</button>`;
-      html += `<button data-job-id="${job.id}" data-note="${noteEsc}" onclick="openNotePopover(event,this)" class="${noteClass}">${noteSvg}</button>`;
-      html += `</div>`;
-      html += `<div class="flex items-center gap-2 text-xs text-gray-400">`;
-      if (job.location) html += `<span class="truncate max-w-[120px]">${escHtml(job.location)}</span>`;
-      if (job.url) html += `<a href="${escHtml(job.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="text-gray-400 hover:text-gray-600 flex-shrink-0">↗</a>`;
+      html += `<div class="mt-3 flex items-end justify-between gap-3">`;
+      html += `<div class="flex-shrink-0">${renderAppliedSelector(job.applied, { onclick: `quickToggleApplied(event,${job.id},this)`, 'data-applied': job.applied ? '1' : '0' })}</div>`;
+      html += `<div class="min-w-0 flex items-center justify-end gap-2 text-right"><div class="min-w-0">${renderLocationCell(job.location)}</div>${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</div>`;
       html += `</div>`;
       html += `</div>`;
       html += `</div>`;
@@ -422,13 +372,8 @@ async function quickToggleApplied(event, jobId, btn) {
   const current = btn.dataset.applied === '1';
   const next = !current;
   btn.dataset.applied = next ? '1' : '0';
-  if (next) {
-    btn.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap';
-    btn.textContent = '✓ Applied';
-  } else {
-    btn.className = 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap';
-    btn.textContent = 'Applied';
-  }
+  btn.className = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium border transition-colors whitespace-nowrap ' + window.JHUI.getAppliedTone(next);
+  btn.textContent = window.JHUI.formatAppliedLabel(next);
   await fetch('/api/jobs/' + jobId + '/applied', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

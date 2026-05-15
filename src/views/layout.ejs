@@ -20,15 +20,107 @@
   <style>
     [x-cloak] { display: none !important; }
     .score-badge { font-variant-numeric: tabular-nums; }
+    .app-shell { min-height: 100%; background: #f9fafb; }
+    .app-sidebar { width: 14rem; }
+    .app-main { min-width: 0; }
+    .app-content { width: 100%; max-width: 72rem; margin-inline: auto; padding: 2rem 1.5rem 5rem; }
+    .mobile-bottom-nav {
+      height: calc(4rem + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .job-list-container {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      overflow: hidden;
+    }
+    .job-table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+    .job-table-row {
+      border-top: 1px solid #f3f4f6;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .job-table-row:hover { background: rgba(239, 246, 255, 0.45); }
+    .job-table-cell { padding: 0.875rem 0.75rem; vertical-align: top; min-width: 0; }
+    .job-table-fixed { white-space: nowrap; text-align: center; }
+    .job-table-cell.job-table-fixed:last-child { padding-left: 0.25rem; padding-right: 0.5rem; }
+    .job-table-cell.job-table-fixed:nth-last-child(2) { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .job-mobile-list { display: block; }
+    .job-mobile-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      padding: 1rem;
+      cursor: pointer;
+    }
+    .job-identity-title { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .job-table .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
+    .job-mobile-card .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
+    .job-identity-meta { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .job-summary-text {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
+    }
+    .job-location-text {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+    @media (min-width: 768px) {
+      .app-content { padding-bottom: 2rem; }
+      .job-mobile-list { display: none; }
+      .job-desktop-table { display: table; }
+    }
+    @media (max-width: 767px) {
+      .job-desktop-table { display: none; }
+    }
   </style>
+  <script>
+    window.JHUI_TOKENS = <%- JSON.stringify(getClientUiTokens()) %>;
+    window.JHUI = {
+      formatVerdictLabel(value) {
+        const key = String(value || '').trim().toUpperCase();
+        return window.JHUI_TOKENS.verdictLabels[key] || (key ? key.replace(/[_-]+/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown');
+      },
+      getVerdictTone(value) {
+        return window.JHUI_TOKENS.verdictTones[String(value || '').trim().toUpperCase()] || 'bg-gray-100 text-gray-500';
+      },
+      isVerdictEditable(value) {
+        return window.JHUI_TOKENS.editableVerdicts.includes(String(value || '').trim().toUpperCase());
+      },
+      formatScore(value) {
+        if (value === null || value === undefined || value === '') return '\u2014';
+        const num = Number(value);
+        return Number.isFinite(num) ? String(Math.round(num)) : '\u2014';
+      },
+      formatAppliedLabel(value) {
+        return 'Applied';
+      },
+      getAppliedTone(value) {
+        return this.formatAppliedLabel(value) === 'Applied'
+          && (value === true || value === 1 || value === '1' || value === 'true')
+          ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'
+          : 'bg-gray-50 text-gray-300 border-gray-200 hover:bg-gray-100 hover:border-gray-300 hover:text-gray-400';
+      }
+    };
+  </script>
 </head>
 <body class="h-full font-sans antialiased text-gray-900">
 
-  <!-- Sidebar + content layout -->
-  <div class="flex min-h-full">
+  <!-- AppShell -->
+  <div class="app-shell flex">
 
-    <!-- Sidebar (desktop only) -->
-    <aside class="hidden md:flex w-56 flex-shrink-0 bg-gray-900 text-gray-100 flex-col sticky top-0 h-screen">
+    <!-- SidebarNav (desktop only) -->
+    <aside class="app-sidebar hidden md:flex flex-shrink-0 bg-gray-900 text-gray-100 flex-col sticky top-0 h-screen">
 
       <!-- Logo -->
       <div class="px-5 py-3 border-b border-gray-700">
@@ -140,15 +232,15 @@
     </aside>
 
     <!-- Main content -->
-    <main class="flex-1 overflow-y-auto">
-      <div class="max-w-6xl mx-auto px-6 pt-8 pb-20 md:pb-8">
+    <main class="app-main flex-1 overflow-y-auto">
+      <div class="app-content">
         <%- body %>
       </div>
     </main>
   </div>
 
-  <!-- Bottom nav (mobile only) -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-700 flex items-stretch h-16 safe-area-inset-bottom">
+  <!-- MobileBottomNav -->
+  <nav class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-700 flex items-stretch">
     <a href="/" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Start' ? 'text-white' : 'text-gray-400' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
       <span class="text-[10px] font-medium">Start</span>
@@ -252,10 +344,10 @@
   <!-- Verdict dropdown -->
   <div id="verdict-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
     <div class="py-1">
-      <button onclick="setVerdict('STRONG_MATCH')" class="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 text-emerald-700 font-medium">✅ Strong fit</button>
-      <button onclick="setVerdict('WEAK_MATCH')"   class="w-full text-left px-4 py-2 text-sm hover:bg-yellow-50 text-yellow-700 font-medium">⚠️ Weak fit</button>
-      <button onclick="setVerdict('NO_MATCH')"     class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">❌ No fit</button>
-      <button onclick="setVerdict('DUPLICATE')"    class="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 text-purple-600 font-medium">🔁 Duplicate</button>
+      <button onclick="setVerdict('STRONG_MATCH')" class="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 text-emerald-700 font-medium">Strong</button>
+      <button onclick="setVerdict('WEAK_MATCH')"   class="w-full text-left px-4 py-2 text-sm hover:bg-yellow-50 text-yellow-700 font-medium">Weak</button>
+      <button onclick="setVerdict('NO_MATCH')"     class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">No match</button>
+      <button onclick="setVerdict('DUPLICATE')"    class="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 text-purple-600 font-medium">Duplicate</button>
     </div>
   </div>
 
@@ -1501,46 +1593,33 @@
     });
 
     function verdictChipHTML(verdict, style) {
-      const detail = {
-        STRONG_MATCH: '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">STRONG MATCH ▾</span>',
-        WEAK_MATCH:   '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200">WEAK MATCH ▾</span>',
-        NO_MATCH:     '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600 border border-red-200">NO MATCH ▾</span>',
-        DUPLICATE:    '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-600 border border-purple-200">DUPLICATE ▾</span>',
-      };
-      const compact = {
-        STRONG_MATCH: '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong ▾</span>',
-        WEAK_MATCH:   '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">Weak ▾</span>',
-        NO_MATCH:     '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-500 whitespace-nowrap">No match ▾</span>',
-        DUPLICATE:    '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Duplicate ▾</span>',
-      };
-      const full = {
-        STRONG_MATCH: '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">✅ Strong fit ▾</span>',
-        WEAK_MATCH:   '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">⚠️ Weak fit ▾</span>',
-        NO_MATCH:     '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap">❌ No fit ▾</span>',
-        DUPLICATE:    '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">🔁 Duplicate ▾</span>',
-      };
-      const map = style === 'detail' ? detail : style === 'full' ? full : compact;
-      return map[verdict] || verdict;
+      const base = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium whitespace-nowrap';
+      const label = window.JHUI.formatVerdictLabel(verdict) + (window.JHUI.isVerdictEditable(verdict) ? ' \u25be' : '');
+      return '<span class="' + base + ' ' + window.JHUI.getVerdictTone(verdict) + '">' + label + '</span>';
     }
 
     async function setVerdict(newVerdict) {
       const btn = _verdictBtn;
       if (!btn) return;
       const jobId  = btn.dataset.jobId;
+      const logId  = btn.dataset.logId;
       const current = btn.dataset.verdict;
       closeVerdictDropdown();
       if (newVerdict === current) return;
-      const labels = { STRONG_MATCH: 'Strong fit', WEAK_MATCH: 'Weak fit', NO_MATCH: 'No fit', DUPLICATE: 'Duplicate' };
-      const ok = await showConfirm('Change status to "' + (labels[newVerdict] || newVerdict) + '"?');
+      const ok = await showConfirm('Change status to "' + window.JHUI.formatVerdictLabel(newVerdict) + '"?');
       if (!ok) return;
       try {
-        const res = await fetch('/api/jobs/' + jobId + '/verdict', {
+        const endpoint = jobId ? '/api/jobs/' + jobId + '/verdict' : '/api/run-log/' + logId + '/verdict';
+        const res = await fetch(endpoint, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ verdict: newVerdict }),
         });
         const data = await res.json();
         if (data.success) {
+          if (data.internal_job_id && !btn.dataset.jobId) {
+            btn.dataset.jobId = String(data.internal_job_id);
+          }
           if (btn.dataset.chipStyle === 'detail') {
             location.reload();
           } else {

@@ -13,6 +13,7 @@ import { analyticsRouter } from './routes/analytics';
 import { rundiffRouter } from './routes/rundiff';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
 import { startAtsDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron } from './pipeline/atsScheduler';
+import { uiHelpers } from './uiHelpers';
 
 const app = express();
 
@@ -69,6 +70,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // ── EJS layout wrapper ──
 app.use((req, res, next) => {
   const originalRender = res.render.bind(res);
+  Object.assign(res.locals, uiHelpers);
+  res.locals.uiHelpers = uiHelpers;
   res.render = function (view: string, locals?: object) {
     originalRender(view, locals, (err: Error, html: string) => {
       if (err) return next(err);

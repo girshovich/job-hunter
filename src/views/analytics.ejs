@@ -29,12 +29,12 @@
 <% if (totals.total > 0) { %>
 <%
   const STATUS_CONFIG = {
-    STRONG_MATCH: { label: 'Strong Match', bar: '#10b981', dot: 'bg-emerald-500', text: 'text-emerald-700' },
-    WEAK_MATCH:   { label: 'Weak Match',   bar: '#eab308', dot: 'bg-yellow-500',  text: 'text-yellow-700' },
-    NO_MATCH:     { label: 'No Match',     bar: '#f87171', dot: 'bg-red-400',     text: 'text-red-600' },
-    DUPLICATE:    { label: 'Duplicate',    bar: '#c084fc', dot: 'bg-purple-400',  text: 'text-purple-700' },
-    BLACKLISTED:  { label: 'Blacklisted',  bar: '#9ca3af', dot: 'bg-gray-400',    text: 'text-gray-500' },
-    UNKNOWN:      { label: 'Unknown',      bar: '#d1d5db', dot: 'bg-gray-300',    text: 'text-gray-400' },
+    STRONG_MATCH: { label: formatVerdictLabel('STRONG_MATCH'), bar: '#10b981', dot: 'bg-emerald-500', text: 'text-emerald-700' },
+    WEAK_MATCH:   { label: formatVerdictLabel('WEAK_MATCH'),   bar: '#eab308', dot: 'bg-yellow-500',  text: 'text-yellow-700' },
+    NO_MATCH:     { label: formatVerdictLabel('NO_MATCH'),     bar: '#f87171', dot: 'bg-red-400',     text: 'text-red-600' },
+    DUPLICATE:    { label: formatVerdictLabel('DUPLICATE'),    bar: '#c084fc', dot: 'bg-purple-400',  text: 'text-purple-700' },
+    BLACKLISTED:  { label: formatVerdictLabel('BLACKLISTED'),  bar: '#9ca3af', dot: 'bg-gray-400',    text: 'text-gray-500' },
+    UNKNOWN:      { label: formatVerdictLabel('UNKNOWN'),      bar: '#d1d5db', dot: 'bg-gray-300',    text: 'text-gray-400' },
   };
   const STATUS_ORDER = ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH', 'DUPLICATE', 'BLACKLISTED'];
   const sbMap = {};
@@ -48,7 +48,7 @@
   <!-- Stacked proportional bar -->
   <div class="flex rounded-lg overflow-hidden h-9 mb-4 gap-px">
     <% orderedBreakdown.forEach(s => {
-       const cfg = STATUS_CONFIG[s.status] || { label: s.status, bar: '#d1d5db', dot: 'bg-gray-300', text: 'text-gray-500' };
+       const cfg = STATUS_CONFIG[s.status] || { label: formatVerdictLabel(s.status), bar: '#d1d5db', dot: 'bg-gray-300', text: 'text-gray-500' };
        const pct = Math.round(s.count / totalCount * 100);
     %>
     <% if (pct > 0) { %>
@@ -63,7 +63,7 @@
   <!-- Legend -->
   <div class="flex flex-wrap gap-x-5 gap-y-2">
     <% orderedBreakdown.forEach(s => {
-       const cfg = STATUS_CONFIG[s.status] || { label: s.status, bar: '#d1d5db', dot: 'bg-gray-300', text: 'text-gray-500' };
+       const cfg = STATUS_CONFIG[s.status] || { label: formatVerdictLabel(s.status), bar: '#d1d5db', dot: 'bg-gray-300', text: 'text-gray-500' };
     %>
     <div class="flex items-center gap-2">
       <div class="w-3 h-3 rounded-sm flex-shrink-0 <%= cfg.dot %>"></div>

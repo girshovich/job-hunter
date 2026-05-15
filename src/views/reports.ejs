@@ -2,19 +2,7 @@
 // Server-side helpers
 
 function verdictChip(verdict, rejectionCategory) {
-  const base = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap';
-  if (verdict === 'STRONG_MATCH') return `<span class="${base} bg-emerald-50 text-emerald-700">✅ Strong fit</span>`;
-  if (verdict === 'WEAK_MATCH')   return `<span class="${base} bg-yellow-50 text-yellow-700">⚠️ Weak fit</span>`;
-  if (verdict === 'BLACKLISTED')  return `<span class="${base} bg-gray-100 text-gray-600">🚫 Blacklisted</span>`;
-  if (verdict === 'DUPLICATE')    return `<span class="${base} bg-purple-50 text-purple-600">🔁 Duplicate</span>`;
-  if (verdict === 'FILTERED')     return `<span class="${base} bg-slate-100 text-slate-500">✂ Filtered</span>`;
-  if (verdict === 'NO_MATCH') {
-    if (rejectionCategory === 'NO_VISA')           return `<span class="${base} bg-red-50 text-red-600">❌ No visa support</span>`;
-    if (rejectionCategory === 'LANGUAGE_MISMATCH') return `<span class="${base} bg-red-50 text-red-600">❌ Language mismatch</span>`;
-    if (rejectionCategory === 'PROFILE_MISMATCH')  return `<span class="${base} bg-red-50 text-red-600">❌ Profile mismatch</span>`;
-    return `<span class="${base} bg-red-50 text-red-600">❌ No fit</span>`;
-  }
-  return '';
+  return renderVerdictChip(verdict, { editable: isVerdictEditable(verdict) });
 }
 
 function statusBadge(status) {
@@ -33,13 +21,28 @@ function scoreClass(score) {
   if (score == null) return 'text-gray-400';
   return score >= 71 ? 'text-emerald-600 font-semibold' : score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500';
 }
+
+function runJobDetailHref(job) {
+  return job.internal_job_id ? `/job/${job.internal_job_id}` : '';
+}
+
+function runSourceName(run) {
+  return formatSourceName(run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : 'LinkedIn'));
+}
+
+function runProviderName(run) {
+  return run.scraping_provider ? formatSourceLabel(run.scraping_provider) : 'Unknown provider';
+}
 %>
 
 <!-- Page header -->
-<div class="mb-8">
-  <h1 class="text-2xl font-bold text-gray-900">Run Logs</h1>
-  <div class="flex items-center justify-between gap-4 mt-1">
-    <p class="text-sm text-gray-500">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %> · <a href="/run-diff" class="text-blue-500 hover:underline">Compare</a> last 2 runs</p>
+<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Run Logs</h1>
+    <p class="text-sm text-gray-500 mt-1">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %></p>
+  </div>
+  <div class="flex items-center gap-4">
+    <a href="/run-diff" class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">Compare last 2 runs</a>
     <label class="flex items-center gap-2 cursor-pointer flex-shrink-0">
       <span class="text-xs text-gray-500">Split by location</span>
       <input type="checkbox" id="location-split-checkbox" onchange="toggleLocationSplit(this.checked)" class="sr-only peer" />
@@ -64,89 +67,68 @@ function scoreClass(score) {
          data-run-id="<%= run.id %>"
          <%= run.preloaded ? 'data-preloaded' : '' %>>
 
-  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 transition-colors">
-    <div class="flex items-center gap-3 flex-wrap min-w-0">
-      <!-- Expand/collapse chevron -->
+  <summary class="flex items-start gap-3 px-5 py-3 cursor-pointer select-none list-none hover:bg-gray-50 transition-colors">
+    <div class="flex-shrink-0 pt-1">
       <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
       </svg>
-
-      <!-- Date & time -->
-      <div class="flex items-center gap-2">
-        <span class="font-semibold text-gray-900 text-sm"><%= run.ran_at_date %></span>
-        <span class="text-gray-400 text-xs">·</span>
-        <span class="text-gray-500 text-sm"><%= run.ran_at_time %></span>
-      </div>
-
-      <!-- Status badge -->
-      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize <%= statusBadge(run.status) %>">
-        <%= statusLabel(run.status) %>
-      </span>
-
-      <!-- Trigger badge -->
-      <% if (run.trigger === 'manual') { %>
-      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">manual</span>
-      <% } %>
-
-      <!-- Provider badge -->
-      <% const _pmap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)' }; %>
-      <% const runSrc = run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : 'LinkedIn'); %>
-      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
-        title="<%= runSrc %>"><%= _pmap[run.scraping_provider] || run.scraping_provider || runSrc %></span>
     </div>
 
-    <!-- Stats summary + cost button -->
-    <div class="flex items-center gap-3 flex-shrink-0 ml-4">
-      <span class="text-xs text-gray-500 hidden sm:block">
-        <span class="font-medium text-gray-700"><%= run.jobs_fetched %></span> fetched
-        · <span class="font-medium text-emerald-600"><%= run.jobs_strong_match %></span> strong
-        · <span class="font-medium text-yellow-600"><%= run.jobs_weak_match %></span> weak
-        · <span class="font-medium text-red-500"><%= run.jobs_no_match %></span> no match
-        · <span class="font-medium text-purple-600"><%= run.jobs_duplicate %></span> duplicates
-        <% if (run.filtered_count > 0) { %>· <span class="font-medium text-slate-500"><%= run.filtered_count %></span> filtered<% } %>
-        <% if (run.blacklisted_count > 0) { %>· <span class="font-medium text-gray-500"><%= run.blacklisted_count %></span> blacklisted<% } %>
-      </span>
-
-      <!-- Cost button -->
-      <% if (run.cost_openai_usd != null || run.cost_apify_usd != null) { %>
-      <div class="relative" onclick="event.stopPropagation()">
-        <button
-          onclick="toggleCostPopup('<%= run.id %>')"
-          class="text-sm font-bold text-emerald-600 hover:text-emerald-700 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-emerald-50 transition-colors"
-          title="Run costs"
-        >$</button>
-        <div id="cost-popup-<%= run.id %>" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
-          <% if (run.job_source || run.scraping_provider) { %>
-          <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
-            <span>Source</span>
-            <span class="font-medium text-gray-700"><%= run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider) %></span>
-          </div>
-          <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
-            <span>Provider</span>
-            <% const providerDisplayMap = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)' }; %>
-            <span class="font-medium text-gray-700"><%= providerDisplayMap[run.scraping_provider] || run.scraping_provider || '—' %></span>
-          </div>
-          <% } %>
-          <% const totalCost = (run.cost_openai_usd ?? 0) + (run.cost_apify_usd ?? 0); %>
-          <div class="flex justify-between gap-6 pb-1.5 mb-1.5 border-b border-gray-100">
-            <span class="font-medium text-gray-700">Total</span>
-            <span class="font-bold text-gray-900">$<%= totalCost.toFixed(4) %></span>
-          </div>
-          <% if (run.cost_apify_usd != null) { %>
-          <div class="flex justify-between gap-6 text-gray-600">
-            <span>Fetch</span>
-            <span class="font-medium text-gray-900">$<%= run.cost_apify_usd.toFixed(4) %></span>
-          </div>
-          <% } %>
-          <% if (run.cost_openai_usd != null) { %>
-          <div class="flex justify-between gap-6 text-gray-600 mt-1.5">
-            <span>AI</span>
-            <span class="font-medium text-gray-900">$<%= run.cost_openai_usd.toFixed(4) %></span>
-          </div>
-          <% } %>
-        </div>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2 min-w-0 flex-wrap">
+        <span class="font-semibold text-gray-900 text-sm whitespace-nowrap"><%= run.ran_at_date %></span>
+        <span class="text-gray-400 text-xs">·</span>
+        <span class="text-gray-500 text-sm whitespace-nowrap"><%= run.ran_at_time %></span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize <%= statusBadge(run.status) %>"><%= statusLabel(run.status) %></span>
+        <% if (run.trigger === 'manual') { %><span title="Run started manually" class="inline-flex h-5 min-w-5 items-center justify-center rounded bg-blue-50 px-1.5 text-xs font-semibold text-blue-600">M</span><% } %>
+        <span class="relative md:hidden" onclick="event.stopPropagation()">
+          <%- renderDottedPopupLink('$', { onclick: `toggleCostPopup('${run.id}')`, title: 'Run costs', 'aria-label': 'Run costs', class: 'align-baseline leading-inherit p-0' }) %>
+        </span>
+        <span class="hidden md:inline text-gray-300">·</span>
+        <span class="hidden md:inline truncate text-xs text-gray-500"><%= runProviderName(run) %></span>
       </div>
-      <% } %>
+      <div class="mt-1 flex items-center text-xs text-gray-500 md:hidden">
+        <span class="truncate"><%= runProviderName(run) %></span>
+      </div>
+    </div>
+
+    <div class="hidden md:flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-xs text-gray-500 md:min-w-[390px]">
+      <span><span class="font-medium text-gray-700"><%= run.jobs_fetched %></span> fetched</span>
+      <span class="text-gray-300">·</span>
+      <%- renderRunStatusCounts(run) %>
+      <span class="text-gray-300">·</span>
+      <span class="relative" onclick="event.stopPropagation()">
+        <%- renderDottedPopupLink('$', { onclick: `toggleCostPopup('${run.id}')`, title: 'Run costs', 'aria-label': 'Run costs', class: 'align-baseline leading-inherit p-0' }) %>
+      </span>
+      <div id="cost-popup-<%= run.id %>" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
+        <% if (run.job_source || run.scraping_provider) { %>
+        <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
+          <span>Source</span>
+          <span class="font-medium text-gray-700"><%= formatSourceLabel(run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider)) %></span>
+        </div>
+        <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
+          <span>Provider</span>
+          <span class="font-medium text-gray-700"><%= run.scraping_provider ? formatSourceLabel(run.scraping_provider) : '—' %></span>
+        </div>
+        <% } %>
+        <% const totalCost = (run.cost_openai_usd == null && run.cost_apify_usd == null) ? null : (run.cost_openai_usd ?? 0) + (run.cost_apify_usd ?? 0); %>
+        <div class="flex justify-between gap-6 pb-1.5 mb-1.5 border-b border-gray-100">
+          <span class="font-medium text-gray-700">Total</span>
+          <span class="font-bold text-gray-900"><%= formatRunCost(totalCost) %></span>
+        </div>
+        <% if (run.cost_apify_usd != null) { %>
+        <div class="flex justify-between gap-6 text-gray-600">
+          <span>Fetch</span>
+          <span class="font-medium text-gray-900"><%= formatRunCost(run.cost_apify_usd) %></span>
+        </div>
+        <% } %>
+        <% if (run.cost_openai_usd != null) { %>
+        <div class="flex justify-between gap-6 text-gray-600 mt-1.5">
+          <span>AI</span>
+          <span class="font-medium text-gray-900"><%= formatRunCost(run.cost_openai_usd) %></span>
+        </div>
+        <% } %>
+      </div>
     </div>
   </summary>
 
@@ -171,42 +153,35 @@ function scoreClass(score) {
         <% } else { %>
 
         <!-- Desktop table -->
-        <table class="hidden md:table w-full">
+        <table class="<%= getJobTableClass() %>">
+          <%- renderJobsAllColgroup() %>
+          <%- renderJobsAllTableHeader() %>
           <tbody class="divide-y divide-gray-50">
             <% run.jobs.forEach(function(job, idx) { %>
-            <tr data-row-idx="<%= idx %>" data-country="<%= job.country %>" class="hover:bg-gray-50 transition-colors">
-              <td class="px-5 py-2.5 text-xs text-gray-400 whitespace-nowrap w-0">
-                <span class="block"><%= job.logged_date %></span>
-                <span class="block text-gray-300"><%= job.logged_time %></span>
+            <tr data-row-idx="<%= idx %>" data-country="<%= job.country %>" class="<%= getJobTableRowClass() %>">
+              <td class="<%= getJobTableCellClass() %> pl-5">
+                <%- renderJobPositionCompanyCell(job.title, job.company, runJobDetailHref(job)) %>
               </td>
-              <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate"><%= job.company %></td>
-              <td class="px-3 py-2.5 text-sm text-gray-900">
-                <% if (job.internal_job_id) { %>
-                  <a href="/job/<%= job.internal_job_id %>" class="hover:text-blue-600 transition-colors"><%= job.title %></a>
-                <% } else { %>
-                  <%= job.title %>
-                <% } %>
-                <% if (job.location) { %><span class="block text-xs text-gray-400 truncate"><%= job.location %></span><% } %>
+              <td class="<%= getJobTableCellClass() %>">
+                <%- renderLocationCell(job.location) %>
               </td>
-              <td class="pl-3 py-2.5 w-0 whitespace-nowrap text-right">
-                <span onclick="showJobMenu(event,this)"
-                      data-internal-id="<%= job.internal_job_id || '' %>"
-                      data-url="<%= job.url || '' %>"
+              <td class="<%= getJobTableCellClass('score') %>">
+                <%- renderScoreCell(job.ai_score) %>
+              </td>
+              <td class="<%= getJobTableCellClass('verdict') %>">
+                <button class="verdict-btn cursor-pointer"
+                      <% if (job.internal_job_id) { %>data-job-id="<%= job.internal_job_id %>"<% } %>
                       data-log-id="<%= job.id %>"
                       data-verdict="<%= job.ai_verdict %>"
-                      class="cursor-pointer">
+                      data-chip-style="compact">
                   <%- verdictChip(job.ai_verdict, job.rejection_category) %>
-                </span>
+                </button>
               </td>
-              <td class="py-2.5 px-1 w-0 whitespace-nowrap text-right" style="min-width:2.25rem;">
-                <% if (job.ai_score != null) { %><span class="text-xs <%= scoreClass(job.ai_score) %>"><%= job.ai_score %></span><% } %>
+              <td class="<%= getJobTableCellClass('date') %>">
+                <%- renderDateTimeCell(job.logged_at, timezone || 'UTC') %>
               </td>
-              <td class="pl-2 pr-5 py-2.5 w-0 whitespace-nowrap">
-                <% if (job.url) { %>
-                  <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>
-                <% } else { %>
-                  <span class="text-gray-300 text-xs">—</span>
-                <% } %>
+              <td class="<%= getJobTableCellClass('source') %>">
+                <%- renderSourceLinkCell(job.url, job.job_source || 'LinkedIn') %>
               </td>
             </tr>
             <% }); %>
@@ -214,30 +189,33 @@ function scoreClass(score) {
         </table>
 
         <!-- Mobile list -->
-        <div class="md:hidden jobs-mobile-list divide-y divide-gray-50">
+        <div class="<%= getJobMobileListClass() %> jobs-mobile-list">
           <% run.jobs.forEach(function(job, idx) { %>
           <% const target = job.internal_job_id ? '/job/' + job.internal_job_id : (job.url || null); %>
-          <div class="job-mobile-row px-4 py-3 hover:bg-gray-50 transition-colors<%= target ? ' cursor-pointer' : '' %>"
+          <div class="job-mobile-row <%= getJobMobileCardClass(target ? 'cursor-pointer' : '') %>"
                data-row-idx="<%= idx %>"
                data-country="<%= job.country %>"
-               <% if (target) { %>data-href="<%= target %>" onclick="location.href=this.dataset.href"<% } %>>
-            <div class="flex items-center justify-between gap-2 mb-0.5">
-              <span class="text-sm font-medium text-gray-700 truncate"><%= job.company %></span>
-              <div class="flex items-center gap-1.5 flex-shrink-0">
-                <span onclick="showJobMenu(event,this)"
-                      data-internal-id="<%= job.internal_job_id || '' %>"
-                      data-url="<%= job.url || '' %>"
+               <% if (target) { %>data-href="<%= target %>" onclick="if(event.target.closest('.verdict-btn')) return; location.href=this.dataset.href"<% } %>>
+            <div class="flex items-start justify-between gap-3">
+              <span class="job-identity-title text-sm font-semibold text-gray-900"><%= job.title %></span>
+              <div class="flex-shrink-0"><%- renderScoreCell(job.ai_score) %></div>
+            </div>
+            <div class="mt-1 flex items-start justify-between gap-3">
+              <span class="job-identity-meta text-xs text-gray-500"><%= job.company || 'Unknown company' %></span>
+              <div class="flex-shrink-0">
+                <button class="verdict-btn cursor-pointer"
+                      <% if (job.internal_job_id) { %>data-job-id="<%= job.internal_job_id %>"<% } %>
                       data-log-id="<%= job.id %>"
                       data-verdict="<%= job.ai_verdict %>"
-                      class="cursor-pointer">
+                      data-chip-style="compact">
                   <%- verdictChip(job.ai_verdict, job.rejection_category) %>
-                </span>
-                <% if (job.ai_score != null) { %><span class="text-xs <%= scoreClass(job.ai_score) %>" style="min-width:1.75rem;display:inline-block;text-align:right;"><%= job.ai_score %></span><% } %>
+                </button>
               </div>
             </div>
-            <p class="text-xs text-gray-500 truncate"><%= job.title %></p>
-            <% if (job.location) { %><p class="text-xs text-gray-400 truncate mt-0.5"><%= job.location %></p><% } %>
-            <p class="text-xs text-gray-300 mt-0.5"><%= job.logged_date %> · <%= job.logged_time %></p>
+            <div class="mt-2 flex items-start justify-between gap-3">
+              <div class="min-w-0"><%- renderLocationCell(job.location) %></div>
+              <%- renderSourceLinkCell(job.url, job.job_source || 'LinkedIn') %>
+            </div>
           </div>
           <% }); %>
         </div>
@@ -262,23 +240,21 @@ function scoreClass(score) {
 </div>
 <% } %>
 
-<!-- Job context menu (shared) -->
-<div id="job-menu" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 text-xs min-w-[160px]">
-  <a id="job-menu-view" href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">View details</a>
-  <a id="job-menu-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">Open on LinkedIn</a>
-  <div id="job-menu-verdict-section" class="mt-1 pt-1 border-t border-gray-100">
-    <p class="px-3 py-1 text-xs font-medium text-gray-400">Change verdict</p>
-    <button onclick="menuSetVerdict('STRONG_MATCH')" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-emerald-50 text-emerald-700 w-full text-left transition-colors">✅ Strong fit</button>
-    <button onclick="menuSetVerdict('WEAK_MATCH')"   class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-yellow-50 text-yellow-700 w-full text-left transition-colors">⚠️ Weak fit</button>
-    <button onclick="menuSetVerdict('NO_MATCH')"     class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600 w-full text-left transition-colors">❌ No fit</button>
-  </div>
-</div>
-
 <script>
 // ---- Utilities ----
+const RUN_LOG_TIMEZONE = <%- JSON.stringify(timezone || 'UTC') %>;
 
 function escHtml(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function formatDateTimeToMinutes(value) {
+  if (!value) return '\u2014';
+  const d = new Date(String(value));
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 16) || '\u2014';
+  const date = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: RUN_LOG_TIMEZONE }).format(d);
+  const time = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: RUN_LOG_TIMEZONE }).format(d);
+  return date + ' ' + time;
 }
 
 function scoreClass(score) {
@@ -287,19 +263,15 @@ function scoreClass(score) {
 }
 
 function logVerdictChip(verdict, rejectionCategory) {
-  const base = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap';
-  if (verdict === 'STRONG_MATCH') return '<span class="' + base + ' bg-emerald-50 text-emerald-700">\u2705 Strong fit</span>';
-  if (verdict === 'WEAK_MATCH')   return '<span class="' + base + ' bg-yellow-50 text-yellow-700">\u26a0\ufe0f Weak fit</span>';
-  if (verdict === 'BLACKLISTED')  return '<span class="' + base + ' bg-gray-100 text-gray-600">\uD83D\uDEAB Blacklisted</span>';
-  if (verdict === 'DUPLICATE')    return '<span class="' + base + ' bg-purple-50 text-purple-600">\uD83D\uDD01 Duplicate</span>';
-  if (verdict === 'FILTERED')     return '<span class="' + base + ' bg-slate-100 text-slate-500">\u2702 Filtered</span>';
-  if (verdict === 'NO_MATCH') {
-    if (rejectionCategory === 'NO_VISA')           return '<span class="' + base + ' bg-red-50 text-red-600">\u274c No visa support</span>';
-    if (rejectionCategory === 'LANGUAGE_MISMATCH') return '<span class="' + base + ' bg-red-50 text-red-600">\u274c Language mismatch</span>';
-    if (rejectionCategory === 'PROFILE_MISMATCH')  return '<span class="' + base + ' bg-red-50 text-red-600">\u274c Profile mismatch</span>';
-    return '<span class="' + base + ' bg-red-50 text-red-600">\u274c No fit</span>';
-  }
-  return '';
+  const base = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium whitespace-nowrap';
+  const label = window.JHUI.formatVerdictLabel(verdict) + (window.JHUI.isVerdictEditable(verdict) ? ' \u25be' : '');
+  return '<span class="' + base + ' ' + window.JHUI.getVerdictTone(verdict) + '">' + label + '</span>';
+}
+
+function sourceLinkHTML(url, source) {
+  return url
+    ? '<a href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open ' + escHtml(source || 'Source') + '" aria-label="Open ' + escHtml(source || 'Source') + '" class="source-link-cell inline-flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M9 7h8v8"/></svg></a>'
+    : '<span class="text-gray-300 text-xs">\u2014</span>';
 }
 
 // ---- Build jobs HTML from JSON (used by lazy-load) ----
@@ -316,63 +288,55 @@ function buildJobsHTML(jobs) {
     const sc = scoreClass(job.ai_score);
     const target = job.internal_job_id ? '/job/' + job.internal_job_id : (job.url || null);
 
-    tableRows += '<tr data-row-idx="' + idx + '" data-country="' + escHtml(job.country) + '" class="hover:bg-gray-50 transition-colors">'
-      + '<td class="px-5 py-2.5 text-xs text-gray-400 whitespace-nowrap w-0">'
-      + '<span class="block">' + escHtml(job.logged_date) + '</span>'
-      + '<span class="block text-gray-300">' + escHtml(job.logged_time) + '</span>'
-      + '</td>'
-      + '<td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate">' + escHtml(job.company) + '</td>'
-      + '<td class="px-3 py-2.5 text-sm text-gray-900">'
+    const detailHref = job.internal_job_id ? '/job/' + job.internal_job_id : '';
+    tableRows += '<tr data-row-idx="' + idx + '" data-country="' + escHtml(job.country) + '" class="job-table-row">'
+      + '<td class="job-table-cell pl-5">'
+      + '<div class="min-w-0">'
       + (job.internal_job_id
-          ? '<a href="/job/' + job.internal_job_id + '" class="hover:text-blue-600 transition-colors">' + escHtml(job.title) + '</a>'
-          : escHtml(job.title))
-      + (job.location ? '<span class="block text-xs text-gray-400 truncate">' + escHtml(job.location) + '</span>' : '')
-      + '</td>'
-      + '<td class="pl-3 py-2.5 w-0 whitespace-nowrap text-right">'
-      + '<span onclick="showJobMenu(event,this)"'
-      + ' data-internal-id="' + (job.internal_job_id || '') + '"'
-      + ' data-url="' + escHtml(job.url || '') + '"'
+          ? '<a href="' + detailHref + '" class="job-identity-title text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">' + escHtml(job.title) + '</a>'
+          : '<span class="job-identity-title text-sm font-semibold text-gray-900">' + escHtml(job.title) + '</span>')
+      + '<span class="job-identity-meta text-xs text-gray-500 mt-0.5">' + escHtml(job.company || 'Unknown company') + '</span>'
+      + '</div></td>'
+      + '<td class="job-table-cell">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</td>'
+      + '<td class="job-table-cell job-table-fixed">' + (job.ai_score != null ? '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge ' + (job.ai_score >= 71 ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100') + '">' + window.JHUI.formatScore(job.ai_score) + '</span>' : '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge text-gray-600 bg-gray-100">\u2014</span>') + '</td>'
+      + '<td class="job-table-cell job-table-fixed">'
+      + '<button class="verdict-btn cursor-pointer"'
+      + (job.internal_job_id ? ' data-job-id="' + job.internal_job_id + '"' : '')
       + ' data-log-id="' + job.id + '"'
       + ' data-verdict="' + job.ai_verdict + '"'
-      + ' class="cursor-pointer">'
+      + ' data-chip-style="compact">'
       + logVerdictChip(job.ai_verdict, job.rejection_category)
-      + '</span></td>'
-      + '<td class="py-2.5 px-1 w-0 whitespace-nowrap text-right" style="min-width:2.25rem;">'
-      + (job.ai_score != null ? '<span class="text-xs ' + sc + '">' + job.ai_score + '</span>' : '')
-      + '</td>'
-      + '<td class="pl-2 pr-5 py-2.5 w-0 whitespace-nowrap">'
-      + (job.url
-          ? '<a href="' + escHtml(job.url) + '" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>'
-          : '<span class="text-gray-300 text-xs">\u2014</span>')
-      + '</td>'
+      + '</button></td>'
+      + '<td class="job-table-cell job-table-fixed"><span class="text-xs text-gray-500 whitespace-nowrap">' + escHtml(formatDateTimeToMinutes(job.logged_at)) + '</span></td>'
+      + '<td class="job-table-cell job-table-fixed">' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</td>'
       + '</tr>';
 
-    mobileRows += '<div class="job-mobile-row px-4 py-3 hover:bg-gray-50 transition-colors' + (target ? ' cursor-pointer' : '') + '"'
+    mobileRows += '<div class="job-mobile-row job-mobile-card' + (target ? ' cursor-pointer' : '') + '"'
       + ' data-row-idx="' + idx + '"'
       + ' data-country="' + escHtml(job.country) + '"'
-      + (target ? ' data-href="' + escHtml(target) + '" onclick="location.href=this.dataset.href"' : '')
+      + (target ? ' data-href="' + escHtml(target) + '" onclick="if(event.target.closest(\\'.verdict-btn\\')) return; location.href=this.dataset.href"' : '')
       + '>'
-      + '<div class="flex items-center justify-between gap-2 mb-0.5">'
-      + '<span class="text-sm font-medium text-gray-700 truncate">' + escHtml(job.company) + '</span>'
-      + '<div class="flex items-center gap-1.5 flex-shrink-0">'
-      + '<span onclick="showJobMenu(event,this)"'
-      + ' data-internal-id="' + (job.internal_job_id || '') + '"'
-      + ' data-url="' + escHtml(job.url || '') + '"'
+      + '<div class="flex items-start justify-between gap-3">'
+      + '<span class="job-identity-title text-sm font-semibold text-gray-900">' + escHtml(job.title) + '</span>'
+      + '<div class="flex-shrink-0">' + (job.ai_score != null ? '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge ' + (job.ai_score >= 71 ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100') + '">' + window.JHUI.formatScore(job.ai_score) + '</span>' : '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge text-gray-600 bg-gray-100">\u2014</span>') + '</div>'
+      + '</div>'
+      + '<div class="mt-1 flex items-start justify-between gap-3">'
+      + '<span class="job-identity-meta text-xs text-gray-500">' + escHtml(job.company || 'Unknown company') + '</span>'
+      + '<div class="flex-shrink-0">'
+      + '<button class="verdict-btn cursor-pointer"'
+      + (job.internal_job_id ? ' data-job-id="' + job.internal_job_id + '"' : '')
       + ' data-log-id="' + job.id + '"'
       + ' data-verdict="' + job.ai_verdict + '"'
-      + ' class="cursor-pointer">'
+      + ' data-chip-style="compact">'
       + logVerdictChip(job.ai_verdict, job.rejection_category)
-      + '</span>'
-      + (job.ai_score != null ? '<span class="text-xs ' + sc + '" style="min-width:1.75rem;display:inline-block;text-align:right;">' + job.ai_score + '</span>' : '')
+      + '</button>'
       + '</div></div>'
-      + '<p class="text-xs text-gray-500 truncate">' + escHtml(job.title) + '</p>'
-      + (job.location ? '<p class="text-xs text-gray-400 truncate mt-0.5">' + escHtml(job.location) + '</p>' : '')
-      + '<p class="text-xs text-gray-300 mt-0.5">' + escHtml(job.logged_date) + ' \u00b7 ' + escHtml(job.logged_time) + '</p>'
+      + '<div class="mt-2 flex items-start justify-between gap-3"><div class="min-w-0">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</div>' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</div>'
       + '</div>';
   });
 
-  return '<table class="hidden md:table w-full"><tbody class="divide-y divide-gray-50">' + tableRows + '</tbody></table>'
-       + '<div class="md:hidden jobs-mobile-list divide-y divide-gray-50">' + mobileRows + '</div>';
+  return '<table class="job-table job-desktop-table"><colgroup><col style="width:auto;"><col style="width:150px;"><col style="width:56px;"><col style="width:88px;"><col style="width:150px;"><col style="width:44px;"></colgroup><thead class="bg-gray-50"><tr><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ">Position</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ">Location</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Score</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Verdict</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Date</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center"><span class="sr-only">Source</span></th></tr></thead><tbody class="divide-y divide-gray-50">' + tableRows + '</tbody></table>'
+       + '<div class="job-mobile-list jobs-mobile-list-js space-y-2">' + mobileRows + '</div>';
 }
 
 // ---- Lazy-load ----
@@ -497,69 +461,7 @@ function toggleCostPopup(runId) {
   }
 }
 
-// ---- Job context menu ----
-
-let _menuTargetEl = null;
-
-function showJobMenu(event, el) {
-  event.stopPropagation();
-  _menuTargetEl = el;
-  const internalId = el.dataset.internalId;
-  const url = el.dataset.url;
-  const menu = document.getElementById('job-menu');
-  const viewLink = document.getElementById('job-menu-view');
-  const extLink  = document.getElementById('job-menu-link');
-
-  if (internalId) { viewLink.href = '/job/' + internalId; viewLink.classList.remove('hidden'); }
-  else            { viewLink.classList.add('hidden'); }
-
-  if (url) { extLink.href = url; extLink.classList.remove('hidden'); }
-  else     { extLink.classList.add('hidden'); }
-
-  document.querySelectorAll('[id^="cost-popup-"]').forEach(function(el) { el.classList.add('hidden'); });
-  const rect = el.getBoundingClientRect();
-  menu.style.top  = (rect.bottom + 4) + 'px';
-  menu.style.left = Math.min(rect.left, window.innerWidth - 172) + 'px';
-  menu.classList.remove('hidden');
-}
-
-async function menuSetVerdict(newVerdict) {
-  const el = _menuTargetEl;
-  if (!el) return;
-  document.getElementById('job-menu').classList.add('hidden');
-
-  const current = el.dataset.verdict;
-  if (newVerdict === current) return;
-
-  const labels = { STRONG_MATCH: 'Strong fit', WEAK_MATCH: 'Weak fit', NO_MATCH: 'No fit' };
-  if (!confirm('Change verdict to "' + (labels[newVerdict] || newVerdict) + '"?')) return;
-
-  const internalId = el.dataset.internalId;
-  const logId      = el.dataset.logId;
-  const endpoint   = internalId
-    ? '/api/jobs/' + internalId + '/verdict'
-    : '/api/run-log/' + logId + '/verdict';
-
-  try {
-    const res  = await fetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verdict: newVerdict }) });
-    const data = await res.json();
-    if (data.success) {
-      el.dataset.verdict = newVerdict;
-      if (data.internal_job_id && !internalId) {
-        el.dataset.internalId = String(data.internal_job_id);
-        document.getElementById('job-menu-view').href = '/job/' + data.internal_job_id;
-      }
-      el.innerHTML = logVerdictChip(newVerdict, null);
-    } else {
-      alert(data.error || 'Failed to update verdict');
-    }
-  } catch (_) {
-    alert('Could not reach the server.');
-  }
-}
-
 document.addEventListener('click', function() {
   document.querySelectorAll('[id^="cost-popup-"]').forEach(function(el) { el.classList.add('hidden'); });
-  document.getElementById('job-menu').classList.add('hidden');
 });
 </script>

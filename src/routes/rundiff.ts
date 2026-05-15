@@ -4,19 +4,21 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type SearchRunRow } from '../db';
+import { getDb, type SearchRunRow, type SettingsRow } from '../db';
 
 const router = Router();
 
 type LogEntry = {
   id: number;
   linkedin_job_id: string;
+  job_source: string;
   title: string;
   company: string;
   location: string | null;
   ai_score: number | null;
   ai_verdict: string;
   url: string | null;
+  logged_at: string;
   internal_job_id: number | null;
 };
 
@@ -63,6 +65,7 @@ function sortJobs(jobs: LogEntry[]): LogEntry[] {
 router.get('/', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
+  const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
 
   const runs = db
     .prepare('SELECT * FROM search_runs WHERE profile_id = ? ORDER BY ran_at DESC LIMIT 2')
@@ -74,6 +77,7 @@ router.get('/', (req: Request, res: Response) => {
       error: `Need at least 2 runs to compare. Only ${runs.length} run(s) found.`,
       runNewer: null, runOlder: null,
       onlyInNewer: [], onlyInOlder: [], inBoth: [],
+      timezone: settings?.timezone || 'UTC',
     });
     return;
   }
@@ -81,10 +85,10 @@ router.get('/', (req: Request, res: Response) => {
   const [runNewer, runOlder] = runs;
 
   const logQuery = `
-    SELECT rjl.id, rjl.linkedin_job_id, rjl.title, rjl.company, rjl.location,
-           rjl.ai_score, rjl.ai_verdict, rjl.url, j.id as internal_job_id
+    SELECT rjl.id, rjl.linkedin_job_id, rjl.job_source, rjl.title, rjl.company, rjl.location,
+           rjl.ai_score, rjl.ai_verdict, rjl.url, rjl.logged_at, j.id as internal_job_id
     FROM run_job_logs rjl
-    LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id
+    LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
     WHERE rjl.run_id = ?`;
 
   const rawNewer = db.prepare(logQuery).all(runNewer.id) as LogEntry[];
@@ -109,6 +113,7 @@ router.get('/', (req: Request, res: Response) => {
     onlyInNewer,
     onlyInOlder,
     inBoth,
+    timezone: settings?.timezone || 'UTC',
   });
 });
 

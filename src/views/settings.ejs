@@ -154,7 +154,7 @@
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="block text-xs font-medium text-gray-600 mb-1">
-                <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-1"></span>NO_MATCH max
+                <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-1"></span><%= formatVerdictLabel('NO_MATCH') %> max
               </label>
               <input id="modal-no-match-max" type="number" min="0" max="99" value="50"
                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
@@ -162,7 +162,7 @@
             </div>
             <div>
               <label class="block text-xs font-medium text-gray-600 mb-1">
-                <span class="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1"></span>WEAK_MATCH max
+                <span class="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1"></span><%= formatVerdictLabel('WEAK_MATCH') %> max
               </label>
               <input id="modal-weak-match-max" type="number" min="1" max="99" value="70"
                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
@@ -170,7 +170,7 @@
             </div>
             <div>
               <label class="block text-xs font-medium text-gray-600 mb-1">
-                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span>STRONG_MATCH min
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span><%= formatVerdictLabel('STRONG_MATCH') %> min
               </label>
               <input id="modal-strong-match-min" type="number" min="1" max="100" value="71"
                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />

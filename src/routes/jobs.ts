@@ -3,7 +3,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type JobWithState } from '../db';
+import { getDb, type JobWithState, type SettingsRow } from '../db';
 
 const router = Router();
 const PAGE_DATES = 10; // number of distinct run-dates shown per page
@@ -70,7 +70,7 @@ router.get('/', (req: Request, res: Response) => {
   `).get(profileId, profileId) as { c: number }).c;
 
   // Only the columns the jobs.ejs template actually reads
-  const COLS = `j.id, j.title, j.company, j.location, j.url,
+  const COLS = `j.id, j.title, j.company, j.location, j.url, j.job_source,
                 jps.ai_score, jps.ai_verdict, jps.is_duplicate, jps.ai_summary,
                 jps.fetched_at, jps.applied, jps.user_notes`;
   const FROM = `FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id`;
@@ -126,6 +126,7 @@ router.get('/', (req: Request, res: Response) => {
   const companyNoteRows = db.prepare('SELECT company, note FROM company_notes WHERE profile_id = ?').all(profileId) as Array<{ company: string; note: string }>;
   const companyNotes: Record<string, string> = {};
   for (const r of companyNoteRows) { if (r.note) companyNotes[r.company] = r.note; }
+  const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
 
   res.render('jobs', {
     dateGroups,
@@ -134,6 +135,7 @@ router.get('/', (req: Request, res: Response) => {
     page, totalPages, pageNewest, pageOldest,
     title: 'Jobs Match',
     companyNotes,
+    timezone: settings?.timezone || 'UTC',
   });
 });
 

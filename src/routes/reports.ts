@@ -42,6 +42,7 @@ function extractCountry(location: string | null): string {
 
 interface JobLogWithInternalId extends RunJobLogRow {
   internal_job_id: number | null;
+  job_source: string;
 }
 
 export interface FormattedJob {
@@ -53,9 +54,11 @@ export interface FormattedJob {
   location: string | null;
   country: string;
   url: string | null;
+  job_source: string;
   ai_score: number | null;
   ai_verdict: string;
   rejection_category: string | null;
+  logged_at: string;
   logged_date: string;
   logged_time: string;
 }
@@ -83,9 +86,11 @@ function processJobs(logs: JobLogWithInternalId[], timezone: string): FormattedJ
       location: log.location,
       country: extractCountry(log.location),
       url: log.url,
+      job_source: log.job_source || 'LinkedIn',
       ai_score: log.ai_score,
       ai_verdict: log.ai_verdict,
       rejection_category: log.rejection_category,
+      logged_at: log.logged_at,
       logged_date: date,
       logged_time: time,
     };
@@ -167,7 +172,7 @@ router.get('/', (req: Request, res: Response) => {
     };
   });
 
-  res.render('reports', { runs: runSummaries, title: 'Run Logs' });
+  res.render('reports', { runs: runSummaries, title: 'Run Logs', timezone });
 });
 
 // GET /reports/runs/:id/logs — JSON fragment for lazy-load

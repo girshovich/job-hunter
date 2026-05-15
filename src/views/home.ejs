@@ -6,11 +6,7 @@ function scoreTextColor(score) {
 }
 const tz = timezone || 'UTC';
 function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: tz });
-  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-  return `${date} ${time}`;
+  return formatDateTimeToMinutes(iso, tz);
 }
 function statusColor(s) {
   if (s === 'success') return 'text-emerald-700 bg-emerald-50';
@@ -18,13 +14,7 @@ function statusColor(s) {
   return 'text-red-700 bg-red-50';
 }
 function verdictChip(verdict) {
-  const chips = {
-    STRONG_MATCH: '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong ▾</span>',
-    WEAK_MATCH:   '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">Weak ▾</span>',
-    NO_MATCH:     '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-500 whitespace-nowrap">No match ▾</span>',
-    DUPLICATE:    '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Dup ▾</span>',
-  };
-  return chips[verdict] || '';
+  return renderVerdictChip(verdict, { editable: isVerdictEditable(verdict) });
 }
 %>
 
@@ -219,28 +209,17 @@ function verdictChip(verdict) {
           <div class="flex items-center justify-between gap-3">
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-gray-900 truncate"><%= job.title %></p>
-              <p class="text-xs text-gray-400 mt-0.5 truncate"><%= job.company %><% if (job.location) { %> · <%= job.location %><% } %></p>
+              <p class="text-xs text-gray-400 mt-0.5 truncate">
+                <span class="md:hidden"><%= job.company %></span>
+                <span class="hidden md:inline"><%= job.company %><% if (job.location) { %> · <%= job.location %><% } %></span>
+              </p>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <button onclick="quickToggleApplied(event,<%= job.id %>,this)"
-                      data-applied="<%= job.applied ? '1' : '0' %>"
-                      class="<%= job.applied ? 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap' : 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap' %>"
-                      style="width:70px;text-align:center;">
-                <%= job.applied ? '✓ Applied' : 'Applied' %>
-              </button>
+            <div class="hidden md:flex items-center gap-2 flex-shrink-0">
               <button class="verdict-btn" data-job-id="<%= job.id %>" data-verdict="<%= job.is_duplicate ? 'DUPLICATE' : job.ai_verdict %>" data-chip-style="compact"><%- verdictChip(job.is_duplicate ? 'DUPLICATE' : job.ai_verdict) %></button>
-              <span class="inline-block font-bold text-xs score-badge <%= scoreTextColor(job.ai_score) %> px-2 py-0.5 rounded">
-                <%= job.ai_score %>%
-              </span>
-              <% if (job.url) { %>
-              <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer"
-                 title="View on <%= job.job_source || 'LinkedIn' %>"
-                 onclick="event.stopPropagation()"
-                 class="text-gray-300 hover:text-gray-500 text-sm transition-colors">↗</a>
-              <% } else { %>
-              <span class="text-gray-200 text-sm">—</span>
-              <% } %>
+              <%- renderScoreCell(job.ai_score) %>
+              <%- renderSourceLinkCell(job.url, job.job_source || 'LinkedIn') %>
             </div>
+            <div class="md:hidden flex-shrink-0"><%- renderScoreCell(job.ai_score) %></div>
           </div>
         </li>
         <% }); %>
@@ -262,13 +241,8 @@ async function quickToggleApplied(event, jobId, btn) {
   event.stopPropagation();
   const next = btn.dataset.applied !== '1';
   btn.dataset.applied = next ? '1' : '0';
-  if (next) {
-    btn.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap';
-    btn.textContent = '✓ Applied';
-  } else {
-    btn.className = 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap';
-    btn.textContent = 'Applied';
-  }
+  btn.className = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium border transition-colors whitespace-nowrap ' + window.JHUI.getAppliedTone(next);
+  btn.textContent = window.JHUI.formatAppliedLabel(next);
   await fetch('/api/jobs/' + jobId + '/applied', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ applied: next }),

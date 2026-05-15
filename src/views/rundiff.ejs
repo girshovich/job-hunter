@@ -1,41 +1,14 @@
 <%
 function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(String(iso));
-  if (isNaN(d.getTime())) return String(iso).slice(0, 16);
-  const offset = 4 * 60;
-  const local = new Date(d.getTime() + offset * 60_000);
-  return local.toISOString().slice(0, 16).replace('T', ' ') + ' GMT+4';
+  return formatDateTimeToMinutes(iso, typeof timezone !== 'undefined' ? timezone : 'UTC');
 }
 
 function verdictChip(verdict) {
-  if (verdict === 'STRONG_MATCH')
-    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong fit</span>';
-  if (verdict === 'WEAK_MATCH')
-    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">Weak fit</span>';
-  if (verdict === 'NO_MATCH')
-    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap">No fit</span>';
-  if (verdict === 'DUPLICATE')
-    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Duplicate</span>';
-  if (verdict === 'BLACKLISTED')
-    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">Blacklisted</span>';
-  if (verdict === 'FILTERED')
-    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 whitespace-nowrap">Filtered</span>';
-  return '';
-}
-
-function scoreColor(score) {
-  if (score == null) return 'text-gray-300';
-  if (score >= 71) return 'text-emerald-600 font-semibold';
-  if (score >= 51) return 'text-yellow-600 font-semibold';
-  return 'text-red-500';
+  return renderVerdictChip(verdict, { editable: isVerdictEditable(verdict), rounded: true });
 }
 %>
 
-<div class="mb-6">
-  <h1 class="text-2xl font-bold text-gray-900">Run Diff</h1>
-  <p class="text-sm text-gray-500 mt-1">Comparing the last 2 pipeline runs</p>
-</div>
+<%- renderPageHeader('Run Diff', 'Comparing the last 2 pipeline runs') %>
 
 <% if (error) { %>
 <div class="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700"><%= error %></div>
@@ -119,46 +92,48 @@ function jobTable(jobs) {
     return '<p class="px-5 py-6 text-sm text-gray-400 text-center">No jobs.</p>';
   }
 
-  // Desktop table rows
   let desktopRows = jobs.map(job => {
-    const scoreCell = `<td class="py-2.5 px-1 w-0 whitespace-nowrap text-right" style="min-width:2.25rem;">${job.ai_score != null ? `<span class="text-xs ${scoreColor(job.ai_score)}">${job.ai_score}</span>` : ''}</td>`;
-    const link = job.url
-      ? `<a href="${job.url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>`
-      : '<span class="text-gray-300 text-xs">—</span>';
-    const loc = job.location ? `<span class="text-xs text-gray-400 truncate max-w-[180px] block">${job.location}</span>` : '';
-    const titleHtml = job.internal_job_id
-      ? `<a href="/job/${job.internal_job_id}" class="hover:text-blue-600 transition-colors block">${job.title}</a>`
-      : `<span class="block">${job.title}</span>`;
-    const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${job.internal_job_id || ''}" data-url="${job.url || ''}" data-log-id="${job.id}" data-verdict="${job.ai_verdict}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
-    return `<tr class="hover:bg-gray-50 transition-colors">
-      <td class="px-5 py-2.5 text-sm text-gray-700 font-medium whitespace-nowrap w-0 max-w-[200px] truncate">${job.company}</td>
-      <td class="px-3 py-2.5 text-sm text-gray-900">
-        ${titleHtml}
-        ${loc}
-      </td>
-      <td class="pl-3 py-2.5 w-0 whitespace-nowrap text-right">${chip}</td>
-      ${scoreCell}
-      <td class="pl-2 pr-5 py-2.5 w-0 whitespace-nowrap">${link}</td>
+    const href = job.internal_job_id ? `/job/${job.internal_job_id}` : null;
+    const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${escapeHtml(job.internal_job_id || '')}" data-url="${escapeHtml(job.url || '')}" data-log-id="${escapeHtml(job.id)}" data-verdict="${escapeHtml(job.ai_verdict)}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
+    return `<tr class="${getJobTableRowClass()}">
+      <td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company, href)}</td>
+      <td class="${getJobTableCellClass()}">${renderLocationCell(job.location)}</td>
+      <td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score)}</td>
+      <td class="${getJobTableCellClass('verdict')}">${chip}</td>
+      <td class="${getJobTableCellClass('date')}">${renderDateTimeCell(job.logged_at, typeof timezone !== 'undefined' ? timezone : 'UTC')}</td>
+      <td class="${getJobTableCellClass('source')}">${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</td>
     </tr>`;
   }).join('');
 
-  // Mobile cards
   let mobileCards = jobs.map(job => {
     const target = job.internal_job_id ? `/job/${job.internal_job_id}` : (job.url || null);
-    const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${job.internal_job_id || ''}" data-url="${job.url || ''}" data-log-id="${job.id}" data-verdict="${job.ai_verdict}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
-    const scoreSpan = `<span class="text-xs text-right" style="min-width:1.75rem;display:inline-block;">${job.ai_score != null ? `<span class="${scoreColor(job.ai_score)}">${job.ai_score}</span>` : ''}</span>`;
-    const locHtml = job.location ? `<p class="text-xs text-gray-400 truncate mt-0.5">${job.location}</p>` : '';
-    return `<div class="px-4 py-3 hover:bg-gray-50 transition-colors${target ? ' cursor-pointer' : ''}"${target ? ` onclick="location.href='${target}'"` : ''}>
-      <div class="flex items-center justify-between gap-2 mb-0.5">
-        <span class="text-sm font-medium text-gray-700 truncate">${job.company}</span>
-        <div class="flex items-center gap-1.5 flex-shrink-0">${chip}${scoreSpan}</div>
+    const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${escapeHtml(job.internal_job_id || '')}" data-url="${escapeHtml(job.url || '')}" data-log-id="${escapeHtml(job.id)}" data-verdict="${escapeHtml(job.ai_verdict)}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
+    const clickAttr = target ? ` onclick="location.href=${escapeHtml(JSON.stringify(target))}"` : '';
+    return `<div class="${getJobMobileCardClass(target ? 'cursor-pointer' : '')}"${clickAttr}>
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <span class="job-identity-title text-sm font-semibold text-gray-900">${escapeHtml(job.title || 'Untitled role')}</span>
+        </div>
+        <div class="flex-shrink-0">${renderScoreCell(job.ai_score)}</div>
       </div>
-      <p class="text-xs text-gray-500 truncate">${job.title}</p>
-      ${locHtml}
+      <div class="mt-1 flex items-start justify-between gap-3">
+        <span class="job-identity-meta text-xs text-gray-500">${escapeHtml(job.company || 'Unknown company')}</span>
+        <div class="flex-shrink-0">${chip}</div>
+      </div>
+      <div class="mt-2">${renderLocationCell(job.location)}</div>
+      <div class="mt-3 flex items-center justify-between gap-3">
+        ${renderDateTimeCell(job.logged_at, typeof timezone !== 'undefined' ? timezone : 'UTC')}
+        ${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}
+      </div>
     </div>`;
   }).join('');
 
-  return `<table class="hidden md:table w-full"><tbody class="divide-y divide-gray-50">${desktopRows}</tbody></table><div class="md:hidden divide-y divide-gray-50">${mobileCards}</div>`;
+  return `<table class="${getJobTableClass()}">
+    ${renderJobsAllColgroup()}
+    ${renderJobTableHeader('run-diff')}
+    <tbody class="bg-white divide-y divide-gray-50">${desktopRows}</tbody>
+  </table>
+  <div class="${getJobMobileListClass()} p-3">${mobileCards}</div>`;
 }
 %>
 
@@ -168,9 +143,9 @@ function jobTable(jobs) {
   <a id="job-menu-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">Open on LinkedIn</a>
   <div class="mt-1 pt-1 border-t border-gray-100">
     <p class="px-3 py-1 text-xs font-medium text-gray-400">Change verdict</p>
-    <button onclick="menuSetVerdict('STRONG_MATCH')" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-emerald-50 text-emerald-700 w-full text-left transition-colors">✅ Strong fit</button>
-    <button onclick="menuSetVerdict('WEAK_MATCH')"   class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-yellow-50 text-yellow-700 w-full text-left transition-colors">⚠️ Weak fit</button>
-    <button onclick="menuSetVerdict('NO_MATCH')"     class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600 w-full text-left transition-colors">❌ No fit</button>
+    <button onclick="menuSetVerdict('STRONG_MATCH')" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-emerald-50 text-emerald-700 w-full text-left transition-colors">Strong</button>
+    <button onclick="menuSetVerdict('WEAK_MATCH')"   class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-yellow-50 text-yellow-700 w-full text-left transition-colors">Weak</button>
+    <button onclick="menuSetVerdict('NO_MATCH')"     class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600 w-full text-left transition-colors">No match</button>
   </div>
 </div>
 
@@ -206,13 +181,8 @@ function showJobMenu(event, el) {
 }
 
 function verdictChipStatic(verdict) {
-  if (verdict === 'STRONG_MATCH') return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong fit</span>';
-  if (verdict === 'WEAK_MATCH')   return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">Weak fit</span>';
-  if (verdict === 'NO_MATCH')     return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap">No fit</span>';
-  if (verdict === 'DUPLICATE')    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Duplicate</span>';
-  if (verdict === 'BLACKLISTED')  return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">Blacklisted</span>';
-  if (verdict === 'FILTERED')     return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 whitespace-nowrap">Filtered</span>';
-  return verdict;
+  const label = window.JHUI.formatVerdictLabel(verdict) + (window.JHUI.isVerdictEditable(verdict) ? ' ▾' : '');
+  return '<span class="inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium ' + window.JHUI.getVerdictTone(verdict) + ' whitespace-nowrap">' + label + '</span>';
 }
 
 async function menuSetVerdict(newVerdict) {
@@ -223,8 +193,7 @@ async function menuSetVerdict(newVerdict) {
   const current = el.dataset.verdict;
   if (newVerdict === current) return;
 
-  const labels = { STRONG_MATCH: 'Strong fit', WEAK_MATCH: 'Weak fit', NO_MATCH: 'No fit' };
-  if (!confirm('Change verdict to "' + (labels[newVerdict] || newVerdict) + '"?')) return;
+  if (!confirm('Change verdict to "' + window.JHUI.formatVerdictLabel(newVerdict) + '"?')) return;
 
   const internalId = el.dataset.internalId;
   const logId = el.dataset.logId;
