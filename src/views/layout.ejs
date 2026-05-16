@@ -238,6 +238,14 @@
       <div class="app-content">
         <%- body %>
       </div>
+      <footer class="hidden md:block bg-white border-t border-gray-200">
+        <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
+          <a href="/pricing" class="<%= title === 'Pricing' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Pricing</a>
+          <a href="/terms" class="<%= title === 'Terms' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Terms</a>
+          <a href="/privacy" class="<%= title === 'Privacy' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Privacy</a>
+          <a href="/refunds" class="<%= title === 'Refunds' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Refunds</a>
+        </div>
+      </footer>
     </main>
   </div>
 
@@ -293,6 +301,22 @@
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span class="text-sm font-medium">Settings</span>
         </a>
+        <div class="px-3 pt-1 pb-0.5">
+          <div class="flex items-center gap-1.5">
+            <p class="text-[10px] uppercase tracking-wide text-gray-500">Legal</p>
+            <div class="flex-1 h-px bg-gray-700"></div>
+          </div>
+          <div class="mt-1 flex items-center gap-1">
+            <a href="/pricing" onclick="closeProfileSheet()"
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Pricing' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Pricing</a>
+            <a href="/terms" onclick="closeProfileSheet()"
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Terms' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Terms</a>
+            <a href="/privacy" onclick="closeProfileSheet()"
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Privacy' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Privacy</a>
+            <a href="/refunds" onclick="closeProfileSheet()"
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Refunds' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Refunds</a>
+          </div>
+        </div>
         <form method="POST" action="/logout">
           <button type="submit"
                   class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-400 hover:bg-white/5 transition-colors">
