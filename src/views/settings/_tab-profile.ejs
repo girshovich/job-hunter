@@ -59,9 +59,15 @@
     <div class="mb-3">
       <h2 class="text-base font-semibold text-gray-900">Current location (country)</h2>
     </div>
-    <input type="text" name="current_location" value="<%= settings.current_location || '' %>"
-           placeholder="e.g. Cyprus"
-           class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+    <select name="current_location" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+      <option value="">— not set —</option>
+      <% locationCountries.forEach(function(country) { %>
+        <option value="<%= country %>" <%= settings.current_location === country ? 'selected' : '' %>><%= country %></option>
+      <% }) %>
+      <% if (settings.current_location && !locationCountries.includes(settings.current_location)) { %>
+        <option value="<%= settings.current_location %>" selected><%= settings.current_location %> (custom)</option>
+      <% } %>
+    </select>
   </div>
 
   <!-- TIMEZONE -->

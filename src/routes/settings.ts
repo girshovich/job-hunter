@@ -9,6 +9,7 @@ import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { Resend } from 'resend';
 import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
+import ALL_COUNTRIES from '../pipeline/countries.json';
 
 const router = Router();
 
@@ -74,6 +75,8 @@ router.get('/', (req: Request, res: Response) => {
     ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
     : [];
 
+  const locationCountries = ALL_COUNTRIES;
+
   const errorParam = String(req.query.error || '');
   const queryError = errorParam === 'email-taken-on-confirm'
     ? 'That email is already in use by another account. Email change cancelled.'
@@ -97,6 +100,7 @@ router.get('/', (req: Request, res: Response) => {
     isAdmin: req.profile.isAdmin,
     profileEmail: req.profile.email,
     pendingEmailChange: getPendingEmailChange(db, profileId),
+    locationCountries,
     pageMaxWidth: '48rem',
   });
 });
@@ -327,6 +331,7 @@ router.post('/', async (req: Request, res: Response) => {
     const allProfiles = req.profile.isAdmin
       ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
       : [];
+    const locationCountries = ALL_COUNTRIES;
     res.status(400).render('settings', {
       settings,
       groups: getGroups(db, profileId),
@@ -338,6 +343,7 @@ router.post('/', async (req: Request, res: Response) => {
       activeTab: tab,
       rolesLastSaved: null,
       allProfiles,
+      locationCountries,
       pageMaxWidth: '48rem',
       isAdmin: req.profile.isAdmin,
       profileEmail: req.profile.email,
@@ -396,6 +402,7 @@ router.post('/cvs/upload', upload.single('cv_file'), (req: Request, res: Respons
     const allProfiles = req.profile.isAdmin
       ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
       : [];
+    const locationCountries = ALL_COUNTRIES;
     res.status(400).render('settings', {
       settings,
       groups: getGroups(db, profileId),
@@ -407,6 +414,7 @@ router.post('/cvs/upload', upload.single('cv_file'), (req: Request, res: Respons
       activeTab: 'roles',
       rolesLastSaved: null,
       allProfiles,
+      locationCountries,
       isAdmin: req.profile.isAdmin,
       profileEmail: req.profile.email,
       pendingEmailChange: getPendingEmailChange(db, profileId),
