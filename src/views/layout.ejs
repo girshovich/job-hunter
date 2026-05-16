@@ -8,13 +8,17 @@
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     [x-cloak] { display: none !important; }
+    :root { --page-max-w: <%= locals.pageMaxWidth || '72rem' %>; }
     .score-badge { font-variant-numeric: tabular-nums; }
+    html, body { overflow: hidden; }
     .app-shell { height: 100dvh; min-height: 100%; background: #f9fafb; overflow: hidden; }
     .app-sidebar { width: 14rem; height: 100dvh; overflow: hidden; overscroll-behavior: contain; }
     .app-sidebar nav { overflow-y: visible; }
-    .app-main { min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
-    .app-content { width: 100%; max-width: 72rem; margin-inline: auto; padding: 2rem 1.5rem 5rem; flex: 1 0 auto; }
-    .app-footer { width: 100%; max-width: 72rem; margin-inline: auto; padding-inline: 1.5rem; flex-shrink: 0; }
+    .app-main { min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden; }
+    .app-content { width: 100%; max-width: var(--page-max-w); min-height: 100%; display: flex; flex-direction: column; }
+    .app-page { flex: 1 0 auto; padding: 2rem 1.5rem 2rem; }
+    @media (max-width: 767px) { .app-page { padding-bottom: 5rem; } }
+    .app-footer { flex-shrink: 0; padding: 0 1.5rem 1.5rem; }
     .mobile-bottom-nav {
       height: calc(4rem + env(safe-area-inset-bottom, 0px));
       padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -68,7 +72,6 @@
       overflow: hidden;
     }
     @media (min-width: 768px) {
-      .app-content { padding-bottom: 2rem; }
       .job-mobile-list { display: none; }
       .job-desktop-table { display: table; }
     }
@@ -224,18 +227,20 @@
     </aside>
 
     <!-- Main content -->
-    <main class="app-main flex-1 overflow-y-auto">
+    <main class="app-main flex-1">
       <div class="app-content">
-        <%- body %>
-      </div>
-      <footer class="app-footer hidden md:block">
-        <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
-          <a href="/pricing" class="<%= title === 'Pricing' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Pricing</a>
-          <a href="/terms" class="<%= title === 'Terms' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Terms</a>
-          <a href="/privacy" class="<%= title === 'Privacy' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Privacy</a>
-          <a href="/refunds" class="<%= title === 'Refunds' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Refunds</a>
+        <div class="app-page">
+          <%- body %>
         </div>
-      </footer>
+        <footer class="app-footer hidden md:block">
+          <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
+            <a href="/pricing" class="<%= title === 'Pricing' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Pricing</a>
+            <a href="/terms" class="<%= title === 'Terms' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Terms</a>
+            <a href="/privacy" class="<%= title === 'Privacy' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Privacy</a>
+            <a href="/refunds" class="<%= title === 'Refunds' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Refunds</a>
+          </div>
+        </footer>
+      </div>
     </main>
   </div>
 

@@ -97,6 +97,7 @@ router.get('/', (req: Request, res: Response) => {
     isAdmin: req.profile.isAdmin,
     profileEmail: req.profile.email,
     pendingEmailChange: getPendingEmailChange(db, profileId),
+    pageMaxWidth: '48rem',
   });
 });
 
@@ -337,6 +338,7 @@ router.post('/', async (req: Request, res: Response) => {
       activeTab: tab,
       rolesLastSaved: null,
       allProfiles,
+      pageMaxWidth: '48rem',
       isAdmin: req.profile.isAdmin,
       profileEmail: req.profile.email,
       pendingEmailChange: getPendingEmailChange(db, profileId),
