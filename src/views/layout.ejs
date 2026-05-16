@@ -5,26 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Job Hunter — <%= title %></title>
   <link rel="icon" href="/icon.ico">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: { 50: '#EFF6FF', 500: '#3B82F6', 600: '#2563EB', 700: '#1D4ED8' }
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     [x-cloak] { display: none !important; }
     .score-badge { font-variant-numeric: tabular-nums; }
     .app-shell { height: 100dvh; min-height: 100%; background: #f9fafb; overflow: hidden; }
     .app-sidebar { width: 14rem; height: 100dvh; overflow: hidden; overscroll-behavior: contain; }
     .app-sidebar nav { overflow-y: visible; }
-    .app-main { min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden; }
-    .app-content { width: 100%; max-width: 72rem; margin-inline: auto; padding: 2rem 1.5rem 5rem; }
+    .app-main { min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
+    .app-content { width: 100%; max-width: 72rem; margin-inline: auto; padding: 2rem 1.5rem 5rem; flex: 1 0 auto; }
+    .app-footer { width: 100%; max-width: 72rem; margin-inline: auto; padding-inline: 1.5rem; flex-shrink: 0; }
     .mobile-bottom-nav {
       height: calc(4rem + env(safe-area-inset-bottom, 0px));
       padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -238,8 +228,8 @@
       <div class="app-content">
         <%- body %>
       </div>
-      <footer class="hidden md:block bg-white border-t border-gray-200">
-        <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
+      <footer class="app-footer hidden md:block">
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
           <a href="/pricing" class="<%= title === 'Pricing' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Pricing</a>
           <a href="/terms" class="<%= title === 'Terms' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Terms</a>
           <a href="/privacy" class="<%= title === 'Privacy' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Privacy</a>
@@ -592,7 +582,7 @@
         <button onclick="scheduleStop(); closeScheduleStatusModal();"
                 class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118zM9 10h6v4H9z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10h6v4H9z"/>
           </svg>
           Stop Schedule
         </button>

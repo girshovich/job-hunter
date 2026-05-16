@@ -5,7 +5,8 @@
   "private": true,
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && rm -rf dist/views dist/public && cp -r src/views dist/views && cp -r src/public dist/public",
+    "build:css": "tailwindcss -c tailwind.config.js -i ./src/styles/tailwind.css -o ./src/public/css/tailwind.css --minify",
+    "build": "npm run build:css && tsc && rm -rf dist/views dist/public && cp -r src/views dist/views && cp -r src/public dist/public",
     "start": "node dist/index.js",
     "dev": "ts-node --transpile-only src/index.ts",
     "typecheck": "tsc --noEmit"
@@ -27,6 +28,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.0.0",
     "@types/node-cron": "^3.0.11",
+    "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3"
   }

@@ -5,75 +5,89 @@
   </header>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Data collected</h2>
+    <h2 class="text-base font-semibold text-gray-900">Who this applies to</h2>
+    <p class="text-sm text-gray-700">This policy covers Job Hunter, including the hosted service and the public pages for pricing, terms, refunds, and privacy. Privacy questions can be sent to <a href="mailto:<%= supportEmail %>" class="text-blue-700 hover:underline"><%= supportEmail %></a>.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Data we collect</h2>
     <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>Account and login data such as email and session records.</li>
-      <li>Settings and job search preferences: roles, locations, languages, and profile text.</li>
-      <li>API keys when you use bring-your-own-key mode.</li>
-      <li>CV uploads and CV comparison artifacts.</li>
-      <li>Saved jobs, notes, verdict overrides, and applied status.</li>
-      <li>Usage, run, and cost logs for billing and debugging.</li>
-      <li>Payment/customer status metadata received from Paddle.</li>
+      <li>Account data: your email address, account creation time, admin status, login codes, email-change requests, and session records.</li>
+      <li>Profile and search settings: roles, keywords, locations, work modes, preferred languages, current location, profile text, scoring rules, prompts, schedules, and notification settings.</li>
+      <li>Provider credentials: OpenAI, Apify, and Resend API keys when you enter them in settings.</li>
+      <li>CV data: uploaded PDF, TXT, or MD files, filenames, file type, file size, upload time, and CV comparison results.</li>
+      <li>Job workflow data: fetched job posts, job descriptions, companies, locations, URLs, AI scores, rationales, summaries, duplicate status, verdict overrides, applied status, notes, blacklisted companies, and company notes.</li>
+      <li>Operational data: run history, run status, error logs, provider/source labels, token/cost estimates, and ATS board discovery data.</li>
     </ul>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">How data is used</h2>
+    <h2 class="text-base font-semibold text-gray-900">How we use it</h2>
     <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>Run job searches and filtering workflows.</li>
-      <li>Call AI and scraping providers for scoring and enrichment.</li>
-      <li>Send digest and operational emails.</li>
-      <li>Calculate and audit credit usage.</li>
-      <li>Operate, improve, and debug the service.</li>
+      <li>Create and protect your account, including passwordless login and session management.</li>
+      <li>Fetch jobs from configured providers and ATS boards, filter them against your settings, and save useful results.</li>
+      <li>Send job posts, profile criteria, prompts, and CV content to configured AI providers when scoring, summarizing, deduplicating, or comparing CVs.</li>
+      <li>Send login codes, email-change confirmations, test emails, and job digest emails through the configured email provider.</li>
+      <li>Show analytics, run logs, job history, and cost estimates inside the app.</li>
+      <li>Maintain, debug, secure, and improve the service.</li>
     </ul>
   </section>
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-gray-900">Sensitive data notice</h2>
-    <p class="text-sm text-gray-700">CVs, profile prompts, and job-preference text may include personal employment history. When you run scoring or CV comparison, this information is sent to configured AI providers for processing.</p>
+    <p class="text-sm text-gray-700">CVs, profile descriptions, prompts, notes, and job preferences can include employment history, location preferences, immigration or relocation context, and other personal details. Only upload information you are comfortable using for job-search automation.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Third parties</h2>
-    <p class="text-sm text-gray-700">Processors and integrations can include Paddle, AI providers (such as OpenAI or Anthropic), Apify or scraping providers, Resend/email providers, and infrastructure or logging providers.</p>
+    <h2 class="text-base font-semibold text-gray-900">Third-party services</h2>
+    <p class="text-sm text-gray-700">Job Hunter uses third-party services only where needed to run the product. Based on the current app code, those services can include OpenAI for AI scoring, summaries, deduplication, balance checks, and CV comparison; Apify and scraping providers for job collection; Resend for email delivery; and job sources such as LinkedIn, Indeed, StepStone, Greenhouse, Ashby, and Lever.</p>
+    <p class="text-sm text-gray-700">Those providers process the data sent to them under their own terms and privacy policies. For example, AI requests can include job descriptions, your role criteria, prompt text, and, when you choose CV comparison, your selected CV.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Payments through Paddle</h2>
+    <p class="text-sm text-gray-700">Public pricing, terms, and refund pages refer to Paddle for hosted payments. If you buy hosted credits through Paddle, Paddle handles checkout and payment processing. Do not enter card details directly into Job Hunter; the current app code does not include a Paddle checkout form, Paddle SDK, payment webhook route, billing table, or card-data storage.</p>
+    <p class="text-sm text-gray-700">If Paddle payment integration is enabled for the hosted service, Job Hunter should only use the billing information needed to recognize the transaction, support the account, handle refunds, and meet legal or tax requirements. Card details are handled by Paddle, not by this app.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Cookies and local storage</h2>
+    <p class="text-sm text-gray-700">The app uses an HTTP-only session cookie named <span class="font-mono text-xs">jh_session</span> to keep you signed in. It also uses browser local storage for small interface preferences, such as whether a dashboard guide is open. The inspected code does not include advertising cookies or third-party analytics trackers.</p>
   </section>
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-gray-900">API key storage</h2>
-    <p class="text-sm text-gray-700">At this time, API keys configured in app settings are stored in the app database as plain text, not encrypted at rest by the application layer. Restrict infrastructure access and prefer self-hosting controls if this is a concern.</p>
+    <p class="text-sm text-gray-700">API keys entered in settings are stored in the application database as text. The current code does not add application-level encryption for those keys. Keep infrastructure access restricted, rotate keys when needed, and delete keys from settings when you no longer want the app to use them.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Payment data</h2>
-    <p class="text-sm text-gray-700">Card and payment details are handled by Paddle. The service receives limited billing/customer/payment status information needed for account and credit management.</p>
+    <h2 class="text-base font-semibold text-gray-900">Retention and deletion</h2>
+    <p class="text-sm text-gray-700">Account, settings, CV, job, note, and run data is kept while the account or hosted workspace exists so the app can show history and continue scheduled workflows. CV files can be deleted from settings. Other deletion, export, or correction requests can be sent to the contact email above, subject to any records that must be kept for legal, security, support, tax, refund, or payment-dispute reasons.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Retention</h2>
-    <p class="text-sm text-gray-700">Account data is kept while your account exists. Usage and run logs may be retained for billing, security, and debugging. Data can be deleted on request unless retention is required for legal or payment records.</p>
-  </section>
-
-  <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Your rights</h2>
+    <h2 class="text-base font-semibold text-gray-900">Your choices and rights</h2>
     <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
       <li>Request access, export, correction, or deletion of your data.</li>
-      <li>Revoke, rotate, or remove API keys.</li>
-      <li>Delete uploaded CVs and related artifacts.</li>
+      <li>Change your login email, notification preferences, timezone, languages, current location, roles, prompts, and search settings.</li>
+      <li>Rotate, revoke, or remove API keys in settings.</li>
+      <li>Delete uploaded CVs from settings.</li>
+      <li>Turn off email digests in profile settings.</li>
     </ul>
   </section>
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-gray-900">Security</h2>
-    <p class="text-sm text-gray-700">Reasonable practical safeguards are used, but no method of storage or transmission is completely secure.</p>
+    <p class="text-sm text-gray-700">Job Hunter uses passwordless email login, expiring login codes, session records, file type and size limits for CV uploads, and profile-scoped database queries for user data. No method of storage or transmission is completely secure, and self-hosted users are responsible for their own server, database, network, backups, and access controls.</p>
   </section>
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-gray-900">International transfers</h2>
-    <p class="text-sm text-gray-700">Third-party providers may process data in countries different from your own jurisdiction.</p>
+    <p class="text-sm text-gray-700">The service and its providers may process data in countries different from where you live. This can happen when job providers, AI providers, email providers, Paddle, or hosting infrastructure operate internationally.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Contact</h2>
-    <p class="text-sm text-gray-700">Privacy requests: <a href="mailto:<%= supportEmail %>" class="text-blue-700 hover:underline"><%= supportEmail %></a>.</p>
+    <h2 class="text-base font-semibold text-gray-900">Changes</h2>
+    <p class="text-sm text-gray-700">This policy may be updated as the product changes, especially if hosted billing, Paddle integration, analytics, or additional providers are added. The effective date at the top shows the current version.</p>
   </section>
 </section>
