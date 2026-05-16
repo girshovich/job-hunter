@@ -196,7 +196,7 @@ router.get('/history', (req: Request, res: Response) => {
     countries,
     filters: { verdict, company, country, scoreMin, scoreMax, dateFrom, dateTo, groupId },
     timezone: histSettings?.timezone || 'UTC',
-    title: 'Jobs All',
+    title: 'All Jobs',
   });
 });
 

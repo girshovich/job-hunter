@@ -133,7 +133,7 @@ router.get('/', (req: Request, res: Response) => {
     tabGroups, activeGroupId, activeOthers, orphanCount,
     total: totalAll,
     page, totalPages, pageNewest, pageOldest,
-    title: 'Jobs Match',
+    title: 'Matches',
     companyNotes,
     timezone: settings?.timezone || 'UTC',
   });
