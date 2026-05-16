@@ -4,62 +4,65 @@
     <p class="text-sm text-gray-600">Effective date: <%= effectiveDate %></p>
   </header>
 
+  <p class="text-sm text-gray-700">This policy covers refunds for hosted credit purchases processed through Paddle. Bring-your-own-key and self-hosted modes don't involve hosted charges and are not covered here.</p>
+
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Hosted credits</h2>
-    <p class="text-sm text-gray-700">You may request a refund for remaining unused hosted credits.</p>
+    <h2 class="text-base font-semibold text-gray-900">1. Eligibility</h2>
+    <p class="text-sm text-gray-700">You may request a refund of your remaining unused credit balance if both conditions are met:</p>
+    <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
+      <li>Your unused credit balance is at least $5.00 at the time of the request.</li>
+      <li>Your request is submitted within 14 days of the original purchase date.</li>
+    </ul>
+    <p class="text-sm text-gray-700 mt-1">Requests that don't meet both conditions are not eligible.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Non-refundable parts</h2>
+    <h2 class="text-base font-semibold text-gray-900">2. What is not refundable</h2>
     <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>Credits already consumed by AI, scraping, email, or provider operations.</li>
-      <li>The 10% service fee.</li>
-      <li>Paddle/payment processing fees where non-recoverable.</li>
-      <li>Voluntary donations.</li>
+      <li>Credits already consumed by AI scoring, job scraping, email delivery, or other provider operations.</li>
+      <li>The 10% service fee on consumed credits.</li>
+      <li>Paddle's original payment processing fees on your transaction.</li>
+      <li>Unused credit balances below $5.00.</li>
     </ul>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Refund formula</h2>
-    <p class="text-sm text-gray-700">Refund amount = unused credit balance minus non-refundable fees, subject to Paddle/payment processing constraints and limits.</p>
+    <h2 class="text-base font-semibold text-gray-900">3. How usage is counted</h2>
+    <p class="text-sm text-gray-700">Credits are deducted when provider costs are incurred — when a job run executes, AI scoring happens, or emails are sent. This applies even if results were poor, listings were stale, or AI scores weren't what you expected. Credits pay for computational work, not for job-search outcomes.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">How usage is counted</h2>
-    <p class="text-sm text-gray-700">Credits are deducted when provider costs are incurred. This includes runs where job quality is poor, postings are stale, or results are not useful to you.</p>
+    <h2 class="text-base font-semibold text-gray-900">4. No outcome-based refunds</h2>
+    <p class="text-sm text-gray-700">No refunds are issued because AI scores felt wrong, no interviews resulted from your search, or third-party job data was inaccurate or expired.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">No outcome-based refunds</h2>
-    <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>No refund because AI scores felt wrong.</li>
-      <li>No refund because interviews or offers did not happen.</li>
-      <li>No refund because jobs expired or third-party source data was incorrect.</li>
-    </ul>
+    <h2 class="text-base font-semibold text-gray-900">5. How refunds are processed</h2>
+    <p class="text-sm text-gray-700">All hosted credit purchases are made through <strong>Paddle</strong>, which acts as Merchant of Record. Approved refunds are issued through Paddle and typically take 5–10 business days to appear, depending on your payment provider.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Failed or duplicate charges</h2>
-    <p class="text-sm text-gray-700">If a billing error is confirmed, the amount will be refunded or corrected with credit.</p>
+    <h2 class="text-base font-semibold text-gray-900">6. Billing errors</h2>
+    <p class="text-sm text-gray-700">If a charge was made in error — duplicate payment or a confirmed technical fault — the full incorrect amount will be refunded through Paddle. The 14-day window and $5 minimum do not apply to billing errors.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Chargebacks</h2>
-    <p class="text-sm text-gray-700">Hosted access may be suspended while chargebacks are being reviewed and resolved.</p>
+    <h2 class="text-base font-semibold text-gray-900">7. Chargebacks</h2>
+    <p class="text-sm text-gray-700">Because Paddle is the Merchant of Record, payment disputes and chargebacks go through Paddle's dispute process. Hosted service access may be suspended while a chargeback is under review.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Donations</h2>
-    <p class="text-sm text-gray-700">Donations through Ko-fi, Buy Me a Coffee, or GitHub Sponsors are voluntary and generally non-refundable, except for confirmed accidental or duplicate transactions.</p>
+    <h2 class="text-base font-semibold text-gray-900">8. BYOK and self-hosted</h2>
+    <p class="text-sm text-gray-700">Bring-your-own-key and self-hosted modes don't involve hosted credit purchases. Any charges from third-party providers you connect (OpenAI, Apify, Resend, etc.) are between you and those providers directly.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">BYOK and self-hosted modes</h2>
-    <p class="text-sm text-gray-700">Bring-your-own-key and self-hosted use do not include hosted service charges unless credits were purchased. Third-party provider charges are handled by those providers directly.</p>
+    <h2 class="text-base font-semibold text-gray-900">9. Donations</h2>
+    <p class="text-sm text-gray-700">Donations through Ko-fi, Buy Me a Coffee, or GitHub Sponsors are voluntary and non-refundable, except for confirmed accidental or duplicate transactions, which are handled by those platforms directly.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">How to request a refund</h2>
-    <p class="text-sm text-gray-700">Email <a href="mailto:<%= supportEmail %>" class="text-blue-700 hover:underline"><%= supportEmail %></a> with your Paddle transaction ID, account email, and the reason for the request.</p>
+    <h2 class="text-base font-semibold text-gray-900">10. How to request a refund</h2>
+    <p class="text-sm text-gray-700">Email <a href="mailto:<%= supportEmail %>" class="text-blue-700 hover:underline"><%= supportEmail %></a> with your Paddle transaction ID, account email, and reason for the request. We'll respond within 3 business days.</p>
   </section>
 </section>

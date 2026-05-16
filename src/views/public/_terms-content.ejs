@@ -4,86 +4,95 @@
     <p class="text-sm text-gray-600">Effective date: <%= effectiveDate %></p>
   </header>
 
+  <p class="text-sm text-gray-700">These terms govern your use of Job Hunter. By creating an account or using the service in any mode, you agree to them. If you do not agree, please do not use the service.</p>
+
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Who runs this service</h2>
-    <p class="text-sm text-gray-700">Job Hunter is run as an individual or small-project software service, not as a large corporation.</p>
+    <h2 class="text-base font-semibold text-gray-900">1. Who operates this service</h2>
+    <p class="text-sm text-gray-700">Job Hunter is operated by <strong>Mikhail Girshovich</strong>, an individual based in Armenia. This is a personal project, not a corporate product.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">What the service does</h2>
-    <p class="text-sm text-gray-700">The service automates job discovery, AI scoring, duplicate detection, email reporting, and CV-to-job comparison workflows.</p>
+    <h2 class="text-base font-semibold text-gray-900">2. Eligibility</h2>
+    <p class="text-sm text-gray-700">You must be at least 18 years old to use Job Hunter. By using the service, you confirm that you meet this requirement.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">No guarantees</h2>
-    <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>No guarantee that jobs are available, accurate, current, or relevant.</li>
-      <li>No guarantee of interviews, responses, or offers.</li>
-      <li>No guarantee of uninterrupted uptime or perfect AI judgments.</li>
+    <h2 class="text-base font-semibold text-gray-900">3. What the service does</h2>
+    <p class="text-sm text-gray-700">Job Hunter fetches job postings from third-party sources, scores them against your profile using AI, removes duplicates, sends a digest email, and gives you a dashboard to review, track, and apply to jobs. It does not apply to jobs on your behalf, guarantee interview invitations, or act as a recruiter or job board.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">4. Usage modes</h2>
+    <ul class="list-disc pl-5 space-y-1.5 text-sm text-gray-700">
+      <li><strong>Hosted with credits</strong> — use Job Hunter's hosted infrastructure. AI, scraping, and email costs are covered by a prepaid credit balance you purchase through Paddle (see Section 5). A 10% service fee applies on top of underlying costs.</li>
+      <li><strong>Bring your own keys (BYOK)</strong> — use the app for free by connecting your own OpenAI, Apify, or similar API keys. No credit purchase is required; you pay your providers directly.</li>
+      <li><strong>Self-hosted</strong> — run the open-source code from GitHub for personal, non-commercial use. You are responsible for your own infrastructure, security, and provider keys.</li>
     </ul>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Your responsibilities</h2>
+    <h2 class="text-base font-semibold text-gray-900">5. Credits and payments (hosted mode)</h2>
+    <p class="text-sm text-gray-700"><strong>What credits are.</strong> Credits are a prepaid usage balance. They cover the cost of AI processing, job scraping, and email delivery on the hosted service, plus a 10% service fee. Credits have no cash value, are non-transferable, and are tied to your account.</p>
+    <p class="text-sm text-gray-700 mt-2"><strong>Paddle as Merchant of Record.</strong> Hosted credit purchases are processed by <strong>Paddle.com Market Limited</strong> ("Paddle"), which acts as the Merchant of Record for all transactions. This means your purchase contract for credits is with Paddle, not with Mikhail Girshovich personally. Paddle handles checkout, payment processing, receipts, and the collection and remittance of applicable taxes (including VAT). Paddle's <a href="https://www.paddle.com/legal/buyer-terms" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:underline">buyer terms</a> and <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:underline">privacy policy</a> govern your transaction — please review them before purchasing.</p>
+    <p class="text-sm text-gray-700 mt-2"><strong>Unused credits.</strong> Unused credits are forfeited if your account is closed by you or terminated for cause. See the <a href="/refunds" class="text-blue-700 hover:underline">Refund Policy</a> for details on what may be refunded.</p>
+    <p class="text-sm text-gray-700 mt-2"><strong>Availability note.</strong> Hosted credit purchasing is planned but not yet available. These payment terms will take effect once the feature launches.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">6. No guarantees</h2>
     <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>Provide lawful, accurate inputs and account details.</li>
-      <li>Do not upload content you do not have rights to use.</li>
-      <li>Do not abuse provider APIs, scraping sources, or rate limits.</li>
-      <li>Keep your account and credentials secure.</li>
+      <li>Job listings may be inaccurate, outdated, or no longer available by the time you see them.</li>
+      <li>AI scores, summaries, and CV comparisons may be incomplete or wrong.</li>
+      <li>The service does not guarantee interviews, responses, or job offers.</li>
+      <li>Uptime and pipeline availability are not guaranteed.</li>
     </ul>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Third-party services</h2>
-    <p class="text-sm text-gray-700">This product may rely on Paddle, OpenAI or Anthropic, Apify and job data providers, Resend/email providers, and public sites such as LinkedIn or ATS boards. Their own terms and policies apply.</p>
-  </section>
-
-  <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Payment modes</h2>
+    <h2 class="text-base font-semibold text-gray-900">7. Your responsibilities</h2>
     <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>Hosted credits mode: paid usage via Paddle.</li>
-      <li>Bring-your-own-key mode: free app usage, provider charges paid directly by you.</li>
-      <li>Self-hosted mode: non-commercial use of the GitHub code, with your own infrastructure and security responsibilities.</li>
+      <li>Provide accurate account information and keep it up to date.</li>
+      <li>Only upload content (such as a CV) that you have the right to use.</li>
+      <li>Do not abuse or circumvent provider APIs, scraping rate limits, or service controls.</li>
+      <li>Keep your login credentials and any API keys you enter in settings secure.</li>
+      <li>Do not attempt to bypass billing, credits, or access controls.</li>
+      <li>Do not resell or sublicense hosted access to others.</li>
+      <li>Do not use the self-hosted code for commercial purposes.</li>
     </ul>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Credits and fees</h2>
-    <p class="text-sm text-gray-700">Credits are a prepaid usage balance. Hosted mode pricing includes usage costs and a separate 10% service fee, while Paddle/payment processing fees are also charged as applicable.</p>
+    <h2 class="text-base font-semibold text-gray-900">8. AI output</h2>
+    <p class="text-sm text-gray-700">AI-generated scores, summaries, and CV comparisons are automated and may be incorrect. You are responsible for any decisions you make based on them.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Acceptable use</h2>
-    <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
-      <li>No resale of hosted access.</li>
-      <li>No commercial replication of the self-hosted code.</li>
-      <li>No bulk scraping abuse or automated misuse.</li>
-      <li>No attempts to bypass limits, billing, or controls.</li>
-    </ul>
+    <h2 class="text-base font-semibold text-gray-900">9. Third-party services</h2>
+    <p class="text-sm text-gray-700">Job Hunter relies on third-party providers to operate. These can include Paddle (Merchant of Record for credit purchases), OpenAI or Anthropic (AI), Apify and other scraping providers (job collection), Resend (email delivery), and job sources such as LinkedIn, Indeed, StepStone, Greenhouse, Ashby, and Lever. Each provider's own terms and privacy policies apply to their part of the service.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">AI limitation</h2>
-    <p class="text-sm text-gray-700">AI output may be incomplete or wrong. You are responsible for decisions made from job matches, summaries, and CV analysis.</p>
+    <h2 class="text-base font-semibold text-gray-900">10. Suspension and termination</h2>
+    <p class="text-sm text-gray-700">Access may be suspended or terminated for misuse, non-payment, confirmed fraud, or unresolved chargebacks. Unused credits are forfeited upon termination for cause. You may close your account at any time by contacting support.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Suspension or termination</h2>
-    <p class="text-sm text-gray-700">Access may be limited or suspended for abuse, non-payment, confirmed fraud, or unresolved chargebacks.</p>
+    <h2 class="text-base font-semibold text-gray-900">11. Liability</h2>
+    <p class="text-sm text-gray-700">The service is provided "as is" without warranties of any kind. To the maximum extent permitted by applicable law, total liability is limited to the amount you paid for hosted credits in the most recent purchase.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Liability cap</h2>
-    <p class="text-sm text-gray-700">Where allowed by law, total liability is limited to the amount you paid for hosted service in the most recent billing period.</p>
+    <h2 class="text-base font-semibold text-gray-900">12. Governing law</h2>
+    <p class="text-sm text-gray-700">These terms are governed by the laws of the Republic of Armenia. For payment disputes involving Paddle transactions, Paddle's own dispute and resolution procedures also apply.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Changes to these terms</h2>
-    <p class="text-sm text-gray-700">Terms may be updated over time. Changes are published on this page with an updated effective date.</p>
+    <h2 class="text-base font-semibold text-gray-900">13. Changes to these terms</h2>
+    <p class="text-sm text-gray-700">These terms may be updated from time to time. Changes are published on this page with a new effective date. Continued use after a change constitutes acceptance of the updated terms.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Contact</h2>
+    <h2 class="text-base font-semibold text-gray-900">14. Contact</h2>
     <p class="text-sm text-gray-700">Questions about these terms: <a href="mailto:<%= supportEmail %>" class="text-blue-700 hover:underline"><%= supportEmail %></a>.</p>
   </section>
 </section>
