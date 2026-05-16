@@ -1,0 +1,65 @@
+<section class="space-y-6">
+  <header class="space-y-2">
+    <h1 class="text-2xl font-bold text-gray-900">Refund Policy</h1>
+    <p class="text-sm text-gray-600">Effective date: <%= effectiveDate %></p>
+  </header>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Hosted credits</h2>
+    <p class="text-sm text-gray-700">You may request a refund for remaining unused hosted credits.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Non-refundable parts</h2>
+    <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
+      <li>Credits already consumed by AI, scraping, email, or provider operations.</li>
+      <li>The 10% service fee.</li>
+      <li>Paddle/payment processing fees where non-recoverable.</li>
+      <li>Voluntary donations.</li>
+    </ul>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Refund formula</h2>
+    <p class="text-sm text-gray-700">Refund amount = unused credit balance minus non-refundable fees, subject to Paddle/payment processing constraints and limits.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">How usage is counted</h2>
+    <p class="text-sm text-gray-700">Credits are deducted when provider costs are incurred. This includes runs where job quality is poor, postings are stale, or results are not useful to you.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">No outcome-based refunds</h2>
+    <ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">
+      <li>No refund because AI scores felt wrong.</li>
+      <li>No refund because interviews or offers did not happen.</li>
+      <li>No refund because jobs expired or third-party source data was incorrect.</li>
+    </ul>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Failed or duplicate charges</h2>
+    <p class="text-sm text-gray-700">If a billing error is confirmed, the amount will be refunded or corrected with credit.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Chargebacks</h2>
+    <p class="text-sm text-gray-700">Hosted access may be suspended while chargebacks are being reviewed and resolved.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">Donations</h2>
+    <p class="text-sm text-gray-700">Donations through Ko-fi, Buy Me a Coffee, or GitHub Sponsors are voluntary and generally non-refundable, except for confirmed accidental or duplicate transactions.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">BYOK and self-hosted modes</h2>
+    <p class="text-sm text-gray-700">Bring-your-own-key and self-hosted use do not include hosted service charges unless credits were purchased. Third-party provider charges are handled by those providers directly.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-base font-semibold text-gray-900">How to request a refund</h2>
+    <p class="text-sm text-gray-700">Email <a href="mailto:<%= supportEmail %>" class="text-blue-700 hover:underline"><%= supportEmail %></a> with your Paddle transaction ID, account email, and the reason for the request.</p>
+  </section>
+</section>

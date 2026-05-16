@@ -763,9 +763,17 @@ function runMigrations(db: Database): void {
 
   // v24: composite covering index for strong-match page + job-detail prev/next queries
   try {
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_match_fetch
-             ON jobs(profile_id, ai_verdict, is_duplicate, fetched_at, ai_score, id)`);
-    console.log('[db] Migration v24: idx_jobs_match_fetch created');
+    const jobCols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    const jobColNames = new Set(jobCols.map((c) => c.name));
+    if (['profile_id', 'ai_verdict', 'is_duplicate', 'fetched_at', 'ai_score'].every((name) => jobColNames.has(name))) {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_match_fetch
+               ON jobs(profile_id, ai_verdict, is_duplicate, fetched_at, ai_score, id)`);
+      console.log('[db] Migration v24: idx_jobs_match_fetch created');
+    } else {
+      // Newer databases keep per-profile scoring state in job_profile_states, not jobs.
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_match_fetch
+               ON job_profile_states(profile_id, ai_verdict, is_duplicate, fetched_at, ai_score, job_id)`);
+    }
   } catch (err) {
     console.warn('[db] Migration v24 (idx_jobs_match_fetch) failed (non-fatal):', (err as Error).message);
   }

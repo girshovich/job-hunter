@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Hunter — Terms</title>
+  <link rel="icon" href="/icon.ico">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-full font-sans antialiased text-gray-900 bg-gray-50">
+  <div class="min-h-screen flex flex-col">
+    <header class="border-b border-gray-200 bg-white">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+        <a href="/pricing" class="font-semibold text-gray-900">Job Hunter</a>
+        <nav class="flex flex-wrap items-center justify-end gap-2 text-xs sm:text-sm text-gray-600">
+          <a href="/pricing" class="hover:text-gray-900">Pricing</a>
+          <a href="/terms" class="text-blue-700 font-medium">Terms</a>
+          <a href="/privacy" class="hover:text-gray-900">Privacy</a>
+          <a href="/refunds" class="hover:text-gray-900">Refunds</a>
+          <a href="/login" class="px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700">Sign in</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="flex-1">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 md:py-10">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 md:p-6">
+          <%- include('_terms-content') %>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

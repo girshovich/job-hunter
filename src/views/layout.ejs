@@ -20,9 +20,10 @@
   <style>
     [x-cloak] { display: none !important; }
     .score-badge { font-variant-numeric: tabular-nums; }
-    .app-shell { min-height: 100%; background: #f9fafb; }
-    .app-sidebar { width: 14rem; }
-    .app-main { min-width: 0; }
+    .app-shell { height: 100dvh; min-height: 100%; background: #f9fafb; overflow: hidden; }
+    .app-sidebar { width: 14rem; height: 100dvh; overflow: hidden; overscroll-behavior: contain; }
+    .app-sidebar nav { overflow-y: visible; }
+    .app-main { min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden; }
     .app-content { width: 100%; max-width: 72rem; margin-inline: auto; padding: 2rem 1.5rem 5rem; }
     .mobile-bottom-nav {
       height: calc(4rem + env(safe-area-inset-bottom, 0px));
@@ -33,7 +34,8 @@
       border: 1px solid #e5e7eb;
       border-radius: 0.75rem;
       box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
     .job-table {
       width: 100%;

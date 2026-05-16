@@ -11,6 +11,7 @@ import { reportsRouter } from './routes/reports';
 import { jobsRouter } from './routes/jobs';
 import { analyticsRouter } from './routes/analytics';
 import { rundiffRouter } from './routes/rundiff';
+import { publicAnonymousRouter, publicAuthedRouter } from './routes/public';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
 import { startAtsDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron } from './pipeline/atsScheduler';
 import { uiHelpers } from './uiHelpers';
@@ -28,6 +29,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Auth routes (unprotected) ──
 app.use('/', authRouter);
+app.use('/', publicAnonymousRouter);
 
 // ── Session auth gate ──
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -85,6 +87,7 @@ app.use((req, res, next) => {
 });
 
 // ── Application routes ──
+app.use('/', publicAuthedRouter);
 app.use('/', dashboardRouter);
 app.use('/settings', settingsRouter);
 app.use('/api', apiRouter);
