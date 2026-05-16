@@ -846,7 +846,7 @@ function unsavedCancel() {
 
 // ---- Initialisation (called from settings.ejs with the server-side activeTab value) ----
 
-function initSettings(activeTab) {
+function initSettings(activeTab, initialGroups) {
   _activeTab = activeTab;
 
   ['profile', 'ai'].forEach(function(tabName) {
@@ -859,7 +859,12 @@ function initSettings(activeTab) {
     });
   });
 
-  loadGroups();
+  if (Array.isArray(initialGroups)) {
+    _groups = initialGroups;
+    renderGroups();
+  } else {
+    loadGroups();
+  }
   loadBlacklist();
   snapshotForm('profile');
   snapshotForm('ai');

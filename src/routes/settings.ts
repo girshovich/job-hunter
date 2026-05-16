@@ -41,10 +41,25 @@ function getPendingEmailChange(db: ReturnType<typeof getDb>, profileId: number):
   ).get(profileId, new Date().toISOString()) as EmailChangeRequestRow | undefined) ?? null;
 }
 
+function jsonForInlineScript(value: unknown): string {
+  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (ch) => {
+    switch (ch) {
+      case '<': return '\\u003c';
+      case '>': return '\\u003e';
+      case '&': return '\\u0026';
+      case '\u2028': return '\\u2028';
+      case '\u2029': return '\\u2029';
+      default: return ch;
+    }
+  });
+}
+
 router.get('/', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
+  const groups = getGroups(db, profileId);
+  const cvs = getCvs(db, profileId);
   const saved = req.query.saved === '1';
   const validTabs = req.profile.isAdmin ? ['profile', 'roles', 'ai', 'admin'] : ['profile', 'roles', 'ai'];
   const activeTab = validTabs.includes(String(req.query.tab)) ? String(req.query.tab) : 'profile';
@@ -69,8 +84,9 @@ router.get('/', (req: Request, res: Response) => {
 
   res.render('settings', {
     settings,
-    groups: getGroups(db, profileId),
-    cvs: getCvs(db, profileId),
+    groups,
+    groupsJson: jsonForInlineScript(groups),
+    cvs,
     title: 'Settings',
     saved,
     error: queryError,

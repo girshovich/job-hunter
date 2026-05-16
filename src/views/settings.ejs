@@ -320,6 +320,9 @@
   </div>
 </div>
 
-<script>window._isAdmin = <%= isAdmin ? 'true' : 'false' %>;</script>
+<script>
+  window._isAdmin = <%= isAdmin ? 'true' : 'false' %>;
+  window._settingsInitialGroups = <%- groupsJson %>;
+</script>
 <script src="/js/settings.js"></script>
-<script>initSettings('<%= activeTab %>');</script>
+<script>initSettings('<%= activeTab %>', window._settingsInitialGroups);</script>

@@ -90,7 +90,12 @@ app.use((req, res, next) => {
 app.use('/', publicAuthedRouter);
 app.use('/', dashboardRouter);
 app.use('/settings', settingsRouter);
-app.use('/api', apiRouter);
+app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+  delete req.headers['if-none-match'];
+  delete req.headers['if-modified-since'];
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+}, apiRouter);
 app.use('/reports', reportsRouter);
 app.use('/jobs', jobsRouter);
 app.use('/analytics', analyticsRouter);
