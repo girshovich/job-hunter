@@ -96,8 +96,8 @@ function jobTable(jobs) {
     const href = job.internal_job_id ? `/job/${job.internal_job_id}` : null;
     const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${escapeHtml(job.internal_job_id || '')}" data-url="${escapeHtml(job.url || '')}" data-log-id="${escapeHtml(job.id)}" data-verdict="${escapeHtml(job.ai_verdict)}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
     return `<tr class="${getJobTableRowClass()}">
-      <td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company, href)}</td>
-      <td class="${getJobTableCellClass()}">${renderLocationCell(job.location)}</td>
+      <td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company, href, job.logo_url)}</td>
+      <td class="${getJobTableCellClass()}">${renderLocationCell(job.location, job.country)}</td>
       <td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score)}</td>
       <td class="${getJobTableCellClass('verdict')}">${chip}</td>
       <td class="${getJobTableCellClass('date')}">${renderDateTimeCell(job.logged_at, typeof timezone !== 'undefined' ? timezone : 'UTC')}</td>
@@ -117,10 +117,10 @@ function jobTable(jobs) {
         <div class="flex-shrink-0">${renderScoreCell(job.ai_score)}</div>
       </div>
       <div class="mt-1 flex items-start justify-between gap-3">
-        <span class="job-identity-meta text-xs text-gray-500">${escapeHtml(job.company || 'Unknown company')}</span>
+        <span class="job-identity-meta text-xs text-gray-500">${renderCompanyLogo(job.company, job.logo_url)} ${escapeHtml(job.company || 'Unknown company')}</span>
         <div class="flex-shrink-0">${chip}</div>
       </div>
-      <div class="mt-2">${renderLocationCell(job.location)}</div>
+      <div class="mt-2">${renderLocationCell(job.location, job.country)}</div>
       <div class="mt-3 flex items-center justify-between gap-3">
         ${renderDateTimeCell(job.logged_at, typeof timezone !== 'undefined' ? timezone : 'UTC')}
         ${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}

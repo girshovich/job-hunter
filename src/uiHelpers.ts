@@ -3,6 +3,44 @@ type Breakpoint = 'desktop' | 'mobile';
 type HtmlAttrs = Record<string, unknown>;
 type JobRowColumn = { key: string; label: string; width: string; fixed: boolean };
 
+const COUNTRY_TO_CODE: Record<string, string> = {
+  'Afghanistan': 'AF', 'Albania': 'AL', 'Algeria': 'DZ', 'Andorra': 'AD',
+  'Angola': 'AO', 'Argentina': 'AR', 'Armenia': 'AM', 'Australia': 'AU',
+  'Austria': 'AT', 'Azerbaijan': 'AZ', 'Bahrain': 'BH', 'Bangladesh': 'BD',
+  'Belarus': 'BY', 'Belgium': 'BE', 'Belize': 'BZ', 'Bolivia': 'BO',
+  'Bosnia and Herzegovina': 'BA', 'Botswana': 'BW', 'Brazil': 'BR',
+  'Brunei': 'BN', 'Bulgaria': 'BG', 'Cambodia': 'KH', 'Cameroon': 'CM',
+  'Canada': 'CA', 'Chile': 'CL', 'China': 'CN', 'Colombia': 'CO',
+  'Costa Rica': 'CR', 'Croatia': 'HR', 'Cuba': 'CU', 'Cyprus': 'CY',
+  'Czech Republic': 'CZ', 'Czechia': 'CZ', 'Denmark': 'DK',
+  'Dominican Republic': 'DO', 'Ecuador': 'EC', 'Egypt': 'EG',
+  'El Salvador': 'SV', 'Estonia': 'EE', 'Ethiopia': 'ET', 'Finland': 'FI',
+  'France': 'FR', 'Georgia': 'GE', 'Germany': 'DE', 'Ghana': 'GH',
+  'Greece': 'GR', 'Guatemala': 'GT', 'Honduras': 'HN', 'Hong Kong': 'HK',
+  'Hungary': 'HU', 'Iceland': 'IS', 'India': 'IN', 'Indonesia': 'ID',
+  'Iran': 'IR', 'Iraq': 'IQ', 'Ireland': 'IE', 'Israel': 'IL',
+  'Italy': 'IT', 'Ivory Coast': 'CI', 'Jamaica': 'JM', 'Japan': 'JP',
+  'Jordan': 'JO', 'Kazakhstan': 'KZ', 'Kenya': 'KE', 'Kosovo': 'XK',
+  'Kuwait': 'KW', 'Kyrgyzstan': 'KG', 'Latvia': 'LV', 'Lebanon': 'LB',
+  'Libya': 'LY', 'Liechtenstein': 'LI', 'Lithuania': 'LT', 'Luxembourg': 'LU',
+  'Malaysia': 'MY', 'Malta': 'MT', 'Mexico': 'MX', 'Moldova': 'MD',
+  'Monaco': 'MC', 'Mongolia': 'MN', 'Morocco': 'MA', 'Mozambique': 'MZ',
+  'Myanmar': 'MM', 'Namibia': 'NA', 'Nepal': 'NP', 'Netherlands': 'NL',
+  'New Zealand': 'NZ', 'Nicaragua': 'NI', 'Nigeria': 'NG', 'North Korea': 'KP',
+  'North Macedonia': 'MK', 'Norway': 'NO', 'Oman': 'OM', 'Pakistan': 'PK',
+  'Panama': 'PA', 'Paraguay': 'PY', 'Peru': 'PE', 'Philippines': 'PH',
+  'Poland': 'PL', 'Portugal': 'PT', 'Qatar': 'QA', 'Romania': 'RO',
+  'Russia': 'RU', 'Rwanda': 'RW', 'Saudi Arabia': 'SA', 'Senegal': 'SN',
+  'Serbia': 'RS', 'Singapore': 'SG', 'Slovakia': 'SK', 'Slovenia': 'SI',
+  'Somalia': 'SO', 'South Africa': 'ZA', 'South Korea': 'KR', 'Spain': 'ES',
+  'Sri Lanka': 'LK', 'Sudan': 'SD', 'Sweden': 'SE', 'Switzerland': 'CH',
+  'Syria': 'SY', 'Taiwan': 'TW', 'Tanzania': 'TZ', 'Thailand': 'TH',
+  'Tunisia': 'TN', 'Turkey': 'TR', 'Uganda': 'UG', 'Ukraine': 'UA',
+  'United Arab Emirates': 'AE', 'United Kingdom': 'GB', 'United States': 'US',
+  'Uruguay': 'UY', 'Uzbekistan': 'UZ', 'Venezuela': 'VE', 'Vietnam': 'VN',
+  'Yemen': 'YE', 'Zambia': 'ZM', 'Zimbabwe': 'ZW',
+};
+
 const VERDICT_LABELS: Record<string, string> = {
   STRONG_MATCH: 'Strong',
   WEAK_MATCH: 'Weak',
@@ -250,16 +288,17 @@ export function getJobMobileCardClass(extra = ''): string {
   return `job-mobile-card ${extra}`.trim();
 }
 
-export function renderJobIdentityBlock(title: unknown, company: unknown, href?: unknown): string {
+export function renderJobIdentityBlock(title: unknown, company: unknown, href?: unknown, logoUrl?: string | null): string {
   const titleText = escapeHtml(title || 'Untitled role');
   const titleHtml = href
     ? `<a href="${escapeHtml(href)}" class="job-identity-title text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">${titleText}</a>`
     : `<span class="job-identity-title text-sm font-semibold text-gray-900">${titleText}</span>`;
-  return `<div class="min-w-0">${titleHtml}<span class="job-identity-meta text-xs text-gray-500 mt-0.5">${escapeHtml(company || 'Unknown company')}</span></div>`;
+  const logo = renderCompanyLogo(String(company || ''), logoUrl);
+  return `<div class="flex items-start gap-2 min-w-0">${logo}<div class="min-w-0 flex-1">${titleHtml}<span class="job-identity-meta text-xs text-gray-500 mt-0.5">${escapeHtml(company || 'Unknown company')}</span></div></div>`;
 }
 
-export function renderJobPositionCompanyCell(title: unknown, company: unknown, href?: unknown): string {
-  return renderJobIdentityBlock(title, company, href);
+export function renderJobPositionCompanyCell(title: unknown, company: unknown, href?: unknown, logoUrl?: string | null): string {
+  return renderJobIdentityBlock(title, company, href, logoUrl);
 }
 
 export function renderJobSummaryCell(summary: unknown): string {
@@ -268,10 +307,29 @@ export function renderJobSummaryCell(summary: unknown): string {
     : '<span class="text-xs text-gray-300 italic">—</span>';
 }
 
-export function renderLocationCell(location: unknown): string {
-  return location
-    ? `<span class="job-location-text text-xs leading-snug text-gray-500">${escapeHtml(location)}</span>`
-    : '<span class="text-xs text-gray-300">—</span>';
+export function countryToFlag(country: string | null | undefined): string {
+  if (!country) return '';
+  const code = COUNTRY_TO_CODE[country];
+  if (!code) return '';
+  return [...code].map((c) => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('');
+}
+
+export function renderCompanyLogo(company: string, logoUrl?: string | null): string {
+  const letter = escapeHtml((company || 'U').charAt(0).toUpperCase());
+  if (!logoUrl) {
+    return `<span class="inline-flex flex-shrink-0 w-6 h-6 rounded items-center justify-center bg-slate-100 text-slate-500 text-xs font-bold select-none">${letter}</span>`;
+  }
+  return `<span class="relative inline-flex flex-shrink-0 w-6 h-6 rounded">` +
+    `<span class="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-500 text-xs font-bold select-none rounded">${letter}</span>` +
+    `<img src="${escapeHtml(logoUrl)}" class="absolute inset-0 w-6 h-6 object-contain rounded bg-white" alt="" loading="lazy" onerror="this.style.display='none'">` +
+    `</span>`;
+}
+
+export function renderLocationCell(location: unknown, country?: string | null): string {
+  if (!location) return '<span class="text-xs text-gray-300">—</span>';
+  const flag = countryToFlag(country);
+  const text = `<span class="job-location-text text-xs leading-snug text-gray-500">${escapeHtml(location)}</span>`;
+  return flag ? `<span class="inline-flex items-center gap-1">${flag} ${text}</span>` : text;
 }
 
 export function renderJobTableHeader(page: JobListPage): string {
@@ -434,4 +492,6 @@ export const uiHelpers = {
   truncateTextClass,
   getResponsiveListMode,
   getClientUiTokens,
+  countryToFlag,
+  renderCompanyLogo,
 };

@@ -207,12 +207,15 @@ function verdictChip(verdict) {
         <% lastRunJobs.slice(0, 50).forEach(job => { %>
         <li class="px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer" onclick="homeJobClick(<%= job.id %>)">
           <div class="flex items-center justify-between gap-3">
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-gray-900 truncate"><%= job.title %></p>
-              <p class="text-xs text-gray-400 mt-0.5 truncate">
-                <span class="md:hidden"><%= job.company %></span>
-                <span class="hidden md:inline"><%= job.company %><% if (job.location) { %> · <%= job.location %><% } %></span>
-              </p>
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <%- renderCompanyLogo(job.company, job.logo_url) %>
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate"><%= job.title %></p>
+                <p class="text-xs text-gray-400 mt-0.5 truncate">
+                  <span class="md:hidden"><%= job.company %></span>
+                  <span class="hidden md:inline"><%= job.company %><% if (job.location) { %> · <%- countryToFlag(job.country) ? countryToFlag(job.country) + ' ' : '' %><%= job.location %><% } %></span>
+                </p>
+              </div>
             </div>
             <div class="hidden md:flex items-center gap-2 flex-shrink-0">
               <button class="verdict-btn" data-job-id="<%= job.id %>" data-verdict="<%= job.is_duplicate ? 'DUPLICATE' : job.ai_verdict %>" data-chip-style="compact"><%- verdictChip(job.is_duplicate ? 'DUPLICATE' : job.ai_verdict) %></button>

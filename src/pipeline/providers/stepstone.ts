@@ -38,6 +38,7 @@ interface StepStoneLocation {
 interface StepStoneCompany {
   name?: string;
   url?: string;
+  logoUrl?: string;
 }
 
 interface StepStoneSection {
@@ -56,6 +57,7 @@ interface StepStoneJob {
   company?: StepStoneCompany;
   textSections?: StepStoneSection[];
   textSnippet?: string;
+  logoUrl?: string;
 }
 
 function buildDescription(sections: StepStoneSection[] | undefined, snippet: string | undefined): string {
@@ -85,6 +87,7 @@ function mapToJobPosting(item: StepStoneJob): JobPosting | null {
     description: buildDescription(item.textSections, item.textSnippet),
     provider: 'stepstone',
     jobSource: 'StepStone',
+    logoUrl: item.logoUrl || item.company?.logoUrl || undefined,
   };
 }
 

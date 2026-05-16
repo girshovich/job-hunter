@@ -29,6 +29,7 @@ interface HarvestJob {
   url?: string;
   postedDate?: string;
   listedAt?: string | number;
+  logo?: string;
 }
 
 function normalizeWorkMode(raw: string | undefined): string {
@@ -74,6 +75,7 @@ function mapToJobPosting(item: HarvestJob): JobPosting {
     description: description.substring(0, 20_000),
     provider: 'harvestapi',
     jobSource: 'LinkedIn',
+    logoUrl: item.logo || undefined,
   };
 }
 

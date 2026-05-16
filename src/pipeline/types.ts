@@ -25,6 +25,7 @@ export interface JobPosting {
   description: string;
   provider: string;
   jobSource: JobSource;
+  logoUrl?: string;
 }
 
 export interface SearchFilters {

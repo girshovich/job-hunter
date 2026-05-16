@@ -1350,6 +1350,12 @@ function initSchema(db: Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_ats_boards_ats    ON ats_boards(ats);
     CREATE INDEX IF NOT EXISTS idx_ats_boards_active ON ats_boards(is_active);
+
+    CREATE TABLE IF NOT EXISTS companies (
+      company    TEXT PRIMARY KEY,
+      logo_url   TEXT,
+      fetched_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -1497,6 +1503,7 @@ export interface JobRow {
   posted_date: string | null;
   country: string | null;
   fetched_at: string;
+  logo_url?: string | null; // populated by LEFT JOIN with companies
 }
 
 export interface JobProfileStateRow {
@@ -1611,6 +1618,8 @@ export interface RunJobLogRow {
   ai_rationale: string | null;
   rejection_category: string | null;
   logged_at: string;
+  country?: string | null;  // populated by LEFT JOIN with jobs
+  logo_url?: string | null; // populated by LEFT JOIN with companies
 }
 
 export interface BlacklistedCompanyRow {

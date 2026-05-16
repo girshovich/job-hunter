@@ -14,6 +14,7 @@ import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { resolveCountries } from './locationNormalizer';
 import { sendDailyReport, type RunStats } from './emailReport';
+import { fetchClearbitLogosForAts } from './companyLogos';
 
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
 // cachedInput: prompt-cache read price (billed instead of input for cached tokens)
@@ -184,6 +185,13 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     const updateApplyUrl = db.prepare(`
       UPDATE jobs SET apply_url = ?
       WHERE linkedin_job_id = ? AND job_source = ? AND apply_url IS NULL
+    `);
+
+    const upsertCompanyLogo = db.prepare(`
+      INSERT INTO companies (company, logo_url, fetched_at) VALUES (?, ?, ?)
+      ON CONFLICT(company) DO UPDATE SET
+        logo_url   = COALESCE(excluded.logo_url, companies.logo_url),
+        fetched_at = excluded.fetched_at
     `);
 
     const insertJobLog = db.prepare(`
@@ -559,6 +567,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               0, null, 0, null,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+            if (job.logoUrl) upsertCompanyLogo.run(job.company, job.logoUrl, now);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${blacklistedJobs.length} blacklisted job(s).`);
@@ -589,6 +598,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               isDuplicate ? 1 : 0, isDuplicate ? now : null,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+            if (job.logoUrl) upsertCompanyLogo.run(job.company, job.logoUrl, now);
           }
           // Store URL-duplicate jobs (cross-source reposts) — canonical entry written, state marked duplicate
           for (const { job, duplicateOfId } of urlDuplicates) {
@@ -607,9 +617,21 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               1, duplicateOfId, 1, now,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+            if (job.logoUrl) upsertCompanyLogo.run(job.company, job.logoUrl, now);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${jobResults.length} jobs.`);
+
+        // Fire-and-forget Clearbit logo fetch for ATS jobs (Greenhouse/Ashby provide no logo)
+        const atsForClearbit = [
+          ...jobResults.map(({ scored }) => scored.job),
+          ...urlDuplicates.map(({ job }) => job),
+          ...blacklistedJobs,
+        ].filter((j) => j.jobSource === 'Greenhouse' || j.jobSource === 'Ashby')
+          .map((j) => ({ company: j.company, ats: j.jobSource.toLowerCase() }));
+        if (atsForClearbit.length > 0) {
+          fetchClearbitLogosForAts(db, atsForClearbit).catch(() => {});
+        }
 
         // Collect non-duplicate STRONG_MATCHes for hard-model re-scoring after all groups finish
         for (const { scored, isDuplicate } of jobResults) {

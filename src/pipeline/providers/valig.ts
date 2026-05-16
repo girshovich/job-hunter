@@ -23,6 +23,7 @@ interface ValigJob {
   postedDate?: string; // "YYYY-MM-DD"
   description?: string;
   descriptionHtml?: string;
+  logo?: string;
 }
 
 function getDatePosted(dateRange: DateRange): string {
@@ -51,6 +52,7 @@ function mapToJobPosting(item: ValigJob): JobPosting {
     description: description.substring(0, 20_000),
     provider: 'valig',
     jobSource: 'LinkedIn',
+    logoUrl: item.logo || undefined,
   };
 }
 

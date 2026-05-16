@@ -95,6 +95,7 @@ interface IndeedJob {
   employer?: { name?: string };
   attributes?: Record<string, string>;
   description?: { text?: string; html?: string };
+  logoUrl?: string;
 }
 
 function mapWorkMode(attrs: Record<string, string> | undefined): string {
@@ -141,6 +142,7 @@ function mapToJobPosting(item: IndeedJob): JobPosting | null {
     description,
     provider: 'indeed',
     jobSource: 'Indeed',
+    logoUrl: item.logoUrl || undefined,
   };
 }
 

@@ -93,10 +93,10 @@ function renderTable(groups, idPrefix, hideCol) {
     group.jobs.forEach(job => {
       const jobVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
       html += `<tr class="job-row-${idPrefix}-${gi} ${getJobTableRowClass()}" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
-      html += `<td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company)}</td>`;
+      html += `<td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company, undefined, job.logo_url)}</td>`;
       const summary = job.ai_summary ? stripMd(job.ai_summary) : null;
       html += `<td class="${getJobTableCellClass()}">${renderJobSummaryCell(summary)}</td>`;
-      html += `<td class="${getJobTableCellClass()}">${renderLocationCell(job.location)}</td>`;
+      html += `<td class="${getJobTableCellClass()}">${renderLocationCell(job.location, job.country)}</td>`;
       html += `<td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score)}</td>`;
       html += `<td class="${getJobTableCellClass('verdict')}"><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${jobVerdict}" data-chip-style="compact">${verdictChip(jobVerdict)}</button></td>`;
       html += `<td class="${getJobTableCellClass('applied')}">
@@ -129,7 +129,7 @@ function renderCards(groups, idPrefix) {
       html += `<div class="flex-shrink-0">${renderScoreCell(job.ai_score)}</div>`;
       html += `</div>`;
       html += `<div class="mt-1 flex items-start justify-between gap-3">`;
-      html += `<span class="job-identity-meta text-xs text-gray-500">${escHtml(job.company || 'Unknown company')}</span>`;
+      html += `<span class="job-identity-meta text-xs text-gray-500">${renderCompanyLogo(job.company, job.logo_url)} ${escHtml(job.company || 'Unknown company')}</span>`;
       html += `<div class="flex-shrink-0"><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${cardVerdict}" data-chip-style="compact">${verdictChip(cardVerdict)}</button></div>`;
       html += `</div>`;
       if (summary) {
@@ -137,7 +137,7 @@ function renderCards(groups, idPrefix) {
       }
       html += `<div class="mt-3 flex items-end justify-between gap-3">`;
       html += `<div class="flex-shrink-0">${renderAppliedSelector(job.applied, { onclick: `quickToggleApplied(event,${job.id},this)`, 'data-applied': job.applied ? '1' : '0' })}</div>`;
-      html += `<div class="min-w-0 flex items-center justify-end gap-2 text-right"><div class="min-w-0">${renderLocationCell(job.location)}</div>${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</div>`;
+      html += `<div class="min-w-0 flex items-center justify-end gap-2 text-right"><div class="min-w-0">${renderLocationCell(job.location, job.country)}</div>${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</div>`;
       html += `</div>`;
       html += `</div>`;
     });

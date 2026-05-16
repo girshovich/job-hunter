@@ -33,8 +33,9 @@ router.get('/', (req: Request, res: Response) => {
 
   const lastRunJobs = lastRunAt
     ? (db.prepare(`
-        SELECT j.*, jps.*
+        SELECT j.*, jps.*, c.logo_url
         FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+        LEFT JOIN companies c ON c.company = j.company
         WHERE jps.profile_id = ? AND jps.fetched_at >= ? AND jps.is_duplicate = 0 AND jps.ai_verdict = 'STRONG_MATCH'
         ORDER BY jps.ai_score DESC
       `).all(profileId, lastRunAt) as JobWithState[])
@@ -167,7 +168,8 @@ router.get('/history', (req: Request, res: Response) => {
 
   const jobs = db
     .prepare(`
-      SELECT j.*, jps.* ${fromClause}
+      SELECT j.*, jps.*, c.logo_url ${fromClause}
+      LEFT JOIN companies c ON c.company = j.company
       ${where}
       ORDER BY jps.fetched_at DESC
       LIMIT ? OFFSET ?
@@ -207,8 +209,9 @@ router.get('/job/:id', (req: Request, res: Response) => {
 
   const profileId = req.profile.id;
   const job = db.prepare(`
-    SELECT j.*, jps.*
+    SELECT j.*, jps.*, c.logo_url
     FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    LEFT JOIN companies c ON c.company = j.company
     WHERE j.id = ? AND jps.profile_id = ?
   `).get(id, profileId) as JobWithState | undefined;
   if (!job) {
@@ -220,15 +223,17 @@ router.get('/job/:id', (req: Request, res: Response) => {
   let original: JobWithState | undefined;
   if (job.duplicate_of_job_id) {
     original = db.prepare(`
-      SELECT j.*, jps.*
+      SELECT j.*, jps.*, c.logo_url
       FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+      LEFT JOIN companies c ON c.company = j.company
       WHERE j.id = ? AND jps.profile_id = ?
     `).get(job.duplicate_of_job_id, profileId) as JobWithState | undefined;
   }
 
   const duplicatesOfThis = db.prepare(`
-    SELECT j.*, jps.*
+    SELECT j.*, jps.*, c.logo_url
     FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    LEFT JOIN companies c ON c.company = j.company
     WHERE jps.duplicate_of_job_id = ? AND jps.profile_id = ?
     ORDER BY jps.fetched_at DESC
   `).all(job.id, profileId) as JobWithState[];
