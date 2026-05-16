@@ -126,7 +126,7 @@ function mapToJobPosting(item: IndeedJob): JobPosting | null {
   if (!jobId) return null;
   const url = item.url || item.jobUrl || '';
   const applyUrl = (item.jobUrl && item.jobUrl !== item.url) ? item.jobUrl : null;
-  const description = (item.description?.text || '').substring(0, 20_000);
+  const description = (item.description?.html || item.description?.text || '').substring(0, 20_000);
 
   return {
     jobId,

@@ -10,10 +10,6 @@ import { filterByTimeWindow } from '../types';
 
 const ACTOR_ID = 'valig/stepstone-jobs-scraper';
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
-}
-
 function mapWorkMode(wfh: string | undefined): string {
   if (wfh === '2') return 'remote';
   if (wfh === '1') return 'hybrid';
@@ -65,11 +61,11 @@ interface StepStoneJob {
 function buildDescription(sections: StepStoneSection[] | undefined, snippet: string | undefined): string {
   if (sections && sections.length > 0) {
     return sections
-      .map((s) => `${s.title ? `## ${s.title}\n` : ''}${stripHtml(s.content || '')}`)
-      .join('\n\n')
+      .map((s) => `${s.title ? `<h2>${s.title}</h2>` : ''}${s.content || ''}`)
+      .join('')
       .substring(0, 20_000);
   }
-  return snippet ? stripHtml(snippet).substring(0, 2_000) : '';
+  return snippet ? snippet.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim().substring(0, 2_000) : '';
 }
 
 function mapToJobPosting(item: StepStoneJob): JobPosting | null {
