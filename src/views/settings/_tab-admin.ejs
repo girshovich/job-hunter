@@ -334,6 +334,8 @@
 <script>
 let _atsRunId = null;
 let _atsEventSource = null;
+let _atsStatsLoaded = false;
+let _atsStatsLoading = false;
 
 function _setDot(id, enabled) {
   const dot = document.getElementById(id);
@@ -355,7 +357,18 @@ function _applyScheduleState(discEnabled, leverDiscEnabled, valEnabled, tz) {
   _setDot('ats-val-dot',        valEnabled);
 }
 
-async function loadAtsStats() {
+function _setAtsStatsLoading() {
+  const statsEl = document.getElementById('ats-stats');
+  if (statsEl) statsEl.innerHTML = '<p class="text-xs text-gray-400">Loading…</p>';
+  const poolEl = document.getElementById('pool-counts');
+  if (poolEl) poolEl.innerHTML = '<p class="text-xs text-gray-400">Loading…</p>';
+}
+
+async function loadAtsStats(options = {}) {
+  const force = !!options.force;
+  if (_atsStatsLoading || (_atsStatsLoaded && !force)) return;
+  _atsStatsLoading = true;
+  _setAtsStatsLoading();
   try {
     const res  = await fetch('/api/ats/status');
     const data = await res.json();
@@ -387,6 +400,7 @@ async function loadAtsStats() {
     if (!statsEl) return;
     if (!data.boards?.length) {
       statsEl.innerHTML = '<p class="text-xs text-gray-400">No boards discovered yet. Run Discovery to populate.</p>';
+      _atsStatsLoaded = true;
       return;
     }
     const map = Object.fromEntries(data.boards.map(r => [r.ats, r]));
@@ -413,11 +427,20 @@ async function loadAtsStats() {
           }).join('')}
         </tbody>
       </table>`;
+    _atsStatsLoaded = true;
   } catch {
     const el = document.getElementById('ats-stats');
     if (el) el.innerHTML = '<p class="text-xs text-red-400">Failed to load stats.</p>';
+  } finally {
+    _atsStatsLoading = false;
   }
 }
+
+function ensureAdminStatsLoaded(force = false) {
+  return loadAtsStats({ force });
+}
+
+window.ensureAdminStatsLoaded = ensureAdminStatsLoaded;
 
 async function _atsToggle(discEnabled, leverDiscEnabled, valEnabled) {
   const res = await fetch('/api/ats/settings', {
@@ -538,7 +561,7 @@ function _atsStreamDone(label, cancelled) {
   _atsEnableAllButtons();
   const statsEl = document.getElementById('ats-stats');
   if (statsEl) statsEl.innerHTML = '<p class="text-xs text-gray-400">Updating…</p>';
-  setTimeout(() => loadAtsStats(), 500);
+  setTimeout(() => loadAtsStats({ force: true }), 500);
 }
 
 async function atsStopRun() {
@@ -549,7 +572,6 @@ async function atsStopRun() {
   await fetch('/api/ats/run/' + _atsRunId, { method: 'DELETE' });
 }
 
-loadAtsStats();
 </script>
 
 <script>
@@ -700,7 +722,7 @@ function _poolStreamDone(label, cancelled) {
   document.getElementById('pool-ashby-fetch-btn').disabled = false;
   document.getElementById('pool-resolve-btn').disabled     = false;
   document.getElementById('pool-recheck-btn').disabled     = false;
-  setTimeout(() => loadAtsStats(), 500);
+  setTimeout(() => loadAtsStats({ force: true }), 500);
 }
 
 async function poolStopRun() {

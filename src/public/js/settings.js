@@ -796,6 +796,13 @@ function activateTab(tabName) {
     if (pane) pane.classList.toggle('hidden', t !== tabName);
     updateTabBtnStyle(t, t === tabName);
   });
+  maybeLoadAdminTab(tabName);
+}
+
+function maybeLoadAdminTab(tabName) {
+  if (tabName === 'admin' && typeof window.ensureAdminStatsLoaded === 'function') {
+    window.ensureAdminStatsLoaded();
+  }
 }
 
 function updateTabBtnStyle(tabName, isActive) {
@@ -868,6 +875,7 @@ function initSettings(activeTab, initialGroups) {
   loadBlacklist();
   snapshotForm('profile');
   snapshotForm('ai');
+  maybeLoadAdminTab(activeTab);
 }
 
 // ── Admin: Profile CRUD ──
