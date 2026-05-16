@@ -638,7 +638,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       `);
       const updateRescoredLog = db.prepare(`
         UPDATE run_job_logs SET ai_score = ?, ai_verdict = ?, ai_rationale = ?, rejection_category = ?
-        WHERE run_id = ? AND linkedin_job_id = ? AND group_id = ?
+        WHERE run_id = ? AND linkedin_job_id = ? AND group_id = ? AND ai_verdict = 'STRONG_MATCH'
       `);
 
       for (const entry of strongMatchesForReScoring) {
