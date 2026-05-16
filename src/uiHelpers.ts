@@ -329,7 +329,7 @@ export function renderLocationCell(location: unknown, country?: string | null): 
   if (!location) return '<span class="text-xs text-gray-300">—</span>';
   const flag = countryToFlag(country);
   const text = `<span class="job-location-text text-xs leading-snug text-gray-500">${escapeHtml(location)}</span>`;
-  return flag ? `<span class="inline-flex items-center gap-1">${flag} ${text}</span>` : text;
+  return flag ? `<span class="inline-flex items-start gap-1">${flag} ${text}</span>` : text;
 }
 
 export function renderJobTableHeader(page: JobListPage): string {

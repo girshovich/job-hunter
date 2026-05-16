@@ -207,7 +207,7 @@ function verdictChip(verdict) {
         <% lastRunJobs.slice(0, 50).forEach(job => { %>
         <li class="px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer" onclick="homeJobClick(<%= job.id %>)">
           <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2 flex-1 min-w-0">
+            <div class="flex items-start gap-2 flex-1 min-w-0">
               <%- renderCompanyLogo(job.company, job.logo_url) %>
               <div class="min-w-0">
                 <p class="text-sm font-medium text-gray-900 truncate"><%= job.title %></p>
