@@ -4,6 +4,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type SearchRunRow, type RunJobLogRow, type SettingsRow } from '../db';
+import { countryToFlag } from '../uiHelpers';
 
 const router = Router();
 
@@ -43,6 +44,7 @@ function extractCountry(location: string | null): string {
 interface JobLogWithInternalId extends RunJobLogRow {
   internal_job_id: number | null;
   job_source: string;
+  resolved_country?: string | null;
 }
 
 export interface FormattedJob {
@@ -53,6 +55,7 @@ export interface FormattedJob {
   company: string;
   location: string | null;
   country: string;
+  flag: string;
   url: string | null;
   job_source: string;
   ai_score: number | null;
@@ -84,7 +87,8 @@ function processJobs(logs: JobLogWithInternalId[], timezone: string): FormattedJ
       title: log.title,
       company: log.company,
       location: log.location,
-      country: extractCountry(log.location),
+      country: log.resolved_country || extractCountry(log.location),
+      flag: countryToFlag(log.resolved_country || extractCountry(log.location) || null),
       url: log.url,
       job_source: log.job_source || 'LinkedIn',
       ai_score: log.ai_score,
@@ -142,7 +146,7 @@ router.get('/', (req: Request, res: Response) => {
     const placeholders = preloadIds.map(() => '?').join(', ');
     const logs = db
       .prepare<JobLogWithInternalId>(
-        `SELECT rjl.*, j.id AS internal_job_id
+        `SELECT rjl.*, j.id AS internal_job_id, j.country AS resolved_country
          FROM run_job_logs rjl
          LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
          WHERE rjl.run_id IN (${placeholders})`,
@@ -192,7 +196,7 @@ router.get('/runs/:id/logs', (req: Request, res: Response) => {
 
   const logs = db
     .prepare<JobLogWithInternalId>(
-      `SELECT rjl.*, j.id AS internal_job_id
+      `SELECT rjl.*, j.id AS internal_job_id, j.country AS resolved_country
        FROM run_job_logs rjl
        LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
        WHERE rjl.run_id = ?`,

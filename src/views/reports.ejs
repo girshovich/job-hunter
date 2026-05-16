@@ -160,10 +160,10 @@ function runProviderName(run) {
             <% run.jobs.forEach(function(job, idx) { %>
             <tr data-row-idx="<%= idx %>" data-country="<%= job.country %>" class="<%= getJobTableRowClass() %>">
               <td class="<%= getJobTableCellClass() %> pl-5">
-                <%- renderJobPositionCompanyCell(job.title, job.company, runJobDetailHref(job)) %>
+                <%- renderJobPositionCompanyCell(job.title, job.company, runJobDetailHref(job), job.logo_url) %>
               </td>
               <td class="<%= getJobTableCellClass() %>">
-                <%- renderLocationCell(job.location) %>
+                <%- renderLocationCell(job.location, job.country) %>
               </td>
               <td class="<%= getJobTableCellClass('score') %>">
                 <%- renderScoreCell(job.ai_score) %>
@@ -201,7 +201,7 @@ function runProviderName(run) {
               <div class="flex-shrink-0"><%- renderScoreCell(job.ai_score) %></div>
             </div>
             <div class="mt-1 flex items-start justify-between gap-3">
-              <span class="job-identity-meta text-xs text-gray-500"><%= job.company || 'Unknown company' %></span>
+              <span class="job-identity-meta text-xs text-gray-500 flex items-center gap-1.5"><%- renderCompanyLogo(job.company, job.logo_url) %><%= job.company || 'Unknown company' %></span>
               <div class="flex-shrink-0">
                 <button class="verdict-btn cursor-pointer"
                       <% if (job.internal_job_id) { %>data-job-id="<%= job.internal_job_id %>"<% } %>
@@ -297,7 +297,7 @@ function buildJobsHTML(jobs) {
           : '<span class="job-identity-title text-sm font-semibold text-gray-900">' + escHtml(job.title) + '</span>')
       + '<span class="job-identity-meta text-xs text-gray-500 mt-0.5">' + escHtml(job.company || 'Unknown company') + '</span>'
       + '</div></td>'
-      + '<td class="job-table-cell">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</td>'
+      + '<td class="job-table-cell">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</td>'
       + '<td class="job-table-cell job-table-fixed">' + (job.ai_score != null ? '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge ' + (job.ai_score >= 71 ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100') + '">' + window.JHUI.formatScore(job.ai_score) + '</span>' : '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge text-gray-600 bg-gray-100">\u2014</span>') + '</td>'
       + '<td class="job-table-cell job-table-fixed">'
       + '<button class="verdict-btn cursor-pointer"'
@@ -331,7 +331,7 @@ function buildJobsHTML(jobs) {
       + logVerdictChip(job.ai_verdict, job.rejection_category)
       + '</button>'
       + '</div></div>'
-      + '<div class="mt-2 flex items-start justify-between gap-3"><div class="min-w-0">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</div>' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</div>'
+      + '<div class="mt-2 flex items-start justify-between gap-3"><div class="min-w-0">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</div>' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</div>'
       + '</div>';
   });
 
