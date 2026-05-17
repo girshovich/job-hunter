@@ -46,7 +46,10 @@ router.get('/preflight', (req: Request, res: Response) => {
       errors.push('No active Roles configured — add at least one Role in Settings.');
     } else {
       for (const g of activeGroups) {
-        if (!g.profile_description?.trim() || !g.scoring_criteria?.trim()) {
+        const effectiveProfileDesc = g.use_main_profile_description
+          ? settings?.profile_description?.trim()
+          : g.profile_description?.trim();
+        if (!effectiveProfileDesc || !g.scoring_criteria?.trim()) {
           const name = g.group_name ? `"${g.group_name}"` : `#${g.id}`;
           errors.push(`Role ${name} is missing Profile Description or Scoring Criteria — edit the Role in Settings.`);
         }
@@ -415,6 +418,7 @@ interface GroupBody {
   job_type: string;
   work_modes: string[];
   profile_description: string;
+  use_main_profile_description: number;
   industries_list: string;
   other_expectations: string;
   scoring_criteria: string;
@@ -465,6 +469,7 @@ function parseGroupBody(body: unknown): GroupBody {
     job_type: String(b.job_type || 'fullTime'),
     work_modes: workModes,
     profile_description: String(b.profile_description || ''),
+    use_main_profile_description: (b.use_main_profile_description === 1 || b.use_main_profile_description === true || b.use_main_profile_description === '1') ? 1 : 0,
     industries_list: String(b.industries_list || ''),
     other_expectations: String(b.other_expectations || ''),
     scoring_criteria: String(b.scoring_criteria || ''),
@@ -516,8 +521,8 @@ router.post('/groups', (req: Request, res: Response) => {
     const now = new Date().toISOString();
 
     const result = db.prepare(`
-      INSERT INTO search_groups (profile_id, group_name, locations, keywords, job_type, work_modes, ai_system_prompt, profile_description, industries_list, other_expectations, scoring_criteria, no_match_criteria, title_filter, score_no_match_max, score_weak_match_max, score_strong_match_min, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO search_groups (profile_id, group_name, locations, keywords, job_type, work_modes, ai_system_prompt, profile_description, use_main_profile_description, industries_list, other_expectations, scoring_criteria, no_match_criteria, title_filter, score_no_match_max, score_weak_match_max, score_strong_match_min, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       profileId,
       body.group_name,
@@ -526,6 +531,7 @@ router.post('/groups', (req: Request, res: Response) => {
       body.job_type,
       JSON.stringify(body.work_modes),
       body.profile_description,
+      body.use_main_profile_description,
       body.industries_list,
       body.other_expectations,
       body.scoring_criteria,
@@ -568,7 +574,7 @@ router.put('/groups/:id', (req: Request, res: Response) => {
     db.prepare(`
       UPDATE search_groups
       SET group_name = ?, locations = ?, keywords = ?, job_type = ?, work_modes = ?,
-          profile_description = ?, industries_list = ?, other_expectations = ?,
+          profile_description = ?, use_main_profile_description = ?, industries_list = ?, other_expectations = ?,
           scoring_criteria = ?, no_match_criteria = ?,
           title_filter = ?, score_no_match_max = ?, score_weak_match_max = ?, score_strong_match_min = ?, updated_at = ?
       WHERE id = ?
@@ -579,6 +585,7 @@ router.put('/groups/:id', (req: Request, res: Response) => {
       body.job_type,
       JSON.stringify(body.work_modes),
       body.profile_description,
+      body.use_main_profile_description,
       body.industries_list,
       body.other_expectations,
       body.scoring_criteria,

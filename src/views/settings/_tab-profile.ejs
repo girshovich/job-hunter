@@ -44,6 +44,17 @@
     </div>
   </div>
 
+  <!-- PROFILE DESCRIPTION -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div class="mb-3">
+      <h2 class="text-base font-semibold text-gray-900">Profile Description</h2>
+      <p class="text-xs text-gray-500 mt-0.5">Your main profile for AI scoring. Roles can inherit this instead of having their own.</p>
+    </div>
+    <textarea name="profile_description" rows="7"
+              placeholder="A senior product professional with 6+ years of product management and leadership in customer support products in a large classifieds, and 3 years as head of sellers support operations (B2B) at a large marketplace. Overall 13 years in e-commerce and customer service industries. Built help center, multi-channel CRM, automated support, some AI features, and moderation tools. Made a strategy, got board-level funding, grew the teams from 0 to 9 PMs and 3 Group PMs, and got tangible business impact on cost savings."
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.profile_description || '' %></textarea>
+  </div>
+
   <!-- LANGUAGES -->
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <div class="mb-3">

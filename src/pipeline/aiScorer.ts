@@ -99,12 +99,16 @@ export function buildScoringSystemPrompt(group: SearchGroupRow, settings?: Setti
   const keywords = (JSON.parse(group.keywords) as string[]).join(', ');
   const desiredRoles = group.title_filter?.trim() ? group.title_filter.trim() : keywords;
 
+  const profileDescription = (group.use_main_profile_description && settings?.profile_description?.trim())
+    ? settings.profile_description
+    : group.profile_description;
+
   const parts: string[] = [
     'You are assessing if the job posting match the user profile.',
     '',
     'Profile:',
     '',
-    group.profile_description,
+    profileDescription,
     '',
     `Desired roles: ${desiredRoles}.`,
   ];

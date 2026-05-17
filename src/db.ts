@@ -491,6 +491,17 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration (structured prompt settings fields) failed (non-fatal):', (err as Error).message);
   }
 
+  // v_use_main_profile_desc: add use_main_profile_description to search_groups
+  try {
+    const cols = db.prepare(`PRAGMA table_info(search_groups)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'use_main_profile_description')) {
+      db.exec(`ALTER TABLE search_groups ADD COLUMN use_main_profile_description INTEGER NOT NULL DEFAULT 0`);
+      console.log('[db] Migration: search_groups.use_main_profile_description column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration (use_main_profile_description) failed (non-fatal):', (err as Error).message);
+  }
+
   // v16: add per-group prompt fields to search_groups
   try {
     const cols = db.prepare(`PRAGMA table_info(search_groups)`).all() as Array<{ name: string }>;
@@ -1728,6 +1739,7 @@ export interface SearchGroupRow {
   score_weak_match_max: number;
   score_strong_match_min: number;
   profile_description: string;
+  use_main_profile_description: number;  // 1 = use main profile from settings, 0 = use role-specific
   industries_list: string;
   other_expectations: string;
   scoring_criteria: string;

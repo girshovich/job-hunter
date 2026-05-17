@@ -262,6 +262,7 @@ router.post('/', async (req: Request, res: Response) => {
           ['timezone', String(body.timezone || 'UTC')],
           ['languages', String(body.languages || '')],
           ['current_location', String(body.current_location || '')],
+          ['profile_description', String(body.profile_description || '')],
           ['profile_updated_at', now],
           ['updated_at', now],
         ];
@@ -283,6 +284,7 @@ router.post('/', async (req: Request, res: Response) => {
         ['timezone', String(body.timezone || 'UTC')],
         ['languages', String(body.languages || '')],
         ['current_location', String(body.current_location || '')],
+        ['profile_description', String(body.profile_description || '')],
         ['profile_updated_at', now],
         ['updated_at', now],
       ];
