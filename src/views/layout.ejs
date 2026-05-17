@@ -78,6 +78,246 @@
     @media (max-width: 767px) {
       .job-desktop-table { display: none; }
     }
+
+    /* ── Sidebar/nav shared tokens ──────────────────────────────── */
+    :root {
+      --jh-sb-bg:     #0C0E12;
+      --jh-sb-bg2:    #14171D;
+      --jh-sb-border: #1F242C;
+      --jh-sb-ink:    #E9ECF1;
+      --jh-sb-muted:  #8A91A0;
+      --jh-sb-hover:  #1A1E26;
+      --jh-sb-active: #232936;
+      --jh-sb-blue:   #2F6BFF;
+      --jh-sb-blue2:  #2056E8;
+      --jh-sb-green:  #1E9E5A;
+      --jh-sb-green2: #178049;
+    }
+
+    /* Sidebar width override */
+    .app-sidebar { width: 264px; }
+
+    /* ── Nav items ──────────────────────────────────────────────── */
+    .sb-item {
+      display: flex; align-items: center; gap: 11px;
+      padding: 9px 10px; border-radius: 8px;
+      color: var(--jh-sb-ink); font-size: 13.5px; font-weight: 500;
+      background: transparent; border: 0; width: 100%;
+      text-align: left; cursor: pointer; text-decoration: none;
+    }
+    .sb-item .ico { color: var(--jh-sb-muted); display: inline-flex; }
+    .sb-item:hover { background: var(--jh-sb-hover); }
+    .sb-item.active {
+      background: var(--jh-sb-active);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    .sb-item.active .ico { color: var(--jh-sb-ink); }
+    .sb-count {
+      margin-left: auto; font-size: 11px;
+      color: var(--jh-sb-muted);
+      background: rgba(255,255,255,0.04);
+      border-radius: 999px; padding: 2px 7px;
+    }
+
+    /* ── Scrollable nav middle section ──────────────────────────── */
+    .sb-nav-scroll {
+      flex: 1; overflow-y: auto; min-height: 0;
+      padding: 12px 10px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .sb-nav-scroll::-webkit-scrollbar { width: 0; }
+
+    /* ── Settings sub-nav ───────────────────────────────────────── */
+    .sb-subnav {
+      display: flex; flex-direction: column; gap: 2px;
+      padding: 2px 0 4px 10px; margin-left: 10px;
+      border-left: 1px solid var(--jh-sb-border);
+    }
+    .sb-subitem {
+      padding: 7px 10px; font-size: 13px; font-weight: 500;
+      color: var(--jh-sb-muted); gap: 10px;
+    }
+    .sb-subitem:hover { color: var(--jh-sb-ink); background: var(--jh-sb-hover); }
+    .sb-subitem.active { background: var(--jh-sb-active); color: var(--jh-sb-ink); }
+    .sb-subdot {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: currentColor; opacity: 0.55; flex-shrink: 0; margin-left: 2px;
+    }
+    .sb-subitem.active .sb-subdot { opacity: 1; background: #4D87FF; }
+    .sb-chev {
+      display: inline-flex; align-items: center; margin-left: auto;
+      color: var(--jh-sb-muted); transition: transform 0.15s ease;
+    }
+    .sb-chev.open { transform: rotate(90deg); }
+
+    /* ── Sidebar footer ─────────────────────────────────────────── */
+    .sb-footer {
+      padding: 12px; border-top: 1px solid var(--jh-sb-border);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .sb-run-group { display: flex; flex-direction: column; gap: 6px; }
+
+    /* ── Run buttons ────────────────────────────────────────────── */
+    .sb-run {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 9px; border: 0;
+      font-size: 13.5px; font-weight: 600; font-family: inherit;
+      text-align: left; width: 100%; cursor: pointer;
+      white-space: nowrap; color: white;
+    }
+    .sb-run-primary {
+      background: var(--jh-sb-green);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 1px 2px rgba(30,158,90,0.35);
+    }
+    .sb-run-primary:hover { background: var(--jh-sb-green2); }
+    .sb-run-secondary {
+      background: var(--jh-sb-blue);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 1px 2px rgba(47,107,255,0.4);
+    }
+    .sb-run-secondary:hover { background: var(--jh-sb-blue2); }
+    .sb-run-danger {
+      background: #dc2626;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset;
+    }
+    .sb-run-danger:hover { background: #b91c1c; }
+    .sb-run-meta {
+      margin-left: auto; font-size: 11px; font-weight: 500;
+      opacity: 0.85; font-family: monospace;
+    }
+
+    /* ── Credits placeholder ────────────────────────────────────── */
+    .sb-credits {
+      background: linear-gradient(180deg, #1B2230 0%, #161B25 100%);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px; padding: 8px 12px;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 14px rgba(0,0,0,0.25);
+    }
+    .sb-credits-icon { color: white; display: inline-flex; }
+    .sb-credits-num {
+      font-size: 18px; font-weight: 700;
+      letter-spacing: -0.02em; color: var(--jh-sb-ink);
+    }
+    .sb-credits-sub { font-size: 10.5px; color: var(--jh-sb-muted); flex: 1; }
+    .sb-credits-topup {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--jh-sb-blue); color: white; border: 0;
+      font-weight: 600; font-size: 11.5px; font-family: inherit;
+      padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.16) inset;
+    }
+    .sb-credits-topup:hover { background: var(--jh-sb-blue2); }
+
+    /* ── Profile row ────────────────────────────────────────────── */
+    .sb-profile {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px; border-radius: 10px;
+      background: transparent; width: 100%;
+      color: var(--jh-sb-ink);
+    }
+    .sb-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, #4D87FF, #2F6BFF);
+      display: grid; place-items: center;
+      color: white; font-weight: 600; font-size: 13px; flex-shrink: 0;
+    }
+    .sb-profile-meta { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .sb-profile-name { font-size: 13.5px; font-weight: 600; line-height: 1.2; }
+    .sb-profile-email {
+      font-size: 11.5px; color: var(--jh-sb-muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .sb-role-pill {
+      font-size: 9.5px;
+      background: rgba(180,114,8,0.18); color: #E6B66B;
+      padding: 1px 6px; border-radius: 999px;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      font-weight: 600; margin-left: 6px; vertical-align: middle;
+    }
+    .sb-logout-btn {
+      width: 28px; height: 28px; border-radius: 6px;
+      display: grid; place-items: center;
+      color: var(--jh-sb-muted); flex-shrink: 0;
+      background: transparent; border: 0; cursor: pointer;
+    }
+    .sb-logout-btn:hover { background: rgba(255,255,255,0.06); color: var(--jh-sb-ink); }
+
+    /* ── Onboarding widget ──────────────────────────────────────── */
+    .sb-onboard {
+      background: linear-gradient(180deg, rgba(47,107,255,0.10) 0%, rgba(47,107,255,0.04) 100%);
+      border: 1px solid rgba(77,135,255,0.18);
+      border-radius: 10px; padding: 10px 10px 6px; margin-bottom: 8px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .sb-onboard-head { display: flex; align-items: center; justify-content: space-between; }
+    .sb-onboard-title {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #B6CDFF;
+    }
+    .sb-onboard-title svg { color: #82A8FF; width: 12px; height: 12px; }
+    .sb-onboard-close {
+      width: 20px; height: 20px; border-radius: 5px;
+      display: grid; place-items: center;
+      background: transparent; border: 0;
+      color: var(--jh-sb-muted); cursor: pointer;
+    }
+    .sb-onboard-close:hover { background: rgba(255,255,255,0.06); color: var(--jh-sb-ink); }
+    .sb-onboard-meta {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10.5px; color: var(--jh-sb-muted);
+    }
+    .sb-onboard-bar {
+      flex: 1; height: 3px;
+      background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden;
+    }
+    .sb-onboard-bar-fill {
+      display: block; height: 100%;
+      background: linear-gradient(90deg, #4D87FF, #2F6BFF); border-radius: 999px;
+    }
+    .sb-onboard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+    .sb-onboard-item {
+      width: 100%; display: grid;
+      grid-template-columns: 16px 1fr 12px;
+      align-items: center; gap: 8px; padding: 4px;
+      border-radius: 6px; background: transparent; border: 0;
+      color: var(--jh-sb-ink); font-size: 12px; font-family: inherit;
+      text-align: left; text-decoration: none; cursor: pointer; line-height: 1.2;
+    }
+    .sb-onboard-item:hover:not(.no-action) { background: rgba(255,255,255,0.04); }
+    .sb-onboard-item.no-action { cursor: default; }
+    .sb-onboard-item.done { color: var(--jh-sb-muted); }
+    .sb-onboard-item.done .sb-onboard-label {
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,255,255,0.15);
+    }
+    .sb-onboard-check {
+      width: 16px; height: 16px; border-radius: 50%;
+      display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,0.18);
+      color: var(--jh-sb-muted); font-size: 9.5px; font-weight: 600;
+      background: rgba(255,255,255,0.02); flex-shrink: 0;
+    }
+    .sb-onboard-check.done { background: #1E9E5A; border-color: #1E9E5A; color: white; }
+    .sb-onboard-check.done svg { width: 10px; height: 10px; stroke-width: 2.6; }
+    .sb-onboard-chev { color: var(--jh-sb-muted); opacity: 0.6; width: 12px; height: 12px; }
+    .sb-onboard-item:hover .sb-onboard-chev { opacity: 1; }
+
+    /* ── Throb (one-shot, applied via JS, removed after 2 s) ─────── */
+    @keyframes jh-throb {
+      0%,100% { transform: scale(1); }
+      50%      { transform: scale(1.02); }
+    }
+    @keyframes jh-throb-green {
+      0%,100% { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 0   rgba(30,158,90,0.55); }
+      50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 8px rgba(30,158,90,0);    }
+    }
+    @keyframes jh-throb-blue {
+      0%,100% { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 0   rgba(47,107,255,0.55); }
+      50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 8px rgba(47,107,255,0);    }
+    }
+    .jh-throb-run  { animation: jh-throb 1s ease-in-out infinite, jh-throb-green 1s ease-in-out infinite; }
+    .jh-throb-sched{ animation: jh-throb 1s ease-in-out infinite, jh-throb-blue  1s ease-in-out infinite; }
   </style>
   <script>
     window.JHUI_TOKENS = <%- JSON.stringify(getClientUiTokens()) %>;
@@ -115,114 +355,206 @@
   <div class="app-shell flex">
 
     <!-- SidebarNav (desktop only) -->
-    <aside class="app-sidebar hidden md:flex flex-shrink-0 bg-gray-900 text-gray-100 flex-col sticky top-0 h-screen">
+    <aside class="app-sidebar hidden md:flex flex-shrink-0 flex-col sticky top-0 h-screen" style="background:var(--jh-sb-bg);color:var(--jh-sb-ink);">
 
-      <!-- Logo -->
-      <div class="px-5 py-3 border-b border-gray-700">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">JH</div>
-          <span class="font-semibold text-sm text-white">Job Hunter</span>
+      <!-- Brand row -->
+      <div style="display:flex;align-items:center;gap:10px;padding:18px 16px 16px;border-bottom:1px solid var(--jh-sb-border);flex-shrink:0;">
+        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#4D87FF,#2F6BFF);display:grid;place-items:center;color:white;font-weight:700;font-size:12px;letter-spacing:0.02em;box-shadow:0 1px 0 rgba(255,255,255,0.12) inset,0 2px 6px rgba(47,107,255,0.35);flex-shrink:0;">JH</div>
+        <div>
+          <div style="font-weight:600;font-size:15px;letter-spacing:-0.01em;color:var(--jh-sb-ink);">Job Hunter</div>
+          <div style="font-size:11px;color:var(--jh-sb-muted);margin-top:1px;">AI job agent</div>
         </div>
       </div>
 
-      <!-- Logged-in user -->
-      <div class="px-3 py-2.5 border-b border-gray-700">
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2 min-w-0">
-            <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              <%= activeProfile.displayName.charAt(0).toUpperCase() %>
+      <!-- Scrollable nav section -->
+      <div class="sb-nav-scroll">
+
+        <!-- Onboarding widget -->
+        <div class="sb-onboard" id="sb-onboard-widget">
+          <div class="sb-onboard-head">
+            <div class="sb-onboard-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
+              Onboarding
             </div>
-            <span class="text-sm text-white font-medium truncate"><%= activeProfile.displayName %></span>
-            <% if (activeProfile.isAdmin) { %>
-            <span class="text-[10px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium flex-shrink-0">admin</span>
-            <% } %>
+            <button class="sb-onboard-close" onclick="jhDismissOnboarding()" aria-label="Dismiss onboarding">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+            </button>
           </div>
-          <form method="POST" action="/logout">
-            <button type="submit" title="Log out"
-                    class="text-gray-400 hover:text-gray-200 p-1 rounded transition-colors">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-              </svg>
+          <div class="sb-onboard-meta">
+            <%= onboarding.completedCount %> of 5 done
+            <span class="sb-onboard-bar">
+              <span class="sb-onboard-bar-fill" style="width:<%= (onboarding.completedCount/5*100) %>%"></span>
+            </span>
+          </div>
+          <ul class="sb-onboard-list">
+            <%
+              const obSteps = [
+                { label: 'Set up your profile',          href: '/settings',          clickFn: null },
+                { label: 'Add target roles & criteria',  href: '/settings?tab=roles', clickFn: null },
+                { label: 'Buy credits or add API keys',  href: null,                  clickFn: null },
+                { label: 'Run your first search',        href: null,                  clickFn: 'jhThrobRun()' },
+                { label: 'Set a daily schedule',         href: null,                  clickFn: 'jhThrobSchedule()' },
+              ];
+            %>
+            <% obSteps.forEach(function(step, i) { %>
+              <% const state = onboarding.states[i]; %>
+              <% const hasAction = step.href || step.clickFn; %>
+              <% if (step.href) { %>
+            <li><a href="<%= step.href %>" class="sb-onboard-item <%= state %>">
+              <% } else if (step.clickFn) { %>
+            <li><button type="button" class="sb-onboard-item <%= state %>" onclick="<%= step.clickFn %>">
+              <% } else { %>
+            <li><span class="sb-onboard-item <%= state %> no-action">
+              <% } %>
+                <span class="sb-onboard-check <%= state === 'done' ? 'done' : '' %>">
+                  <% if (state === 'done') { %>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>
+                  <% } else { %>
+                    <%= i + 1 %>
+                  <% } %>
+                </span>
+                <span class="sb-onboard-label"><%= step.label %></span>
+                <% if (hasAction && state !== 'done') { %>
+                  <svg class="sb-onboard-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+                <% } else { %>
+                  <span></span>
+                <% } %>
+              <% if (step.href) { %></a></li>
+              <% } else if (step.clickFn) { %></button></li>
+              <% } else { %></span></li>
+              <% } %>
+            <% }); %>
+          </ul>
+        </div>
+
+        <!-- Nav items -->
+        <a href="/" class="sb-item <%= title === 'Start' ? 'active' : '' %>">
+          <span class="ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>
+          </span>
+          Start
+        </a>
+        <a href="/jobs" class="sb-item <%= title === 'Matches' ? 'active' : '' %>">
+          <span class="ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
+          </span>
+          Matches
+        </a>
+        <a href="/history" class="sb-item <%= title === 'All Jobs' ? 'active' : '' %>">
+          <span class="ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>
+          </span>
+          All Jobs
+        </a>
+        <a href="/analytics" class="sb-item <%= title === 'Stats' ? 'active' : '' %>">
+          <span class="ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-8"/><path d="M22 20H2"/></svg>
+          </span>
+          Stats
+        </a>
+        <a href="/reports" class="sb-item <%= title === 'Run Logs' ? 'active' : '' %>">
+          <span class="ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          </span>
+          Run Logs
+        </a>
+
+        <!-- Settings expandable submenu -->
+        <%
+          const isSettings = title === 'Settings';
+          const curTab = locals.activeTab || 'profile';
+        %>
+        <button type="button" class="sb-item" id="sb-settings-btn" onclick="jhToggleSettings()">
+          <span class="ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.3 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.3l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+          </span>
+          Settings
+          <span class="sb-chev" id="sb-settings-chev">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
+        </button>
+        <div class="sb-subnav" id="sb-settings-sub" style="display:none;">
+          <a href="/settings" class="sb-item sb-subitem <%= isSettings && curTab === 'profile' ? 'active' : '' %>">
+            <span class="sb-subdot"></span>Profile
+          </a>
+          <a href="/settings?tab=roles" class="sb-item sb-subitem <%= isSettings && curTab === 'roles' ? 'active' : '' %>">
+            <span class="sb-subdot"></span>Roles
+          </a>
+          <a href="/settings?tab=ai" class="sb-item sb-subitem <%= isSettings && curTab === 'ai' ? 'active' : '' %>">
+            <span class="sb-subdot"></span>AI Setup
+          </a>
+          <% if (activeProfile.isAdmin) { %>
+          <a href="/settings?tab=admin" class="sb-item sb-subitem <%= isSettings && curTab === 'admin' ? 'active' : '' %>">
+            <span class="sb-subdot"></span>Admin
+          </a>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="sb-footer">
+        <div class="sb-run-group">
+          <!-- Run once -->
+          <button id="sidebar-run-btn" onclick="openRunModal()" class="sb-run sb-run-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>
+            <span id="sidebar-run-label">Run once</span>
+          </button>
+
+          <!-- Schedule inactive -->
+          <div id="schedule-inactive">
+            <button onclick="openScheduleModal()" class="sb-run sb-run-secondary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              Schedule
+            </button>
+          </div>
+
+          <!-- Schedule active -->
+          <div id="schedule-active" class="hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 4px;">
+              <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#34d399;font-weight:500;">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+                Schedule active
+              </span>
+              <span id="schedule-expr" style="font-size:11px;color:var(--jh-sb-muted);font-family:monospace;"></span>
+            </div>
+            <button onclick="scheduleStop()" class="sb-run sb-run-danger">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+              Stop Schedule
+            </button>
+          </div>
+
+          <p id="schedule-msg" class="text-xs text-center hidden" style="color:var(--jh-sb-muted);"></p>
+        </div>
+
+        <!-- Credits placeholder -->
+        <div class="sb-credits">
+          <span class="sb-credits-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+          </span>
+          <span class="sb-credits-num">5$</span>
+          <span class="sb-credits-sub">≈ 20 runs</span>
+          <button class="sb-credits-topup" type="button">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Top up
+          </button>
+        </div>
+
+        <!-- Profile row -->
+        <div class="sb-profile">
+          <div class="sb-avatar"><%= activeProfile.displayName.charAt(0).toUpperCase() %></div>
+          <div class="sb-profile-meta">
+            <div class="sb-profile-name">
+              <%= activeProfile.displayName %>
+              <% if (activeProfile.isAdmin) { %><span class="sb-role-pill">admin</span><% } %>
+            </div>
+            <div class="sb-profile-email"><%= activeProfile.email %></div>
+          </div>
+          <form method="POST" action="/logout" style="display:contents;">
+            <button type="submit" title="Log out" class="sb-logout-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
             </button>
           </form>
         </div>
-      </div>
-
-      <!-- Nav -->
-      <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <a href="/"
-           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium <%= title === 'Start' ? 'bg-white/10 text-white shadow-[inset_3px_0_0_rgba(255,255,255,0.55)]' : 'text-gray-400 hover:bg-white/5 hover:text-white' %> transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-          Start
-        </a>
-        <a href="/jobs"
-           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium <%= title === 'Matches' ? 'bg-white/10 text-white shadow-[inset_3px_0_0_rgba(255,255,255,0.55)]' : 'text-gray-400 hover:bg-white/5 hover:text-white' %> transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-          Matches
-        </a>
-        <a href="/history"
-           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium <%= title === 'All Jobs' ? 'bg-white/10 text-white shadow-[inset_3px_0_0_rgba(255,255,255,0.55)]' : 'text-gray-400 hover:bg-white/5 hover:text-white' %> transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-          All Jobs
-        </a>
-        <a href="/analytics"
-           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium <%= title === 'Stats' ? 'bg-white/10 text-white shadow-[inset_3px_0_0_rgba(255,255,255,0.55)]' : 'text-gray-400 hover:bg-white/5 hover:text-white' %> transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-          Stats
-        </a>
-        <a href="/reports"
-           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium <%= title === 'Run Logs' ? 'bg-white/10 text-white shadow-[inset_3px_0_0_rgba(255,255,255,0.55)]' : 'text-gray-400 hover:bg-white/5 hover:text-white' %> transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-          Run Logs
-        </a>
-        <a href="/settings"
-           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium <%= title === 'Settings' ? 'bg-white/10 text-white shadow-[inset_3px_0_0_rgba(255,255,255,0.55)]' : 'text-gray-400 hover:bg-white/5 hover:text-white' %> transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-          Settings
-        </a>
-      </nav>
-
-      <!-- Bottom action buttons -->
-      <div class="px-3 py-4 border-t border-gray-700 space-y-2">
-
-        <!-- Run Once — opens confirmation modal -->
-        <button id="sidebar-run-btn" onclick="openRunModal()"
-                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
-          </svg>
-          <span id="sidebar-run-label">Run Once</span>
-        </button>
-
-        <!-- Schedule: inactive = blue config button, active = pulsing indicator + stop -->
-        <div id="schedule-inactive">
-          <button onclick="openScheduleModal()"
-                  class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            Schedule
-          </button>
-        </div>
-        <div id="schedule-active" class="hidden space-y-1">
-          <div class="flex items-center justify-between px-1">
-            <span class="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-              Schedule active
-            </span>
-            <span id="schedule-expr" class="text-xs text-gray-500 font-mono"></span>
-          </div>
-          <button onclick="scheduleStop()"
-                  class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6h12v12H6z"/>
-            </svg>
-            Stop Schedule
-          </button>
-        </div>
-
-        <p id="schedule-msg" class="text-xs text-gray-400 text-center hidden"></p>
       </div>
     </aside>
 
@@ -245,29 +577,29 @@
   </div>
 
   <!-- MobileBottomNav -->
-  <nav class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-700 flex items-stretch">
-    <a href="/" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Start' ? 'text-white' : 'text-gray-400' %>">
+  <nav class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex items-stretch" style="background:var(--jh-sb-bg);border-color:var(--jh-sb-border);">
+    <a href="/" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Start' ? 'text-white' : '' %>" style="<%= title !== 'Start' ? 'color:var(--jh-sb-muted)' : '' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
       <span class="text-[10px] font-medium">Start</span>
     </a>
-    <a href="/jobs" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Matches' ? 'text-white' : 'text-gray-400' %>">
+    <a href="/jobs" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Matches' ? 'text-white' : '' %>" style="<%= title !== 'Matches' ? 'color:var(--jh-sb-muted)' : '' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
       <span class="text-[10px] font-medium">Matches</span>
     </a>
-    <a href="/history" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'All Jobs' ? 'text-white' : 'text-gray-400' %>">
+    <a href="/history" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'All Jobs' ? 'text-white' : '' %>" style="<%= title !== 'All Jobs' ? 'color:var(--jh-sb-muted)' : '' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
       <span class="text-[10px] font-medium">All</span>
     </a>
-    <a href="/reports" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Run Logs' ? 'text-white' : 'text-gray-400' %>">
+    <a href="/reports" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Run Logs' ? 'text-white' : '' %>" style="<%= title !== 'Run Logs' ? 'color:var(--jh-sb-muted)' : '' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
       <span class="text-[10px] font-medium">Logs</span>
     </a>
-    <a href="/settings" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Settings' ? 'text-white' : 'text-gray-400' %>">
+    <a href="/settings" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Settings' ? 'text-white' : '' %>" style="<%= title !== 'Settings' ? 'color:var(--jh-sb-muted)' : '' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
       <span class="text-[10px] font-medium">Settings</span>
     </a>
     <button onclick="openProfileSheet()" class="flex-1 flex flex-col items-center justify-center gap-0.5">
-      <div class="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">
+      <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background:linear-gradient(135deg,#4D87FF,#2F6BFF);">
         <%= activeProfile.displayName.charAt(0).toUpperCase() %>
       </div>
     </button>
@@ -276,40 +608,40 @@
   <!-- Profile bottom sheet (mobile only) -->
   <div id="profile-sheet" class="md:hidden hidden fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" onclick="closeProfileSheet()"></div>
-    <div class="absolute bottom-16 left-0 right-0 bg-gray-900 rounded-t-2xl border-t border-gray-700 px-4 pt-4 pb-6">
+    <div class="absolute bottom-16 left-0 right-0 rounded-t-2xl border-t px-4 pt-4 pb-6" style="background:var(--jh-sb-bg);border-color:var(--jh-sb-border);">
       <!-- Current user info -->
       <div class="flex items-center gap-3 px-3 py-3 mb-2">
-        <div class="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+        <div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0" style="background:linear-gradient(135deg,#4D87FF,#2F6BFF);">
           <%= activeProfile.displayName.charAt(0).toUpperCase() %>
         </div>
         <div>
           <p class="text-sm font-medium text-white"><%= activeProfile.displayName %></p>
-          <p class="text-xs text-gray-400"><%= activeProfile.email %></p>
+          <p class="text-xs" style="color:var(--jh-sb-muted);"><%= activeProfile.email %></p>
         </div>
         <% if (activeProfile.isAdmin) { %>
         <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">admin</span>
         <% } %>
       </div>
-      <div class="border-t border-gray-700 pt-3 space-y-0.5">
+      <div class="border-t pt-3 space-y-0.5" style="border-color:var(--jh-sb-border);">
         <a href="/settings" onclick="closeProfileSheet()"
-           class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:bg-white/5 transition-colors">
+           class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors" style="color:var(--jh-sb-muted);">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span class="text-sm font-medium">Settings</span>
         </a>
         <div class="px-3 pt-1 pb-0.5">
           <div class="flex items-center gap-1.5">
-            <p class="text-[10px] uppercase tracking-wide text-gray-500">Legal</p>
-            <div class="flex-1 h-px bg-gray-700"></div>
+            <p class="text-[10px] uppercase tracking-wide" style="color:var(--jh-sb-muted);">Legal</p>
+            <div class="flex-1 h-px" style="background:var(--jh-sb-border);"></div>
           </div>
           <div class="mt-1 flex items-center gap-1">
             <a href="/pricing" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Pricing' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Pricing</a>
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Pricing' ? 'text-white bg-white/10' : 'hover:bg-white/5' %> transition-colors" style="<%= title !== 'Pricing' ? 'color:var(--jh-sb-muted)' : '' %>">Pricing</a>
             <a href="/terms" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Terms' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Terms</a>
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Terms' ? 'text-white bg-white/10' : 'hover:bg-white/5' %> transition-colors" style="<%= title !== 'Terms' ? 'color:var(--jh-sb-muted)' : '' %>">Terms</a>
             <a href="/privacy" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Privacy' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Privacy</a>
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Privacy' ? 'text-white bg-white/10' : 'hover:bg-white/5' %> transition-colors" style="<%= title !== 'Privacy' ? 'color:var(--jh-sb-muted)' : '' %>">Privacy</a>
             <a href="/refunds" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Refunds' ? 'text-white bg-white/10' : 'text-gray-400 hover:bg-white/5' %> transition-colors">Refunds</a>
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Refunds' ? 'text-white bg-white/10' : 'hover:bg-white/5' %> transition-colors" style="<%= title !== 'Refunds' ? 'color:var(--jh-sb-muted)' : '' %>">Refunds</a>
           </div>
         </div>
         <form method="POST" action="/logout">
@@ -1661,6 +1993,56 @@
     function closeProfileSheet() {
       document.getElementById('profile-sheet').classList.add('hidden');
     }
+
+    // ── Settings submenu ────────────────────────────────────────────
+    (function () {
+      const SETTINGS_KEY = 'jh_settings_open';
+      const btn  = document.getElementById('sb-settings-btn');
+      const sub  = document.getElementById('sb-settings-sub');
+      const chev = document.getElementById('sb-settings-chev');
+      if (!btn) return;
+      function setOpen(open) {
+        sub.style.display  = open ? '' : 'none';
+        chev.classList.toggle('open', open);
+        localStorage.setItem(SETTINGS_KEY, open ? '1' : '0');
+      }
+      const onSettings = document.title.includes('Settings') ||
+                         window.location.pathname.startsWith('/settings');
+      const stored = localStorage.getItem(SETTINGS_KEY);
+      setOpen(onSettings || stored === '1');
+      window.jhToggleSettings = function () {
+        setOpen(sub.style.display === 'none');
+      };
+    })();
+
+    // ── Onboarding dismiss ──────────────────────────────────────────
+    (function () {
+      const DISMISS_KEY = 'jh_onboarding_dismissed';
+      const widget = document.getElementById('sb-onboard-widget');
+      if (!widget) return;
+      if (localStorage.getItem(DISMISS_KEY)) widget.style.display = 'none';
+      window.jhDismissOnboarding = function () {
+        localStorage.setItem(DISMISS_KEY, '1');
+        widget.style.display = 'none';
+      };
+    })();
+
+    // ── Onboarding throb helpers ────────────────────────────────────
+    (function () {
+      function throb(el, cls) {
+        if (!el) return;
+        el.classList.add(cls);
+        setTimeout(function () { el.classList.remove(cls); }, 2000);
+      }
+      window.jhThrobRun = function () {
+        openRunModal();
+        throb(document.getElementById('sidebar-run-btn'), 'jh-throb-run');
+      };
+      window.jhThrobSchedule = function () {
+        openScheduleModal();
+        throb(document.querySelector('#schedule-inactive button'), 'jh-throb-sched');
+      };
+    })();
   </script>
 </body>
 </html>

@@ -69,6 +69,37 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// ── Onboarding state ──
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!req.profile) { next(); return; }
+  const pid = req.profile.id;
+  const db  = getDb();
+  const s = db.prepare(
+    'SELECT profile_description, schedule_group_ids FROM settings WHERE profile_id = ?'
+  ).get(pid) as { profile_description: string; schedule_group_ids: string } | undefined;
+  const hasRole = !!db.prepare(
+    'SELECT 1 FROM search_groups WHERE profile_id = ? LIMIT 1'
+  ).get(pid);
+  const hasRun = !!db.prepare(
+    "SELECT 1 FROM search_runs WHERE profile_id = ? AND trigger = 'manual' AND status = 'success' LIMIT 1"
+  ).get(pid);
+  const done = [
+    !!(s?.profile_description?.trim()),
+    hasRole,
+    false,
+    hasRun,
+    !!(s?.schedule_group_ids?.trim()),
+  ];
+  let foundActive = false;
+  const states = done.map((d): 'done' | 'active' | 'todo' => {
+    if (d) return 'done';
+    if (!foundActive) { foundActive = true; return 'active'; }
+    return 'todo';
+  });
+  res.locals.onboarding = { states, completedCount: done.filter(Boolean).length };
+  next();
+});
+
 // ── EJS layout wrapper ──
 app.use((req, res, next) => {
   const originalRender = res.render.bind(res);
