@@ -508,15 +508,17 @@
             </button>
           </div>
 
-          <!-- Schedule active -->
+          <!-- Schedule active status row (shown below schedule button when active) -->
+          <div id="schedule-status" class="hidden" style="align-items:center;justify-content:space-between;padding:2px 4px;">
+            <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#34d399;font-weight:500;">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+              Schedule active
+            </span>
+            <span id="schedule-expr" style="font-size:11px;color:var(--jh-sb-muted);font-family:monospace;"></span>
+          </div>
+
+          <!-- Schedule active stop button -->
           <div id="schedule-active" class="hidden">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 4px;">
-              <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#34d399;font-weight:500;">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-                Schedule active
-              </span>
-              <span id="schedule-expr" style="font-size:11px;color:var(--jh-sb-muted);font-family:monospace;"></span>
-            </div>
             <button onclick="scheduleStop()" class="sb-run sb-run-danger">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
               Stop Schedule
@@ -1107,6 +1109,9 @@
     function setScheduleUI(active, expression, timezone) {
       _scheduleActive = active;
       document.getElementById('schedule-inactive').classList.toggle('hidden', active);
+      const statusEl = document.getElementById('schedule-status');
+      statusEl.classList.toggle('hidden', !active);
+      statusEl.style.display = active ? 'flex' : '';
       document.getElementById('schedule-active').classList.toggle('hidden', !active);
       if (expression) document.getElementById('schedule-expr').textContent = cronToLabel(expression, timezone);
 
