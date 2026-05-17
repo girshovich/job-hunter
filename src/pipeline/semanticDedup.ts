@@ -103,9 +103,12 @@ export async function checkDuplicate(
   // Query existing non-duplicate curated jobs from same company
   const existing = db
     .prepare(
-      `SELECT id, title, description FROM jobs
-       WHERE company = ? AND is_duplicate = 0
-       ORDER BY fetched_at DESC
+      `SELECT j.id, j.title, COALESCE(jd.description_text, j.description) AS description
+       FROM jobs j
+       JOIN job_profile_states jps ON jps.job_id = j.id
+       LEFT JOIN job_descriptions jd ON jd.job_id = j.id
+       WHERE j.company = ? AND jps.is_duplicate = 0
+       ORDER BY jps.fetched_at DESC
        LIMIT ?`,
     )
     .all(scoredJob.job.company, MAX_COMPANY_JOBS) as JobRow[];

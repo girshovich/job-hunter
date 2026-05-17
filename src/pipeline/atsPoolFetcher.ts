@@ -44,7 +44,6 @@ interface GhJobRaw {
   absolute_url: string;
   location: { name: string } | null;
   updated_at: string;
-  content: string;
 }
 
 interface GhApiResponse { jobs: GhJobRaw[] }
@@ -57,14 +56,14 @@ interface GhJobToInsert {
   url: string;
   apply_url: string;
   posted_date: string | null;
-  description: string;
+  ats_slug: string;
 }
 
 async function fetchGhBoard(slug: string, companyName: string): Promise<GhJobToInsert[]> {
   let res: Response;
   try {
     res = await fetch(
-      `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`,
+      `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=false`,
       { signal: AbortSignal.timeout(15_000) },
     );
   } catch { return []; }
@@ -81,7 +80,7 @@ async function fetchGhBoard(slug: string, companyName: string): Promise<GhJobToI
       url:             job.absolute_url || '',
       apply_url:       job.absolute_url || '',
       posted_date:     postedDate,
-      description:     (job.content || '').substring(0, 20_000),
+      ats_slug:        slug,
     };
   });
 }
@@ -96,10 +95,13 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
 
   const now = new Date().toISOString();
   const upsert = db.prepare(`
-    INSERT INTO jobs (linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
+    INSERT INTO jobs (linkedin_job_id, job_source, provider, ats_slug, title, company, location, country, work_mode,
                       description, url, apply_url, posted_date, fetched_at)
-    VALUES (?, 'Greenhouse', 'greenhouse', ?, ?, ?, NULL, 'onsite', ?, ?, ?, ?, ?)
-    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET fetched_at = excluded.fetched_at, company = excluded.company
+    VALUES (?, 'Greenhouse', 'greenhouse', ?, ?, ?, ?, NULL, 'onsite', '', ?, ?, ?, ?)
+    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
+      fetched_at = excluded.fetched_at,
+      company    = excluded.company,
+      ats_slug   = excluded.ats_slug
   `);
 
   let fetched = 0;
@@ -110,7 +112,7 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
     const jobs = await fetchGhBoard(slug, company_name || slug);
     db.transaction(() => {
       for (const j of jobs) {
-        upsert.run(j.linkedin_job_id, j.title, j.company, j.location, j.description, j.url, j.apply_url, j.posted_date, now);
+        upsert.run(j.linkedin_job_id, j.ats_slug, j.title, j.company, j.location, j.url, j.apply_url, j.posted_date, now);
         fetched++;
       }
     });
@@ -121,6 +123,7 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
   });
 
   populateCountriesFromCache(db, 'Greenhouse');
+  clearUnclaimedPoolDescriptions(db, 'Greenhouse');
 
   const durationMs = Date.now() - start;
   emitToRun(runId ?? '', {
@@ -161,7 +164,7 @@ interface AshbyJobToInsert {
   url: string;
   apply_url: string | null;
   posted_date: string | null;
-  description: string;
+  ats_slug: string;
 }
 
 interface AshbyBoardFetchResult {
@@ -201,7 +204,7 @@ async function fetchAshbyBoard(slug: string, storedName: string | null): Promise
       url:             job.jobUrl || '',
       apply_url:       job.applyUrl || null,
       posted_date:     postedDate,
-      description:     (job.descriptionHtml || job.descriptionPlain || '').substring(0, 20_000),
+      ats_slug:        slug,
     };
   });
   return { companyName, jobs };
@@ -217,16 +220,16 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
 
   const now = new Date().toISOString();
   const upsert = db.prepare(`
-    INSERT INTO jobs (linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
+    INSERT INTO jobs (linkedin_job_id, job_source, provider, ats_slug, title, company, location, country, work_mode,
                       description, url, apply_url, posted_date, fetched_at)
-    VALUES (?, 'Ashby', 'ashby', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+    VALUES (?, 'Ashby', 'ashby', ?, ?, ?, ?, NULL, ?, '', ?, ?, ?, ?)
     ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
       fetched_at  = excluded.fetched_at,
+      ats_slug     = excluded.ats_slug,
       title       = excluded.title,
       company     = excluded.company,
       location    = excluded.location,
       country     = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
-      description = excluded.description,
       url         = excluded.url,
       apply_url   = COALESCE(excluded.apply_url, jobs.apply_url),
       posted_date = excluded.posted_date
@@ -246,7 +249,7 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
       db.transaction(() => {
         updateBoardName.run(result.companyName, slug, result.companyName);
         for (const j of result.jobs) {
-          upsert.run(j.linkedin_job_id, j.title, j.company, j.location, j.work_mode, j.description, j.url, j.apply_url, j.posted_date, now);
+          upsert.run(j.linkedin_job_id, j.ats_slug, j.title, j.company, j.location, j.work_mode, j.url, j.apply_url, j.posted_date, now);
           fetched++;
         }
       });
@@ -258,6 +261,7 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
   });
 
   populateCountriesFromCache(db, 'Ashby');
+  clearUnclaimedPoolDescriptions(db, 'Ashby');
 
   const durationMs = Date.now() - start;
   emitToRun(runId ?? '', {
@@ -307,6 +311,21 @@ function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'Greenhou
     for (const [loc, country] of resolved) update.run(country, jobSource, loc);
   });
   console.log(`[pool] Populated country for ${resolved.size} ${jobSource} location(s) from cache`);
+}
+
+function clearUnclaimedPoolDescriptions(db: Database, jobSource: 'Ashby' | 'Greenhouse'): void {
+  const result = db.prepare(`
+    DELETE FROM job_descriptions
+    WHERE job_id IN (
+      SELECT id FROM jobs
+      WHERE job_source = ?
+        AND id NOT IN (SELECT job_id FROM job_profile_states)
+    )
+  `).run(jobSource) as { changes: number };
+
+  if (result.changes > 0) {
+    console.log(`[pool] Removed ${result.changes} unclaimed ${jobSource} description(s)`);
+  }
 }
 
 /**

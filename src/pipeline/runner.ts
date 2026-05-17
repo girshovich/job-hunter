@@ -167,12 +167,20 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       INSERT OR IGNORE INTO jobs (
         linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
         description, url, apply_url, posted_date, fetched_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)
     `);
 
     const selectJobId = db.prepare(
       `SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = ?`
     );
+
+    const upsertJobDescription = db.prepare(`
+      INSERT INTO job_descriptions (job_id, description_text, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(job_id) DO UPDATE SET
+        description_text = excluded.description_text,
+        updated_at       = excluded.updated_at
+    `);
 
     const insertJobState = db.prepare(`
       INSERT OR IGNORE INTO job_profile_states (
@@ -456,8 +464,9 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           const inRunWithIds: ExistingJob[] = inRunEntries.map((e, i) => ({ ...e, id: -(i + 1) }));
           // Match on normalized key (exact) OR on names that extend it with a legal suffix ("Every." → "Every. GmbH").
           const dbCandidates = db.prepare(`
-            SELECT j.id, j.title, j.description FROM jobs j
+            SELECT j.id, j.title, COALESCE(jd.description_text, j.description) AS description FROM jobs j
             JOIN job_profile_states jps ON jps.job_id = j.id
+            LEFT JOIN job_descriptions jd ON jd.job_id = j.id
             WHERE (lower(j.company) = ? OR lower(j.company) LIKE ? || ' %')
               AND jps.is_duplicate = 0
               AND jps.profile_id = ?
@@ -557,10 +566,11 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,
-              job.description || '', job.url || null, job.applyUrl || null,
+              job.url || null, job.applyUrl || null,
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
               0, 'BLACKLISTED', 'BLACKLISTED', null, null, null,
@@ -585,11 +595,12 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,
-              job.description || '', job.url || null, job.applyUrl || null,
+              job.url || null, job.applyUrl || null,
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
             jobIdByKey.set(`${jobSource}::${job.jobId}`, jobId);
+            if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
               scored.score, scored.verdict, scored.verdict,
@@ -607,10 +618,11 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,
-              job.description || '', job.url || null, job.applyUrl || null,
+              job.url || null, job.applyUrl || null,
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
               0, 'DUPLICATE', 'DUPLICATE', null, null, null,

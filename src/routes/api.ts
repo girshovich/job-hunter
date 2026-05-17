@@ -926,11 +926,13 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   const cvId = parseInt(String(body.cv_id || '0'), 10);
   if (!cvId || isNaN(cvId)) { res.status(400).json({ error: 'cv_id is required.' }); return; }
 
-  const job = db.prepare(`
-    SELECT j.*, jps.*
+  const jobRow = db.prepare(`
+    SELECT j.*, jps.*, COALESCE(jd.description_text, j.description) AS description_text
     FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    LEFT JOIN job_descriptions jd ON jd.job_id = j.id
     WHERE j.id = ? AND jps.profile_id = ?
-  `).get(jobId, profileId) as JobWithState | undefined;
+  `).get(jobId, profileId) as (JobWithState & { description_text?: string }) | undefined;
+  const job = jobRow ? { ...jobRow, description: jobRow.description_text ?? jobRow.description } : undefined;
   if (!job) { res.status(404).json({ error: 'Job not found.' }); return; }
 
   const cv = db.prepare('SELECT * FROM cvs WHERE id = ? AND profile_id = ?').get(cvId, profileId) as CvRow | undefined;

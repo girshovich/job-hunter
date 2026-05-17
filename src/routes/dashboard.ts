@@ -208,12 +208,14 @@ router.get('/job/:id', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
 
   const profileId = req.profile.id;
-  const job = db.prepare(`
-    SELECT j.*, jps.*, c.logo_url
+  const jobRow = db.prepare(`
+    SELECT j.*, jps.*, c.logo_url, COALESCE(jd.description_text, j.description) AS description_text
     FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    LEFT JOIN job_descriptions jd ON jd.job_id = j.id
     LEFT JOIN companies c ON c.company = j.company
     WHERE j.id = ? AND jps.profile_id = ?
-  `).get(id, profileId) as JobWithState | undefined;
+  `).get(id, profileId) as (JobWithState & { description_text?: string }) | undefined;
+  const job = jobRow ? { ...jobRow, description: jobRow.description_text ?? jobRow.description } : undefined;
   if (!job) {
     res.status(404).render('404', { title: 'Not Found' });
     return;
@@ -222,21 +224,28 @@ router.get('/job/:id', (req: Request, res: Response) => {
   // Duplicate chain
   let original: JobWithState | undefined;
   if (job.duplicate_of_job_id) {
-    original = db.prepare(`
-      SELECT j.*, jps.*, c.logo_url
+    const originalRow = db.prepare(`
+      SELECT j.*, jps.*, c.logo_url, COALESCE(jd.description_text, j.description) AS description_text
       FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+      LEFT JOIN job_descriptions jd ON jd.job_id = j.id
       LEFT JOIN companies c ON c.company = j.company
       WHERE j.id = ? AND jps.profile_id = ?
-    `).get(job.duplicate_of_job_id, profileId) as JobWithState | undefined;
+    `).get(job.duplicate_of_job_id, profileId) as (JobWithState & { description_text?: string }) | undefined;
+    original = originalRow ? { ...originalRow, description: originalRow.description_text ?? originalRow.description } : undefined;
   }
 
-  const duplicatesOfThis = db.prepare(`
-    SELECT j.*, jps.*, c.logo_url
+  const duplicateRows = db.prepare(`
+    SELECT j.*, jps.*, c.logo_url, COALESCE(jd.description_text, j.description) AS description_text
     FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
+    LEFT JOIN job_descriptions jd ON jd.job_id = j.id
     LEFT JOIN companies c ON c.company = j.company
     WHERE jps.duplicate_of_job_id = ? AND jps.profile_id = ?
     ORDER BY jps.fetched_at DESC
-  `).all(job.id, profileId) as JobWithState[];
+  `).all(job.id, profileId) as Array<JobWithState & { description_text?: string }>;
+  const duplicatesOfThis = duplicateRows.map((row) => ({
+    ...row,
+    description: row.description_text ?? row.description,
+  }));
 
   const from = String(req.query.from || 'history');
   const backUrl   = from === 'jobs' ? '/jobs' : from === 'home' ? '/' : '/history';

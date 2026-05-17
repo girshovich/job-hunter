@@ -209,6 +209,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
       linkedin_job_id: 'test-001',
       job_source: 'LinkedIn',
       provider: 'harvestapi',
+      ats_slug: null,
       title: 'Senior Product Manager — Platform',
       company: 'Acme Corp',
       location: 'London, UK (Hybrid)',

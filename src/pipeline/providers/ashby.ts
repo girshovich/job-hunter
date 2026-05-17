@@ -12,6 +12,7 @@ import { resolveCountriesFromCache } from '../locationNormalizer';
 
 interface JobRow {
   linkedin_job_id: string;
+  ats_slug: string | null;
   title: string;
   company: string;
   location: string | null;
@@ -20,6 +21,51 @@ interface JobRow {
   apply_url: string | null;
   posted_date: string | null;
   description: string;
+}
+
+interface AshbyJobRaw {
+  id: string;
+  descriptionHtml: string | null;
+  descriptionPlain: string | null;
+}
+
+interface AshbyApiResponse { jobs: AshbyJobRaw[] }
+
+async function hydrateDescriptions(rows: JobRow[]): Promise<JobRow[]> {
+  const bySlug = new Map<string, JobRow[]>();
+  for (const row of rows) {
+    if (!row.description && row.ats_slug) {
+      const bucket = bySlug.get(row.ats_slug) ?? [];
+      bucket.push(row);
+      bySlug.set(row.ats_slug, bucket);
+    }
+  }
+
+  await Promise.all([...bySlug.entries()].map(async ([slug, slugRows]) => {
+    let res: Response;
+    try {
+      res = await fetch(
+        `https://api.ashbyhq.com/posting-api/job-board/${slug}`,
+        { signal: AbortSignal.timeout(15_000) },
+      );
+    } catch { return; }
+    if (!res.ok) return;
+
+    let data: AshbyApiResponse;
+    try { data = await res.json() as AshbyApiResponse; } catch { return; }
+
+    const descriptions = new Map(
+      (data.jobs ?? []).map((job) => [
+        job.id,
+        (job.descriptionHtml || job.descriptionPlain || '').substring(0, 20_000),
+      ]),
+    );
+    for (const row of slugRows) {
+      row.description = descriptions.get(row.linkedin_job_id) || row.description;
+    }
+  }));
+
+  return rows;
 }
 
 function rowToPosting(row: JobRow): JobPosting {
@@ -69,13 +115,13 @@ export async function fetchWithAshby(
   const cutoffISO = cutoff.toISOString();
 
   // Keyword filter: title must contain at least one keyword (OR)
-  const keywordClauses = filters.keywords.map(() => `LOWER(title) LIKE ?`).join(' OR ');
+  const keywordClauses = filters.keywords.map(() => `LOWER(j.title) LIKE ?`).join(' OR ');
   const keywordParams  = filters.keywords.map((k) => `%${k.toLowerCase()}%`);
 
   // Work mode filter: Ashby provides usable workplace type data in the pool.
   const workModes = filters.workModes.map((m) => m.toLowerCase()).filter(Boolean);
   const workModeClause = workModes.length > 0
-    ? `AND LOWER(COALESCE(work_mode, 'onsite')) IN (${workModes.map(() => '?').join(', ')})`
+    ? `AND LOWER(COALESCE(j.work_mode, 'onsite')) IN (${workModes.map(() => '?').join(', ')})`
     : '';
 
   // Primary: match jobs.country (populated by resolve-countries / post-fetch sweep).
@@ -85,10 +131,10 @@ export async function fetchWithAshby(
   if (targetCountries.size > 0) {
     const countryList    = [...targetCountries];
     const inPlaceholders = countryList.map(() => '?').join(', ');
-    const likeClauses    = countryList.map(() => `LOWER(COALESCE(location, '')) LIKE ?`).join(' OR ');
+    const likeClauses    = countryList.map(() => `LOWER(COALESCE(j.location, '')) LIKE ?`).join(' OR ');
     locationClause = `AND (
-      LOWER(country) IN (${inPlaceholders})
-      OR (country IS NULL AND (${likeClauses}))
+      LOWER(j.country) IN (${inPlaceholders})
+      OR (j.country IS NULL AND (${likeClauses}))
     )`;
     locationParams = [
       ...countryList,
@@ -97,16 +143,20 @@ export async function fetchWithAshby(
   }
 
   const sql = `
-    SELECT linkedin_job_id, title, company, location, work_mode, url, apply_url, posted_date, description
-    FROM jobs
-    WHERE job_source = 'Ashby'
-      AND (posted_date IS NULL OR posted_date >= ?)
+    SELECT j.linkedin_job_id, j.ats_slug, j.title, j.company, j.location, j.work_mode,
+           j.url, j.apply_url, j.posted_date, COALESCE(jd.description_text, j.description) AS description
+    FROM jobs j
+    LEFT JOIN job_descriptions jd ON jd.job_id = j.id
+    WHERE j.job_source = 'Ashby'
+      AND (j.posted_date IS NULL OR j.posted_date >= ?)
       AND (${keywordClauses || '1=1'})
       ${workModeClause}
       ${locationClause}
   `;
 
-  const rows = db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[];
+  const rows = await hydrateDescriptions(
+    db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[],
+  );
   const jobs = rows.map(rowToPosting);
 
   console.log(`[ashby] ${jobs.length} pool jobs matched via SQL (${filters.keywords.join(', ')} / ${filters.locations.join(', ')})`);

@@ -1125,6 +1125,82 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration v_rjl_job_source_backfill failed (non-fatal):', (err as Error).message);
   }
+
+  // v_description_split: move heavy descriptions out of canonical jobs and drop
+  // unclaimed ATS pool descriptions.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    db.exec(`CREATE TABLE IF NOT EXISTS job_descriptions (
+      job_id           INTEGER PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
+      description_text TEXT    NOT NULL,
+      updated_at       TEXT    NOT NULL
+    )`);
+
+    const cols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'ats_slug')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN ats_slug TEXT`);
+      console.log('[db] Migration v_description_split: jobs.ats_slug column added');
+    }
+
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_description_split'`).get();
+    if (!done) {
+      db.transaction(() => {
+        db.exec(`
+          INSERT OR REPLACE INTO job_descriptions (job_id, description_text, updated_at)
+          SELECT id, description, COALESCE(fetched_at, datetime('now'))
+          FROM jobs
+          WHERE description IS NOT NULL AND description != ''
+        `);
+        db.exec(`UPDATE jobs SET description = '' WHERE description != ''`);
+        db.exec(`
+          UPDATE jobs
+          SET ats_slug = substr(
+            replace(url, 'https://jobs.ashbyhq.com/', ''),
+            1,
+            instr(replace(url, 'https://jobs.ashbyhq.com/', ''), '/') - 1
+          )
+          WHERE job_source = 'Ashby'
+            AND (ats_slug IS NULL OR ats_slug = '')
+            AND url LIKE 'https://jobs.ashbyhq.com/%/%'
+        `);
+        db.exec(`
+          UPDATE jobs
+          SET ats_slug = substr(
+            replace(url, 'https://boards.greenhouse.io/', ''),
+            1,
+            instr(replace(url, 'https://boards.greenhouse.io/', ''), '/') - 1
+          )
+          WHERE job_source = 'Greenhouse'
+            AND (ats_slug IS NULL OR ats_slug = '')
+            AND url LIKE 'https://boards.greenhouse.io/%/%'
+        `);
+        db.exec(`
+          UPDATE jobs
+          SET ats_slug = substr(
+            replace(url, 'https://job-boards.greenhouse.io/', ''),
+            1,
+            instr(replace(url, 'https://job-boards.greenhouse.io/', ''), '/') - 1
+          )
+          WHERE job_source = 'Greenhouse'
+            AND (ats_slug IS NULL OR ats_slug = '')
+            AND url LIKE 'https://job-boards.greenhouse.io/%/%'
+        `);
+        db.exec(`
+          DELETE FROM job_descriptions
+          WHERE job_id IN (
+            SELECT id FROM jobs
+            WHERE job_source IN ('Greenhouse', 'Ashby')
+              AND ats_slug IS NOT NULL
+              AND id NOT IN (SELECT job_id FROM job_profile_states)
+          )
+        `);
+        db.exec(`INSERT INTO _migrations VALUES ('v_description_split')`);
+      });
+      console.log('[db] Migration v_description_split: descriptions split and unclaimed ATS text cleared');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_description_split failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -1166,6 +1242,7 @@ function initSchema(db: Database): void {
       seen_at               TEXT,
       group_id              INTEGER REFERENCES search_groups(id),
       provider              TEXT    NOT NULL DEFAULT 'harvestapi',
+      ats_slug              TEXT,
       original_ai_verdict   TEXT,
       FOREIGN KEY (duplicate_of_job_id) REFERENCES jobs(id)
     );
@@ -1173,6 +1250,12 @@ function initSchema(db: Database): void {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_linkedin_id ON jobs(linkedin_job_id);
     CREATE INDEX IF NOT EXISTS idx_jobs_company       ON jobs(company);
     CREATE INDEX IF NOT EXISTS idx_jobs_fetched_at    ON jobs(fetched_at);
+
+    CREATE TABLE IF NOT EXISTS job_descriptions (
+      job_id           INTEGER PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
+      description_text TEXT    NOT NULL,
+      updated_at       TEXT    NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS job_profile_states (
       job_id              INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -1493,6 +1576,7 @@ export interface JobRow {
   linkedin_job_id: string;
   job_source: string;
   provider: string;
+  ats_slug: string | null;
   title: string;
   company: string;
   location: string | null;
