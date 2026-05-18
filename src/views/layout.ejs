@@ -362,7 +362,7 @@
         <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#4D87FF,#2F6BFF);display:grid;place-items:center;color:white;font-weight:700;font-size:12px;letter-spacing:0.02em;box-shadow:0 1px 0 rgba(255,255,255,0.12) inset,0 2px 6px rgba(47,107,255,0.35);flex-shrink:0;">JH</div>
         <div>
           <div style="font-weight:600;font-size:15px;letter-spacing:-0.01em;color:var(--jh-sb-ink);">Job Hunter</div>
-          <div style="font-size:11px;color:var(--jh-sb-muted);margin-top:1px;">AI job agent</div>
+          <div style="font-size:11px;color:var(--jh-sb-muted);margin-top:1px;">Find a matching job</div>
         </div>
       </div>
 
@@ -535,11 +535,20 @@
           </span>
           <span class="sb-credits-num">5$</span>
           <span class="sb-credits-sub">≈ 20 runs</span>
-          <button class="sb-credits-topup" type="button">
+          <button class="sb-credits-topup" type="button" onclick="showTopupMsg()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             Top up
           </button>
         </div>
+        <div id="topup-msg" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:#1e2535;color:#a0aec0;font-size:11px;padding:6px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.35);pointer-events:none;opacity:0;transition:opacity 0.25s ease;">Awaiting Paddle approval, coming soon!</div>
+        <script>
+          function showTopupMsg() {
+            var el = document.getElementById('topup-msg');
+            el.style.opacity = '1';
+            clearTimeout(el._t);
+            el._t = setTimeout(function(){ el.style.opacity = '0'; }, 3000);
+          }
+        </script>
 
         <!-- Profile row -->
         <div class="sb-profile">
