@@ -986,6 +986,29 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_ats_pool failed (non-fatal):', (err as Error).message);
   }
 
+  // v_credits: add JH credits system columns to settings
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'use_jh_credits')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN use_jh_credits INTEGER NOT NULL DEFAULT 1`);
+      console.log('[db] Migration v_credits: settings.use_jh_credits added');
+    }
+    if (!cols.some((c) => c.name === 'user_apify_api_token')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN user_apify_api_token TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_credits: settings.user_apify_api_token added');
+    }
+    if (!cols.some((c) => c.name === 'user_openai_api_key')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN user_openai_api_key TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_credits: settings.user_openai_api_key added');
+    }
+    if (!cols.some((c) => c.name === 'credits_balance')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN credits_balance REAL NOT NULL DEFAULT 0.0`);
+      console.log('[db] Migration v_credits: settings.credits_balance added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_credits failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
@@ -1687,6 +1710,10 @@ export interface SettingsRow {
   ats_validation_cron: string;
   ats_pool_gh_enabled: number;
   ats_pool_ashby_enabled: number;
+  use_jh_credits: number;          // 1 = use JH credits (global admin keys), 0 = use own keys
+  user_apify_api_token: string;    // user-specific Apify key (used when use_jh_credits = 0)
+  user_openai_api_key: string;     // user-specific OpenAI key (used when use_jh_credits = 0)
+  credits_balance: number;         // USD balance when using JH credits
 }
 
 export interface CvRow {

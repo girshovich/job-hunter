@@ -36,11 +36,24 @@ router.get('/preflight', (req: Request, res: Response) => {
 
     const errors: string[] = [];
 
-    const openAiKey = settings?.openai_api_key?.trim() || config.openAiKey?.trim();
-    const apifyKey  = settings?.apify_api_token?.trim() || config.apifyApiToken?.trim();
-
-    if (!openAiKey)  errors.push('OpenAI API key is not set — add it in Settings → API Keys.');
-    if (!apifyKey)   errors.push('Apify API token is not set — add it in Settings → API Keys.');
+    const useJhCredits = (settings?.use_jh_credits ?? 1) !== 0;
+    if (useJhCredits) {
+      const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+      const adminSettings = adminProfile
+        ? db.prepare('SELECT openai_api_key, apify_api_token FROM settings WHERE profile_id = ?').get(adminProfile.id) as { openai_api_key: string; apify_api_token: string } | undefined
+        : undefined;
+      const openAiKey = adminSettings?.openai_api_key?.trim() || config.openAiKey?.trim();
+      const apifyKey  = adminSettings?.apify_api_token?.trim() || config.apifyApiToken?.trim();
+      if (!openAiKey) errors.push('Global OpenAI API key is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
+      if (!apifyKey)  errors.push('Global Apify API token is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
+      const credits = settings?.credits_balance ?? 0;
+      if (credits < 0.5) errors.push(`Insufficient credits ($${credits.toFixed(2)}). Please top up to at least $0.50 to run.`);
+    } else {
+      const openAiKey = settings?.user_openai_api_key?.trim() || config.openAiKey?.trim();
+      const apifyKey  = settings?.user_apify_api_token?.trim() || config.apifyApiToken?.trim();
+      if (!openAiKey) errors.push('OpenAI API key is not set — add it in Settings → AI Setup → Use my own API keys.');
+      if (!apifyKey)  errors.push('Apify API token is not set — add it in Settings → AI Setup → Use my own API keys.');
+    }
 
     if (activeGroups.length === 0) {
       errors.push('No active Roles configured — add at least one Role in Settings.');
@@ -96,9 +109,19 @@ router.post('/run', async (req: Request, res: Response) => {
   const resolvedProviders = providers?.length ? providers : undefined;
   const runOptions: RunOptions = { groupIds, dateRange, providers: resolvedProviders };
 
+  // Check credits if user is on JH credits mode
+  const db = getDb();
+  const settings = db.prepare('SELECT use_jh_credits, credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { use_jh_credits: number; credits_balance: number } | undefined;
+  if ((settings?.use_jh_credits ?? 1) !== 0) {
+    const balance = settings?.credits_balance ?? 0;
+    if (balance < 0.5) {
+      res.status(402).json({ success: false, error: `Insufficient credits ($${balance.toFixed(2)}). Please top up to at least $0.50 to run.` });
+      return;
+    }
+  }
+
   // Persist provider selection as the new default for future runs
   if (resolvedProviders) {
-    const db = getDb();
     db.prepare('UPDATE settings SET scraping_providers = ? WHERE profile_id = ?')
       .run(JSON.stringify(resolvedProviders), profileId);
   }
@@ -216,6 +239,32 @@ router.post('/test/resend', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(400).json({ success: false, error: (err as Error).message });
   }
+});
+
+// ── Admin: set credits balance for a profile ──
+router.post('/admin/credits', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) {
+    return res.status(403).json({ error: 'Admin only.' });
+  }
+  const db = getDb();
+  const b = req.body as Record<string, unknown>;
+  const targetProfileId = parseInt(String(b.profileId || '0'), 10);
+  const credits = parseFloat(String(b.credits ?? ''));
+
+  if (isNaN(targetProfileId) || targetProfileId <= 0) {
+    return res.status(400).json({ error: 'Invalid profileId.' });
+  }
+  if (isNaN(credits) || credits < 0) {
+    return res.status(400).json({ error: 'Credits must be a number ≥ 0.' });
+  }
+
+  const profile = db.prepare('SELECT id FROM profiles WHERE id = ?').get(targetProfileId);
+  if (!profile) {
+    return res.status(404).json({ error: 'Profile not found.' });
+  }
+
+  db.prepare('UPDATE settings SET credits_balance = ? WHERE profile_id = ?').run(credits, targetProfileId);
+  res.json({ success: true, credits });
 });
 
 // ── Admin: create profile ──

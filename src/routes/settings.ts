@@ -72,7 +72,13 @@ router.get('/', (req: Request, res: Response) => {
   const rolesLastSaved  = rolesTimestamps.length > 0 ? rolesTimestamps.sort().at(-1)! : null;
 
   const allProfiles = req.profile.isAdmin
-    ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
+    ? (db.prepare(`
+        SELECT p.id, p.email, p.is_admin, p.created_at,
+               COALESCE(s.credits_balance, 0) AS credits_balance
+        FROM profiles p
+        LEFT JOIN settings s ON s.profile_id = p.id
+        ORDER BY p.id ASC
+      `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; credits_balance: number }>)
     : [];
 
   const locationCountries = ALL_COUNTRIES;
@@ -192,12 +198,26 @@ router.post('/', async (req: Request, res: Response) => {
         res.status(403).send('Forbidden');
         return;
       }
-      db.prepare(`UPDATE settings SET email_from = ?, resend_api_key = ?, updated_at = ? WHERE profile_id = ?`).run(
-        String(body.email_from || ''),
-        String(body.resend_api_key || ''),
-        now,
-        profileId,
-      );
+      const section = String(body.section || 'email');
+      if (section === 'keys') {
+        const newApify = String(body.apify_api_token || '').trim();
+        const newOpenAi = String(body.openai_api_key || '').trim();
+        const sets: string[] = ['updated_at = ?'];
+        const vals: unknown[] = [now];
+        if (newApify) { sets.unshift('apify_api_token = ?'); vals.unshift(newApify); }
+        if (newOpenAi) { sets.unshift('openai_api_key = ?'); vals.unshift(newOpenAi); }
+        db.prepare(`UPDATE settings SET ${sets.join(', ')} WHERE profile_id = ?`).run(...vals, profileId);
+      } else {
+        const emailFields: Array<[string, unknown]> = [
+          ['email_from', String(body.email_from || '')],
+          ['updated_at', now],
+        ];
+        const newResend = String(body.resend_api_key || '').trim();
+        if (newResend) emailFields.unshift(['resend_api_key', newResend]);
+        db.prepare(
+          `UPDATE settings SET ${emailFields.map(([c]) => `${c} = ?`).join(', ')} WHERE profile_id = ?`
+        ).run(...emailFields.map(([, v]) => v), profileId);
+      }
       res.redirect('/settings?tab=admin&saved=1');
       return;
     }
@@ -300,30 +320,26 @@ router.post('/', async (req: Request, res: Response) => {
       const values = [...updateFields.map(([, v]) => v), profileId];
       db.prepare(`UPDATE settings SET ${setClauses} WHERE profile_id = ?`).run(...values);
     } else {
-      db.prepare(`
-        UPDATE settings SET
-          ai_model = ?,
-          ai_model_hard = ?,
-          dedup_system_prompt = ?,
-          summary_prompt = ?,
-          cv_comparison_prompt = ?,
-          apify_api_token = ?,
-          openai_api_key = ?,
-          ai_updated_at = ?,
-          updated_at = ?
-        WHERE profile_id = ?
-      `).run(
-        String(body.ai_model || 'gpt-5.4-mini'),
-        String(body.ai_model_hard || 'gpt-5.4'),
-        String(body.dedup_system_prompt || ''),
-        String(body.summary_prompt || ''),
-        String(body.cv_comparison_prompt || ''),
-        String(body.apify_api_token || ''),
-        String(body.openai_api_key || ''),
-        now,
-        now,
-        profileId,
-      );
+      const newDedup = String(body.dedup_system_prompt || '').trim();
+      const newSummary = String(body.summary_prompt || '').trim();
+      const newCvPrompt = String(body.cv_comparison_prompt || '').trim();
+      const newUserApify = String(body.user_apify_api_token || '').trim();
+      const newUserOpenAi = String(body.user_openai_api_key || '').trim();
+      const aiFields: Array<[string, unknown]> = [
+        ['ai_model', String(body.ai_model || 'gpt-5.4-mini')],
+        ['ai_model_hard', String(body.ai_model_hard || 'gpt-5.4')],
+        ['use_jh_credits', body.use_jh_credits === '0' ? 0 : 1],
+        ['ai_updated_at', now],
+        ['updated_at', now],
+      ];
+      if (newDedup) aiFields.push(['dedup_system_prompt', newDedup]);
+      if (newSummary) aiFields.push(['summary_prompt', newSummary]);
+      if (newCvPrompt) aiFields.push(['cv_comparison_prompt', newCvPrompt]);
+      if (newUserApify) aiFields.push(['user_apify_api_token', newUserApify]);
+      if (newUserOpenAi) aiFields.push(['user_openai_api_key', newUserOpenAi]);
+      db.prepare(
+        `UPDATE settings SET ${aiFields.map(([c]) => `${c} = ?`).join(', ')} WHERE profile_id = ?`
+      ).run(...aiFields.map(([, v]) => v), profileId);
     }
 
     res.redirect(`/settings?tab=${tab}&saved=1`);

@@ -75,8 +75,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const pid = req.profile.id;
   const db  = getDb();
   const s = db.prepare(
-    'SELECT profile_description, schedule_group_ids FROM settings WHERE profile_id = ?'
-  ).get(pid) as { profile_description: string; schedule_group_ids: string } | undefined;
+    'SELECT profile_description, schedule_group_ids, use_jh_credits, credits_balance FROM settings WHERE profile_id = ?'
+  ).get(pid) as { profile_description: string; schedule_group_ids: string; use_jh_credits: number; credits_balance: number } | undefined;
   const hasRole = !!db.prepare(
     'SELECT 1 FROM search_groups WHERE profile_id = ? LIMIT 1'
   ).get(pid);
@@ -86,7 +86,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const done = [
     !!(s?.profile_description?.trim()),
     hasRole,
-    false,
+    (s?.credits_balance ?? 0) > 0 || (s?.use_jh_credits ?? 1) === 0,
     hasRun,
     !!(s?.schedule_group_ids?.trim()),
   ];
@@ -97,6 +97,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return 'todo';
   });
   res.locals.onboarding = { states, completedCount: done.filter(Boolean).length };
+  res.locals.useJhCredits = (s?.use_jh_credits ?? 1) === 1;
+  res.locals.creditsBalance = s?.credits_balance ?? 0;
   next();
 });
 

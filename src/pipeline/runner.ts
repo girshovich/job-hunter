@@ -13,7 +13,7 @@ import { providerToSource } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { resolveCountries } from './locationNormalizer';
-import { sendDailyReport, type RunStats } from './emailReport';
+import { sendDailyReport, sendLowCreditsEmail, type RunStats } from './emailReport';
 import { fetchClearbitLogosForAts } from './companyLogos';
 
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
@@ -139,9 +139,21 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
     if (!settings) throw new Error(`Settings not found for profile ${profileId}`);
 
-    // Resolve API keys: DB value takes priority, env vars are fallback
-    const apifyToken = settings.apify_api_token || config.apifyApiToken;
-    const openAiKey = settings.openai_api_key || config.openAiKey;
+    // Resolve API keys based on credit mode
+    const useJhCredits = (settings.use_jh_credits ?? 1) !== 0;
+    let apifyToken: string;
+    let openAiKey: string;
+    if (useJhCredits) {
+      const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+      const adminSettings = adminProfile
+        ? db.prepare('SELECT openai_api_key, apify_api_token FROM settings WHERE profile_id = ?').get(adminProfile.id) as { openai_api_key: string; apify_api_token: string } | undefined
+        : undefined;
+      apifyToken = adminSettings?.apify_api_token?.trim() || config.apifyApiToken || '';
+      openAiKey = adminSettings?.openai_api_key?.trim() || config.openAiKey || '';
+    } else {
+      apifyToken = settings.user_apify_api_token?.trim() || config.apifyApiToken || '';
+      openAiKey = settings.user_openai_api_key?.trim() || config.openAiKey || '';
+    }
     const resendApiKey = settings.resend_api_key || config.resendApiKey;
     const emailFrom = settings.email_from || config.emailFrom;
 
@@ -220,6 +232,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     // Total progress slots across ALL providers: (providers × groups × 2 stages) + 1 per provider start
     const globalTotalSections = providers.length * (activeGroupsForProgress.length * 2 + 1);
     let globalSectionOffset = 0;
+    let totalRunCostOpenAiUsd = 0;
+    let totalRunCostApifyUsd = 0;
 
     for (const scrapingProvider of providers) {
       const startedAt = Date.now();
@@ -743,6 +757,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       (calcOpenAiCost(settings.ai_model, totalInputTokens, totalCachedInputTokens, totalOutputTokens) ?? 0) +
       (calcOpenAiCost(settings.ai_model_hard, hardInputTokens, hardCachedInputTokens, hardOutputTokens) ?? 0);
     const costApifyUsd = apifyRunCount > 0 ? totalApifyCostUsd : null;
+    totalRunCostOpenAiUsd += costOpenAiUsd;
+    if (costApifyUsd != null) totalRunCostApifyUsd += costApifyUsd;
 
     db.prepare(`
       UPDATE search_runs SET
@@ -801,6 +817,29 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         lastRunResultMap.set(profileId, result);
       }
     } // end providers loop
+
+    // Deduct JH credits for all providers combined
+    if (useJhCredits) {
+      const totalCost = totalRunCostOpenAiUsd + totalRunCostApifyUsd;
+      if (totalCost > 0) {
+        const row = db.prepare('SELECT credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { credits_balance: number } | undefined;
+        const currentBalance = row?.credits_balance ?? 0;
+        const newBalance = Math.max(0, currentBalance - totalCost);
+        db.prepare('UPDATE settings SET credits_balance = ? WHERE profile_id = ?').run(newBalance, profileId);
+        console.log(`[runner] Deducted $${totalCost.toFixed(4)} from credits. New balance: $${newBalance.toFixed(4)}`);
+        if (newBalance < 0.5) {
+          // Cancel schedule — use dynamic import to avoid circular dep with scheduler
+          import('./scheduler').then(({ stopSchedule }) => stopSchedule(profileId)).catch(() => {});
+          const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
+          const recipientEmail = profileEmailRow?.email || '';
+          if (recipientEmail && resendApiKey && emailFrom) {
+            sendLowCreditsEmail(recipientEmail, newBalance, resendApiKey, emailFrom).catch((err) => {
+              console.warn('[runner] Failed to send low credits email:', (err as Error).message);
+            });
+          }
+        }
+      }
+    }
 
     return lastResult ?? {
       ranAt: overallRanAt, durationMs: Date.now() - overallStart,

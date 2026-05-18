@@ -3,6 +3,121 @@
   <form id="ai-form" method="post" action="/settings" class="space-y-6">
     <input type="hidden" name="tab" value="ai">
 
+    <!-- API KEYS -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <h2 class="text-base font-semibold text-gray-900 mb-1">API Keys</h2>
+      <p class="text-xs text-gray-500 mb-5">Choose whether to use your own API keys or Job Hunter credits (uses the platform's shared keys).</p>
+
+      <!-- Toggle -->
+      <div class="flex items-center gap-3 mb-5 p-3 rounded-lg bg-gray-50 border border-gray-200">
+        <button type="button" id="jh-creds-btn"
+                onclick="setKeyMode(true)"
+                class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-center">
+          Use JH credits
+        </button>
+        <button type="button" id="own-keys-btn"
+                onclick="setKeyMode(false)"
+                class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-center">
+          Use my own API keys
+        </button>
+        <input type="hidden" name="use_jh_credits" id="use-jh-credits-input" value="<%= settings.use_jh_credits %>">
+      </div>
+
+      <!-- JH Credits view -->
+      <div id="jh-credits-view" class="space-y-4">
+        <div class="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">$<%= Number(settings.credits_balance || 0).toFixed(2) %> available</p>
+            <p class="text-xs text-gray-500 mt-0.5">Deducted per run based on token usage and Apify costs</p>
+          </div>
+          <button type="button" onclick="jhTopUp()"
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>
+            Top up
+          </button>
+        </div>
+        <p class="text-xs text-gray-500">Runs require a minimum of $0.50 balance to start. If your balance drops below $0.50, active schedules are cancelled and you'll receive an email.</p>
+      </div>
+
+      <!-- Own keys view -->
+      <div id="own-keys-view" class="space-y-5">
+        <!-- Apify -->
+        <div>
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <label class="block text-sm font-medium text-gray-700">Apify API Token <span class="text-red-500">*</span></label>
+            <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener noreferrer"
+               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your Apify token">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </a>
+          </div>
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <input id="user-apify-token-input" type="password" name="user_apify_api_token" value="<%= settings.user_apify_api_token %>"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                     placeholder="apify_api_…" autocomplete="off" />
+              <button type="button" onclick="toggleEye('user-apify-token-input', this)"
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              </button>
+            </div>
+            <button type="button" onclick="testApiKey('apify', 'user-apify-token-input', 'user-apify-test-status')"
+                    class="flex-shrink-0 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap">
+              Test key
+            </button>
+          </div>
+          <p id="user-apify-test-status" class="text-xs mt-1.5 hidden"></p>
+        </div>
+
+        <!-- OpenAI -->
+        <div>
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <label class="block text-sm font-medium text-gray-700">OpenAI API Key <span class="text-red-500">*</span></label>
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer"
+               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your OpenAI API key">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </a>
+          </div>
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <input id="user-openai-key-input" type="password" name="user_openai_api_key" value="<%= settings.user_openai_api_key %>"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                     placeholder="sk-…" autocomplete="off" />
+              <button type="button" onclick="toggleEye('user-openai-key-input', this)"
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              </button>
+            </div>
+            <button type="button" onclick="testApiKey('openai', 'user-openai-key-input', 'user-openai-test-status')"
+                    class="flex-shrink-0 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap">
+              Test key
+            </button>
+          </div>
+          <p id="user-openai-test-status" class="text-xs mt-1.5 hidden"></p>
+        </div>
+      </div>
+
+      <!-- AI Models (always shown) -->
+      <div class="space-y-3 mt-5 pt-5 border-t border-gray-100">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Easy tasks model <span class="font-normal text-gray-400">— initial scoring, dedup pre-filter</span></label>
+          <select name="ai_model" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+            <option value="gpt-5.4-nano" <%= settings.ai_model === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
+            <option value="gpt-5.4-mini" <%= settings.ai_model === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
+            <option value="gpt-5.4"      <%= settings.ai_model === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Hard tasks model <span class="font-normal text-gray-400">— strong match re-validation, full dedup, CV comparison</span></label>
+          <select name="ai_model_hard" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+            <option value="gpt-5.4-nano" <%= settings.ai_model_hard === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
+            <option value="gpt-5.4-mini" <%= settings.ai_model_hard === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
+            <option value="gpt-5.4"      <%= settings.ai_model_hard === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+
     <!-- SCORING & SUMMARY AI PROMPT -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <button type="button" onclick="togglePromptBlock('scoring-prompt-body', 'scoring-prompt-chevron')"
@@ -93,7 +208,7 @@ For summary: if score is >70 —</pre>
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Editable</span>
                 <span class="text-xs text-gray-500">Your summary instructions (injected for Strong Matches)</span>
               </div>
-              <textarea name="summary_prompt" rows="2"
+              <textarea name="summary_prompt" rows="2" required
                         class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.summary_prompt %></textarea>
             </div>
             <div>
@@ -166,7 +281,7 @@ For summary: if score is >70 —</pre>
               <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Editable</span>
               <span class="text-xs text-gray-500">Your dedup instructions</span>
             </div>
-            <textarea name="dedup_system_prompt" rows="4"
+            <textarea name="dedup_system_prompt" rows="4" required
                       class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.dedup_system_prompt %></textarea>
           </div>
           <div>
@@ -226,92 +341,72 @@ Description: {description — up to 1,500 chars each}
           <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Editable</span>
           <span class="text-xs text-gray-500">Prompt sent along with your CV and the job description</span>
         </div>
-        <textarea name="cv_comparison_prompt" rows="7"
+        <textarea name="cv_comparison_prompt" rows="7" required
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.cv_comparison_prompt %></textarea>
       </div>
     </div>
 
-    <!-- API KEYS -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-      <h2 class="text-base font-semibold text-gray-900 mb-5">API Keys</h2>
-      <div class="space-y-5">
+    <script>
+    (function() {
+      function applyKeyMode(useJh) {
+        var jhBtn    = document.getElementById('jh-creds-btn');
+        var ownBtn   = document.getElementById('own-keys-btn');
+        var jhView   = document.getElementById('jh-credits-view');
+        var ownView  = document.getElementById('own-keys-view');
+        var inp      = document.getElementById('use-jh-credits-input');
+        var apifyInp = document.getElementById('user-apify-token-input');
+        var openaiInp= document.getElementById('user-openai-key-input');
+        if (useJh) {
+          jhBtn.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+          jhBtn.classList.remove('text-gray-500');
+          ownBtn.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+          ownBtn.classList.add('text-gray-500');
+          jhView.classList.remove('hidden');
+          ownView.classList.add('hidden');
+          inp.value = '1';
+          if (apifyInp) apifyInp.required = false;
+          if (openaiInp) openaiInp.required = false;
+        } else {
+          ownBtn.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+          ownBtn.classList.remove('text-gray-500');
+          jhBtn.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+          jhBtn.classList.add('text-gray-500');
+          ownView.classList.remove('hidden');
+          jhView.classList.add('hidden');
+          inp.value = '0';
+          if (apifyInp) apifyInp.required = true;
+          if (openaiInp) openaiInp.required = true;
+        }
+      }
 
-        <!-- Apify -->
-        <div>
-          <div class="flex items-center gap-1.5 mb-1.5">
-            <label class="block text-sm font-medium text-gray-700">Apify API Token</label>
-            <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener noreferrer"
-               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your Apify token">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </a>
-          </div>
-          <div class="flex gap-2">
-            <div class="relative flex-1">
-              <input id="apify-token-input" type="password" name="apify_api_token" value="<%= settings.apify_api_token %>"
-                     class="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-blue-500"
-                     placeholder="apify_api_…" autocomplete="off" />
-              <button type="button" onclick="toggleEye('apify-token-input', this)"
-                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-            <button type="button" onclick="testApiKey('apify', 'apify-token-input', 'apify-test-status')"
-                    class="flex-shrink-0 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap">
-              Test key
-            </button>
-          </div>
-          <p id="apify-test-status" class="text-xs mt-1.5 hidden"></p>
-        </div>
+      window.setKeyMode = function(useJh) {
+        applyKeyMode(useJh);
+        // directly enable save — toggling the hidden input won't trigger input listeners
+        var btn = document.getElementById('ai-save-btn');
+        if (btn) btn.disabled = false;
+      };
 
-        <!-- OpenAI -->
-        <div>
-          <div class="flex items-center gap-1.5 mb-1.5">
-            <label class="block text-sm font-medium text-gray-700">OpenAI API Key</label>
-            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer"
-               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your OpenAI API key">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </a>
-          </div>
-          <div class="flex gap-2">
-            <div class="relative flex-1">
-              <input id="openai-key-input" type="password" name="openai_api_key" value="<%= settings.openai_api_key %>"
-                     class="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-blue-500"
-                     placeholder="sk-…" autocomplete="off" />
-              <button type="button" onclick="toggleEye('openai-key-input', this)"
-                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-            <button type="button" onclick="testApiKey('openai', 'openai-key-input', 'openai-test-status')"
-                    class="flex-shrink-0 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap">
-              Test key
-            </button>
-          </div>
-          <p id="openai-test-status" class="text-xs mt-1.5 hidden"></p>
-        </div>
+      // Init on page load
+      applyKeyMode(<%= settings.use_jh_credits ? 'true' : 'false' %>);
 
-        <!-- AI Models -->
-        <div class="space-y-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">Easy tasks model <span class="font-normal text-gray-400">— initial scoring, dedup pre-filter</span></label>
-            <select name="ai_model" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
-              <option value="gpt-5.4-nano" <%= settings.ai_model === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
-              <option value="gpt-5.4-mini" <%= settings.ai_model === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
-              <option value="gpt-5.4"      <%= settings.ai_model === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">Hard tasks model <span class="font-normal text-gray-400">— strong match re-validation, full dedup, CV comparison</span></label>
-            <select name="ai_model_hard" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
-              <option value="gpt-5.4-nano" <%= settings.ai_model_hard === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
-              <option value="gpt-5.4-mini" <%= settings.ai_model_hard === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
-              <option value="gpt-5.4"      <%= settings.ai_model_hard === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
-            </select>
-          </div>
-        </div>
-
-      </div>
-    </div>
+      // Validate prompt fields before submit (required attr ignored on display:none elements)
+      document.getElementById('ai-form').addEventListener('submit', function(e) {
+        var prompts = [
+          { name: 'summary_prompt',      label: 'Summary instructions (Scoring & Summary prompt)' },
+          { name: 'dedup_system_prompt', label: 'Dedup instructions (Duplicate Check prompt)' },
+          { name: 'cv_comparison_prompt',label: 'CV Comparison prompt' },
+        ];
+        var empty = prompts.filter(function(p) {
+          var el = document.querySelector('[name="' + p.name + '"]');
+          return !el || !el.value.trim();
+        });
+        if (empty.length > 0) {
+          e.preventDefault();
+          alert('Please fill in the following required fields before saving:\n\n' + empty.map(function(p) { return '• ' + p.label; }).join('\n'));
+        }
+      });
+    })();
+    </script>
 
     <!-- AI save button -->
     <div class="flex items-center gap-4 flex-wrap">

@@ -1,9 +1,74 @@
 <!-- ==================== ADMIN TAB ==================== -->
 <div id="tab-pane-admin" class="<%= activeTab !== 'admin' ? 'hidden' : '' %> space-y-4">
 
+  <!-- Global API Keys -->
+  <form id="admin-keys-form" method="post" action="/settings" class="">
+    <input type="hidden" name="tab" value="admin">
+    <input type="hidden" name="section" value="keys">
+    <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
+      <h2 class="text-base font-semibold text-gray-900 mb-1">Global API Keys</h2>
+      <p class="text-xs text-gray-500 mb-4">Used by all users who are on "Use JH credits" mode. Only visible to admin.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <div class="flex items-center gap-1 mb-1">
+            <label class="text-xs font-medium text-gray-600">Apify API Token</label>
+            <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener noreferrer"
+               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your Apify token">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </a>
+          </div>
+          <div class="relative">
+            <input id="global-apify-token-input" type="password" name="apify_api_token" value="<%= settings.apify_api_token %>"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-9 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                   placeholder="apify_api_…" autocomplete="off" />
+            <button type="button" onclick="toggleEye('global-apify-token-input', this)"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-1 mb-1">
+            <label class="text-xs font-medium text-gray-600">OpenAI API Key</label>
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer"
+               class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your OpenAI API key">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </a>
+          </div>
+          <div class="relative">
+            <input id="global-openai-key-input" type="password" name="openai_api_key" value="<%= settings.openai_api_key %>"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-9 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                   placeholder="sk-…" autocomplete="off" />
+            <button type="button" onclick="toggleEye('global-openai-key-input', this)"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="testApiKey('apify', 'global-apify-token-input', 'global-apify-test-status')"
+                class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+          Test Apify
+        </button>
+        <button type="button" onclick="testApiKey('openai', 'global-openai-key-input', 'global-openai-test-status')"
+                class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+          Test OpenAI
+        </button>
+        <button type="submit"
+                class="px-4 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+          Save
+        </button>
+      </div>
+      <p id="global-apify-test-status" class="text-xs mt-1 hidden"></p>
+      <p id="global-openai-test-status" class="text-xs mt-1 hidden"></p>
+    </div>
+  </form>
+
   <!-- Email Delivery -->
   <form id="admin-email-form" method="post" action="/settings" class="">
     <input type="hidden" name="tab" value="admin">
+    <input type="hidden" name="section" value="email">
     <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-1">Email Delivery</h2>
       <p class="text-xs text-gray-500 mb-4">Used to send login codes and job reports to all users.</p>
@@ -64,17 +129,27 @@
     <div class="space-y-2 mb-4" id="profiles-list">
       <% allProfiles.forEach(function(p) { %>
       <div class="flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200" id="profile-row-<%= p.id %>">
-        <div class="flex items-center gap-2 min-w-0">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
           <div class="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             <%= p.email.charAt(0).toUpperCase() %>
           </div>
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <p class="text-sm text-gray-900 font-medium truncate"><%= p.email.split('@')[0] %></p>
             <p class="text-xs text-gray-400 truncate"><%= p.email %></p>
           </div>
           <% if (p.is_admin) { %>
           <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium flex-shrink-0">admin</span>
           <% } %>
+        </div>
+        <!-- Credits editor -->
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <span class="text-[10px] text-gray-500 font-medium">Credits $</span>
+          <input type="number" step="0.01" min="0"
+                 value="<%= Number(p.credits_balance || 0).toFixed(2) %>"
+                 class="w-20 rounded border border-gray-300 px-2 py-1 text-xs font-mono text-right focus:ring-1 focus:ring-blue-500"
+                 id="credits-input-<%= p.id %>" />
+          <button type="button" onclick="setUserCredits(<%= p.id %>, this)"
+                  class="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition-colors">Set</button>
         </div>
         <% if (!p.is_admin) { %>
         <button type="button" onclick="deleteProfile(<%= p.id %>, '<%= p.email %>')"
@@ -731,5 +806,26 @@ async function poolStopRun() {
   btn.disabled = true;
   btn.textContent = 'Stopping…';
   await fetch('/api/ats/run/' + _poolRunId, { method: 'DELETE' });
+}
+
+async function setUserCredits(profileId, btn) {
+  const input = document.getElementById('credits-input-' + profileId);
+  const amount = parseFloat(input.value);
+  if (isNaN(amount) || amount < 0) { alert('Enter a valid amount (≥ 0)'); return; }
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const res = await fetch('/api/admin/credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileId, credits: amount }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); }
+    else { btn.textContent = '✓'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500); return; }
+  } catch { alert('Failed to update credits'); }
+  btn.disabled = false;
+  btn.textContent = orig;
 }
 </script>
