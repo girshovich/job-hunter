@@ -35,7 +35,7 @@ app.use('/', publicAnonymousRouter);
 app.use((req: Request, res: Response, next: NextFunction) => {
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(/(?:^|;\s*)jh_session=([^;]+)/);
-  if (!match) { res.redirect('/onboarding'); return; }
+  if (!match) { res.redirect('/welcome'); return; }
 
   const db = getDb();
   const token = match[1];
@@ -43,14 +43,14 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   if (!session || new Date(session.expires_at) < new Date()) {
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly`);
-    res.redirect('/onboarding');
+    res.redirect('/welcome');
     return;
   }
 
   const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(session.profile_id) as ProfileRow | undefined;
   if (!profile) {
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly`);
-    res.redirect('/onboarding');
+    res.redirect('/welcome');
     return;
   }
 

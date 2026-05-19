@@ -46,8 +46,8 @@ function isResendRateLimited(db: ReturnType<typeof getDb>, email: string): boole
 
 const router = Router();
 
-// GET /onboarding — landing page for unauthenticated users
-router.get('/onboarding', (req: Request, res: Response) => {
+// GET /welcome — landing page for unauthenticated users
+router.get('/welcome', (req: Request, res: Response) => {
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(/(?:^|;\s*)jh_session=([^;]+)/);
   if (match) {
@@ -57,11 +57,11 @@ router.get('/onboarding', (req: Request, res: Response) => {
       return res.redirect('/');
     }
   }
-  res.render('onboarding');
+  res.render('welcome');
 });
 
-// POST /onboarding/request — JSON OTP request (used by inline sign-in on /onboarding)
-router.post('/onboarding/request', async (req: Request, res: Response) => {
+// POST /welcome/request — JSON OTP request (used by inline sign-in on /welcome)
+router.post('/welcome/request', async (req: Request, res: Response) => {
   const db = getDb();
   const body = req.body as Record<string, string>;
   const email = String(body.email || '').trim().toLowerCase();
@@ -131,8 +131,8 @@ router.post('/onboarding/request', async (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
-// POST /onboarding/verify — JSON OTP verify (sets session cookie on success)
-router.post('/onboarding/verify', (req: Request, res: Response) => {
+// POST /welcome/verify — JSON OTP verify (sets session cookie on success)
+router.post('/welcome/verify', (req: Request, res: Response) => {
   const db = getDb();
   const body = req.body as Record<string, string>;
   const email = String(body.email || '').trim().toLowerCase();

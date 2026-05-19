@@ -206,66 +206,84 @@
         <!-- Page header -->
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h1 class="text-2xl font-bold text-gray-900">Start</h1>
+            <h1 class="text-2xl font-bold text-gray-900">Welcome</h1>
             <p class="text-sm text-gray-500 mt-1"><%= new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></p>
           </div>
         </div>
 
         <!-- Hero + sign-in -->
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-          <div class="flex flex-col md:flex-row md:items-start gap-8">
+        <div class="flex flex-col md:flex-row md:items-stretch gap-4 mb-6">
 
-            <!-- Copy -->
-            <div class="flex-1 min-w-0">
-              <h2 class="text-3xl font-bold text-gray-900 leading-snug mb-4">Save 30 minutes a day on your job hunt.</h2>
-              <p class="text-sm text-gray-700 leading-relaxed mb-3">You're hunting across countries, scrolling past hundreds of postings every week to find the two that fit. LinkedIn's "recommended for you" is half noise — and misses the good ones. Yeah, I've been there.</p>
-              <p class="text-sm text-gray-500 leading-relaxed">So I built a tool that runs the search every morning. It pulls from the sources I trust, drops duplicates and reposts, scores each posting against my CV and criteria, and flags only the jobs I'd have picked myself. I made this for me, and I'm sharing it with you.</p>
+          <!-- Letter card -->
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex-1 min-w-0">
+            <h2 class="text-3xl font-bold text-gray-900 leading-snug mb-5">Save 30 minutes a day on your job hunt.</h2>
+            <div class="flex gap-4">
+              <img src="/misha.jpg" alt="Misha" class="w-16 h-16 rounded-full object-cover flex-shrink-0 mt-0.5">
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-700 leading-relaxed mb-3 text-justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free.</p>
+                <p class="text-sm text-gray-700 leading-relaxed mb-3 text-justify">If you're hunting jobs across countries, scrolling hundreds of reposts from companies you don't even like - virtual hug. Job Hunter knows what you want. It scans same sites you do, kills reposts, and scores the rest against your criteria - showing only jobs you'd actually pick. It won't apply for you (I believe final call should be human), but it gets you there and writes a cover letter.</p>
+                <p class="text-sm text-gray-700 leading-relaxed mb-0 text-justify">Fork it, or run it with your own API keys, or buy credits to use mine.</p>
+                <p class="text-sm text-gray-700 leading-relaxed mb-4 text-justify">Welcome aboard!</p>
+                <p class="text-sm text-gray-500 text-right">Cheers, Misha</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right column: sign-in + github -->
+          <div class="flex flex-col gap-4 w-full md:w-96 flex-shrink-0">
+
+            <!-- Sign-in card -->
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex-1">
+
+              <!-- Step 1: email -->
+              <div id="step-email">
+                <p class="text-xl font-bold text-gray-900 mb-5">Sign in</p>
+                <input id="signin-email" type="email" placeholder="you@work.com"
+                       autocomplete="email" autocapitalize="off" inputmode="email"
+                       class="block w-full px-4 py-3 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3">
+                <div id="email-error" class="hidden text-xs text-red-600 mb-2 px-0.5"></div>
+                <button id="email-btn" onclick="requestCode()"
+                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors mb-4">
+                  Email me a code
+                </button>
+                <p class="text-xs text-gray-400">No password, enter with a 6-digit code. By signing in you agree to the <a href="/terms" class="underline hover:text-gray-600 transition-colors">Terms</a> and <a href="/privacy" class="underline hover:text-gray-600 transition-colors">Privacy Policy</a>.</p>
+              </div>
+
+              <!-- Step 2: verify (hidden initially) -->
+              <div id="step-verify" class="hidden">
+                <p class="text-xl font-bold text-gray-900 mb-1">Check your inbox</p>
+                <p id="verify-hint" class="text-xs text-gray-500 mb-5"></p>
+                <input id="signin-code" type="text" inputmode="numeric" maxlength="6"
+                       placeholder="6-digit code" autocomplete="one-time-code"
+                       class="block w-full px-4 py-3 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3 tracking-widest text-center font-mono">
+                <div id="verify-msg" class="hidden text-xs mb-2 px-0.5"></div>
+                <button id="verify-btn" onclick="verifyCode()"
+                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors mb-2">
+                  Verify
+                </button>
+                <button id="resend-btn" onclick="resendCode()"
+                        class="w-full text-blue-600 hover:text-blue-700 font-medium px-5 py-2 rounded-lg text-sm transition-colors">
+                  Resend code
+                </button>
+                <p class="text-xs text-gray-400 mt-2 text-center">
+                  <button onclick="backToEmail()" class="underline hover:text-gray-600 transition-colors">Change email</button>
+                </p>
+              </div>
+
             </div>
 
-            <!-- Sign-in panel (real, inline verify) -->
-            <div class="w-full md:w-72 flex-shrink-0">
-              <div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
-
-                <!-- Step 1: email -->
-                <div id="step-email">
-                  <p class="text-base font-semibold text-gray-900 mb-4">Sign in</p>
-                  <input id="signin-email" type="email" placeholder="you@work.com"
-                         autocomplete="email" autocapitalize="off" inputmode="email"
-                         class="block w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2">
-                  <div id="email-error" class="hidden text-xs text-red-600 mb-2 px-0.5"></div>
-                  <button id="email-btn" onclick="requestCode()"
-                          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
-                    Email me a code
-                  </button>
-                  <p class="text-xs text-gray-400 mt-2.5 text-center">No password. We email a 6-digit code.</p>
-                  <p class="text-xs text-gray-400 mt-1.5 text-center">By signing in you agree to our <a href="/terms" class="underline hover:text-gray-600 transition-colors">Terms</a> and <a href="/privacy" class="underline hover:text-gray-600 transition-colors">Privacy Policy</a>.</p>
-                </div>
-
-                <!-- Step 2: verify (hidden initially) -->
-                <div id="step-verify" class="hidden">
-                  <p class="text-base font-semibold text-gray-900 mb-1">Check your inbox</p>
-                  <p id="verify-hint" class="text-xs text-gray-500 mb-4"></p>
-                  <input id="signin-code" type="text" inputmode="numeric" maxlength="6"
-                         placeholder="6-digit code" autocomplete="one-time-code"
-                         class="block w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2 tracking-widest text-center font-mono">
-                  <div id="verify-msg" class="hidden text-xs mb-2 px-0.5"></div>
-                  <button id="verify-btn" onclick="verifyCode()"
-                          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors mb-2">
-                    Verify
-                  </button>
-                  <button id="resend-btn" onclick="resendCode()"
-                          class="w-full text-blue-600 hover:text-blue-700 font-medium px-5 py-2 rounded-lg text-sm transition-colors">
-                    Resend code
-                  </button>
-                  <p class="text-xs text-gray-400 mt-2 text-center">
-                    <button onclick="backToEmail()" class="underline hover:text-gray-600 transition-colors">Change email</button>
-                  </p>
-                </div>
-
-              </div>
+            <!-- GitHub card -->
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <p class="text-sm font-semibold text-gray-700 mb-3">You're welcome to self-host</p>
+              <a href="https://github.com/girshovich/job-hunter" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 w-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="flex-shrink-0"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+                github.com/girshovich/job-hunter
+              </a>
             </div>
 
           </div>
+
         </div>
 
         <!-- How it works -->
@@ -480,7 +498,7 @@ async function requestCode() {
   hideMsg('email-error');
   setLoading('email-btn', true, 'Email me a code');
   try {
-    const res = await fetch('/onboarding/request', {
+    const res = await fetch('/welcome/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -505,7 +523,7 @@ async function verifyCode() {
   hideMsg('verify-msg');
   setLoading('verify-btn', true, 'Verify');
   try {
-    const res = await fetch('/onboarding/verify', {
+    const res = await fetch('/welcome/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: currentEmail, code })
@@ -524,7 +542,7 @@ async function resendCode() {
   hideMsg('verify-msg');
   setLoading('resend-btn', true, 'Resend code');
   try {
-    const res = await fetch('/onboarding/request', {
+    const res = await fetch('/welcome/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: currentEmail })
