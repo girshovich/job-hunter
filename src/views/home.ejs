@@ -26,192 +26,133 @@ function verdictChip(verdict) {
   </div>
 </div>
 
-<!-- ── Hero ── -->
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-  <div class="flex flex-col md:flex-row md:items-start gap-8">
+<!-- ── Welcome + How it works + Modes ── -->
+<div id="home-cards-row" class="flex flex-col md:flex-row md:items-stretch gap-4 mb-6">
 
-    <!-- Left: copy -->
-    <div class="flex-1 min-w-0">
-      <h2 class="text-3xl font-bold text-gray-900 leading-snug mb-4">Save 30 minutes a day on your job hunt.</h2>
-      <p class="text-sm text-gray-700 leading-relaxed mb-3">You're hunting across countries, scrolling past hundreds of postings every week to find the two that fit. LinkedIn's "recommended for you" is half noise — and misses the good ones. Yeah, I've been there.</p>
-      <p class="text-sm text-gray-500 leading-relaxed">So I built a tool that runs the search every morning. It pulls from the sources I trust, drops duplicates and reposts, scores each posting against my CV and criteria, and flags only the jobs I'd have picked myself. I made this for me, and I'm sharing it with you.</p>
+  <!-- Letter card -->
+  <div id="home-card-letter" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex-1 min-w-0 flex flex-col">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-900">Hi, glad you made it!</h2>
+      <button onclick="dismissHomeCard('letter')" class="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0 ml-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
-
-    <!-- Right: sign-in panel (no logic yet) -->
-    <div class="w-full md:w-72 flex-shrink-0">
-      <div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
-        <p class="text-base font-semibold text-gray-900 mb-4">Sign in</p>
-        <input type="email" placeholder="you@work.com"
-               class="block w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3">
-        <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
-          Email me a code
-        </button>
-        <p class="text-xs text-gray-400 mt-2.5 text-center">No password. We email a 6-digit code.</p>
+    <div class="flex gap-4 flex-1">
+      <img src="/misha.jpg" alt="Misha" class="w-16 h-16 rounded-full object-cover flex-shrink-0 mt-0.5">
+      <div class="flex-1 min-w-0">
+        <p class="text-sm text-gray-700 leading-relaxed mb-3">Please proceed with the onboarding check list in the navigation panel. If you have any questions, reach out to me at <a href="mailto:mikhail@girshovich.me" class="text-blue-600 hover:underline">mikhail@girshovich.me</a>.</p>
+        <p class="text-sm text-gray-700 leading-relaxed">And best of luck with your job search!</p>
       </div>
     </div>
-
   </div>
-</div>
 
-<!-- ── How it works ── -->
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-  <h2 class="text-base font-semibold text-gray-900 mb-5">How it works</h2>
-  <div class="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-0">
-
-    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
-        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
-      </div>
-      <div class="sm:text-center">
-        <p class="text-sm font-semibold text-gray-900">Add your CV</p>
-        <p class="text-xs text-gray-500 mt-0.5 leading-snug">Plus the roles, locations and must-haves you care about.</p>
-      </div>
+  <!-- How it works (compact) -->
+  <div id="home-card-hiw" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex-1 min-w-0">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-900">How it works</h2>
+      <button onclick="dismissHomeCard('hiw')" class="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0 ml-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
+    <div class="flex flex-col gap-2.5">
 
-    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    </div>
-
-    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
-        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-        </svg>
+      <div class="flex items-center gap-2.5">
+        <div class="bg-violet-50 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Add your CV</p>
+          <p class="text-xs text-gray-500 leading-snug">Roles, locations and must-haves you care about.</p>
+        </div>
       </div>
-      <div class="sm:text-center">
-        <p class="text-sm font-semibold text-gray-900">Pick your sources</p>
-        <p class="text-xs text-gray-500 mt-0.5 leading-snug">LinkedIn, niche boards, RSS — whatever you trust.</p>
-      </div>
-    </div>
 
-    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    </div>
-
-    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
-        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
+      <div class="flex items-center gap-2.5">
+        <div class="bg-sky-50 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Pick your sources</p>
+          <p class="text-xs text-gray-500 leading-snug">LinkedIn, niche boards, RSS — whatever you trust.</p>
+        </div>
       </div>
-      <div class="sm:text-center">
-        <p class="text-sm font-semibold text-gray-900">Daily auto-fetch</p>
-        <p class="text-xs text-gray-500 mt-0.5 leading-snug">We pull fresh postings every morning at the time you pick.</p>
-      </div>
-    </div>
 
-    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    </div>
-
-    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
-        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
-        </svg>
+      <div class="flex items-center gap-2.5">
+        <div class="bg-amber-50 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Daily auto-fetch</p>
+          <p class="text-xs text-gray-500 leading-snug">Fresh postings every morning at the time you pick.</p>
+        </div>
       </div>
-      <div class="sm:text-center">
-        <p class="text-sm font-semibold text-gray-900">Dedupe & AI score</p>
-        <p class="text-xs text-gray-500 mt-0.5 leading-snug">Reposts collapsed. Each job scored against your CV.</p>
-      </div>
-    </div>
 
-    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    </div>
-
-    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
-        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-        </svg>
+      <div class="flex items-center gap-2.5">
+        <div class="bg-purple-50 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Dedupe & AI score</p>
+          <p class="text-xs text-gray-500 leading-snug">Reposts collapsed. Each job scored against your CV.</p>
+        </div>
       </div>
-      <div class="sm:text-center">
-        <p class="text-sm font-semibold text-gray-900">Strong matches only</p>
-        <p class="text-xs text-gray-500 mt-0.5 leading-snug">Email digest with the gems. Open. Apply. Done.</p>
-      </div>
-    </div>
 
+      <div class="flex items-center gap-2.5">
+        <div class="bg-emerald-50 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Strong matches only</p>
+          <p class="text-xs text-gray-500 leading-snug">Email digest with the gems. Open. Apply. Done.</p>
+        </div>
+      </div>
+
+    </div>
   </div>
-</div>
 
-<!-- ── Getting Started — Inline collapsible block ── -->
-<div class="bg-blue-50 border border-blue-200 rounded-xl mb-6 overflow-hidden">
-  <button onclick="toggleGS()" class="w-full flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-blue-100/50 transition-colors">
-    <div class="flex items-center gap-3">
-      <span class="text-sm font-semibold text-blue-900">Getting Started</span>
-      <span class="flex items-center gap-1.5">
-        <span class="w-2 h-2 rounded-full <%= checklist.hasGroups ? 'bg-emerald-500' : 'bg-blue-200' %>"></span>
-        <span class="w-2 h-2 rounded-full <%= checklist.hasRun    ? 'bg-emerald-500' : 'bg-blue-200' %>"></span>
-        <span class="w-2 h-2 rounded-full <%= checklist.hasSchedule ? 'bg-emerald-500' : 'bg-blue-200' %>"></span>
-      </span>
+  <!-- Usage modes -->
+  <div id="home-card-modes" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex-1 min-w-0">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-900">Three ways to run it</h2>
+      <button onclick="dismissHomeCard('modes')" class="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0 ml-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
-    <div class="flex items-center gap-3">
-      <span role="button" tabindex="0"
-            onclick="event.stopPropagation(); openHowItWorks()"
-            onkeydown="if(event.key==='Enter'){event.stopPropagation();openHowItWorks();}"
-            class="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition-colors">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        How it works
-      </span>
-      <svg id="gs-chevron" class="w-4 h-4 text-blue-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-      </svg>
+    <div class="flex flex-col gap-2.5">
+
+      <div class="flex items-start gap-2.5">
+        <div class="bg-emerald-50 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Buy credits</p>
+          <p class="text-xs text-gray-500 leading-snug">Use my API keys, pay per use. Top up in <a href="/settings?tab=ai" class="text-blue-600 hover:underline">Settings</a> or navigation panel.</p>
+        </div>
+      </div>
+
+      <div class="flex items-start gap-2.5">
+        <div class="bg-blue-50 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Use your own API keys</p>
+          <p class="text-xs text-gray-500 leading-snug">Add OpenAI + Apify keys in <a href="/settings?tab=ai" class="text-blue-600 hover:underline">Settings</a>.</p>
+        </div>
+      </div>
+
+      <div class="flex items-start gap-2.5">
+        <div class="bg-gray-100 rounded-xl p-2 flex-shrink-0">
+          <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold text-gray-900">Self-host</p>
+          <p class="text-xs text-gray-500 leading-snug"><a href="https://github.com/girshovich/job-hunter" target="_blank" rel="noopener" class="text-blue-600 hover:underline">Fork on GitHub</a> for personal use.</p>
+        </div>
+      </div>
+
     </div>
-  </button>
-  <div id="gs-body" class="px-5 pb-5">
-    <ol class="space-y-4">
-
-      <!-- Step 1: Set up Roles + API keys -->
-      <li class="flex gap-3">
-        <% if (checklist.hasGroups) { %>
-        <span class="w-5 h-5 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-        </span>
-        <p class="text-sm text-gray-400 line-through leading-snug">Set up Roles and API keys in <a href="/settings" class="text-blue-400 hover:underline">Settings</a></p>
-        <% } else { %>
-        <span class="w-5 h-5 mt-0.5 rounded-full border-2 border-blue-400 flex-shrink-0"></span>
-        <p class="text-sm text-gray-700 leading-snug">Go to <a href="/settings" class="text-blue-600 hover:underline font-medium">Settings</a> — create your Roles (a Role is a job title + location + filters combination). Add your API keys: RapidAPI key for LinkedIn job fetching and OpenAI key for AI scoring</p>
-        <% } %>
-      </li>
-
-      <!-- Step 2: Run once + verify -->
-      <li class="flex gap-3">
-        <% if (checklist.hasRun) { %>
-        <span class="w-5 h-5 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-        </span>
-        <p class="text-sm text-gray-400 line-through leading-snug">Press 'Run Once' and check <a href="/reports" class="text-blue-400 hover:underline">Run Logs</a> — agree on AI verdicts, or tinker the prompt in <a href="/settings" class="text-blue-400 hover:underline">Settings</a></p>
-        <% } else { %>
-        <span class="w-5 h-5 mt-0.5 rounded-full border-2 border-blue-400 flex-shrink-0"></span>
-        <p class="text-sm text-gray-700 leading-snug">Press <strong>Run Once</strong> and check <a href="/reports" class="text-blue-600 hover:underline font-medium">Run Logs</a> to see that you agree on the AI verdicts. If not, tinker with the prompt in <a href="/settings" class="text-blue-600 hover:underline font-medium">Settings</a></p>
-        <% } %>
-      </li>
-
-      <!-- Step 3: Schedule -->
-      <li class="flex gap-3">
-        <% if (checklist.hasSchedule) { %>
-        <span class="w-5 h-5 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-        </span>
-        <p class="text-sm text-gray-400 line-through leading-snug">If the AI assessment is fine, press 'Schedule' to start a daily job search process</p>
-        <% } else { %>
-        <span class="w-5 h-5 mt-0.5 rounded-full border-2 border-blue-400 flex-shrink-0"></span>
-        <p class="text-sm text-gray-700 leading-snug">If the AI assessment is fine, press <strong>Schedule</strong> to start a daily job search process. You can also set up email digests in <a href="/settings" class="text-blue-600 hover:underline font-medium">Settings</a> so strong matches land in your inbox each morning</p>
-        <% } %>
-      </li>
-
-    </ol>
-
-    <!-- Ongoing tip -->
-    <p class="text-sm text-gray-600 leading-snug mt-4">Daily, check <a href="/jobs" class="text-blue-600 hover:underline font-medium">Matches</a> for new strong matches. Open any job for the full description, AI rationale, and summary. Fix wrong verdicts inline, mark jobs as Applied after sending your CV. Every job ever seen — all verdicts — is in <a href="/history" class="text-blue-600 hover:underline font-medium">All Jobs</a>. Make sure you have at least $1+ on your <a href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-medium">OpenAI account</a>.</p>
   </div>
-</div>
 
+</div>
 
 <!-- ── Search for Jobs ── -->
 <div id="run-card" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
@@ -221,6 +162,7 @@ function verdictChip(verdict) {
       <p class="text-sm text-gray-500 mt-0.5">Fetch LinkedIn jobs, score with AI, send email digest.</p>
     </div>
     <div class="flex items-center gap-2">
+      <% if (canRun) { %>
       <button id="home-schedule-btn" onclick="homeSchedule()"
               class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,6 +177,22 @@ function verdictChip(verdict) {
         </svg>
         <span id="home-run-label">Run Once</span>
       </button>
+      <% } else { %>
+      <button id="home-schedule-btn" onclick="showLockedMessage()"
+              class="inline-flex items-center gap-2 bg-gray-100 text-gray-400 font-semibold px-5 py-2.5 rounded-xl text-sm shadow-sm cursor-not-allowed" disabled>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+        <span data-schedule-label>Schedule</span>
+      </button>
+      <button id="home-run-btn" onclick="showLockedMessage()"
+              class="inline-flex items-center gap-2 bg-gray-100 text-gray-400 font-semibold px-5 py-2.5 rounded-xl text-sm shadow-sm cursor-not-allowed" disabled>
+        <svg id="home-run-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+        <span id="home-run-label">Run Once</span>
+      </button>
+      <% } %>
     </div>
   </div>
   <div id="preflight-errors" class="hidden mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -346,6 +304,32 @@ function verdictChip(verdict) {
 
 <script>
 let homeRunPoller = null;
+
+// ── Dismissible intro cards ──
+const HOME_CARDS = ['letter', 'hiw', 'modes'];
+function dismissHomeCard(key) {
+  try { localStorage.setItem('home-card-' + key, '1'); } catch(_) {}
+  document.getElementById('home-card-' + key)?.classList.add('hidden');
+  const row = document.getElementById('home-cards-row');
+  if (row && HOME_CARDS.every(k => document.getElementById('home-card-' + k)?.classList.contains('hidden'))) {
+    row.classList.add('hidden');
+  }
+}
+(function initHomeCards() {
+  let allHidden = true;
+  HOME_CARDS.forEach(key => {
+    try {
+      if (localStorage.getItem('home-card-' + key) === '1') {
+        document.getElementById('home-card-' + key)?.classList.add('hidden');
+      } else { allHidden = false; }
+    } catch(_) { allHidden = false; }
+  });
+  if (allHidden) document.getElementById('home-cards-row')?.classList.add('hidden');
+})();
+
+function showLockedMessage() {
+  showPreflightErrors(['Add credits or enable your own API keys in <a href="/settings?tab=ai" class="underline font-medium">Settings → AI Setup</a> to run.']);
+}
 
 function homeJobClick(id) {
   location.href = '/job/' + id + '?from=home';
@@ -567,31 +551,6 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) fetch('/api/status').then(r => r.json()).then(syncRunState).catch(() => {});
 });
 
-// ── Getting Started panel ──
-const GS_ALL_DONE = <%- (checklist.hasGroups && checklist.hasRun && checklist.hasSchedule) ? 'true' : 'false' %>;
-
-function toggleGS() {
-  const body = document.getElementById('gs-body');
-  const chevron = document.getElementById('gs-chevron');
-  const isHidden = body.classList.toggle('hidden');
-  chevron.style.transform = isHidden ? 'rotate(-90deg)' : '';
-  try { localStorage.setItem('gs-open', isHidden ? '0' : '1'); } catch(_) {}
-}
-
-(function initGS() {
-  const body = document.getElementById('gs-body');
-  const chevron = document.getElementById('gs-chevron');
-  try {
-    const stored = localStorage.getItem('gs-open');
-    if (stored !== null) {
-      // Explicit user preference wins
-      if (stored === '0') { body.classList.add('hidden'); chevron.style.transform = 'rotate(-90deg)'; }
-      return;
-    }
-  } catch(_) {}
-  // No stored preference: auto-collapse when all 3 steps are done
-  if (GS_ALL_DONE) { body.classList.add('hidden'); chevron.style.transform = 'rotate(-90deg)'; }
-})();
 
 // ── How it works modal ──
 function openHowItWorks() {

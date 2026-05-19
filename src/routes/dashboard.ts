@@ -85,8 +85,10 @@ router.get('/', (req: Request, res: Response) => {
     hasSchedule: !!(settings?.cron_schedule),
   };
   const checklistDone = Object.values(checklist).every(Boolean);
+  const canRun = (settings?.use_jh_credits === 0) || ((settings?.credits_balance ?? 0) > 0);
 
   res.render('home', {
+    canRun,
     lastRun,
     liveStrong: liveLastRunStats?.strong ?? lastRun?.jobs_strong_match ?? 0,
     liveWeak:   liveLastRunStats?.weak   ?? lastRun?.jobs_weak_match   ?? 0,
