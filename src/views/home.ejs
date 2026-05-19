@@ -26,6 +26,117 @@ function verdictChip(verdict) {
   </div>
 </div>
 
+<!-- ── Hero ── -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+  <div class="flex flex-col md:flex-row md:items-start gap-8">
+
+    <!-- Left: copy -->
+    <div class="flex-1 min-w-0">
+      <h2 class="text-3xl font-bold text-gray-900 leading-snug mb-4">Save 30 minutes a day on your job hunt.</h2>
+      <p class="text-sm text-gray-700 leading-relaxed mb-3">You're hunting across countries, scrolling past hundreds of postings every week to find the two that fit. LinkedIn's "recommended for you" is half noise — and misses the good ones. Yeah, I've been there.</p>
+      <p class="text-sm text-gray-500 leading-relaxed">So I built a tool that runs the search every morning. It pulls from the sources I trust, drops duplicates and reposts, scores each posting against my CV and criteria, and flags only the jobs I'd have picked myself. I made this for me, and I'm sharing it with you.</p>
+    </div>
+
+    <!-- Right: sign-in panel (no logic yet) -->
+    <div class="w-full md:w-72 flex-shrink-0">
+      <div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
+        <p class="text-base font-semibold text-gray-900 mb-4">Sign in</p>
+        <input type="email" placeholder="you@work.com"
+               class="block w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3">
+        <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
+          Email me a code
+        </button>
+        <p class="text-xs text-gray-400 mt-2.5 text-center">No password. We email a 6-digit code.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── How it works ── -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+  <h2 class="text-base font-semibold text-gray-900 mb-5">How it works</h2>
+  <div class="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-0">
+
+    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
+      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <div class="sm:text-center">
+        <p class="text-sm font-semibold text-gray-900">Add your CV</p>
+        <p class="text-xs text-gray-500 mt-0.5 leading-snug">Plus the roles, locations and must-haves you care about.</p>
+      </div>
+    </div>
+
+    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+
+    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
+      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+      </div>
+      <div class="sm:text-center">
+        <p class="text-sm font-semibold text-gray-900">Pick your sources</p>
+        <p class="text-xs text-gray-500 mt-0.5 leading-snug">LinkedIn, niche boards, RSS — whatever you trust.</p>
+      </div>
+    </div>
+
+    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+
+    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
+      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="sm:text-center">
+        <p class="text-sm font-semibold text-gray-900">Daily auto-fetch</p>
+        <p class="text-xs text-gray-500 mt-0.5 leading-snug">We pull fresh postings every morning at the time you pick.</p>
+      </div>
+    </div>
+
+    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+
+    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
+      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+        </svg>
+      </div>
+      <div class="sm:text-center">
+        <p class="text-sm font-semibold text-gray-900">Dedupe & AI score</p>
+        <p class="text-xs text-gray-500 mt-0.5 leading-snug">Reposts collapsed. Each job scored against your CV.</p>
+      </div>
+    </div>
+
+    <div class="hidden sm:flex items-center justify-center text-gray-300 mt-4 px-1">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </div>
+
+    <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
+      <div class="bg-blue-50 rounded-xl p-3 flex-shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+      </div>
+      <div class="sm:text-center">
+        <p class="text-sm font-semibold text-gray-900">Strong matches only</p>
+        <p class="text-xs text-gray-500 mt-0.5 leading-snug">Email digest with the gems. Open. Apply. Done.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- ── Getting Started — Inline collapsible block ── -->
 <div class="bg-blue-50 border border-blue-200 rounded-xl mb-6 overflow-hidden">
   <button onclick="toggleGS()" class="w-full flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-blue-100/50 transition-colors">
