@@ -63,7 +63,6 @@ function formatDate(iso) {
       <div class="flex items-center gap-2 flex-wrap mb-3">
         <% const detailVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict; %>
         <%- renderVerdictSelector(detailVerdict, { 'data-job-id': job.id, 'data-verdict': detailVerdict, 'data-chip-style': 'detail', title: 'Click to change status', class: 'cursor-pointer' }) %>
-        <%- renderAppliedStatus(job.applied) %>
         <% const sourceLabel = formatSourceLabel(job.job_source || 'LinkedIn'); %>
         <% const sourceName = formatSourceName(job.job_source || 'LinkedIn'); %>
         <% const sourceBadgeColor =
