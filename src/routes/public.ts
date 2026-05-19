@@ -10,7 +10,7 @@ const PUBLIC_PAGE_META = {
 } as const;
 
 const PUBLIC_PATHS = Object.keys(PUBLIC_PAGE_META) as Array<keyof typeof PUBLIC_PAGE_META>;
-const EFFECTIVE_DATE = 'May 15, 2026';
+const EFFECTIVE_DATE = 'May 19, 2026';
 
 function extractSupportEmail(raw: string): string {
   const match = String(raw || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
