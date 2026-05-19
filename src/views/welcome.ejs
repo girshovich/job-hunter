@@ -220,10 +220,13 @@
             <div class="flex gap-4">
               <img src="/misha.jpg" alt="Misha" class="w-16 h-16 rounded-full object-cover flex-shrink-0 mt-0.5">
               <div class="flex-1 min-w-0">
-                <p class="text-sm text-gray-700 leading-relaxed mb-3 text-justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free.</p>
-                <p class="text-sm text-gray-700 leading-relaxed mb-3 text-justify">If you're hunting jobs across countries, scrolling hundreds of reposts from companies you don't even like - virtual hug. Job Hunter knows what you want. It scans same sites you do, kills reposts, and scores the rest against your criteria - showing only jobs you'd actually pick. It won't apply for you (I believe final call should be human), but it gets you there and writes a cover letter.</p>
-                <p class="text-sm text-gray-700 leading-relaxed mb-0 text-justify">Fork it, or run it with your own API keys, or buy credits to use mine.</p>
-                <p class="text-sm text-gray-700 leading-relaxed mb-4 text-justify">Welcome aboard!</p>
+                <!-- Mobile: shortened text -->
+                <p class="md:hidden text-sm text-gray-700 leading-relaxed mb-4 text-justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free. Fork it, or run it with your own API keys, or buy credits to use mine. Welcome aboard!</p>
+                <!-- Desktop: full text -->
+                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-3 text-justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free.</p>
+                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-3 text-justify">If you're hunting jobs across countries, scrolling hundreds of reposts from companies you don't even like - virtual hug. Job Hunter knows what you want. It scans same sites you do, kills reposts, and scores the rest against your criteria - showing only jobs you'd actually pick. It won't apply for you (I believe final call should be human), but it gets you there and writes a cover letter.</p>
+                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-0 text-justify">Fork it, or run it with your own API keys, or buy credits to use mine.</p>
+                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-4 text-justify">Welcome aboard!</p>
                 <p class="text-sm text-gray-500 text-right">Cheers, Misha</p>
               </div>
             </div>
@@ -361,7 +364,7 @@
         </div>
 
         <!-- Product preview mock -->
-        <div class="mt-6 rounded-2xl border border-gray-200 shadow-sm" style="background:#f3f4f6;">
+        <div class="hidden md:block mt-6 rounded-2xl border border-gray-200 shadow-sm" style="background:#f3f4f6;">
 
           <!-- Content behind frosted overlay — relative container -->
           <div style="position:relative;">
@@ -457,16 +460,16 @@
 
           </div><!-- /relative -->
 
-          <!-- Footer — matches layout.ejs style -->
-          <div style="padding:0.75rem 1.25rem 1.25rem;">
-            <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
-              <a href="/pricing" class="text-gray-500 hover:text-gray-700 transition-colors">Pricing</a>
-              <a href="/terms" class="text-gray-500 hover:text-gray-700 transition-colors">Terms</a>
-              <a href="/privacy" class="text-gray-500 hover:text-gray-700 transition-colors">Privacy</a>
-              <a href="/refunds" class="text-gray-500 hover:text-gray-700 transition-colors">Refunds</a>
-            </div>
-          </div>
+        </div>
 
+        <!-- Footer legal links -->
+        <div class="mt-4">
+          <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
+            <a href="/pricing" class="text-gray-500 hover:text-gray-700 transition-colors">Pricing</a>
+            <a href="/terms" class="text-gray-500 hover:text-gray-700 transition-colors">Terms</a>
+            <a href="/privacy" class="text-gray-500 hover:text-gray-700 transition-colors">Privacy</a>
+            <a href="/refunds" class="text-gray-500 hover:text-gray-700 transition-colors">Refunds</a>
+          </div>
         </div>
 
       </div>
