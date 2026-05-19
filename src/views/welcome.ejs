@@ -211,6 +211,13 @@
           </div>
         </div>
 
+        <% if (typeof error !== 'undefined' && error) { %>
+        <div class="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700"><%= error %></div>
+        <% } %>
+        <% if (typeof message !== 'undefined' && message) { %>
+        <div class="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700"><%= message %></div>
+        <% } %>
+
         <!-- Hero + sign-in -->
         <div class="flex flex-col md:flex-row md:items-stretch gap-4 mb-6">
 
