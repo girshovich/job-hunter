@@ -4,6 +4,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type JobWithState, type SearchRunRow, type SearchGroupRow, type SettingsRow, type CvRow } from '../db';
+import { getScheduleStatus } from '../pipeline/scheduler';
 
 const router = Router();
 
@@ -109,6 +110,7 @@ router.get('/', (req: Request, res: Response) => {
   const checklistDone = Object.values(checklist).every(Boolean);
   const canRun = (settings?.use_jh_credits === 0) || ((settings?.credits_balance ?? 0) > 0);
 
+  const scheduleStatus = getScheduleStatus(profileId);
   res.render('home', {
     canRun,
     lastRun,
@@ -123,6 +125,7 @@ router.get('/', (req: Request, res: Response) => {
     checklist,
     checklistDone,
     timezone: settings?.timezone || 'UTC',
+    scheduleStatus,
     title: 'Start',
   });
 });

@@ -1079,8 +1079,8 @@
 
   <script>
     // ---- Global state ----
-    let _scheduleActive = false;
-    let _scheduleData = null;   // latest data from /api/schedule/status
+    let _scheduleActive = <%- typeof scheduleStatus !== 'undefined' ? JSON.stringify(scheduleStatus.active) : 'false' %>;
+    let _scheduleData = <%- typeof scheduleStatus !== 'undefined' ? JSON.stringify(scheduleStatus) : 'null' %>;   // latest data from /api/schedule/status
     let _schedDateRange = '24h';
     let _schedFrequency = 'daily';  // 'daily' | 'custom'
     let _schedGroups = [];
@@ -1150,6 +1150,9 @@
         }
       }
     }
+
+    // Apply server-side schedule state immediately so the button renders correctly without a fetch round-trip
+    if (_scheduleData) setScheduleUI(_scheduleData.active, _scheduleData.expression, _scheduleData.timezone);
 
     function handleScheduleClick() {
       if (_scheduleActive) {
