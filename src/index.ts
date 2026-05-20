@@ -104,6 +104,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // ── EJS layout wrapper ──
 app.use((req, res, next) => {
+  if (req.profile) res.locals.scheduleStatus = getScheduleStatus(req.profile.id);
   const originalRender = res.render.bind(res);
   Object.assign(res.locals, uiHelpers);
   res.locals.uiHelpers = uiHelpers;

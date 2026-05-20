@@ -506,7 +506,7 @@
           </button>
 
           <!-- Schedule inactive -->
-          <div id="schedule-inactive">
+          <div id="schedule-inactive" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? 'hidden' : '' %>">
             <button onclick="openScheduleModal()" class="sb-run sb-run-secondary">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
               Schedule
@@ -514,7 +514,7 @@
           </div>
 
           <!-- Schedule active stop button -->
-          <div id="schedule-active" class="hidden">
+          <div id="schedule-active" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? '' : 'hidden' %>">
             <button onclick="scheduleStop()" class="sb-run sb-run-danger">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
               Stop Schedule
@@ -522,7 +522,7 @@
           </div>
 
           <!-- Schedule active status row (shown below stop button when active) -->
-          <div id="schedule-status" class="hidden" style="align-items:center;justify-content:space-between;padding:2px 4px;">
+          <div id="schedule-status" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? '' : 'hidden' %>" style="align-items:center;justify-content:space-between;padding:2px 4px;<%= locals.scheduleStatus && locals.scheduleStatus.active ? 'display:flex;' : '' %>">
             <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#34d399;font-weight:500;">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
               Schedule active
