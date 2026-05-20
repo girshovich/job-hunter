@@ -225,7 +225,7 @@ function verdictChip(verdict) {
     <% if (lastRun) { %>
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="text-sm font-semibold text-gray-700">Last Run</h2>
+        <h2 class="text-sm font-semibold text-gray-700">Last Session</h2>
         <span class="text-xs px-2 py-0.5 rounded-full font-medium <%= statusColor(lastRun.status) %>">
           <%= lastRun.status.replace('_', ' ') %>
         </span>
@@ -263,7 +263,7 @@ function verdictChip(verdict) {
   <div class="lg:col-span-2">
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h2 class="font-semibold text-gray-900 text-sm">Last Run — Strong Matches</h2>
+        <h2 class="font-semibold text-gray-900 text-sm">Last Session — Strong Matches</h2>
         <div class="flex items-center gap-3">
           <% if (lastRunJobs.length > 0) { %><span class="text-xs text-gray-400"><%= Math.min(50, lastRunJobs.length) %><% if (lastRunJobs.length > 50) { %> of <%= lastRunJobs.length %><% } %></span><% } %>
           <a href="/jobs" class="text-xs text-blue-600 hover:underline">View all →</a>

@@ -5,6 +5,7 @@
  * All evaluated jobs (blacklisted + scored) are logged to run_job_logs per run.
  */
 
+import { randomUUID } from 'node:crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
 import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
@@ -131,6 +132,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   isRunningMap.set(profileId, true);
   const overallStart = Date.now();
   const overallRanAt = new Date().toISOString();
+  const sessionId = randomUUID();
 
   try {
     const db = getDb();
@@ -284,8 +286,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
         // Insert search_runs row NOW to get a stable run_id for job logs
         runId = db.prepare(
-          `INSERT INTO search_runs (profile_id, ran_at, status, trigger, scraping_provider, job_source) VALUES (?, ?, 'running', ?, ?, ?)`
-        ).run(profileId, ranAt, trigger, scrapingProvider, providerToSource(scrapingProvider)).lastInsertRowid as number;
+          `INSERT INTO search_runs (profile_id, ran_at, status, trigger, scraping_provider, job_source, session_id) VALUES (?, ?, 'running', ?, ?, ?, ?)`
+        ).run(profileId, ranAt, trigger, scrapingProvider, providerToSource(scrapingProvider), sessionId).lastInsertRowid as number;
 
         console.log(`[runner] Run ID: ${runId} (provider: ${scrapingProvider})`);
 
@@ -791,9 +793,9 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           } else {
             db.prepare(`
               INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
-                jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger)
-              VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?)
-            `).run(profileId, ranAt, errorMsg, durationMs, trigger);
+                jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
+              VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?, ?)
+            `).run(profileId, ranAt, errorMsg, durationMs, trigger, sessionId);
           }
         } catch (_) { /* ignore DB logging failure */ }
 
@@ -848,9 +850,9 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       const db = getDb();
       db.prepare(`
         INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
-          jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger)
-        VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?)
-      `).run(profileId, overallRanAt, errorMsg, durationMs, trigger);
+          jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
+        VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?, ?)
+      `).run(profileId, overallRanAt, errorMsg, durationMs, trigger, sessionId);
     } catch (_) { /* ignore DB logging failure */ }
 
     const result: PipelineResult = {

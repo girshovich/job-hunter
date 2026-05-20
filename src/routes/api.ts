@@ -141,9 +141,31 @@ router.get('/status', (req: Request, res: Response) => {
 
   // Also fetch the latest DB run for the dashboard card
   const db = getDb();
-  const lastDbRun = db
-    .prepare('SELECT * FROM search_runs WHERE profile_id = ? ORDER BY ran_at DESC LIMIT 1')
-    .get(profileId);
+  const lastDbRun = db.prepare(`
+    SELECT
+      MIN(ran_at)            AS ran_at,
+      SUM(jobs_fetched)      AS jobs_fetched,
+      SUM(jobs_scored)       AS jobs_scored,
+      SUM(jobs_strong_match) AS jobs_strong_match,
+      SUM(jobs_weak_match)   AS jobs_weak_match,
+      SUM(jobs_no_match)     AS jobs_no_match,
+      SUM(jobs_duplicate)    AS jobs_duplicate,
+      SUM(duration_ms)       AS duration_ms,
+      CASE
+        WHEN COUNT(*) = SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) THEN 'success'
+        WHEN COUNT(*) = SUM(CASE WHEN status = 'failed'  THEN 1 ELSE 0 END) THEN 'failed'
+        ELSE 'partial_error'
+      END AS status,
+      GROUP_CONCAT(error_log, '\n') AS error_log
+    FROM search_runs
+    WHERE profile_id = ?
+      AND COALESCE(session_id, CAST(id AS TEXT)) = (
+        SELECT COALESCE(session_id, CAST(id AS TEXT))
+        FROM search_runs WHERE profile_id = ? AND status != 'running'
+        ORDER BY ran_at DESC LIMIT 1
+      )
+      AND status != 'running'
+  `).get(profileId, profileId);
 
   res.json({
     isRunning,
@@ -374,7 +396,31 @@ router.get('/stats', (req: Request, res: Response) => {
   const newJobs = (
     db.prepare(`SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND seen = 0 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`).get(profileId) as { c: number }
   ).c;
-  const lastRun = db.prepare('SELECT * FROM search_runs WHERE profile_id = ? ORDER BY ran_at DESC LIMIT 1').get(profileId);
+  const lastRun = db.prepare(`
+    SELECT
+      MIN(ran_at)            AS ran_at,
+      SUM(jobs_fetched)      AS jobs_fetched,
+      SUM(jobs_scored)       AS jobs_scored,
+      SUM(jobs_strong_match) AS jobs_strong_match,
+      SUM(jobs_weak_match)   AS jobs_weak_match,
+      SUM(jobs_no_match)     AS jobs_no_match,
+      SUM(jobs_duplicate)    AS jobs_duplicate,
+      SUM(duration_ms)       AS duration_ms,
+      CASE
+        WHEN COUNT(*) = SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) THEN 'success'
+        WHEN COUNT(*) = SUM(CASE WHEN status = 'failed'  THEN 1 ELSE 0 END) THEN 'failed'
+        ELSE 'partial_error'
+      END AS status,
+      GROUP_CONCAT(error_log, '\n') AS error_log
+    FROM search_runs
+    WHERE profile_id = ?
+      AND COALESCE(session_id, CAST(id AS TEXT)) = (
+        SELECT COALESCE(session_id, CAST(id AS TEXT))
+        FROM search_runs WHERE profile_id = ? AND status != 'running'
+        ORDER BY ran_at DESC LIMIT 1
+      )
+      AND status != 'running'
+  `).get(profileId, profileId);
 
   res.json({ totalJobs, newJobs, lastRun, isRunning: getIsRunning(profileId) });
 });

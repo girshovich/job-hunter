@@ -1235,6 +1235,18 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration v_description_split failed (non-fatal):', (err as Error).message);
   }
+
+  // v_session_id: add session_id to search_runs to group provider runs from the same trigger
+  try {
+    const cols = db.prepare(`PRAGMA table_info(search_runs)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'session_id')) {
+      db.exec(`ALTER TABLE search_runs ADD COLUMN session_id TEXT`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_session ON search_runs(session_id)`);
+      console.log('[db] Migration v_session_id: search_runs.session_id added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_session_id failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
