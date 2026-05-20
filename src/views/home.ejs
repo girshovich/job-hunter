@@ -159,7 +159,7 @@ function verdictChip(verdict) {
   <div class="flex items-center justify-between flex-wrap gap-4">
     <div>
       <h2 class="font-semibold text-gray-900">Search for Jobs</h2>
-      <p class="text-sm text-gray-500 mt-0.5">Fetch LinkedIn jobs, score with AI, send email digest.</p>
+      <p class="text-sm text-gray-500 mt-0.5">Fetch jobs, score with AI, send email digest if you chose to.</p>
     </div>
     <div class="flex items-center gap-2">
       <% if (canRun) { %>
@@ -200,19 +200,13 @@ function verdictChip(verdict) {
     <ul id="preflight-errors-list" class="space-y-0.5 text-xs text-red-600 list-disc list-inside"></ul>
   </div>
   <div id="home-run-progress" class="hidden mt-4">
-    <div class="flex items-center justify-between mb-1.5 gap-3">
-      <div class="flex items-center gap-2 min-w-0">
-        <svg class="w-3.5 h-3.5 animate-spin text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-        </svg>
-        <span id="home-run-status-text" class="text-sm text-gray-600 truncate">Starting…</span>
+    <div class="flex items-center gap-3 mb-2">
+      <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div id="home-run-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out" style="width:0%"></div>
       </div>
-      <span id="home-run-pct" class="text-sm font-medium text-gray-500 flex-shrink-0 tabular-nums">0%</span>
+      <span id="home-run-pct" class="text-2xl font-bold text-gray-900 tabular-nums flex-shrink-0">0%</span>
     </div>
-    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-      <div id="home-run-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out" style="width:0%"></div>
-    </div>
+    <p id="home-run-status-text" class="text-sm text-gray-500">Starting…</p>
   </div>
   <div id="home-run-result" class="hidden mt-4 text-sm"></div>
 </div>
@@ -406,22 +400,14 @@ function updateProgress(stage) {
   const pct = stage ? stage.pct : 0;
   bar.style.width = pct + '%';
   pctEl.textContent = pct + '%';
-  if (!stage) { statusText.textContent = 'Starting…'; return; }
+  if (!stage) { statusText.innerHTML = 'Starting…'; return; }
   const s = stage;
-  if (s.providerCount > 1 && s.providerName) {
-    let label = `Provider ${s.providerIdx} of ${s.providerCount} · ${s.providerName}`;
-    if (s.roleLabel) label += ` · ${s.roleLabel}`;
-    if (s.roleCount > 1) label += ` (role ${s.roleIdx}/${s.roleCount})`;
-    if (s.action) label += ` · ${s.action}`;
-    statusText.textContent = label;
-  } else if (s.roleLabel && s.action) {
-    let label = s.roleLabel;
-    if (s.roleCount > 1) label += ` (role ${s.roleIdx}/${s.roleCount})`;
-    label += ` · ${s.action}`;
-    statusText.textContent = label;
-  } else {
-    statusText.textContent = s.text || 'Running…';
-  }
+  const spinner = `<svg class="inline-block w-3.5 h-3.5 animate-spin text-emerald-500 align-text-bottom" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>`;
+  const parts = [];
+  if (s.providerCount > 1) parts.push(`Provider <strong class="text-gray-700">${s.providerIdx}/${s.providerCount}</strong>`);
+  if (s.roleIdx != null && s.roleCount != null) parts.push(`Role <strong class="text-gray-700">${s.roleIdx}/${s.roleCount}</strong>`);
+  if (s.action) parts.push(`${spinner} <span class="text-emerald-600 font-medium">${s.action}</span>`);
+  statusText.innerHTML = parts.length ? parts.join(' · ') : (s.text || 'Running…');
 }
 
 function startPolling(btn) {
