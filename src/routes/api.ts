@@ -488,8 +488,8 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   const timeVal = emailSendTime || '07:00';
   const [hStr, mStr] = timeVal.split(':');
   const expression = `${parseInt(mStr || '0', 10)} ${parseInt(hStr || '7', 10)} * * ${scheduleDays}`;
-  updates.push('cron_schedule = ?', 'schedule_date_range = ?', 'schedule_group_ids = ?', 'scraping_providers = ?', 'updated_at = ?');
-  params.push(expression, scheduleDateRange, JSON.stringify(groupIds), JSON.stringify(schedProviders), new Date().toISOString());
+  updates.push('cron_schedule = ?', 'schedule_date_range = ?', 'schedule_group_ids = ?', 'scraping_providers = ?', 'schedule_active = ?', 'updated_at = ?');
+  params.push(expression, scheduleDateRange, JSON.stringify(groupIds), JSON.stringify(schedProviders), 1, new Date().toISOString());
   db.prepare(`UPDATE settings SET ${updates.join(', ')} WHERE profile_id = ?`).run(...params, profileId);
 
   const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
@@ -501,6 +501,7 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
 
 router.post('/schedule/stop', (req: Request, res: Response) => {
   stopSchedule(req.profile.id);
+  getDb().prepare(`UPDATE settings SET schedule_active = 0 WHERE profile_id = ?`).run(req.profile.id);
   res.json({ success: true });
 });
 

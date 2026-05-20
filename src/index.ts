@@ -203,6 +203,28 @@ async function start(): Promise<void> {
   }
   startPoolCleanupCron();
 
+  // Restore user schedules that were active before the last restart
+  const activeSchedules = db.prepare(`
+    SELECT s.profile_id, s.cron_schedule, s.timezone, s.schedule_date_range, s.schedule_group_ids, s.scraping_providers
+    FROM settings s
+    WHERE s.schedule_active = 1
+  `).all() as Array<{
+    profile_id: number;
+    cron_schedule: string;
+    timezone: string;
+    schedule_date_range: string;
+    schedule_group_ids: string;
+    scraping_providers: string;
+  }>;
+  for (const row of activeSchedules) {
+    const groupIds: number[] = row.schedule_group_ids ? JSON.parse(row.schedule_group_ids) : [];
+    const providers: string[] = row.scraping_providers ? JSON.parse(row.scraping_providers) : ['harvestapi'];
+    startSchedule(row.profile_id, row.cron_schedule, row.timezone || 'UTC', (row.schedule_date_range as '24h' | '7d' | 'month') || '24h', groupIds, providers);
+  }
+  if (activeSchedules.length > 0) {
+    console.log(`[startup] Restored ${activeSchedules.length} user schedule(s)`);
+  }
+
   console.log(`[server] Dashboard running at http://localhost:${config.port}`);
   app.listen(config.port);
 }

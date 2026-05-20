@@ -1247,6 +1247,17 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration v_session_id failed (non-fatal):', (err as Error).message);
   }
+
+  // v_schedule_active: track whether a user's cron is currently running so it survives restarts
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'schedule_active')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN schedule_active INTEGER NOT NULL DEFAULT 0`);
+      console.log('[db] Migration v_schedule_active: settings.schedule_active added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_schedule_active failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
