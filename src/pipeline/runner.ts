@@ -388,16 +388,6 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       if (withinRunDupes.length > 0) {
         console.log(`[runner] Group ${group.id}: ${withinRunDupes.length} within-run duplicate(s) skipped`);
         jobsDuplicate += withinRunDupes.length;
-        const loggedAt = new Date().toISOString();
-        db.transaction(() => {
-          for (const job of withinRunDupes) {
-            insertJobLog.run(
-              runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
-              job.location || null, job.url || null,
-              null, 'DUPLICATE', null, null, loggedAt,
-            );
-          }
-        });
       }
 
       // 3b. Provider-level dedup — filter jobs already stored in DB from previous runs
