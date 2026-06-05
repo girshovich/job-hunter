@@ -105,7 +105,7 @@ pm2 save
 
 | Service | Purpose | Free tier |
 |---|---|---|
-| [HarvestAPI](https://harvestapi.io) or [Valig](https://valig.io) | Job discovery | Paid; provider is configurable in Settings |
+| [Apify](https://apify.com) | Job discovery (HarvestAPI, Valig, Indeed, StepStone actors) | Pay as you go |
 | [OpenAI](https://platform.openai.com) | AI scoring, dedup & summaries | Pay as you go (~$0.50/day typical) |
 | [Resend](https://resend.com) | OTP login + email digests | 100 emails/day free |
 
