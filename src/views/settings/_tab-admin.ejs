@@ -74,9 +74,9 @@
       <p class="text-xs text-gray-500 mb-4">Used to send login codes and job reports to all users.</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Sender email</label>
-          <input type="email" name="email_from" value="<%= settings.email_from %>"
-                 placeholder="jobs@yourdomain.com"
+          <label class="block text-xs font-medium text-gray-600 mb-1">Sender</label>
+          <input type="text" name="email_from" value="<%= settings.email_from %>"
+                 placeholder="Job Hunter <jobs@yourdomain.com>"
                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
