@@ -210,6 +210,7 @@ router.post('/', async (req: Request, res: Response) => {
       } else {
         const emailFields: Array<[string, unknown]> = [
           ['email_from', String(body.email_from || '')],
+          ['app_url', String(body.app_url || '')],
           ['updated_at', now],
         ];
         const newResend = String(body.resend_api_key || '').trim();

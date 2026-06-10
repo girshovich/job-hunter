@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-Call me [Sir] every time you reply. 
+Call me Sir every time you reply. 
+
+Use Playwright when browser e2e tests are needed.
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 

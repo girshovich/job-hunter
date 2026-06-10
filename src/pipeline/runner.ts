@@ -237,6 +237,17 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     let totalRunCostOpenAiUsd = 0;
     let totalRunCostApifyUsd = 0;
 
+    // Session-wide state — accumulated across all providers, sent as one email after the loop
+    const sessionStrongMatchJobIds = new Set<number>();
+    let sessionFetched = 0;
+    let sessionScored = 0;
+    let sessionStrong = 0;
+    let sessionWeak = 0;
+    let sessionNoMatch = 0;
+    let sessionDuplicate = 0;
+    let sessionFiltered = 0;
+    let sessionBlacklisted = 0;
+
     for (const scrapingProvider of providers) {
       const startedAt = Date.now();
       const ranAt = new Date().toISOString();
@@ -348,6 +359,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         const titleFiltered = allFetched.filter((j) => !matchesTitleFilter(j.title, group.title_filter));
         allFetched = allFetched.filter((j) => matchesTitleFilter(j.title, group.title_filter));
         console.log(`[runner] Group ${group.id}: title filter removed ${titleFiltered.length} jobs (${allFetched.length} remain)`);
+        sessionFiltered += titleFiltered.length;
 
         if (titleFiltered.length > 0) {
           const loggedAt = new Date().toISOString();
@@ -369,6 +381,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       if (blacklistedJobs.length > 0) {
         console.log(`[runner] Group ${group.id}: removed ${blacklistedJobs.length} blacklisted job(s)`);
       }
+      sessionBlacklisted += blacklistedJobs.length;
 
       // 3a. Within-run dedup — deduplicate within this batch first, then against earlier groups
       // The LinkedIn API can return the same jobId multiple times within one group's results
@@ -658,6 +671,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
             const jobId = jobIdByKey.get(`${jobSource}::${scored.job.jobId}`);
             if (jobId !== undefined) {
               strongMatchesForReScoring.push({ jobId, groupId: group.id, job: scored.job, scoringSettings });
+              sessionStrongMatchJobIds.add(jobId);
             }
           }
         }
@@ -704,6 +718,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
           if (rescored.verdict !== 'STRONG_MATCH') {
             jobsStrongMatch--;
+            sessionStrongMatchJobIds.delete(entry.jobId);
             if (rescored.verdict === 'WEAK_MATCH') jobsWeakMatch++;
             else jobsNoMatch++;
           }
@@ -713,33 +728,13 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       }
     }
 
-    // 7. Send email report
-    const emailStats: RunStats = {
-      jobsFetched,
-      jobsScored,
-      strongMatch: jobsStrongMatch,
-      weakMatch: jobsWeakMatch,
-      noMatch: jobsNoMatch,
-      duplicates: jobsDuplicate,
-    };
-
-    if (settings.email_enabled !== 0) {
-      try {
-        const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
-        const recipientEmail = profileEmailRow?.email || '';
-        if (!recipientEmail) {
-          console.warn('[runner] No profile email configured, skipping email report.');
-        } else {
-          await sendDailyReport(emailStats, recipientEmail, resendApiKey, emailFrom, profileId);
-        }
-      } catch (err) {
-        const msg = `Email send error: ${(err as Error).message}`;
-        console.error('[runner]', msg);
-        errors.push(msg);
-      }
-    } else {
-      console.log('[runner] Email sending is disabled in settings. Skipping email report.');
-    }
+    // 7. Accumulate session totals (email is sent once after the providers loop)
+    sessionFetched   += jobsFetched;
+    sessionScored    += jobsScored;
+    sessionStrong    += jobsStrongMatch;
+    sessionWeak      += jobsWeakMatch;
+    sessionNoMatch   += jobsNoMatch;
+    sessionDuplicate += jobsDuplicate;
 
     // 8. Update the run row with final stats
     const durationMs = Date.now() - startedAt;
@@ -809,6 +804,47 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         lastRunResultMap.set(profileId, result);
       }
     } // end providers loop
+
+    // Send one session digest after all providers have run
+    if (settings.email_enabled !== 0) {
+      try {
+        const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
+        const recipientEmail = profileEmailRow?.email || '';
+        if (!recipientEmail) {
+          console.warn('[runner] No profile email configured, skipping email report.');
+        } else {
+          const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+          const appUrl = adminProfile
+            ? ((db.prepare('SELECT app_url FROM settings WHERE profile_id = ?').get(adminProfile.id) as { app_url?: string } | undefined)?.app_url?.trim() ?? '')
+            : '';
+          const sessionStats: RunStats = {
+            jobsFetched: sessionFetched,
+            jobsScored: sessionScored,
+            strongMatch: sessionStrong,
+            weakMatch: sessionWeak,
+            noMatch: sessionNoMatch,
+            duplicates: sessionDuplicate,
+            filtered: sessionFiltered,
+            blacklisted: sessionBlacklisted,
+          };
+          await sendDailyReport({
+            jobIds: [...sessionStrongMatchJobIds],
+            stats: sessionStats,
+            trigger,
+            cronSchedule: settings.cron_schedule,
+            appUrl,
+            recipientEmail,
+            resendApiKey,
+            emailFrom,
+            profileId,
+          });
+        }
+      } catch (err) {
+        console.error('[runner] Session email send error:', (err as Error).message);
+      }
+    } else {
+      console.log('[runner] Email sending is disabled in settings. Skipping email report.');
+    }
 
     // Deduct JH credits for all providers combined
     if (useJhCredits) {

@@ -26,6 +26,47 @@ function createSession(db: ReturnType<typeof getDb>, profileId: number): string 
   return token;
 }
 
+function seedAppUrlIfEmpty(db: ReturnType<typeof getDb>, profileId: number, isAdmin: boolean, req: Request): void {
+  if (!isAdmin) return;
+  const row = db.prepare('SELECT app_url FROM settings WHERE profile_id = ?').get(profileId) as { app_url?: string } | undefined;
+  if (!row || row.app_url) return;
+  db.prepare('UPDATE settings SET app_url = ? WHERE profile_id = ?').run(`${req.protocol}://${req.get('host')}`, profileId);
+}
+
+function verifyOtp(db: ReturnType<typeof getDb>, email: string, code: string): { ok: boolean; profileId?: number; error?: string } {
+  const now = new Date();
+  const otpRow = db.prepare(
+    'SELECT * FROM otp_codes WHERE email = ? AND used = 0 ORDER BY id DESC LIMIT 1'
+  ).get(email) as OtpCodeRow | undefined;
+
+  if (!otpRow) return { ok: false, error: 'No active code. Request a new one.' };
+
+  if (new Date(otpRow.expires_at) < now) {
+    db.prepare('UPDATE otp_codes SET used = 1 WHERE id = ?').run(otpRow.id);
+    return { ok: false, error: 'Code expired. Request a new one.' };
+  }
+
+  const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
+  const recentAttempts = (db.prepare(
+    'SELECT COALESCE(SUM(attempts), 0) as total FROM otp_codes WHERE email = ? AND created_at > ?'
+  ).get(email, fiveMinAgo) as { total: number }).total;
+
+  if (recentAttempts >= 5) {
+    return { ok: false, error: 'Too many incorrect attempts. Please wait 5 minutes.' };
+  }
+
+  if (otpRow.code !== code) {
+    db.prepare('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?').run(otpRow.id);
+    return { ok: false, error: 'Wrong code.' };
+  }
+
+  db.prepare('UPDATE otp_codes SET used = 1 WHERE id = ?').run(otpRow.id);
+  const profile = db.prepare('SELECT * FROM profiles WHERE email = ?').get(email) as ProfileRow | undefined;
+  if (!profile) return { ok: false, error: 'Account not found.' };
+
+  return { ok: true, profileId: profile.id };
+}
+
 // Returns true if this email is currently rate-limited for OTP sends.
 // Trigger: ≥3 codes sent within any 60-second window in the last 5 minutes.
 function isResendRateLimited(db: ReturnType<typeof getDb>, email: string): boolean {
@@ -85,6 +126,7 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
     const result = db.prepare('INSERT INTO profiles (id, email, is_admin) VALUES (1, ?, 1)').run(email);
     const profileId = result.lastInsertRowid as number;
     db.prepare('UPDATE settings SET email_recipient = ? WHERE profile_id = ?').run(email, profileId);
+    seedAppUrlIfEmpty(db, profileId, true, req);
     const token = createSession(db, profileId);
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`);
     return res.json({ ok: true, redirect: '/' });
@@ -115,19 +157,23 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
   db.prepare('UPDATE otp_codes SET used = 1 WHERE email = ? AND used = 0').run(email);
   db.prepare('INSERT INTO otp_codes (email, code, attempts, created_at, expires_at, used) VALUES (?, ?, 0, ?, ?, 0)').run(email, otp, now, otpExpiry);
 
+  const loginLink = `${req.protocol}://${req.get('host')}/welcome/verify?email=${encodeURIComponent(email)}&code=${otp}`;
   try {
     const resend = new Resend(adminSettings.resend_api_key);
     const from = adminSettings.email_from || 'noreply@example.com';
     const { error: sendErr } = await resend.emails.send({
       from,
       to: email,
-      subject: `Your login code: ${otp}`,
+      subject: `Job Hunter code: ${otp}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 16px;">
-          <h2 style="margin:0 0 16px;color:#111827;">Job Hunter — Login Code</h2>
+          <h2 style="margin:0 0 16px;color:#111827;">Job Hunter code: ${otp}</h2>
           <p style="font-size:48px;font-weight:700;letter-spacing:12px;font-family:monospace;
                     color:#2563EB;margin:0 0 16px;">${otp}</p>
           <p style="color:#6B7280;font-size:14px;">Expires in ${OTP_MINUTES} minutes. Do not share this code.</p>
+          <p style="color:#374151;font-size:14px;margin:16px 0 0;">
+            Or <a href="${loginLink}" style="color:#2563EB;">click here to log in</a> in a new tab — no code needed.
+          </p>
         </div>`,
     });
     if (sendErr) throw new Error(sendErr.message);
@@ -150,40 +196,39 @@ router.post('/welcome/verify', (req: Request, res: Response) => {
     return res.json({ ok: false, error: 'Enter the 6-digit code.' });
   }
 
-  const now = new Date();
-  const otpRow = db.prepare(
-    'SELECT * FROM otp_codes WHERE email = ? AND used = 0 ORDER BY id DESC LIMIT 1'
-  ).get(email) as OtpCodeRow | undefined;
-
-  if (!otpRow) {
-    return res.json({ ok: false, error: 'No active code. Request a new one.' });
+  const result = verifyOtp(db, email, code);
+  if (!result.ok || !result.profileId) {
+    return res.json({ ok: false, error: result.error });
   }
 
-  if (new Date(otpRow.expires_at) < now) {
-    db.prepare('UPDATE otp_codes SET used = 1 WHERE id = ?').run(otpRow.id);
-    return res.json({ ok: false, error: 'Code expired. Request a new one.' });
-  }
-
-  const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
-  const recentAttempts = (db.prepare(
-    'SELECT COALESCE(SUM(attempts), 0) as total FROM otp_codes WHERE email = ? AND created_at > ?'
-  ).get(email, fiveMinAgo) as { total: number }).total;
-
-  if (recentAttempts >= 5) {
-    return res.json({ ok: false, error: 'Too many incorrect attempts. Please wait 5 minutes.' });
-  }
-
-  if (otpRow.code !== code) {
-    db.prepare('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?').run(otpRow.id);
-    return res.json({ ok: false, error: 'Wrong code.' });
-  }
-
-  db.prepare('UPDATE otp_codes SET used = 1 WHERE id = ?').run(otpRow.id);
-  const profile = db.prepare('SELECT * FROM profiles WHERE email = ?').get(email) as ProfileRow;
+  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(result.profileId) as ProfileRow;
+  seedAppUrlIfEmpty(db, profile.id, !!profile.is_admin, req);
   const token = createSession(db, profile.id);
 
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`);
   return res.json({ ok: true });
+});
+
+// GET /welcome/verify — magic-link login from OTP email
+router.get('/welcome/verify', (req: Request, res: Response) => {
+  const db = getDb();
+  const email = String(req.query.email || '').trim().toLowerCase();
+  const code = String(req.query.code || '').replace(/\s/g, '');
+
+  if (!email || !code) {
+    return res.redirect('/welcome?error=invalid-link');
+  }
+
+  const result = verifyOtp(db, email, code);
+  if (!result.ok || !result.profileId) {
+    return res.redirect(`/welcome?error=${encodeURIComponent(result.error || 'Invalid code')}`);
+  }
+
+  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(result.profileId) as ProfileRow;
+  seedAppUrlIfEmpty(db, profile.id, !!profile.is_admin, req);
+  const token = createSession(db, result.profileId);
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`);
+  return res.redirect('/');
 });
 
 // GET /settings/confirm-email — apply a pending email change via token

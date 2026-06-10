@@ -98,7 +98,14 @@
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-2 flex-wrap">
+      <div class="mt-3">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Site URL</label>
+        <input type="text" name="app_url" value="<%= settings.app_url %>"
+               placeholder="https://hunter.example.com"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        <p class="text-xs text-gray-400 mt-1">Used for links in job report emails. Auto-detected on first admin login.</p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap mt-3">
         <button type="button" onclick="testApiKey('resend', 'resend-key-input', 'resend-test-status')"
                 class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
           Test key

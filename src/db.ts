@@ -1258,6 +1258,17 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration v_schedule_active failed (non-fatal):', (err as Error).message);
   }
+
+  // v_app_url: deployment base URL stored in admin settings for use in email links
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'app_url')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN app_url TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_app_url: settings.app_url column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_app_url failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -1737,6 +1748,7 @@ export interface SettingsRow {
   user_apify_api_token: string;    // user-specific Apify key (used when use_jh_credits = 0)
   user_openai_api_key: string;     // user-specific OpenAI key (used when use_jh_credits = 0)
   credits_balance: number;         // USD balance when using JH credits
+  app_url: string;                 // deployment base URL used in email links (e.g. https://hunter.example.com)
 }
 
 export interface CvRow {
