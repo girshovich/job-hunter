@@ -54,10 +54,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  // Extend session (rolling 30 days)
-  const newExpiry = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
-  const now = new Date().toISOString();
-  db.prepare('UPDATE sessions SET expires_at = ?, last_active = ? WHERE id = ?').run(newExpiry, now, session.id);
+  // Extend session (rolling 30 days) — only when last_active is stale, to cut write pressure
+  const lastActiveMs = session.last_active ? new Date(session.last_active).getTime() : 0;
+  if (Date.now() - lastActiveMs > 3_600_000) {
+    const newExpiry = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+    const now = new Date().toISOString();
+    db.prepare('UPDATE sessions SET expires_at = ?, last_active = ? WHERE id = ?').run(newExpiry, now, session.id);
+  }
 
   req.profile = {
     id: profile.id,

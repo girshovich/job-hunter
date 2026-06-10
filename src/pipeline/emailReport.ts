@@ -288,4 +288,40 @@ export async function sendLowCreditsEmail(
   console.log(`[email] Sent low credits alert to ${recipientEmail}`);
 }
 
+export async function sendRateLimitAlert(
+  recipientEmail: string,
+  resendApiKey: string,
+  emailFrom: string,
+): Promise<void> {
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Rate Limit — Job Hunter</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+    <div style="background:linear-gradient(135deg,#DC2626,#B91C1C);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
+      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Hunter</h1>
+      <p style="margin:0;opacity:0.85;font-size:14px;">Rate Limit Alert</p>
+    </div>
+    <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
+      <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#111827;">OpenAI rate limit hit during scoring</h2>
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">
+        A pipeline run hit an OpenAI rate limit (HTTP 429) after automatic retries, so some jobs were left unscored.
+        This usually means the shared account's tier limit was exceeded during the morning spike.
+        Consider raising the OpenAI usage tier or lowering <code>SCORING_CONCURRENCY</code>.
+      </p>
+    </div>
+    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Hunter</p>
+  </div>
+</body></html>`;
+
+  const resend = new Resend(resendApiKey);
+  const { error } = await resend.emails.send({
+    from: emailFrom,
+    to: recipientEmail,
+    subject: 'Job Hunter — OpenAI rate limit hit',
+    html,
+  });
+  if (error) throw new Error(error.message);
+  console.log(`[email] Sent rate-limit alert to ${recipientEmail}`);
+}
+
 export type { RunStats };

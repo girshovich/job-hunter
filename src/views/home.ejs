@@ -464,6 +464,7 @@ function resetRunBtn(btn, label, progress) {
     btn.classList.remove('opacity-60', 'cursor-not-allowed');
     label.textContent = 'Run Once';
     progress.classList.add('hidden');
+    if (typeof applyHomeBtnCooldown === 'function') applyHomeBtnCooldown();
   }, 3000);
 }
 

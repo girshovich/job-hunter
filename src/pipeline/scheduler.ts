@@ -34,14 +34,19 @@ export function startSchedule(
   }
 
   const job = cron.schedule(expression, () => {
-    console.log(`[cron] Profile ${profileId} triggered at ${new Date().toISOString()}`);
-    runPipeline('scheduled', profileId, {
-      dateRange,
-      groupIds: groupIds.length > 0 ? groupIds : undefined,
-      providers: providers.length > 0 ? providers : undefined,
-    }).catch((err) =>
-      console.error(`[cron] Profile ${profileId} pipeline failed:`, err),
-    );
+    const jitterMs = Math.floor(Math.random() * 10 * 60_000); // 0–10 min
+    console.log(`[cron] Profile ${profileId} fired; delaying ${Math.round(jitterMs / 1000)}s (jitter)`);
+    // stop() cancels future cron fires but not an already-scheduled setTimeout; that run completes normally
+    setTimeout(() => {
+      console.log(`[cron] Profile ${profileId} triggered at ${new Date().toISOString()}`);
+      runPipeline('scheduled', profileId, {
+        dateRange,
+        groupIds: groupIds.length > 0 ? groupIds : undefined,
+        providers: providers.length > 0 ? providers : undefined,
+      }).catch((err) =>
+        console.error(`[cron] Profile ${profileId} pipeline failed:`, err),
+      );
+    }, jitterMs);
   }, { timezone });
 
   schedules.set(profileId, { job, expression, timezone, dateRange, groupIds, providers });

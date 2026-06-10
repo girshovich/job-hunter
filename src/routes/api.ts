@@ -14,6 +14,7 @@ import { runValidation } from '../pipeline/atsValidation';
 import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron } from '../pipeline/atsScheduler';
 import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries } from '../pipeline/atsPoolFetcher';
 import { activeRuns } from '../pipeline/atsRunState';
+import { enqueue } from '../pipeline/runQueue';
 import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries } from '../pipeline/locationNormalizer';
@@ -23,6 +24,19 @@ import { checkOpenAiBalance } from '../utils/openaiBalance';
 import OpenAI from 'openai';
 
 const router = Router();
+
+const lastRunAt = new Map<number, number>();
+const lastFetchAt = new Map<number, number>();
+const RUN_COOLDOWN_MS = 5 * 60_000;
+const FETCH_COOLDOWN_MS = 2 * 60_000;
+
+function rateLimited(profileId: number, map: Map<number, number>, cooldownMs: number): number | false {
+  const last = map.get(profileId) ?? 0;
+  const elapsed = Date.now() - last;
+  if (elapsed < cooldownMs) return cooldownMs - elapsed;
+  map.set(profileId, Date.now());
+  return false;
+}
 
 // Pre-flight check — validates everything required to run the pipeline
 router.get('/preflight', (req: Request, res: Response) => {
@@ -85,6 +99,11 @@ router.post('/run', async (req: Request, res: Response) => {
   const profileId = req.profile.id;
   if (getIsRunning(profileId)) {
     res.status(409).json({ success: false, error: 'Pipeline is already running.' });
+    return;
+  }
+  const runLimited = rateLimited(profileId, lastRunAt, RUN_COOLDOWN_MS);
+  if (runLimited !== false) {
+    res.status(429).json({ success: false, error: 'You can only trigger a run once every 5 minutes. Please wait.', retryAfterMs: runLimited });
     return;
   }
 
@@ -353,6 +372,11 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
     res.status(409).json({ success: false, error: 'Pipeline is already running.' });
     return;
   }
+  const fetchLimited = rateLimited(profileId, lastFetchAt, FETCH_COOLDOWN_MS);
+  if (fetchLimited !== false) {
+    res.status(429).json({ success: false, error: 'You can only trigger a fetch preview once every 2 minutes. Please wait.', retryAfterMs: fetchLimited });
+    return;
+  }
 
   try {
     const db = getDb();
@@ -366,22 +390,28 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
 
     const providers = JSON.parse(settings.scraping_providers || '["harvestapi"]') as string[];
     const scrapingProvider = providers[0] || 'harvestapi';
-    const allJobs: Array<{ title: string; company: string; url: string }> = [];
 
-    for (const group of groups) {
-      if (!group.is_active) continue;
+    // /fetch-preview awaits a queue slot; under a full queue the HTTP request waits (acceptable for a preview action)
+    const result = await enqueue(async () => {
+      const allJobs: Array<{ title: string; company: string; url: string }> = [];
 
-      const keywords: string[] = JSON.parse(group.keywords);
-      const locations: string[] = JSON.parse(group.locations);
-      const workModes: string[] = JSON.parse(group.work_modes);
+      for (const group of groups) {
+        if (!group.is_active) continue;
 
-      const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: group.job_type }, apifyToken, '24h', scrapingProvider);
-      for (const j of jobs) {
-        allJobs.push({ title: j.title, company: j.company, url: j.url });
+        const keywords: string[] = JSON.parse(group.keywords);
+        const locations: string[] = JSON.parse(group.locations);
+        const workModes: string[] = JSON.parse(group.work_modes);
+
+        const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: group.job_type }, apifyToken, '24h', scrapingProvider);
+        for (const j of jobs) {
+          allJobs.push({ title: j.title, company: j.company, url: j.url });
+        }
       }
-    }
 
-    res.json({ success: true, count: allJobs.length, jobs: allJobs });
+      return { count: allJobs.length, jobs: allJobs };
+    });
+
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });
   }

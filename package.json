@@ -21,6 +21,7 @@
     "multer": "^2.1.1",
     "node-cron": "^3.0.3",
     "openai": "^4.52.7",
+    "p-limit": "^3.1.0",
     "resend": "^3.5.0"
   },
   "devDependencies": {

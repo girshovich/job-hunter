@@ -5,8 +5,11 @@
  */
 
 import OpenAI from 'openai';
+import pLimit from 'p-limit';
 import type { JobPosting } from './fetcher';
 import type { SettingsRow, SearchGroupRow } from '../db';
+
+const SCORING_CONCURRENCY = Number(process.env.SCORING_CONCURRENCY) || 5;
 
 export type Verdict = 'STRONG_MATCH' | 'WEAK_MATCH' | 'NO_MATCH';
 
@@ -235,14 +238,14 @@ export async function scoreJobs(
   settings: SettingsRow,
   openAiKey: string,
   onProgress?: (done: number, total: number) => void,
-): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage }> {
-  const results: ScoredJob[] = [];
-  let totalInputTokens = 0;
-  let totalCachedInputTokens = 0;
-  let totalOutputTokens = 0;
+): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage; rateLimited: boolean }> {
+  const limit = pLimit(SCORING_CONCURRENCY);
   let jobsDone = 0;
+  let rateLimited = false;
 
-  for (const job of jobs) {
+  type WorkerResult = { scored: ScoredJob; usage: TokenUsage } | null;
+
+  const settled = await Promise.all(jobs.map((job) => limit(async (): Promise<WorkerResult> => {
     let callResult: { result: ScoringLlmOutput; usage: TokenUsage } | null = null;
 
     try {
@@ -263,19 +266,15 @@ export async function scoreJobs(
           openAiKey,
         );
       } catch (retryErr) {
+        if ((retryErr as { status?: number })?.status === 429) rateLimited = true;
         console.error(`[aiScorer] Scoring failed for job ${job.jobId}:`, (retryErr as Error).message);
-        continue;
+        return null;
       }
     }
 
-    jobsDone++;
-    onProgress?.(jobsDone, jobs.length);
+    onProgress?.(++jobsDone, jobs.length);
 
-    if (!callResult) continue;
-
-    totalInputTokens += callResult.usage.inputTokens;
-    totalCachedInputTokens += callResult.usage.cachedInputTokens;
-    totalOutputTokens += callResult.usage.outputTokens;
+    if (!callResult) return null;
 
     const output = callResult.result;
     const score = Math.max(0, Math.min(100, Math.round(output.score)));
@@ -284,17 +283,26 @@ export async function scoreJobs(
       ? output.rejection_category : null;
     const summary = verdict === 'STRONG_MATCH' ? ((output.summary || '').trim() || null) : null;
 
-    results.push({
-      job,
-      score,
-      verdict,
-      rationale: (output.rationale || '').substring(0, 600),
-      rejectionCategory,
-      summary,
-    });
+    return {
+      scored: { job, score, verdict, rationale: (output.rationale || '').substring(0, 600), rejectionCategory, summary },
+      usage: callResult.usage,
+    };
+  })));
+
+  let totalInputTokens = 0;
+  let totalCachedInputTokens = 0;
+  let totalOutputTokens = 0;
+  const results: ScoredJob[] = [];
+
+  for (const item of settled) {
+    if (!item) continue;
+    totalInputTokens += item.usage.inputTokens;
+    totalCachedInputTokens += item.usage.cachedInputTokens;
+    totalOutputTokens += item.usage.outputTokens;
+    results.push(item.scored);
   }
 
-  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens } };
+  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens }, rateLimited };
 }
 
 // ── Call 2: Dedup only (strong matches with existing same-company+title in DB) ──

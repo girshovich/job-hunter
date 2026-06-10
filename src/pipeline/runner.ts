@@ -14,8 +14,13 @@ import { providerToSource } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { resolveCountries } from './locationNormalizer';
-import { sendDailyReport, sendLowCreditsEmail, type RunStats } from './emailReport';
+import pLimit from 'p-limit';
+import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
 import { fetchClearbitLogosForAts } from './companyLogos';
+import { enqueue } from './runQueue';
+
+let lastRateLimitAlert = 0;
+const RATE_LIMIT_ALERT_COOLDOWN_MS = 30 * 60_000;
 
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
 // cachedInput: prompt-cache read price (billed instead of input for cached tokens)
@@ -130,6 +135,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   }
 
   isRunningMap.set(profileId, true);
+  return enqueue(() => runPipelineInner(trigger, profileId, options));
+}
+
+async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: number, options: RunOptions): Promise<PipelineResult> {
   const overallStart = Date.now();
   const overallRanAt = new Date().toISOString();
   const sessionId = randomUUID();
@@ -459,6 +468,13 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         totalInputTokens += scoreResult.tokenUsage.inputTokens;
         totalCachedInputTokens += scoreResult.tokenUsage.cachedInputTokens;
         totalOutputTokens += scoreResult.tokenUsage.outputTokens;
+        if (scoreResult.rateLimited && Date.now() - lastRateLimitAlert > RATE_LIMIT_ALERT_COOLDOWN_MS) {
+          lastRateLimitAlert = Date.now();
+          const adminEmail = (db.prepare('SELECT email FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { email?: string } | undefined)?.email;
+          if (adminEmail && resendApiKey && emailFrom) {
+            sendRateLimitAlert(adminEmail, resendApiKey, emailFrom).catch((e) => console.error('[runner] rate-limit alert failed:', e));
+          }
+        }
       }
 
       // 4b. Dedup + summary for strong matches (Call 2: dedup + summary)
@@ -695,7 +711,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         WHERE run_id = ? AND linkedin_job_id = ? AND group_id = ? AND ai_verdict = 'STRONG_MATCH'
       `);
 
-      for (const entry of strongMatchesForReScoring) {
+      const rescoreLimit = pLimit(Number(process.env.SCORING_CONCURRENCY) || 5);
+      await Promise.all(strongMatchesForReScoring.map((entry) => rescoreLimit(async () => {
         try {
           const hardSettings: SettingsRow = { ...entry.scoringSettings, ai_model: settings.ai_model_hard };
           const result = await scoreJobs([entry.job], hardSettings, openAiKey);
@@ -725,7 +742,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         } catch (err) {
           console.warn(`[runner] Re-score failed for "${entry.job.title}" at "${entry.job.company}":`, (err as Error).message);
         }
-      }
+      })));
     }
 
     // 7. Accumulate session totals (email is sent once after the providers loop)
@@ -805,8 +822,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       }
     } // end providers loop
 
-    // Send one session digest after all providers have run
-    if (settings.email_enabled !== 0) {
+    // Send one session digest after all providers have run — scheduled only
+    if (trigger === 'scheduled' && settings.email_enabled !== 0) {
       try {
         const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
         const recipientEmail = profileEmailRow?.email || '';

@@ -128,6 +128,7 @@ export function getDb(): Database {
   // WAL mode and foreign keys (node:sqlite uses PRAGMA via exec)
   _db.exec(`PRAGMA journal_mode = WAL`);
   _db.exec(`PRAGMA foreign_keys = ON`);
+  _db.exec(`PRAGMA busy_timeout = 5000`);
 
   initSchema(_db);
   runMigrations(_db);

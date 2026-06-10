@@ -170,6 +170,7 @@
       box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 1px 2px rgba(30,158,90,0.35);
     }
     .sb-run-primary:hover { background: var(--jh-sb-green2); }
+    .sb-run-primary:disabled { opacity: 0.55; cursor: not-allowed; }
     .sb-run-secondary {
       background: var(--jh-sb-blue);
       box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 1px 2px rgba(47,107,255,0.4);
@@ -184,6 +185,7 @@
     /* ── Shared success / run button color ─────────────────── */
     .jh-btn-success { background: var(--jh-sb-green); border-color: var(--jh-sb-green); }
     .jh-btn-success:hover { background: var(--jh-sb-green2); border-color: var(--jh-sb-green2); }
+    .jh-btn-success:disabled { opacity: 0.55; cursor: not-allowed; }
 
     .sb-run-meta {
       margin-left: auto; font-size: 11px; font-weight: 500;
@@ -755,6 +757,7 @@
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Run at</label>
           <input id="sched-time-input" type="time" value="07:00"
                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500" />
+          <p class="text-xs text-gray-400 mt-1.5">Runs start within ~10 minutes of this time to spread server load.</p>
         </div>
         <!-- Frequency: daily vs specific days -->
         <div>
@@ -1819,10 +1822,63 @@
       }
     }
 
+    let _runCooldownEnd = 0;
+
+    function startRunCooldown(ms) {
+      _runCooldownEnd = Date.now() + ms;
+      const btn = document.getElementById('sidebar-run-btn');
+      const label = document.getElementById('sidebar-run-label');
+      if (btn && label) {
+        btn.disabled = true;
+        (function tick() {
+          const remaining = _runCooldownEnd - Date.now();
+          if (remaining <= 0) {
+            btn.disabled = false;
+            label.textContent = 'Run once';
+            return;
+          }
+          const m = Math.floor(remaining / 60000);
+          const s = Math.floor((remaining % 60000) / 1000);
+          label.textContent = 'Run (' + m + ':' + String(s).padStart(2, '0') + ')';
+          setTimeout(tick, 1000);
+        })();
+      }
+      applyHomeBtnCooldown();
+    }
+
+    function applyHomeBtnCooldown() {
+      const remaining = _runCooldownEnd - Date.now();
+      if (remaining <= 0) return;
+      const btn = document.getElementById('home-run-btn');
+      const label = document.getElementById('home-run-label');
+      if (!btn || !label || btn.disabled) return;
+      btn.disabled = true;
+      btn.classList.add('opacity-60', 'cursor-not-allowed');
+      (function tick() {
+        const r = _runCooldownEnd - Date.now();
+        if (r <= 0) {
+          btn.disabled = false;
+          btn.classList.remove('opacity-60', 'cursor-not-allowed');
+          label.textContent = 'Run Once';
+          return;
+        }
+        const m = Math.floor(r / 60000);
+        const s = Math.floor((r % 60000) / 1000);
+        label.textContent = 'Run (' + m + ':' + String(s).padStart(2, '0') + ')';
+        setTimeout(tick, 1000);
+      })();
+    }
+
     function closeRunModal() {
       document.getElementById('run-modal').classList.add('hidden');
       closeRunRolePicker();
       closeRunProviderPicker();
+      const submitBtn = document.getElementById('run-modal-submit');
+      if (submitBtn.dataset.originalHtml) {
+        submitBtn.innerHTML = submitBtn.dataset.originalHtml;
+        submitBtn.dataset.originalHtml = '';
+      }
+      submitBtn.disabled = false;
     }
 
     async function submitRun() {
@@ -1844,6 +1900,7 @@
       }
 
       submitBtn.disabled = true;
+      submitBtn.dataset.originalHtml = submitBtn.innerHTML;
       submitBtn.textContent = 'Starting…';
       msgEl.classList.add('hidden');
 
@@ -1871,16 +1928,10 @@
             _runCallback();
             _runCallback = null;
           } else {
-            // Sidebar feedback
-            const label = document.getElementById('sidebar-run-label');
-            const sidebarBtn = document.getElementById('sidebar-run-btn');
-            if (label) label.textContent = 'Running…';
-            if (sidebarBtn) sidebarBtn.disabled = true;
-            setTimeout(() => {
-              if (label) label.textContent = 'Run Once';
-              if (sidebarBtn) sidebarBtn.disabled = false;
-            }, 5000);
+            startRunCooldown(5 * 60 * 1000);
           }
+        } else if (data.retryAfterMs) {
+          startRunCooldown(data.retryAfterMs);
         } else {
           await showAlert(data.error || 'Failed to start pipeline.');
         }
