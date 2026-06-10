@@ -167,7 +167,7 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
       subject: `Job Hunter code: ${otp}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 16px;">
-          <h2 style="margin:0 0 16px;color:#111827;">Job Hunter code: ${otp}</h2>
+          <h2 style="margin:0 0 16px;color:#111827;">Log in to Job Hunter</h2>
           <p style="font-size:48px;font-weight:700;letter-spacing:12px;font-family:monospace;
                     color:#2563EB;margin:0 0 16px;">${otp}</p>
           <p style="color:#6B7280;font-size:14px;">Expires in ${OTP_MINUTES} minutes. Do not share this code.</p>
