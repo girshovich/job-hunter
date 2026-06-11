@@ -249,8 +249,8 @@ export function renderAppliedSelector(value: unknown, attrs: HtmlAttrs = {}): st
 
 export function renderScoreCell(value: unknown): string {
   const num = Number(value);
-  const tone = Number.isFinite(num) && num >= 71 ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100';
-  return `<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge ${tone}">${formatScore(value)}</span>`;
+  const tone = Number.isFinite(num) && num >= 71 ? 'text-white score-badge-match' : 'text-gray-500 bg-gray-100';
+  return `<span class="inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-semibold score-badge ${tone}">${formatScore(value)}</span>`;
 }
 
 export function renderDateTimeCell(value: unknown, timezone = 'UTC'): string {

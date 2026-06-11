@@ -10,6 +10,7 @@
     [x-cloak] { display: none !important; }
     :root { --page-max-w: <%= locals.pageMaxWidth || '72rem' %>; }
     .score-badge { font-variant-numeric: tabular-nums; }
+    .score-badge-match { background: var(--jh-sb-green); }
     html, body { overflow: hidden; }
     .app-shell { height: 100dvh; min-height: 100%; background: #f9fafb; overflow: hidden; }
     .app-sidebar { width: 14rem; height: 100dvh; overflow: hidden; overscroll-behavior: contain; }
@@ -54,7 +55,9 @@
       box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
       padding: 1rem;
       cursor: pointer;
+      transition: box-shadow 0.15s ease;
     }
+    .job-mobile-card:hover { box-shadow: inset 3px 0 0 var(--jh-sb-green), 0 1px 2px rgba(15, 23, 42, 0.04); }
     .job-identity-title { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .job-table .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
     .job-mobile-card .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
