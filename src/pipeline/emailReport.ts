@@ -30,7 +30,7 @@ function cadenceHeading(trigger: string, cronSchedule: string): string {
 
 function scorePillStyle(): string {
   // Digest only ever carries strong matches, so every pill is the strong green.
-  return 'display:inline-block;flex:none;height:26px;line-height:26px;min-width:50px;padding:0 9px;border-radius:999px;font-size:12.5px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;box-sizing:border-box;background:#1E9E5A;color:#ffffff;';
+  return 'display:inline-block;height:26px;line-height:26px;min-width:50px;padding:0 9px;border-radius:999px;font-size:12.5px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;box-sizing:border-box;background:#1E9E5A;color:#ffffff;';
 }
 
 function statBadge(label: string, value: number, color: string): string {
@@ -80,17 +80,21 @@ function buildEmailHtml(
       </div>`
     : jobs.map((job) => `
       <div class="jh-job" style="background:white;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:14px 16px;margin-bottom:10px;">
-        <div class="jh-top" style="display:flex;gap:12px;align-items:flex-start;">
-          <div style="min-width:0;flex:1;">
-            <h3 class="jh-title" style="margin:0;font-size:16px;font-weight:700;color:#111827;line-height:1.3;letter-spacing:-0.01em;">
-              <a href="${escapeHtml(job.url || '#')}" style="color:#111827;text-decoration:none;">${escapeHtml(job.title)}</a>
-            </h3>
-            <p class="jh-meta" style="margin:4px 0 0;font-size:13px;color:#6B7280;line-height:1.4;">
-              <b style="color:#374151;font-weight:600;">${escapeHtml(job.company)}</b>${job.location ? ` · ${escapeHtml(job.location)}` : ''}${job.work_mode ? ` · <span style="text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
-            </p>
-          </div>
-          <div class="jh-score" style="${scorePillStyle()}">${job.ai_score}%</div>
-        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="vertical-align:top;padding-right:10px;">
+              <h3 class="jh-title" style="margin:0;font-size:16px;font-weight:700;color:#111827;line-height:1.3;letter-spacing:-0.01em;">
+                <a href="${escapeHtml(job.url || '#')}" style="color:#111827;text-decoration:none;">${escapeHtml(job.title)}</a>
+              </h3>
+              <p class="jh-meta" style="margin:4px 0 0;font-size:13px;color:#6B7280;line-height:1.4;">
+                <b style="color:#374151;font-weight:600;">${escapeHtml(job.company)}</b>${job.location ? ` · ${escapeHtml(job.location)}` : ''}${job.work_mode ? ` · <span style="text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
+              </p>
+            </td>
+            <td style="vertical-align:top;text-align:right;white-space:nowrap;width:1%;">
+              <span class="jh-score" style="${scorePillStyle()}">${job.ai_score}%</span>
+            </td>
+          </tr>
+        </table>
         ${job.ai_summary ? `<p class="jh-desc" style="margin:8px 0 0;font-size:13px;color:#6B7280;line-height:1.5;">${escapeHtml(job.ai_summary)}</p>` : ''}
       </div>
     `).join('');
@@ -116,7 +120,6 @@ function buildEmailHtml(
     .jh-stat-num{font-size:15px !important;}
     .jh-stat-lab{font-size:7.5px !important;letter-spacing:-0.02em !important;white-space:nowrap !important;margin-top:5px !important;}
     .jh-job{padding:13px 14px !important;margin-bottom:9px !important;}
-    .jh-top{gap:10px !important;}
     .jh-title{font-size:13.5px !important;line-height:1.28 !important;}
     .jh-meta{font-size:12.5px !important;}
     .jh-desc{font-size:12.5px !important;margin-top:7px !important;}
@@ -202,7 +205,7 @@ export async function sendDailyReport({
   return { sent: true, jobCount: n };
 }
 
-export async function sendTestEmail(recipientEmail: string, resendApiKey: string, emailFrom: string): Promise<void> {
+export async function sendTestEmail(recipientEmail: string, resendApiKey: string, emailFrom: string, appUrl: string): Promise<void> {
   const mockStats: RunStats = {
     jobsFetched: 42,
     jobsScored: 38,
@@ -250,7 +253,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
     },
   ];
 
-  const html = buildEmailHtml(mockJobs, mockStats, "Today's matches", '');
+  const html = buildEmailHtml(mockJobs, mockStats, "Today's matches", appUrl);
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
     from: emailFrom,

@@ -205,7 +205,7 @@ router.post('/test-email', async (req: Request, res: Response) => {
     if (!recipientEmail) {
       return res.status(400).json({ success: false, error: 'No profile email configured.' });
     }
-    await sendTestEmail(recipientEmail, resendApiKey, emailFrom);
+    await sendTestEmail(recipientEmail, resendApiKey, emailFrom, (settings.app_url || '').trim());
     res.json({ success: true, message: `Test email sent to ${recipientEmail}` });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });
