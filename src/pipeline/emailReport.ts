@@ -28,16 +28,15 @@ function cadenceHeading(trigger: string, cronSchedule: string): string {
   return "Today's matches";
 }
 
-function scoreColor(score: number): string {
-  if (score >= 85) return '#059669';
-  if (score >= 71) return '#10B981';
-  return '#6B7280';
+function scorePillStyle(): string {
+  // Digest only ever carries strong matches, so every pill is the strong green.
+  return 'display:inline-block;flex:none;height:26px;line-height:26px;min-width:50px;padding:0 9px;border-radius:999px;font-size:12.5px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;box-sizing:border-box;background:#1E9E5A;color:#ffffff;';
 }
 
 function statBadge(label: string, value: number, color: string): string {
-  return `<div style="flex:1;min-width:70px;text-align:center;padding:8px 6px;border:1px solid #E5E7EB;border-radius:8px;">
-    <div style="font-size:20px;font-weight:700;color:${color};">${value}</div>
-    <div style="font-size:10px;color:#6B7280;margin-top:1px;">${label}</div>
+  return `<div class="jh-stat" style="flex:1 1 0;min-width:0;box-sizing:border-box;text-align:center;padding:11px 4px;border:1px solid #F3F4F6;border-radius:8px;background:#FCFCFD;">
+    <div class="jh-stat-num" style="font-size:19px;font-weight:800;color:${color};line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;">${value}</div>
+    <div class="jh-stat-lab" style="font-size:10.5px;font-weight:600;color:#6B7280;margin-top:6px;">${label}</div>
   </div>`;
 }
 
@@ -65,7 +64,7 @@ function buildEmailHtml(
       </div>`
     : '';
 
-  const statsHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;">
+  const statsHtml = `<div class="jh-stats-grid" style="display:flex;gap:5px;flex-wrap:nowrap;">
     ${statBadge('Fetched', stats.jobsFetched, '#6B7280')}
     ${statBadge('Strong', stats.strongMatch, '#059669')}
     ${statBadge('Weak', stats.weakMatch, '#D97706')}
@@ -76,23 +75,23 @@ function buildEmailHtml(
   </div>`;
 
   const jobCards = jobs.length === 0
-    ? `<p style="color:#6B7280;text-align:center;padding:24px 0;font-size:14px;">No strong matches this run.</p>`
+    ? `<div style="background:white;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:24px 16px;">
+        <p style="color:#6B7280;text-align:center;margin:0;font-size:14px;">No strong matches this run.</p>
+      </div>`
     : jobs.map((job) => `
-      <div style="border:1px solid #E5E7EB;border-radius:8px;padding:14px 16px;margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
-          <div style="min-width:0;flex:1;margin-right:12px;">
-            <h3 style="margin:0 0 3px;font-size:15px;font-weight:600;color:#111827;">
+      <div class="jh-job" style="background:white;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:14px 16px;margin-bottom:10px;">
+        <div class="jh-top" style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="min-width:0;flex:1;">
+            <h3 class="jh-title" style="margin:0;font-size:16px;font-weight:700;color:#111827;line-height:1.3;letter-spacing:-0.01em;">
               <a href="${escapeHtml(job.url || '#')}" style="color:#111827;text-decoration:none;">${escapeHtml(job.title)}</a>
             </h3>
-            <p style="margin:0;font-size:13px;color:#374151;">
-              ${escapeHtml(job.company)}${job.location ? ` · <span style="color:#6B7280;">${escapeHtml(job.location)}</span>` : ''}${job.work_mode ? ` · <span style="color:#6B7280;text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
+            <p class="jh-meta" style="margin:4px 0 0;font-size:13px;color:#6B7280;line-height:1.4;">
+              <b style="color:#374151;font-weight:600;">${escapeHtml(job.company)}</b>${job.location ? ` · ${escapeHtml(job.location)}` : ''}${job.work_mode ? ` · <span style="text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
             </p>
           </div>
-          <div style="flex-shrink:0;display:inline-block;width:52px;height:52px;line-height:52px;text-align:center;border-radius:8px;background:${scoreColor(job.ai_score)};color:white;font-weight:700;font-size:15px;">
-            ${job.ai_score}%
-          </div>
+          <div class="jh-score" style="${scorePillStyle()}">${job.ai_score}%</div>
         </div>
-        ${job.ai_summary ? `<p style="margin:6px 0 0;font-size:13px;color:#4B5563;line-height:1.5;">${escapeHtml(job.ai_summary)}</p>` : ''}
+        ${job.ai_summary ? `<p class="jh-desc" style="margin:8px 0 0;font-size:13px;color:#6B7280;line-height:1.5;">${escapeHtml(job.ai_summary)}</p>` : ''}
       </div>
     `).join('');
 
@@ -102,25 +101,45 @@ function buildEmailHtml(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Job Hunter</title>
+<style>
+  /* Inline styles are the desktop base (works in every client, incl. Outlook).
+     These rules only override for narrow screens; !important is required to
+     beat the inline styles. Clients that ignore media queries keep desktop. */
+  @media (max-width:640px){
+    .jh-stage{padding:14px 12px 32px !important;}
+    .jh-header{padding:13px 18px !important;border-radius:8px !important;}
+    .jh-h1{font-size:17px !important;}
+    .jh-stats-card{padding:14px 14px 12px !important;}
+    .jh-stats-h2{font-size:14.5px !important;}
+    .jh-stats-grid{gap:4px !important;}
+    .jh-stat{padding:8px 1px !important;}
+    .jh-stat-num{font-size:15px !important;}
+    .jh-stat-lab{font-size:7.5px !important;letter-spacing:-0.02em !important;white-space:nowrap !important;margin-top:5px !important;}
+    .jh-job{padding:13px 14px !important;margin-bottom:9px !important;}
+    .jh-top{gap:10px !important;}
+    .jh-title{font-size:13.5px !important;line-height:1.28 !important;}
+    .jh-meta{font-size:12.5px !important;}
+    .jh-desc{font-size:12.5px !important;margin-top:7px !important;}
+    .jh-score{height:25px !important;line-height:25px !important;min-width:46px !important;font-size:12px !important;}
+  }
+</style>
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
-  <div style="max-width:640px;margin:0 auto;padding:20px 16px;">
+  <div class="jh-stage" style="max-width:640px;margin:0 auto;padding:20px 16px;">
 
     <!-- Header -->
-    <div style="background:#2563EB;border-radius:12px;padding:14px 20px;margin-bottom:16px;">
-      <h1 style="margin:0;font-size:18px;font-weight:700;color:white;">Job Hunter</h1>
+    <div class="jh-header" style="background:#2F6BFF;background:linear-gradient(180deg,#3B74FF,#2F6BFF);border-radius:12px;padding:14px 22px;margin-bottom:16px;box-shadow:0 6px 18px rgba(47,107,255,0.22);">
+      <h1 class="jh-h1" style="margin:0;font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-0.01em;">Job Hunter</h1>
     </div>
 
     <!-- Stats + heading -->
-    <div style="background:white;border:1px solid #E5E7EB;border-radius:12px;padding:14px 16px;margin-bottom:16px;">
-      <h2 style="margin:0 0 10px;font-size:14px;font-weight:600;color:#111827;">${escapeHtml(heading)}</h2>
+    <div class="jh-stats-card" style="background:white;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin-bottom:16px;">
+      <h2 class="jh-stats-h2" style="margin:0 0 12px;font-size:15px;font-weight:700;color:#111827;">${escapeHtml(heading)}</h2>
       ${statsHtml}
     </div>
 
     <!-- Jobs -->
-    <div style="background:white;border:1px solid #E5E7EB;border-radius:12px;padding:14px 16px;">
-      ${jobCards}
-    </div>
+    ${jobCards}
 
     ${ctaHtml}
 
