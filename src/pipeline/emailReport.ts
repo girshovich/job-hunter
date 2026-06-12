@@ -33,11 +33,15 @@ function scorePillStyle(): string {
   return 'display:inline-block;height:26px;line-height:26px;min-width:50px;padding:0 9px;border-radius:999px;font-size:12.5px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;box-sizing:border-box;background:#1E9E5A;color:#ffffff;';
 }
 
-function statBadge(label: string, value: number, color: string): string {
-  return `<div class="jh-stat" style="flex:1 1 0;min-width:0;box-sizing:border-box;text-align:center;padding:11px 4px;border:1px solid #F3F4F6;border-radius:8px;background:#FCFCFD;">
+function statCell(label: string, value: number, color: string, index: number, total: number): string {
+  const isFirst = index === 0;
+  const isLast = index === total - 1;
+  return `<td class="jh-stat-cell${isFirst ? ' jh-stat-cell-first' : ''}${isLast ? ' jh-stat-cell-last' : ''}" width="${(100 / total).toFixed(4)}%" style="width:${(100 / total).toFixed(4)}%;padding-left:${isFirst ? 0 : 4}px;padding-right:${isLast ? 0 : 4}px;vertical-align:top;">
+  <div class="jh-stat" style="box-sizing:border-box;width:100%;text-align:center;padding:11px 6px;border:1px solid #F3F4F6;border-radius:8px;background:#FCFCFD;">
     <div class="jh-stat-num" style="font-size:19px;font-weight:800;color:${color};line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;">${value}</div>
     <div class="jh-stat-lab" style="font-size:10.5px;font-weight:600;color:#6B7280;margin-top:6px;">${label}</div>
-  </div>`;
+  </div>
+</td>`;
 }
 
 function escapeHtml(str: string | null | undefined): string {
@@ -56,23 +60,30 @@ function buildEmailHtml(
   appUrl: string,
 ): string {
   const baseUrl = appUrl.replace(/\/$/, '');
+  const escapedBaseUrl = escapeHtml(baseUrl);
   const ctaHtml = baseUrl
     ? `<div style="text-align:center;margin-top:16px;">
-        <a href="${baseUrl}/jobs" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;">
+        <a href="${escapedBaseUrl}/jobs" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;">
           View your matches
         </a>
       </div>`
     : '';
 
-  const statsHtml = `<div class="jh-stats-grid" style="display:flex;gap:5px;flex-wrap:nowrap;">
-    ${statBadge('Fetched', stats.jobsFetched, '#6B7280')}
-    ${statBadge('Strong', stats.strongMatch, '#059669')}
-    ${statBadge('Weak', stats.weakMatch, '#D97706')}
-    ${statBadge('No match', stats.noMatch, '#DC2626')}
-    ${statBadge('Duplicate', stats.duplicates, '#7C3AED')}
-    ${statBadge('Filtered', stats.filtered, '#64748B')}
-    ${statBadge('Blacklisted', stats.blacklisted, '#9CA3AF')}
-  </div>`;
+  const statItems = [
+    { label: 'Fetched', value: stats.jobsFetched, color: '#6B7280' },
+    { label: 'Strong', value: stats.strongMatch, color: '#059669' },
+    { label: 'Weak', value: stats.weakMatch, color: '#D97706' },
+    { label: 'No match', value: stats.noMatch, color: '#DC2626' },
+    { label: 'Duplicate', value: stats.duplicates, color: '#7C3AED' },
+    { label: 'Filtered', value: stats.filtered, color: '#64748B' },
+    { label: 'Blacklisted', value: stats.blacklisted, color: '#9CA3AF' },
+  ];
+
+  const statsHtml = `<table class="jh-stats-grid" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;">
+    <tr>
+      ${statItems.map((item, index) => statCell(item.label, item.value, item.color, index, statItems.length)).join('')}
+    </tr>
+  </table>`;
 
   const jobCards = jobs.length === 0
     ? `<div style="background:white;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:24px 16px;">
@@ -115,7 +126,9 @@ function buildEmailHtml(
     .jh-h1{font-size:17px !important;}
     .jh-stats-card{padding:14px 14px 12px !important;}
     .jh-stats-h2{font-size:14.5px !important;}
-    .jh-stats-grid{gap:4px !important;}
+    .jh-stat-cell{padding-left:2px !important;padding-right:2px !important;}
+    .jh-stat-cell-first{padding-left:0 !important;}
+    .jh-stat-cell-last{padding-right:0 !important;}
     .jh-stat{padding:8px 1px !important;}
     .jh-stat-num{font-size:15px !important;}
     .jh-stat-lab{font-size:7.5px !important;letter-spacing:-0.02em !important;white-space:nowrap !important;margin-top:5px !important;}
@@ -128,7 +141,7 @@ function buildEmailHtml(
 </style>
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
-  <div class="jh-stage" style="max-width:640px;margin:0 auto;padding:20px 16px;">
+  <div class="jh-stage" style="max-width:680px;margin:0 auto;padding:20px 16px;">
 
     <!-- Header -->
     <div class="jh-header" style="background:#2F6BFF;background:linear-gradient(180deg,#3B74FF,#2F6BFF);border-radius:12px;padding:14px 22px;margin-bottom:16px;box-shadow:0 6px 18px rgba(47,107,255,0.22);">
@@ -136,8 +149,8 @@ function buildEmailHtml(
     </div>
 
     <!-- Stats + heading -->
-    <div class="jh-stats-card" style="background:white;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin-bottom:16px;">
-      <h2 class="jh-stats-h2" style="margin:0 0 12px;font-size:15px;font-weight:700;color:#111827;">${escapeHtml(heading)}</h2>
+    <div class="jh-stats-card" style="background:white;border:1px solid #E5E7EB;border-radius:12px;padding:18px 18px 16px;margin-bottom:16px;">
+      <h2 class="jh-stats-h2" style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111827;">${escapeHtml(heading)}</h2>
       ${statsHtml}
     </div>
 
@@ -147,8 +160,8 @@ function buildEmailHtml(
     ${ctaHtml}
 
     <!-- Footer -->
-    <p style="text-align:center;color:#9CA3AF;font-size:11px;margin-top:16px;">
-      Sent by Job Hunter${baseUrl ? ` · <a href="${escapeHtml(baseUrl)}" style="color:#9CA3AF;">${escapeHtml(baseUrl)}</a>` : ''}
+    <p class="jh-footer" style="text-align:center;color:#9CA3AF;font-size:12px;line-height:1.6;margin:26px 4px 0;">
+      Sent by Job Hunter${baseUrl ? ` · <a href="${escapedBaseUrl}" style="color:#2563EB;text-decoration:none;font-weight:600;">${escapedBaseUrl}</a>` : ''}
     </p>
   </div>
 </body>
