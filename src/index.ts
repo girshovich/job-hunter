@@ -13,7 +13,7 @@ import { analyticsRouter } from './routes/analytics';
 import { rundiffRouter } from './routes/rundiff';
 import { publicAnonymousRouter, publicAuthedRouter } from './routes/public';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
-import { startAtsDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron } from './pipeline/atsScheduler';
+import { startAtsDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron, startTelegramIngestCron } from './pipeline/atsScheduler';
 import { uiHelpers } from './uiHelpers';
 
 const app = express();
@@ -180,7 +180,7 @@ async function start(): Promise<void> {
   if (adminProfile) {
     const atsSettings = db.prepare(`
       SELECT ats_discovery_enabled, ats_discovery_cron, ats_validation_enabled, ats_validation_cron,
-             ats_pool_gh_enabled, ats_pool_ashby_enabled, timezone
+             ats_pool_gh_enabled, ats_pool_ashby_enabled, telegram_ingest_enabled, timezone
       FROM settings WHERE profile_id = ?
     `).get(adminProfile.id) as {
       ats_discovery_enabled: number;
@@ -189,6 +189,7 @@ async function start(): Promise<void> {
       ats_validation_cron: string;
       ats_pool_gh_enabled: number;
       ats_pool_ashby_enabled: number;
+      telegram_ingest_enabled: number;
       timezone: string;
     } | undefined;
     const atsTz = atsSettings?.timezone || 'UTC';
@@ -199,10 +200,13 @@ async function start(): Promise<void> {
       startAtsValidationCron(atsSettings.ats_validation_cron || '0 8 * * 0', atsTz);
     }
     if (atsSettings?.ats_pool_gh_enabled) {
-      startGhPoolCron('0 8 * * *', atsTz);
+      startGhPoolCron('0 5 * * *', atsTz);
     }
     if (atsSettings?.ats_pool_ashby_enabled) {
-      startAshbyPoolCron('0 8 * * *', atsTz);
+      startAshbyPoolCron('0 5 * * *', atsTz);
+    }
+    if (atsSettings?.telegram_ingest_enabled) {
+      startTelegramIngestCron('0 5 * * *', atsTz);
     }
   }
   startPoolCleanupCron();

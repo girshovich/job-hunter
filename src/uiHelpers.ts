@@ -66,11 +66,13 @@ const SOURCE_LABELS: Record<string, string> = {
   stepstone: 'StepStone: valig (S)',
   greenhouse: 'Greenhouse (ATS)',
   ashby: 'Ashby (ATS)',
+  telegram: 'Telegram',
   LinkedIn: 'LinkedIn',
   Indeed: 'Indeed',
   StepStone: 'StepStone',
   Greenhouse: 'Greenhouse',
   Ashby: 'Ashby',
+  Telegram: 'Telegram',
 };
 
 const SOURCE_NAMES: Record<string, string> = {
@@ -86,6 +88,8 @@ const SOURCE_NAMES: Record<string, string> = {
   Greenhouse: 'Greenhouse',
   ashby: 'Ashby',
   Ashby: 'Ashby',
+  telegram: 'Telegram',
+  Telegram: 'Telegram',
 };
 
 function humanizeToken(value: unknown, fallback: string): string {

@@ -3,13 +3,15 @@ import { runDiscovery } from './atsDiscovery';
 import { runLeverDiscovery } from './leverDiscovery';
 import { runValidation } from './atsValidation';
 import { fetchGreenhousePool, fetchAshbyPool } from './atsPoolFetcher';
+import { runTelegramIngest } from './telegramIngest';
 import { getDb } from '../db';
 
-let discoveryTask:      ReturnType<typeof cron.schedule> | null = null;
-let leverDiscoveryTask: ReturnType<typeof cron.schedule> | null = null;
-let validationTask:     ReturnType<typeof cron.schedule> | null = null;
-let ghPoolTask:         ReturnType<typeof cron.schedule> | null = null;
-let ashbyPoolTask:      ReturnType<typeof cron.schedule> | null = null;
+let discoveryTask:        ReturnType<typeof cron.schedule> | null = null;
+let leverDiscoveryTask:   ReturnType<typeof cron.schedule> | null = null;
+let validationTask:       ReturnType<typeof cron.schedule> | null = null;
+let ghPoolTask:           ReturnType<typeof cron.schedule> | null = null;
+let ashbyPoolTask:        ReturnType<typeof cron.schedule> | null = null;
+let telegramIngestTask:   ReturnType<typeof cron.schedule> | null = null;
 
 export function startAtsDiscoveryCron(expression: string, timezone = 'UTC'): void {
   discoveryTask?.stop();
@@ -86,8 +88,8 @@ export function stopAtsValidationCron(): void {
 export function startGhPoolCron(expression: string, timezone = 'UTC'): void {
   ghPoolTask?.stop();
   if (!cron.validate(expression)) {
-    console.warn(`[gh-pool] Invalid cron expression "${expression}" — using fallback "0 8 * * *"`);
-    expression = '0 8 * * *';
+    console.warn(`[gh-pool] Invalid cron expression "${expression}" — using fallback "0 5 * * *"`);
+    expression = '0 5 * * *';
   }
   ghPoolTask = cron.schedule(expression, async () => {
     console.log('[gh-pool] Starting scheduled Greenhouse pool fetch');
@@ -110,8 +112,8 @@ export function stopGhPoolCron(): void {
 export function startAshbyPoolCron(expression: string, timezone = 'UTC'): void {
   ashbyPoolTask?.stop();
   if (!cron.validate(expression)) {
-    console.warn(`[ashby-pool] Invalid cron expression "${expression}" — using fallback "0 8 * * *"`);
-    expression = '0 8 * * *';
+    console.warn(`[ashby-pool] Invalid cron expression "${expression}" — using fallback "0 5 * * *"`);
+    expression = '0 5 * * *';
   }
   ashbyPoolTask = cron.schedule(expression, async () => {
     console.log('[ashby-pool] Starting scheduled Ashby pool fetch');
@@ -129,6 +131,30 @@ export function stopAshbyPoolCron(): void {
   ashbyPoolTask?.stop();
   ashbyPoolTask = null;
   console.log('[ashby-pool] Cron stopped');
+}
+
+export function startTelegramIngestCron(expression: string, timezone = 'UTC'): void {
+  telegramIngestTask?.stop();
+  if (!cron.validate(expression)) {
+    console.warn(`[telegram-ingest] Invalid cron expression "${expression}" — using fallback "0 5 * * *"`);
+    expression = '0 5 * * *';
+  }
+  telegramIngestTask = cron.schedule(expression, async () => {
+    console.log('[telegram-ingest] Starting scheduled ingest run');
+    try {
+      const result = await runTelegramIngest(getDb());
+      console.log('[telegram-ingest] Done:', result);
+    } catch (err) {
+      console.error('[telegram-ingest] Error:', err);
+    }
+  }, { timezone });
+  console.log(`[telegram-ingest] Cron scheduled: "${expression}" (${timezone})`);
+}
+
+export function stopTelegramIngestCron(): void {
+  telegramIngestTask?.stop();
+  telegramIngestTask = null;
+  console.log('[telegram-ingest] Cron stopped');
 }
 
 export function startPoolCleanupCron(): void {

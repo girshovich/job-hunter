@@ -329,7 +329,7 @@
               <span class="text-sm font-medium text-gray-800">Greenhouse</span>
               <span class="text-xs text-gray-400">daily</span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">Every day · 08:00 · <span id="pool-gh-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">Every day · 05:00 · <span id="pool-gh-tz">UTC</span></p>
           </div>
         </div>
         <div class="flex items-center gap-3 ml-4 flex-shrink-0">
@@ -353,7 +353,7 @@
               <span class="text-sm font-medium text-gray-800">Ashby</span>
               <span class="text-xs text-gray-400">daily</span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">Every day · 08:00 · <span id="pool-ashby-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">Every day · 05:00 · <span id="pool-ashby-tz">UTC</span></p>
           </div>
         </div>
         <div class="flex items-center gap-3 ml-4 flex-shrink-0">
@@ -410,6 +410,86 @@
 
     </div><!-- end pool rows -->
   </div><!-- end pool card -->
+
+  <!-- Telegram Job Source -->
+  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Telegram Channels</h2>
+    <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+      Scrapes public Telegram channels daily at 05:00 (first page, ~20 most recent posts per channel). Each post is
+      analysed by the LLM (soft model) and split into structured jobs — ads are dropped, multi-role posts are split.
+      Jobs are written to the shared pool; user runs query the pool like any other provider.
+    </p>
+
+    <!-- Job count -->
+    <div id="tg-counts" class="mb-4">
+      <p class="text-xs text-gray-400">Loading…</p>
+    </div>
+
+    <!-- Schedule row + toggle -->
+    <div class="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden mb-4">
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span id="tg-ingest-dot" class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0 transition-colors"></span>
+          <div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-sm font-medium text-gray-800">Ingest</span>
+              <span class="text-xs text-gray-400">daily</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">Every day · 05:00 · <span id="tg-tz">UTC</span></p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 ml-4 flex-shrink-0">
+          <button id="tg-fetch-btn" type="button" onclick="telegramFetchNow()"
+                  class="px-3 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg transition-colors">
+            Fetch now
+          </button>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="tg-ingest-toggle" class="sr-only peer" onchange="telegramToggle(this.checked)">
+            <div class="w-9 h-5 bg-gray-200 rounded-full transition-colors peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Channel allowlist -->
+    <div class="mb-4">
+      <p class="text-xs font-medium text-gray-700 mb-2">Active channels</p>
+      <div id="tg-channel-chips" class="flex flex-wrap gap-1.5 mb-2 min-h-[24px]"></div>
+      <div class="flex gap-2">
+        <input id="tg-channel-input" type="text" placeholder="channel_username"
+               class="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();telegramAddChannel();}">
+        <button type="button" onclick="telegramAddChannel()"
+                class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+          Add
+        </button>
+      </div>
+    </div>
+
+    <!-- Extraction prompt accordion -->
+    <details class="group border border-gray-200 rounded-xl overflow-hidden">
+      <summary class="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50">
+        <div>
+          <span class="text-sm font-medium text-gray-800">Extraction prompt</span>
+          <p class="text-xs text-gray-400 mt-0.5">Sent to the LLM to parse each post into jobs. Leave blank to use the built-in default.</p>
+        </div>
+        <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-180 flex-shrink-0 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 pt-2 border-t border-gray-100 bg-gray-50">
+        <textarea id="tg-prompt-textarea" rows="8"
+                  class="w-full px-3 py-2 text-xs font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white resize-y"
+                  placeholder="Leave blank to use the built-in default…"></textarea>
+        <div class="flex justify-end mt-2">
+          <button type="button" onclick="telegramSavePrompt()"
+                  class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+            Save prompt
+          </button>
+        </div>
+      </div>
+    </details>
+  </div><!-- end telegram card -->
 
 </div><!-- end tab-pane-admin -->
 
@@ -814,6 +894,155 @@ async function poolStopRun() {
   btn.textContent = 'Stopping…';
   await fetch('/api/ats/run/' + _poolRunId, { method: 'DELETE' });
 }
+
+// ── Telegram admin JS ────────────────────────────────────────────────────────
+
+let _tgChannels = [];
+
+async function loadTelegramState() {
+  try {
+    const [settingsRes, channelsRes, statsRes] = await Promise.all([
+      fetch('/api/telegram/settings'),
+      fetch('/api/telegram/channels'),
+      fetch('/api/ats/status'),
+    ]);
+    const settings  = await settingsRes.json();
+    const chData    = await channelsRes.json();
+    const statsData = await statsRes.json();
+
+    document.getElementById('tg-ingest-toggle').checked = !!settings.enabled;
+    _setDot('tg-ingest-dot', !!settings.enabled);
+
+    const prompt = settings.extract_prompt || '';
+    document.getElementById('tg-prompt-textarea').value = prompt;
+
+    const tz = statsData?.settings?.timezone || 'UTC';
+    document.getElementById('tg-tz').textContent = tz;
+
+    if (statsData?.telegramCounts) {
+      const { jobs, channels } = statsData.telegramCounts;
+      document.getElementById('tg-counts').innerHTML = `
+        <div class="flex items-center gap-4 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs">
+          <span class="w-28 flex-shrink-0 font-medium text-gray-500">Pool size</span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-sky-400 inline-block"></span>
+            <span class="font-mono text-gray-700 font-medium">${jobs.toLocaleString()} jobs</span>
+          </span>
+          <span class="font-mono text-gray-500">${channels} active channel(s)</span>
+        </div>`;
+    }
+
+    _tgChannels = chData.channels || [];
+    _renderTgChannels();
+  } catch {
+    document.getElementById('tg-counts').innerHTML = '<p class="text-xs text-red-400">Failed to load Telegram stats.</p>';
+  }
+}
+
+function _renderTgChannels() {
+  const el = document.getElementById('tg-channel-chips');
+  if (!_tgChannels.length) {
+    el.innerHTML = '<span class="text-xs text-gray-400">No channels added yet.</span>';
+    return;
+  }
+  el.innerHTML = _tgChannels
+    .filter(c => c.is_active)
+    .map(c => `
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 text-xs font-medium">
+        @${c.channel_username}
+        <button type="button" onclick="telegramRemoveChannel('${c.channel_username}')" class="ml-0.5 text-sky-400 hover:text-sky-700 leading-none">&times;</button>
+      </span>`)
+    .join('');
+}
+
+async function telegramToggle(enabled) {
+  const toggle = document.getElementById('tg-ingest-toggle');
+  toggle.disabled = true;
+  try {
+    const res = await fetch('/api/telegram/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); toggle.checked = !enabled; return; }
+    _setDot('tg-ingest-dot', enabled);
+    document.getElementById('tg-tz').textContent = data.timezone || 'UTC';
+  } catch { toggle.checked = !enabled; }
+  toggle.disabled = false;
+}
+
+async function telegramFetchNow() {
+  const btn = document.getElementById('tg-fetch-btn');
+  btn.disabled = true;
+  btn.textContent = 'Fetching…';
+  try {
+    const res = await fetch('/api/telegram/fetch-now', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    btn.textContent = 'Done!';
+    setTimeout(() => { btn.textContent = 'Fetch now'; btn.disabled = false; loadTelegramState(); }, 2000);
+  } catch {
+    btn.textContent = 'Error';
+    setTimeout(() => { btn.textContent = 'Fetch now'; btn.disabled = false; }, 2000);
+  }
+}
+
+async function telegramAddChannel() {
+  const input = document.getElementById('tg-channel-input');
+  const username = input.value.trim().replace(/^@/, '');
+  if (!username) return;
+  try {
+    const res = await fetch('/api/telegram/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_username: username }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    input.value = '';
+    const existing = _tgChannels.find(c => c.channel_username === data.channel_username);
+    if (existing) existing.is_active = 1;
+    else _tgChannels.push({ channel_username: data.channel_username, is_active: 1 });
+    _renderTgChannels();
+  } catch { alert('Failed to add channel.'); }
+}
+
+async function telegramRemoveChannel(username) {
+  try {
+    const res = await fetch('/api/telegram/channels/' + encodeURIComponent(username), { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    const ch = _tgChannels.find(c => c.channel_username === username);
+    if (ch) ch.is_active = 0;
+    _renderTgChannels();
+  } catch { alert('Failed to remove channel.'); }
+}
+
+async function telegramSavePrompt() {
+  const prompt = document.getElementById('tg-prompt-textarea').value.trim();
+  const enabled = document.getElementById('tg-ingest-toggle').checked;
+  try {
+    const res = await fetch('/api/telegram/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled, extract_prompt: prompt }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+  } catch { alert('Failed to save prompt.'); }
+}
+
+// Load Telegram state when admin tab activates
+document.addEventListener('DOMContentLoaded', () => {
+  const adminTab = document.querySelector('[data-tab="admin"]') || document.querySelector('[href="#admin"]');
+  if (adminTab) {
+    adminTab.addEventListener('click', () => loadTelegramState());
+  }
+  // Also load if admin tab is already active on page load
+  const pane = document.getElementById('tab-pane-admin');
+  if (pane && !pane.classList.contains('hidden')) loadTelegramState();
+});
 
 async function setUserCredits(profileId, btn) {
   const input = document.getElementById('credits-input-' + profileId);

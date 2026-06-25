@@ -422,7 +422,8 @@ async function fetchLocationHints(locationsStr) {
 
     hintsEl.innerHTML =
       '<div><span class="text-gray-400">Indeed: </span>' + indeedParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
-      '<div class="mt-0.5"><span class="text-gray-400">Greenhouse / Ashby: </span>' + atsParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>';
+      '<div class="mt-0.5"><span class="text-gray-400">Greenhouse / Ashby: </span>' + atsParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
+      '<div class="mt-0.5"><span class="text-gray-400">Telegram: </span><span class="text-amber-600">keeps target-country &amp; unknown-location jobs; drops known off-target (AI judges the rest)</span></div>';
   } catch (_) {
     hintsEl.classList.add('hidden');
   }

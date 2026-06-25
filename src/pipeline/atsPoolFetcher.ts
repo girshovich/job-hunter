@@ -279,7 +279,7 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
  * already known (hardcoded map or location_country cache). Called automatically
  * after each pool fetch so incremental new locations are resolved instantly.
  */
-function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'Greenhouse'): void {
+export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'Greenhouse' | 'Telegram'): void {
   const locs = db.prepare(
     `SELECT DISTINCT location FROM jobs WHERE job_source = ? AND location IS NOT NULL AND country IS NULL`,
   ).all(jobSource) as { location: string }[];
@@ -345,12 +345,12 @@ export async function resolvePoolCountries(
     ? db.prepare(
       `SELECT DISTINCT j.location FROM jobs j
        JOIN location_country lc ON lc.location = j.location AND lc.country = ''
-       WHERE j.job_source IN ('Ashby', 'Greenhouse') AND j.location IS NOT NULL AND j.country IS NULL`,
+       WHERE j.job_source IN ('Ashby', 'Greenhouse', 'Telegram') AND j.location IS NOT NULL AND j.country IS NULL`,
     ).all() as { location: string }[]
     : db.prepare(
       `SELECT DISTINCT j.location FROM jobs j
        LEFT JOIN location_country lc ON lc.location = j.location
-       WHERE j.job_source IN ('Ashby', 'Greenhouse')
+       WHERE j.job_source IN ('Ashby', 'Greenhouse', 'Telegram')
          AND j.location IS NOT NULL
          AND j.country IS NULL
          AND (lc.location IS NULL OR lc.country != '')`,
@@ -374,7 +374,7 @@ export async function resolvePoolCountries(
   }
 
   const updateJobs   = db.prepare(
-    `UPDATE jobs SET country = ? WHERE job_source IN ('Ashby', 'Greenhouse') AND location = ? AND country IS NULL`,
+    `UPDATE jobs SET country = ? WHERE job_source IN ('Ashby', 'Greenhouse', 'Telegram') AND location = ? AND country IS NULL`,
   );
   const cacheUpsert  = db.prepare(
     `INSERT OR REPLACE INTO location_country (location, country, created_at) VALUES (?, ?, ?)`,

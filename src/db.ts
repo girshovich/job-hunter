@@ -1270,6 +1270,74 @@ function runMigrations(db: Database): void {
   } catch (err) {
     console.warn('[db] Migration v_app_url failed (non-fatal):', (err as Error).message);
   }
+
+  // v_telegram: Telegram as a job source — raw posts table, channel allowlist, settings columns
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS telegram_posts (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_username    TEXT NOT NULL,
+        post_id             TEXT NOT NULL,
+        post_url            TEXT NOT NULL,
+        published_at        TEXT,
+        text                TEXT,
+        links               TEXT,
+        text_hash           TEXT NOT NULL,
+        links_hash          TEXT,
+        post_hash           TEXT NOT NULL,
+        canonical_link_hash TEXT,
+        is_repost_of        INTEGER,
+        extracted_hash      TEXT,
+        first_seen_at       TEXT NOT NULL DEFAULT (datetime('now')),
+        last_seen_at        TEXT NOT NULL DEFAULT (datetime('now')),
+        edited_at           TEXT,
+        UNIQUE(channel_username, post_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_tg_posts_canon ON telegram_posts(canonical_link_hash);
+      CREATE INDEX IF NOT EXISTS idx_tg_posts_pub   ON telegram_posts(published_at);
+
+      CREATE TABLE IF NOT EXISTS telegram_channels (
+        channel_username TEXT PRIMARY KEY,
+        added_at         TEXT NOT NULL DEFAULT (datetime('now')),
+        is_active        INTEGER NOT NULL DEFAULT 1
+      );
+    `);
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'telegram_ingest_enabled')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN telegram_ingest_enabled INTEGER NOT NULL DEFAULT 0`);
+      console.log('[db] Migration v_telegram: settings.telegram_ingest_enabled added');
+    }
+    if (!cols.some((c) => c.name === 'telegram_extract_prompt')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN telegram_extract_prompt TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_telegram: settings.telegram_extract_prompt added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_telegram failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_telegram_prompt_seed: seed the default extraction prompt for the admin profile if blank
+  try {
+    const TELEGRAM_DEFAULT_PROMPT = `Extract job openings from this Telegram post. Return jobs: [] for ads, news, or posts with no vacancy.
+
+One object per role. Fields:
+- title: job title in English — translate it if the post is written in another language. Skip the role if absent.
+- company: real employer named in the text (not the channel). null if missing.
+- location: as written in the post (e.g. "Berlin", "Remote"). null if not mentioned.
+- applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
+
+The full post text is stored as the job description — do not repeat or summarise it.`;
+
+    const adminProfile = db.prepare(`SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1`).get() as { id: number } | undefined;
+    if (adminProfile) {
+      db.prepare(`
+        UPDATE settings SET telegram_extract_prompt = ?
+        WHERE profile_id = ? AND (telegram_extract_prompt IS NULL OR telegram_extract_prompt = '')
+      `).run(TELEGRAM_DEFAULT_PROMPT, adminProfile.id);
+      console.log('[db] Migration v_telegram_prompt_seed: default extraction prompt seeded for admin');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_telegram_prompt_seed failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -1750,6 +1818,8 @@ export interface SettingsRow {
   user_openai_api_key: string;     // user-specific OpenAI key (used when use_jh_credits = 0)
   credits_balance: number;         // USD balance when using JH credits
   app_url: string;                 // deployment base URL used in email links (e.g. https://hunter.example.com)
+  telegram_ingest_enabled: number;
+  telegram_extract_prompt: string;
 }
 
 export interface CvRow {

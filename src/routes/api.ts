@@ -11,8 +11,9 @@ import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/sche
 import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
-import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron } from '../pipeline/atsScheduler';
+import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron, startTelegramIngestCron, stopTelegramIngestCron } from '../pipeline/atsScheduler';
 import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries } from '../pipeline/atsPoolFetcher';
+import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { activeRuns } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
 import { randomUUID } from 'crypto';
@@ -120,7 +121,7 @@ router.post('/run', async (req: Request, res: Response) => {
   else if (b.dateRange === 'month') dateRange = 'month';
 
   // Parse optional providers override
-  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby'];
+  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby', 'telegram'];
   const providers = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validProviders.includes(p))
     : undefined;
@@ -498,7 +499,7 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   }
 
   // Parse and validate providers
-  const validSchedProviders = ['harvestapi', 'valig', 'indeed', 'stepstone'];
+  const validSchedProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby', 'telegram'];
   const rawSchedProviders = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validSchedProviders.includes(p))
     : [];
@@ -1148,14 +1149,16 @@ router.get('/ats/status', (req: Request, res: Response) => {
   `).all() as Array<{ ats: string; total: number; active: number; last_discovered: string; last_validated: string }>;
   const settings = db.prepare(`
     SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled,
-           ats_pool_gh_enabled, ats_pool_ashby_enabled, timezone
+           ats_pool_gh_enabled, ats_pool_ashby_enabled, telegram_ingest_enabled, timezone
     FROM settings WHERE profile_id = ?
   `).get(req.profile.id) as {
     ats_discovery_enabled: number; ats_lever_disc_enabled: number; ats_validation_enabled: number;
-    ats_pool_gh_enabled: number; ats_pool_ashby_enabled: number; timezone: string;
+    ats_pool_gh_enabled: number; ats_pool_ashby_enabled: number; telegram_ingest_enabled: number; timezone: string;
   } | undefined;
-  const ghCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Greenhouse'`).get() as { c: number }).c;
-  const ashbyCount = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Ashby'`).get() as { c: number }).c;
+  const ghCount       = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Greenhouse'`).get() as { c: number }).c;
+  const ashbyCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Ashby'`).get() as { c: number }).c;
+  const telegramCount = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Telegram'`).get() as { c: number }).c;
+  const telegramChannelCount = (db.prepare(`SELECT COUNT(*) AS c FROM telegram_channels WHERE is_active = 1`).get() as { c: number }).c;
   const unknownLocationCount = (db.prepare(`
     SELECT COUNT(DISTINCT j.location) AS c
     FROM jobs j
@@ -1190,6 +1193,10 @@ router.get('/ats/status', (req: Request, res: Response) => {
       resolvedLocations: resolvedLocationCount,
       unknownLocations: unknownLocationCount,
       newUnresolvedLocations: newUnresolvedLocationCount,
+    },
+    telegramCounts: {
+      jobs: telegramCount,
+      channels: telegramChannelCount,
     },
   });
 });
@@ -1309,10 +1316,10 @@ router.post('/ats/pool/settings', (req: Request, res: Response) => {
     UPDATE settings SET ats_pool_gh_enabled = ?, ats_pool_ashby_enabled = ? WHERE profile_id = ?
   `).run(ghEnabled ? 1 : 0, ashbyEnabled ? 1 : 0, req.profile.id);
 
-  if (ghEnabled) startGhPoolCron('0 8 * * *', tz);
+  if (ghEnabled) startGhPoolCron('0 5 * * *', tz);
   else stopGhPoolCron();
 
-  if (ashbyEnabled) startAshbyPoolCron('0 8 * * *', tz);
+  if (ashbyEnabled) startAshbyPoolCron('0 5 * * *', tz);
   else stopAshbyPoolCron();
 
   res.json({ success: true, timezone: tz });
@@ -1352,6 +1359,71 @@ router.post('/ats/settings', (req: Request, res: Response) => {
   else stopAtsValidationCron();
 
   res.json({ success: true, timezone: tz });
+});
+
+// ── Telegram admin routes ────────────────────────────────────────────────────
+
+router.post('/telegram/settings', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const b = req.body as Record<string, unknown>;
+  const enabled = !!b.enabled;
+  const newPrompt = typeof b.extract_prompt === 'string' ? b.extract_prompt.trim() : null;
+
+  const db = getDb();
+  const row = db.prepare('SELECT timezone, telegram_extract_prompt FROM settings WHERE profile_id = ?').get(req.profile.id) as { timezone: string; telegram_extract_prompt: string } | undefined;
+  const tz = row?.timezone || 'UTC';
+
+  if (newPrompt !== null && newPrompt.length > 0) {
+    db.prepare(`UPDATE settings SET telegram_ingest_enabled = ?, telegram_extract_prompt = ? WHERE profile_id = ?`).run(enabled ? 1 : 0, newPrompt, req.profile.id);
+  } else {
+    db.prepare(`UPDATE settings SET telegram_ingest_enabled = ? WHERE profile_id = ?`).run(enabled ? 1 : 0, req.profile.id);
+  }
+
+  if (enabled) startTelegramIngestCron('0 5 * * *', tz);
+  else stopTelegramIngestCron();
+
+  res.json({ success: true, timezone: tz });
+});
+
+router.post('/telegram/fetch-now', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  res.json({ success: true });
+  runTelegramIngest(getDb())
+    .then((r) => console.log('[telegram] Manual fetch complete:', r))
+    .catch((e) => console.error('[telegram] Manual fetch error:', e));
+});
+
+router.get('/telegram/channels', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const channels = db.prepare(`SELECT channel_username, added_at, is_active FROM telegram_channels ORDER BY added_at DESC`).all();
+  res.json({ channels });
+});
+
+router.post('/telegram/channels', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const username = (req.body as Record<string, unknown>).channel_username;
+  if (typeof username !== 'string' || !/^[A-Za-z0-9_]{3,64}$/.test(username.trim())) {
+    return res.status(400).json({ error: 'Invalid channel username.' });
+  }
+  const clean = username.trim().toLowerCase();
+  const db = getDb();
+  db.prepare(`INSERT INTO telegram_channels (channel_username) VALUES (?) ON CONFLICT(channel_username) DO UPDATE SET is_active = 1`).run(clean);
+  res.json({ success: true, channel_username: clean });
+});
+
+router.delete('/telegram/channels/:username', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  db.prepare(`UPDATE telegram_channels SET is_active = 0 WHERE channel_username = ?`).run(req.params.username);
+  res.json({ success: true });
+});
+
+router.get('/telegram/settings', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const row = db.prepare(`SELECT telegram_ingest_enabled, telegram_extract_prompt FROM settings WHERE profile_id = ?`).get(req.profile.id) as { telegram_ingest_enabled: number; telegram_extract_prompt: string } | undefined;
+  res.json({ enabled: !!(row?.telegram_ingest_enabled), extract_prompt: row?.telegram_extract_prompt || '' });
 });
 
 export { router as apiRouter };

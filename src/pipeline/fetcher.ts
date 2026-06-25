@@ -11,6 +11,7 @@ import { fetchWithStepStone }  from './providers/stepstone';
 import { fetchWithIndeed }     from './providers/indeed';
 import { fetchWithGreenhouse } from './providers/greenhouse';
 import { fetchWithAshby }      from './providers/ashby';
+import { fetchWithTelegram }   from './providers/telegram';
 
 export async function fetchJobs(
   filters: SearchFilters,
@@ -23,5 +24,6 @@ export async function fetchJobs(
   if (provider === 'stepstone')  return fetchWithStepStone(filters, apifyToken, dateRange);
   if (provider === 'greenhouse') return fetchWithGreenhouse(filters, apifyToken, dateRange);
   if (provider === 'ashby')      return fetchWithAshby(filters, apifyToken, dateRange);
+  if (provider === 'telegram')   return fetchWithTelegram(filters, apifyToken, dateRange);
   return fetchWithHarvestApi(filters, apifyToken, dateRange);
 }

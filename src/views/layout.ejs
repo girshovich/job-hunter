@@ -1104,6 +1104,7 @@
       { value: 'stepstone', label: 'StepStone: valig (S)' },
       { value: 'greenhouse', label: 'Greenhouse (ATS)' },
       { value: 'ashby', label: 'Ashby (ATS)' },
+      { value: 'telegram', label: 'Telegram' },
     ];
 
     function escHtml(str) {
@@ -1575,7 +1576,7 @@
         }
 
         // Providers display
-        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)' };
+        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)', telegram: 'Telegram' };
         const statusProviders = _scheduleData.scraping_providers || ['harvestapi', 'valig'];
         document.getElementById('sched-status-providers').textContent =
           statusProviders.map(p => providerLabels[p] || p).join(', ');
