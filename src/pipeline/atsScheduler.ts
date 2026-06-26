@@ -15,7 +15,7 @@ import { getDb } from '../db';
 // vestigial (never drive scheduling) and are ignored.
 export const ATS_DISCOVERY_CRON  = '30 0 1 * *';
 export const ATS_LEVER_CRON      = '0 2 1 * *';
-export const ATS_VALIDATION_CRON = '0 4 1 * *';
+export const ATS_VALIDATION_CRON = '0 4 * * 0';
 
 // Render a cron expression into the prose the admin panel shows, so the labels can never
 // drift from the real schedule. Only the patterns these crons actually use are handled.
