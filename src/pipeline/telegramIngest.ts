@@ -30,6 +30,23 @@ function normalizeText(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+// Decode HTML entities, looping to undo double-encoding (e.g. "&amp;amp;").
+function decodeHtmlEntities(s: string): string {
+  let prev: string;
+  let out = s;
+  do {
+    prev = out;
+    out = out
+      .replace(/&amp;/g, '&')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  } while (out !== prev);
+  return out;
+}
+
 function canonicalLink(url: string): string {
   try {
     const u = new URL(url);
@@ -73,6 +90,18 @@ function parseTelegramPage(html: string, channelUsername: string): ParsedPost[] 
     const textMatch = blockHtml.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/);
     if (textMatch) {
       text = textMatch[1]
+        // Preserve links: turn <a href="X">label</a> into inline markdown [label](X)
+        // so both bare URLs and "click here"-style links survive tag stripping and
+        // reach the LLM and the rendered description. Skip Telegram nav/mention links.
+        .replace(/<a\b[^>]*?\bhref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, rawHref, rawLabel) => {
+          const href = decodeHtmlEntities(rawHref).trim();
+          const label = rawLabel.replace(/<[^>]+>/g, '').trim();
+          if (!/^https?:\/\//i.test(href)) return label;            // tg://, #, mailto, etc.
+          if (/^https?:\/\/t\.me\/s\//i.test(href)) return label;   // hashtag/search links
+          if (/^https?:\/\/t\.me\/[^/]+$/i.test(href)) return label; // @mention / channel root
+          if (!label || /^https?:\/\//i.test(label)) return href;   // bare URL (label is the url)
+          return `[${label}](${href})`;
+        })
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/p>/gi, '\n')
         .replace(/<[^>]+>/g, '')

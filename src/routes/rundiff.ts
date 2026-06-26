@@ -86,15 +86,16 @@ router.get('/', (req: Request, res: Response) => {
 
   const logQuery = `
     SELECT rjl.id, rjl.linkedin_job_id, rjl.job_source, rjl.title, rjl.company, rjl.location,
-           rjl.ai_score, rjl.ai_verdict, rjl.url, rjl.logged_at, j.id as internal_job_id,
+           rjl.ai_score, rjl.ai_verdict, rjl.url, rjl.logged_at, jps.job_id as internal_job_id,
            j.country, c.logo_url
     FROM run_job_logs rjl
     LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
+    LEFT JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
     LEFT JOIN companies c ON c.company = rjl.company
     WHERE rjl.run_id = ?`;
 
-  const rawNewer = db.prepare(logQuery).all(runNewer.id) as LogEntry[];
-  const rawOlder = db.prepare(logQuery).all(runOlder.id) as LogEntry[];
+  const rawNewer = db.prepare(logQuery).all(profileId, runNewer.id) as LogEntry[];
+  const rawOlder = db.prepare(logQuery).all(profileId, runOlder.id) as LogEntry[];
 
   const newer = dedupeByJobId(rawNewer);
   const older = dedupeByJobId(rawOlder);

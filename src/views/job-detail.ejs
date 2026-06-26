@@ -266,6 +266,35 @@ const _safeDesc = _isHtml
       return html.replace(/<p>(\s|&nbsp;)*<\/p>/gi, '');
     })()
   : null;
+
+// Plain-text descriptions (e.g. Telegram): escape everything, then make links
+// clickable — inline markdown [label](url) from ingest, plus any bare URLs.
+function renderLinks(raw) {
+  const esc = (s) => String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const anchor = (url, label) =>
+    '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-words">' + esc(label) + '</a>';
+  const autolink = (txt) => {
+    let res = '', li = 0, um;
+    const re = /https?:\/\/[^\s<]+/g;
+    while ((um = re.exec(txt)) !== null) {
+      res += esc(txt.slice(li, um.index));
+      const u = um[0].replace(/[.,;:)\]]+$/, '');
+      res += anchor(u, u);
+      li = um.index + u.length;
+    }
+    return res + esc(txt.slice(li));
+  };
+  const md = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  let out = '', last = 0, m;
+  while ((m = md.exec(raw)) !== null) {
+    out += autolink(raw.slice(last, m.index));
+    out += anchor(m[2], m[1]);
+    last = m.index + m[0].length;
+  }
+  return out + autolink(raw.slice(last));
+}
 %>
 <style>
   /* Scoped description styles — NO Tailwind prose class on this div to avoid conflicts. */
@@ -289,13 +318,14 @@ const _safeDesc = _isHtml
   .jd-html p:has(> b:only-child)        { margin-top: 1.5em; margin-bottom: 0; font-weight: 600; }
   .jd-html p:has(> strong:only-child) + *,
   .jd-html p:has(> b:only-child) + *   { margin-top: 0.25em; }
+  .jd-html a                           { color: #2563eb; text-decoration: underline; overflow-wrap: anywhere; }
 </style>
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
   <h2 class="text-base font-semibold text-gray-900 mb-4">Full Job Description</h2>
   <% if (_isHtml) { %>
   <div class="jd-html"><%- _safeDesc %></div>
   <% } else { %>
-  <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap text-sm"><%= _desc %></div>
+  <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap text-sm"><%- renderLinks(_desc) %></div>
   <% } %>
 </div>
 
