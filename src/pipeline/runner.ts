@@ -13,7 +13,8 @@ import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { providerToSource } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
-import { resolveCountries } from './locationNormalizer';
+import { resolveCountries, COUNTRY_NAMES, expandRegionToCountries } from './locationNormalizer';
+import { groupOrDrop } from './locationGrouping';
 import pLimit from 'p-limit';
 import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
 import { fetchClearbitLogosForAts } from './companyLogos';
@@ -136,6 +137,13 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
   isRunningMap.set(profileId, true);
   return enqueue(() => runPipelineInner(trigger, profileId, options));
+}
+
+function buildLocationData(label: string | null): { labels: string[]; countries: string[] } {
+  if (!label) return { labels: [], countries: [] };
+  const lower = label.toLowerCase();
+  const countries = COUNTRY_NAMES[lower] ? [lower] : expandRegionToCountries(label);
+  return { labels: [label], countries };
 }
 
 async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: number, options: RunOptions): Promise<PipelineResult> {
@@ -618,6 +626,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
             insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+            groupOrDrop(jobId, buildLocationData(country));
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
@@ -648,6 +657,12 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
             insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+            const locationData = buildLocationData(country);
+            if (isDuplicate && duplicateOfId) {
+              groupOrDrop(duplicateOfId, locationData);
+            } else {
+              groupOrDrop(jobId, locationData);
+            }
             jobIdByKey.set(`${jobSource}::${job.jobId}`, jobId);
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
@@ -672,6 +687,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
             insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+            groupOrDrop(duplicateOfId, buildLocationData(country));
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
