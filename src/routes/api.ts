@@ -1149,11 +1149,14 @@ router.get('/ats/status', (req: Request, res: Response) => {
   `).all() as Array<{ ats: string; total: number; active: number; last_discovered: string; last_validated: string }>;
   const settings = db.prepare(`
     SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled,
-           ats_pool_gh_enabled, ats_pool_ashby_enabled, telegram_ingest_enabled, timezone
+           ats_pool_gh_enabled, ats_pool_ashby_enabled, ats_pool_gh_last_fetch, ats_pool_ashby_last_fetch,
+           telegram_ingest_enabled, timezone
     FROM settings WHERE profile_id = ?
   `).get(req.profile.id) as {
     ats_discovery_enabled: number; ats_lever_disc_enabled: number; ats_validation_enabled: number;
-    ats_pool_gh_enabled: number; ats_pool_ashby_enabled: number; telegram_ingest_enabled: number; timezone: string;
+    ats_pool_gh_enabled: number; ats_pool_ashby_enabled: number;
+    ats_pool_gh_last_fetch: string | null; ats_pool_ashby_last_fetch: string | null;
+    telegram_ingest_enabled: number; timezone: string;
   } | undefined;
   const ghCount       = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Greenhouse'`).get() as { c: number }).c;
   const ashbyCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Ashby'`).get() as { c: number }).c;

@@ -329,7 +329,7 @@
               <span class="text-sm font-medium text-gray-800">Greenhouse</span>
               <span class="text-xs text-gray-400">daily</span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">Every day · 05:00 · <span id="pool-gh-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">Every day · 05:00 · <span id="pool-gh-tz">UTC</span><span id="pool-gh-last"></span></p>
           </div>
         </div>
         <div class="flex items-center gap-3 ml-4 flex-shrink-0">
@@ -353,7 +353,7 @@
               <span class="text-sm font-medium text-gray-800">Ashby</span>
               <span class="text-xs text-gray-400">daily</span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">Every day · 05:00 · <span id="pool-ashby-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">Every day · 05:00 · <span id="pool-ashby-tz">UTC</span><span id="pool-ashby-last"></span></p>
           </div>
         </div>
         <div class="flex items-center gap-3 ml-4 flex-shrink-0">
@@ -546,6 +546,8 @@ async function loadAtsStats(options = {}) {
         !!data.settings.ats_pool_gh_enabled,
         !!data.settings.ats_pool_ashby_enabled,
         data.settings.timezone,
+        data.settings.ats_pool_gh_last_fetch,
+        data.settings.ats_pool_ashby_last_fetch,
       );
     }
     if (data.poolCounts) {
@@ -740,12 +742,15 @@ async function atsStopRun() {
 let _poolRunId = null;
 let _poolEventSource = null;
 
-function _applyPoolState(ghEnabled, ashbyEnabled, tz) {
+function _applyPoolState(ghEnabled, ashbyEnabled, tz, ghLastFetch, ashbyLastFetch) {
   const tzLabel = tz || 'UTC';
   document.getElementById('pool-gh-toggle').checked    = ghEnabled;
   document.getElementById('pool-ashby-toggle').checked = ashbyEnabled;
   document.getElementById('pool-gh-tz').textContent    = tzLabel;
   document.getElementById('pool-ashby-tz').textContent = tzLabel;
+  const _fmtLast = (v) => v ? ' · last fetch ' + new Date(v).toLocaleString() : ' · never fetched';
+  document.getElementById('pool-gh-last').textContent    = _fmtLast(ghLastFetch);
+  document.getElementById('pool-ashby-last').textContent = _fmtLast(ashbyLastFetch);
   const ghDot    = document.getElementById('pool-gh-dot');
   const ashbyDot = document.getElementById('pool-ashby-dot');
   ghDot.classList.toggle('bg-emerald-400', ghEnabled);

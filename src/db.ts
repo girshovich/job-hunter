@@ -1356,6 +1356,17 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_telegram_runs failed (non-fatal):', (err as Error).message);
   }
+
+  // v_ats_pool_last_fetch: track last pool fetch timestamp per source for the admin display
+  try {
+    const cols = (db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[]).map((c) => c.name);
+    if (!cols.includes('ats_pool_gh_last_fetch'))
+      db.exec(`ALTER TABLE settings ADD COLUMN ats_pool_gh_last_fetch TEXT`);
+    if (!cols.includes('ats_pool_ashby_last_fetch'))
+      db.exec(`ALTER TABLE settings ADD COLUMN ats_pool_ashby_last_fetch TEXT`);
+  } catch (err) {
+    console.warn('[db] Migration v_ats_pool_last_fetch failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -1831,6 +1842,8 @@ export interface SettingsRow {
   ats_validation_cron: string;
   ats_pool_gh_enabled: number;
   ats_pool_ashby_enabled: number;
+  ats_pool_gh_last_fetch: string | null;
+  ats_pool_ashby_last_fetch: string | null;
   use_jh_credits: number;          // 1 = use JH credits (global admin keys), 0 = use own keys
   user_apify_api_token: string;    // user-specific Apify key (used when use_jh_credits = 0)
   user_openai_api_key: string;     // user-specific OpenAI key (used when use_jh_credits = 0)

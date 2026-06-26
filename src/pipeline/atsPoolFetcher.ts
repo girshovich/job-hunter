@@ -131,6 +131,9 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
     done: true,
     inserted: fetched,
   });
+  db.prepare(
+    `UPDATE settings SET ats_pool_gh_last_fetch = ? WHERE profile_id = (SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1)`,
+  ).run(new Date().toISOString());
   return { fetched, boards: slugs.length, durationMs };
 }
 
@@ -269,6 +272,9 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
     done: true,
     inserted: fetched,
   });
+  db.prepare(
+    `UPDATE settings SET ats_pool_ashby_last_fetch = ? WHERE profile_id = (SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1)`,
+  ).run(new Date().toISOString());
   return { fetched, boards: slugs.length, durationMs };
 }
 
