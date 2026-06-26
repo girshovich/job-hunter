@@ -294,39 +294,83 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
  * Sync, cache-only: populates jobs.country for pool jobs whose location is
  * already known (hardcoded map or location_country cache). Called automatically
  * after each pool fetch so incremental new locations are resolved instantly.
+ * Also writes job_locations + job_countries child tables for resolved jobs.
+ * Change-guard: only jobs with country IS NULL (new or location-changed) are processed.
  */
 export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'Greenhouse' | 'Telegram'): void {
-  const locs = db.prepare(
-    `SELECT DISTINCT location FROM jobs WHERE job_source = ? AND location IS NOT NULL AND country IS NULL`,
-  ).all(jobSource) as { location: string }[];
-  if (locs.length === 0) return;
+  const jobs = db.prepare<{ id: number; location: string }>(
+    `SELECT id, location FROM jobs WHERE job_source = ? AND location IS NOT NULL AND country IS NULL`,
+  ).all(jobSource);
+  if (jobs.length === 0) return;
 
-  const resolved = new Map<string, string>();
-
-  for (const { location } of locs) {
-    const h = HARDCODED[location.toLowerCase().trim()];
-    if (h) { resolved.set(location, h); }
+  // For Ashby: split joined "loc1; loc2" into per-element arrays. Others: single element.
+  const jobElements = new Map<number, string[]>();
+  const allElements = new Set<string>();
+  for (const { id, location } of jobs) {
+    const elements = jobSource === 'Ashby'
+      ? location.split('; ').map((s) => s.trim()).filter(Boolean)
+      : [location];
+    jobElements.set(id, elements);
+    for (const e of elements) allElements.add(e);
   }
 
-  const uncached = locs.map((r) => r.location).filter((l) => !resolved.has(l));
+  // Resolve unique elements from HARDCODED and DB cache
+  const resolved = new Map<string, string>();
+  for (const e of allElements) {
+    const h = HARDCODED[e.toLowerCase().trim()];
+    if (h) resolved.set(e, h);
+  }
+  const uncached = [...allElements].filter((e) => !resolved.has(e));
   if (uncached.length > 0) {
     const placeholders = uncached.map(() => '?').join(',');
-    const rows = db.prepare(
+    const rows = db.prepare<{ location: string; country: string }>(
       `SELECT location, country FROM location_country WHERE location IN (${placeholders})`,
-    ).all(...uncached) as { location: string; country: string }[];
+    ).all(...uncached);
     for (const row of rows) {
       if (row.country) resolved.set(row.location, row.country);
     }
   }
 
   if (resolved.size === 0) return;
-  const update = db.prepare(
-    `UPDATE jobs SET country = ? WHERE job_source = ? AND location = ? AND country IS NULL`,
+
+  const updateCountry = db.prepare<unknown>(
+    `UPDATE jobs SET country = ? WHERE id = ? AND country IS NULL`,
   );
+  const deleteLocs     = db.prepare<unknown>(`DELETE FROM job_locations WHERE job_id = ?`);
+  const deleteCountries = db.prepare<unknown>(`DELETE FROM job_countries WHERE job_id = ?`);
+  const insertLoc      = db.prepare<unknown>(`INSERT OR IGNORE INTO job_locations (job_id, label) VALUES (?, ?)`);
+  const checkRegion    = db.prepare<{ c: number }>(
+    `SELECT COUNT(*) as c FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
+  );
+  const insertCountryDirect = db.prepare<unknown>(
+    `INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, LOWER(?))`,
+  );
+  const insertCountryRegion = db.prepare<unknown>(
+    `INSERT OR IGNORE INTO job_countries (job_id, country)
+     SELECT ?, rd.country FROM region_definitions rd WHERE rd.name = ? COLLATE NOCASE AND rd.is_active = 1`,
+  );
+
+  let updatedCount = 0;
   db.transaction(() => {
-    for (const [loc, country] of resolved) update.run(country, jobSource, loc);
+    for (const [jobId, elements] of jobElements) {
+      const labels = elements.map((e) => resolved.get(e)).filter((l): l is string => l !== undefined);
+      if (labels.length === 0) continue;
+      updateCountry.run(labels[0], jobId);
+      deleteLocs.run(jobId);
+      deleteCountries.run(jobId);
+      for (const label of labels) {
+        insertLoc.run(jobId, label);
+        const regionRow = checkRegion.get(label);
+        if (regionRow && regionRow.c > 0) {
+          insertCountryRegion.run(jobId, label);
+        } else {
+          insertCountryDirect.run(jobId, label);
+        }
+      }
+      updatedCount++;
+    }
   });
-  console.log(`[pool] Populated country for ${resolved.size} ${jobSource} location(s) from cache`);
+  console.log(`[pool] Populated country/child tables for ${updatedCount} ${jobSource} job(s) from cache`);
 }
 
 function clearUnclaimedPoolDescriptions(db: Database, jobSource: 'Ashby' | 'Greenhouse'): void {
