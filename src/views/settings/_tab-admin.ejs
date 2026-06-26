@@ -182,7 +182,7 @@
     <h2 class="text-base font-semibold text-gray-900 mb-1">ATS Board Discovery</h2>
     <p class="text-xs text-gray-500 mb-4">
       Discovers Greenhouse and Ashby boards via Common Crawl, and Lever companies via HuggingFace.
-      Validates all boards weekly to keep the list current.
+      Validates all boards <%= atsSchedules.validation.cadence %> to keep the list current.
     </p>
 
     <!-- Stats -->
@@ -218,9 +218,9 @@
           <div>
             <div class="flex items-baseline gap-1.5">
               <span class="text-sm font-medium text-gray-800">Discovery</span>
-              <span class="text-xs text-gray-400">Greenhouse &amp; Ashby · monthly</span>
+              <span class="text-xs text-gray-400">Greenhouse &amp; Ashby · <%= atsSchedules.discovery.cadence %></span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">via Common Crawl · 1st of month · 08:00 · <span id="ats-disc-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">via Common Crawl · <%= atsSchedules.discovery.when %> · <span id="ats-disc-tz">UTC</span></p>
           </div>
         </div>
         <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
@@ -236,9 +236,9 @@
           <div>
             <div class="flex items-baseline gap-1.5">
               <span class="text-sm font-medium text-gray-800">Discovery</span>
-              <span class="text-xs text-gray-400">Lever · monthly</span>
+              <span class="text-xs text-gray-400">Lever · <%= atsSchedules.lever.cadence %></span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">via HuggingFace · 1st of month · 08:00 · <span id="ats-lever-disc-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">via HuggingFace · <%= atsSchedules.lever.when %> · <span id="ats-lever-disc-tz">UTC</span></p>
           </div>
         </div>
         <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
@@ -254,9 +254,9 @@
           <div>
             <div class="flex items-baseline gap-1.5">
               <span class="text-sm font-medium text-gray-800">Validation</span>
-              <span class="text-xs text-gray-400">weekly</span>
+              <span class="text-xs text-gray-400"><%= atsSchedules.validation.cadence %></span>
             </div>
-            <p class="text-xs text-gray-400 mt-0.5">Every Sunday · 08:00 · <span id="ats-val-tz">UTC</span></p>
+            <p class="text-xs text-gray-400 mt-0.5"><%= atsSchedules.validation.when %> · <span id="ats-val-tz">UTC</span></p>
           </div>
         </div>
         <label class="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">

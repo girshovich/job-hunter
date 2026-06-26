@@ -10,6 +10,7 @@ import multer from 'multer';
 import { Resend } from 'resend';
 import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
 import ALL_COUNTRIES from '../pipeline/countries.json';
+import { getAtsSchedules } from '../pipeline/atsScheduler';
 
 const router = Router();
 
@@ -107,6 +108,7 @@ router.get('/', (req: Request, res: Response) => {
     profileEmail: req.profile.email,
     pendingEmailChange: getPendingEmailChange(db, profileId),
     locationCountries,
+    atsSchedules: getAtsSchedules(),
     pageMaxWidth: '48rem',
   });
 });

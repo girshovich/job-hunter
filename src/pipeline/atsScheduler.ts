@@ -9,12 +9,38 @@ import { sendDiscoveryEmptyAlert } from './emailReport';
 import { config } from '../config';
 import { getDb } from '../db';
 
-// Schedules for the ATS crons. Single source of truth — both startup (index.ts) and the
-// admin toggle (api.ts) read these, so a time change ships via git push alone. The matching
-// settings.ats_*_cron columns are vestigial (never drive scheduling) and are ignored.
-export const ATS_DISCOVERY_CRON  = '0 1 1 * *';
-export const ATS_LEVER_CRON      = '0 3 1 * *';
-export const ATS_VALIDATION_CRON = '0 5 1 * *';
+// Schedules for the ATS crons. Single source of truth — startup (index.ts), the admin
+// toggle (api.ts), and the admin panel labels (via getAtsSchedules) all read these, so a
+// time change ships via git push alone. The matching settings.ats_*_cron columns are
+// vestigial (never drive scheduling) and are ignored.
+export const ATS_DISCOVERY_CRON  = '30 0 1 * *';
+export const ATS_LEVER_CRON      = '0 2 1 * *';
+export const ATS_VALIDATION_CRON = '0 4 1 * *';
+
+// Render a cron expression into the prose the admin panel shows, so the labels can never
+// drift from the real schedule. Only the patterns these crons actually use are handled.
+function describeCron(expr: string): { cadence: string; when: string } {
+  const [min, hour, dom, , dow] = expr.split(' ');
+  const time = `${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  if (dom !== '*' && dow === '*') {
+    const n = Number(dom);
+    const suffix = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th';
+    return { cadence: 'monthly', when: `${n}${suffix} of month · ${time}` };
+  }
+  if (dom === '*' && dow !== '*') {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return { cadence: 'weekly', when: `Every ${days[Number(dow) % 7]} · ${time}` };
+  }
+  return { cadence: 'daily', when: `Daily · ${time}` };
+}
+
+export function getAtsSchedules() {
+  return {
+    discovery:  describeCron(ATS_DISCOVERY_CRON),
+    lever:      describeCron(ATS_LEVER_CRON),
+    validation: describeCron(ATS_VALIDATION_CRON),
+  };
+}
 
 let discoveryTask:        ReturnType<typeof cron.schedule> | null = null;
 let leverDiscoveryTask:   ReturnType<typeof cron.schedule> | null = null;
