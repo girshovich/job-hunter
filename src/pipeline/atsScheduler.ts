@@ -5,6 +5,8 @@ import { runValidation } from './atsValidation';
 import { fetchGreenhousePool, fetchAshbyPool } from './atsPoolFetcher';
 import { acquirePoolLock, releasePoolLock } from './poolLock';
 import { runTelegramIngest } from './telegramIngest';
+import { sendDiscoveryEmptyAlert } from './emailReport';
+import { config } from '../config';
 import { getDb } from '../db';
 
 let discoveryTask:        ReturnType<typeof cron.schedule> | null = null;
@@ -13,6 +15,30 @@ let validationTask:       ReturnType<typeof cron.schedule> | null = null;
 let ghPoolTask:           ReturnType<typeof cron.schedule> | null = null;
 let ashbyPoolTask:        ReturnType<typeof cron.schedule> | null = null;
 let telegramIngestTask:   ReturnType<typeof cron.schedule> | null = null;
+
+// A scheduled discovery that returns neither new nor already-known companies has almost
+// certainly broken upstream (dataset moved/emptied/changed schema). Alert the admin — a
+// genuine no-op always reports the existing companies as "skipped".
+async function alertIfDiscoveryEmpty(label: string, result: { inserted: number; skipped: number }): Promise<void> {
+  if (result.inserted !== 0 || result.skipped !== 0) return;
+  try {
+    const db = getDb();
+    const admin = db.prepare('SELECT id, email FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number; email?: string } | undefined;
+    const settings = admin
+      ? db.prepare('SELECT resend_api_key, email_from FROM settings WHERE profile_id = ?').get(admin.id) as { resend_api_key?: string; email_from?: string } | undefined
+      : undefined;
+    const email       = admin?.email;
+    const resendApiKey = settings?.resend_api_key?.trim() || config.resendApiKey;
+    const emailFrom    = settings?.email_from?.trim() || config.emailFrom;
+    if (!email || !resendApiKey || !emailFrom) {
+      console.warn(`[${label}] Returned empty but admin email/Resend not configured — alert skipped`);
+      return;
+    }
+    await sendDiscoveryEmptyAlert(email, label, resendApiKey, emailFrom);
+  } catch (err) {
+    console.error(`[${label}] Failed to send empty-discovery alert:`, err);
+  }
+}
 
 export function startAtsDiscoveryCron(expression: string, timezone = 'UTC'): void {
   discoveryTask?.stop();
@@ -25,6 +51,7 @@ export function startAtsDiscoveryCron(expression: string, timezone = 'UTC'): voi
     try {
       const result = await runDiscovery(getDb());
       console.log('[ats-discovery] Done:', result);
+      await alertIfDiscoveryEmpty('ATS discovery', result);
     } catch (err) {
       console.error('[ats-discovery] Error:', err);
     }
@@ -49,6 +76,7 @@ export function startLeverDiscoveryCron(expression: string, timezone = 'UTC'): v
     try {
       const result = await runLeverDiscovery(getDb());
       console.log('[lever-discovery] Done:', result);
+      await alertIfDiscoveryEmpty('Lever discovery', result);
     } catch (err) {
       console.error('[lever-discovery] Error:', err);
     }

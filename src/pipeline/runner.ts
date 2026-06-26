@@ -19,7 +19,7 @@ import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats
 import { fetchClearbitLogosForAts } from './companyLogos';
 import { enqueue } from './runQueue';
 
-let lastRateLimitAlert = 0;
+const lastRateLimitAlert = new Map<string, number>(); // recipient email → last alert timestamp
 const RATE_LIMIT_ALERT_COOLDOWN_MS = 30 * 60_000;
 
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
@@ -468,11 +468,18 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         totalInputTokens += scoreResult.tokenUsage.inputTokens;
         totalCachedInputTokens += scoreResult.tokenUsage.cachedInputTokens;
         totalOutputTokens += scoreResult.tokenUsage.outputTokens;
-        if (scoreResult.rateLimited && Date.now() - lastRateLimitAlert > RATE_LIMIT_ALERT_COOLDOWN_MS) {
-          lastRateLimitAlert = Date.now();
-          const adminEmail = (db.prepare('SELECT email FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { email?: string } | undefined)?.email;
-          if (adminEmail && resendApiKey && emailFrom) {
-            sendRateLimitAlert(adminEmail, resendApiKey, emailFrom).catch((e) => console.error('[runner] rate-limit alert failed:', e));
+        if (scoreResult.rateLimited) {
+          // Credit mode throttles the admin's shared key, so alert the admin. BYO-key mode
+          // throttles the running user's own key, so alert that user instead.
+          const alertEmail = (useJhCredits
+            ? db.prepare('SELECT email FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { email?: string } | undefined
+            : db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email?: string } | undefined
+          )?.email;
+          // Cooldown is per-recipient so one user's alert never suppresses another's.
+          if (alertEmail && resendApiKey && emailFrom
+              && Date.now() - (lastRateLimitAlert.get(alertEmail) ?? 0) > RATE_LIMIT_ALERT_COOLDOWN_MS) {
+            lastRateLimitAlert.set(alertEmail, Date.now());
+            sendRateLimitAlert(alertEmail, resendApiKey, emailFrom).catch((e) => console.error('[runner] rate-limit alert failed:', e));
           }
         }
       }
