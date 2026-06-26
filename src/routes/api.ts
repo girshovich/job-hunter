@@ -13,6 +13,7 @@ import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
 import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron, startTelegramIngestCron, stopTelegramIngestCron } from '../pipeline/atsScheduler';
 import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries } from '../pipeline/atsPoolFetcher';
+import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipeline/poolLock';
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { activeRuns } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
@@ -1270,24 +1271,30 @@ router.delete('/ats/run/:runId', (req: Request, res: Response) => {
 
 router.post('/ats/pool/fetch-greenhouse', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  if (!tryAcquirePoolLock('Greenhouse')) {
+    return res.status(409).json({ error: `A ${getActivePoolFetch()} pool fetch is already running.` });
+  }
   const runId = randomUUID();
   activeRuns.set(runId, { type: 'pool-fetch' as 'discovery', cancelled: false, listeners: new Set() });
   res.json({ runId });
   fetchGreenhousePool(getDb(), runId)
     .then((r) => console.log('[gh-pool] Manual fetch complete:', r))
     .catch((e) => console.error('[gh-pool] Manual fetch error:', e))
-    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+    .finally(() => { releasePoolLock(); setTimeout(() => activeRuns.delete(runId), 5_000); });
 });
 
 router.post('/ats/pool/fetch-ashby', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  if (!tryAcquirePoolLock('Ashby')) {
+    return res.status(409).json({ error: `A ${getActivePoolFetch()} pool fetch is already running.` });
+  }
   const runId = randomUUID();
   activeRuns.set(runId, { type: 'pool-fetch' as 'validation', cancelled: false, listeners: new Set() });
   res.json({ runId });
   fetchAshbyPool(getDb(), runId)
     .then((r) => console.log('[ashby-pool] Manual fetch complete:', r))
     .catch((e) => console.error('[ashby-pool] Manual fetch error:', e))
-    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+    .finally(() => { releasePoolLock(); setTimeout(() => activeRuns.delete(runId), 5_000); });
 });
 
 router.post('/ats/pool/resolve-countries', (req: Request, res: Response) => {

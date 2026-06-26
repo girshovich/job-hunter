@@ -120,10 +120,15 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
     if (processed % 100 === 0 || processed === slugs.length) {
       emitToRun(runId ?? '', { msg: `${processed}/${slugs.length} boards`, processed, total: slugs.length });
     }
+    if (processed % 200 === 0) {
+      db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
   });
 
   populateCountriesFromCache(db, 'Greenhouse');
   clearUnclaimedPoolDescriptions(db, 'Greenhouse');
+  db.exec(`PRAGMA wal_checkpoint(TRUNCATE)`);
 
   const durationMs = Date.now() - start;
   emitToRun(runId ?? '', {
@@ -261,10 +266,15 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
     if (processed % 100 === 0 || processed === slugs.length) {
       emitToRun(runId ?? '', { msg: `${processed}/${slugs.length} boards`, processed, total: slugs.length });
     }
+    if (processed % 200 === 0) {
+      db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
   });
 
   populateCountriesFromCache(db, 'Ashby');
   clearUnclaimedPoolDescriptions(db, 'Ashby');
+  db.exec(`PRAGMA wal_checkpoint(TRUNCATE)`);
 
   const durationMs = Date.now() - start;
   emitToRun(runId ?? '', {

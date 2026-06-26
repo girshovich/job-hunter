@@ -821,6 +821,12 @@ async function poolFetch(provider) {
   const endpoint = provider === 'greenhouse' ? '/api/ats/pool/fetch-greenhouse' : '/api/ats/pool/fetch-ashby';
   const label    = provider === 'greenhouse' ? 'Greenhouse' : 'Ashby';
   const res = await fetch(endpoint, { method: 'POST' });
+  if (res.status === 409) {
+    const { error } = await res.json();
+    _poolStreamDone(label + ' fetch skipped', true);
+    alert(error);
+    return;
+  }
   const { runId } = await res.json();
   _poolStartStream(runId, label + ' pool fetch', 'boards');
 }

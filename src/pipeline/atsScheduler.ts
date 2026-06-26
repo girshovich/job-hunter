@@ -3,6 +3,7 @@ import { runDiscovery } from './atsDiscovery';
 import { runLeverDiscovery } from './leverDiscovery';
 import { runValidation } from './atsValidation';
 import { fetchGreenhousePool, fetchAshbyPool } from './atsPoolFetcher';
+import { acquirePoolLock, releasePoolLock } from './poolLock';
 import { runTelegramIngest } from './telegramIngest';
 import { getDb } from '../db';
 
@@ -93,11 +94,14 @@ export function startGhPoolCron(expression: string, timezone = 'UTC'): void {
   }
   ghPoolTask = cron.schedule(expression, async () => {
     console.log('[gh-pool] Starting scheduled Greenhouse pool fetch');
+    await acquirePoolLock('Greenhouse');
     try {
       const result = await fetchGreenhousePool(getDb());
       console.log('[gh-pool] Done:', result);
     } catch (err) {
       console.error('[gh-pool] Error:', err);
+    } finally {
+      releasePoolLock();
     }
   }, { timezone });
   console.log(`[gh-pool] Cron scheduled: "${expression}" (${timezone})`);
@@ -117,11 +121,14 @@ export function startAshbyPoolCron(expression: string, timezone = 'UTC'): void {
   }
   ashbyPoolTask = cron.schedule(expression, async () => {
     console.log('[ashby-pool] Starting scheduled Ashby pool fetch');
+    await acquirePoolLock('Ashby');
     try {
       const result = await fetchAshbyPool(getDb());
       console.log('[ashby-pool] Done:', result);
     } catch (err) {
       console.error('[ashby-pool] Error:', err);
+    } finally {
+      releasePoolLock();
     }
   }, { timezone });
   console.log(`[ashby-pool] Cron scheduled: "${expression}" (${timezone})`);
