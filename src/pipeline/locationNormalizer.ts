@@ -110,6 +110,29 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Returns lowercased member countries for a region (from region_definitions).
+ * Returns [] if the region has no members or is not found.
+ */
+export function expandRegionToCountries(label: string): string[] {
+  const db = getDb();
+  const rows = db.prepare<{ country: string }>(
+    `SELECT country FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
+  ).all(label);
+  return rows.map((r) => r.country);
+}
+
+/**
+ * Returns true if label is a known region (has at least one row in region_definitions).
+ */
+export function isRegionLabel(label: string): boolean {
+  const db = getDb();
+  const row = db.prepare(
+    `SELECT 1 FROM region_definitions WHERE name = ? COLLATE NOCASE LIMIT 1`,
+  ).get(label);
+  return row !== undefined;
+}
+
+/**
  * Synchronous version — hardcoded map + DB cache only, no HTTP.
  * Returns resolved countries and a flag indicating whether any locations
  * could not be resolved (caller decides how to handle unknowns).

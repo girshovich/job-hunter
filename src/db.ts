@@ -1370,6 +1370,23 @@ The full post text is stored as the job description — do not repeat or summari
     console.warn('[db] Migration v_ats_pool_last_fetch failed (non-fatal):', (err as Error).message);
   }
 
+  // v_mc_regions_seed: seed DACH region members (EMEA/EU/EEA start empty — admin populates via UI)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_mc_regions_seed'`).get();
+    if (!done) {
+      const now = new Date().toISOString();
+      const insertRegion = db.prepare<unknown>(`INSERT OR IGNORE INTO region_definitions (name, country, is_active, updated_at) VALUES (?, ?, 1, ?)`);
+      insertRegion.run('DACH', 'germany', now);
+      insertRegion.run('DACH', 'austria', now);
+      insertRegion.run('DACH', 'switzerland', now);
+      db.exec(`INSERT INTO _migrations VALUES ('v_mc_regions_seed')`);
+      console.log('[db] Migration v_mc_regions_seed: DACH members seeded');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_mc_regions_seed failed (non-fatal):', (err as Error).message);
+  }
+
   // v_mc_tables: multi-country support — job_postings, job_locations, job_countries, region_definitions
   try {
     db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
