@@ -871,11 +871,11 @@ function runMigrations(db: Database): void {
       if (!cols.includes('ats_discovery_enabled'))
         db.exec(`ALTER TABLE settings ADD COLUMN ats_discovery_enabled INTEGER NOT NULL DEFAULT 0`);
       if (!cols.includes('ats_discovery_cron'))
-        db.exec(`ALTER TABLE settings ADD COLUMN ats_discovery_cron TEXT NOT NULL DEFAULT '0 3 1 * *'`);
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_discovery_cron TEXT NOT NULL DEFAULT '0 1 1 * *'`);
       if (!cols.includes('ats_validation_enabled'))
         db.exec(`ALTER TABLE settings ADD COLUMN ats_validation_enabled INTEGER NOT NULL DEFAULT 0`);
       if (!cols.includes('ats_validation_cron'))
-        db.exec(`ALTER TABLE settings ADD COLUMN ats_validation_cron TEXT NOT NULL DEFAULT '0 4 * * 1'`);
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_validation_cron TEXT NOT NULL DEFAULT '0 5 1 * *'`);
       db.exec(`INSERT INTO _migrations VALUES ('v_ats_discovery')`);
       console.log('[db] Migration v_ats_discovery: ATS settings columns added');
     }
@@ -891,7 +891,7 @@ function runMigrations(db: Database): void {
       if (!cols.includes('ats_lever_disc_enabled'))
         db.exec(`ALTER TABLE settings ADD COLUMN ats_lever_disc_enabled INTEGER NOT NULL DEFAULT 0`);
       if (!cols.includes('ats_lever_disc_cron'))
-        db.exec(`ALTER TABLE settings ADD COLUMN ats_lever_disc_cron TEXT NOT NULL DEFAULT '0 8 1 * *'`);
+        db.exec(`ALTER TABLE settings ADD COLUMN ats_lever_disc_cron TEXT NOT NULL DEFAULT '0 3 1 * *'`);
 
       // One-time import from lever_companies.csv if it exists and no Lever rows are present
       const leverCount = (db.prepare(`SELECT COUNT(*) AS c FROM ats_boards WHERE ats = 'lever'`).get() as { c: number }).c;

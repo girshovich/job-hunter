@@ -194,10 +194,10 @@ async function start(): Promise<void> {
     } | undefined;
     const atsTz = atsSettings?.timezone || 'UTC';
     if (atsSettings?.ats_discovery_enabled) {
-      startAtsDiscoveryCron(atsSettings.ats_discovery_cron || '0 8 1 * *', atsTz);
+      startAtsDiscoveryCron(atsSettings.ats_discovery_cron || '0 1 1 * *', atsTz);
     }
     if (atsSettings?.ats_validation_enabled) {
-      startAtsValidationCron(atsSettings.ats_validation_cron || '0 8 * * 0', atsTz);
+      startAtsValidationCron(atsSettings.ats_validation_cron || '0 5 1 * *', atsTz);
     }
     if (atsSettings?.ats_pool_gh_enabled) {
       startGhPoolCron('0 5 * * *', atsTz);

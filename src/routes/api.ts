@@ -1133,8 +1133,9 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
 
 // ── ATS Board Discovery & Validation (admin-only) ──
 
-const DISC_CRON = '0 8 1 * *';
-const VAL_CRON  = '0 8 * * 0';
+const DISC_CRON  = '0 1 1 * *';
+const LEVER_CRON = '0 3 1 * *';
+const VAL_CRON   = '0 5 1 * *';
 
 router.get('/ats/status', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
@@ -1361,7 +1362,7 @@ router.post('/ats/settings', (req: Request, res: Response) => {
     WHERE profile_id = ?
   `).run(
     discoveryEnabled  ? 1 : 0, DISC_CRON,
-    leverDiscEnabled  ? 1 : 0, DISC_CRON,
+    leverDiscEnabled  ? 1 : 0, LEVER_CRON,
     validationEnabled ? 1 : 0, VAL_CRON,
     req.profile.id,
   );
@@ -1369,7 +1370,7 @@ router.post('/ats/settings', (req: Request, res: Response) => {
   if (discoveryEnabled) startAtsDiscoveryCron(DISC_CRON, tz);
   else stopAtsDiscoveryCron();
 
-  if (leverDiscEnabled) startLeverDiscoveryCron(DISC_CRON, tz);
+  if (leverDiscEnabled) startLeverDiscoveryCron(LEVER_CRON, tz);
   else stopLeverDiscoveryCron();
 
   if (validationEnabled) startAtsValidationCron(VAL_CRON, tz);
