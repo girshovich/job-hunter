@@ -1336,7 +1336,7 @@ router.post('/ats/pool/settings', (req: Request, res: Response) => {
   if (ghEnabled) startGhPoolCron('0 5 * * *', tz);
   else stopGhPoolCron();
 
-  if (ashbyEnabled) startAshbyPoolCron('0 5 * * *', tz);
+  if (ashbyEnabled) startAshbyPoolCron('15 5 * * *', tz);
   else stopAshbyPoolCron();
 
   res.json({ success: true, timezone: tz });
@@ -1396,7 +1396,7 @@ router.post('/telegram/settings', (req: Request, res: Response) => {
     db.prepare(`UPDATE settings SET telegram_ingest_enabled = ? WHERE profile_id = ?`).run(enabled ? 1 : 0, req.profile.id);
   }
 
-  if (enabled) startTelegramIngestCron('0 5 * * *', tz);
+  if (enabled) startTelegramIngestCron('30 5 * * *', tz);
   else stopTelegramIngestCron();
 
   res.json({ success: true, timezone: tz });
