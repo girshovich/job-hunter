@@ -203,10 +203,10 @@ async function start(): Promise<void> {
       startGhPoolCron('0 5 * * *', atsTz);
     }
     if (atsSettings?.ats_pool_ashby_enabled) {
-      startAshbyPoolCron('0 5 * * *', atsTz);
+      startAshbyPoolCron('15 5 * * *', atsTz);
     }
     if (atsSettings?.telegram_ingest_enabled) {
-      startTelegramIngestCron('0 5 * * *', atsTz);
+      startTelegramIngestCron('30 5 * * *', atsTz);
     }
   }
   startPoolCleanupCron();
