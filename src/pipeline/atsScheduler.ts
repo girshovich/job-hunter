@@ -148,11 +148,14 @@ export function startTelegramIngestCron(expression: string, timezone = 'UTC'): v
   }
   telegramIngestTask = cron.schedule(expression, async () => {
     console.log('[telegram-ingest] Starting scheduled ingest run');
+    await acquirePoolLock('Telegram');
     try {
       const result = await runTelegramIngest(getDb());
       console.log('[telegram-ingest] Done:', result);
     } catch (err) {
       console.error('[telegram-ingest] Error:', err);
+    } finally {
+      releasePoolLock();
     }
   }, { timezone });
   console.log(`[telegram-ingest] Cron scheduled: "${expression}" (${timezone})`);

@@ -128,7 +128,7 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
 
   populateCountriesFromCache(db, 'Greenhouse');
   clearUnclaimedPoolDescriptions(db, 'Greenhouse');
-  db.exec(`PRAGMA wal_checkpoint(TRUNCATE)`);
+  db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
 
   const durationMs = Date.now() - start;
   emitToRun(runId ?? '', {
@@ -274,7 +274,7 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
 
   populateCountriesFromCache(db, 'Ashby');
   clearUnclaimedPoolDescriptions(db, 'Ashby');
-  db.exec(`PRAGMA wal_checkpoint(TRUNCATE)`);
+  db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
 
   const durationMs = Date.now() - start;
   emitToRun(runId ?? '', {

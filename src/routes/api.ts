@@ -1404,10 +1404,14 @@ router.post('/telegram/settings', (req: Request, res: Response) => {
 
 router.post('/telegram/fetch-now', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  if (!tryAcquirePoolLock('Telegram')) {
+    return res.status(409).json({ error: `A ${getActivePoolFetch()} pool fetch is already running.` });
+  }
   res.json({ success: true });
   runTelegramIngest(getDb())
     .then((r) => console.log('[telegram] Manual fetch complete:', r))
-    .catch((e) => console.error('[telegram] Manual fetch error:', e));
+    .catch((e) => console.error('[telegram] Manual fetch error:', e))
+    .finally(() => releasePoolLock());
 });
 
 router.get('/telegram/channels', (req: Request, res: Response) => {
