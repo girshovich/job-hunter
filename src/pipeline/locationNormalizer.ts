@@ -161,13 +161,53 @@ export function resolveCountriesFromCache(
   }
 
   const countries = new Set<string>();
-  for (const country of resolved.values()) {
-    if (country) countries.add(country.toLowerCase());
+  for (const label of resolved.values()) {
+    if (!label) continue;
+    const lower = label.toLowerCase();
+    if (COUNTRY_NAMES[lower]) {
+      countries.add(lower);
+    } else {
+      // Not a recognized country — treat as region label; expand to member countries (may be [])
+      for (const c of expandRegionToCountries(label)) {
+        countries.add(c);
+      }
+    }
   }
 
   return {
     countries,
     hasUnresolved: unique.some((loc) => !resolved.has(loc)),
+  };
+}
+
+/**
+ * Resolves a list of raw location strings to a de-duped label set and expanded country set.
+ * Labels are display strings (e.g. "Germany", "DACH"); countries are lowercased members.
+ * Regions expand to their member countries ([] if unpopulated).
+ */
+export async function resolveLocationSet(
+  locations: string[],
+): Promise<{ labels: string[]; countries: string[] }> {
+  const resolved = await resolveCountries(locations);
+  const seenLabels = new Set<string>();
+  const seenCountries = new Set<string>();
+
+  for (const label of resolved.values()) {
+    if (!label) continue;
+    seenLabels.add(label);
+    const lower = label.toLowerCase();
+    if (COUNTRY_NAMES[lower]) {
+      seenCountries.add(lower);
+    } else {
+      for (const c of expandRegionToCountries(label)) {
+        seenCountries.add(c);
+      }
+    }
+  }
+
+  return {
+    labels: [...seenLabels],
+    countries: [...seenCountries],
   };
 }
 
