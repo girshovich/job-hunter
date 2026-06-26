@@ -164,12 +164,19 @@ export function startPoolCleanupCron(): void {
       const db = getDb();
       const result = db.prepare(`
         DELETE FROM jobs
-        WHERE job_source IN ('Greenhouse', 'Ashby')
+        WHERE job_source IN ('Greenhouse', 'Ashby', 'Telegram')
           AND fetched_at < datetime('now', '-30 days')
           AND id NOT IN (SELECT job_id FROM job_profile_states)
       `).run() as { changes: number };
       if (result.changes > 0)
         console.log(`[pool-cleanup] Deleted ${result.changes} stale pool jobs`);
+
+      const postsResult = db.prepare(`
+        DELETE FROM telegram_posts
+        WHERE last_seen_at < datetime('now', '-5 days')
+      `).run() as { changes: number };
+      if (postsResult.changes > 0)
+        console.log(`[pool-cleanup] Deleted ${postsResult.changes} stale telegram posts`);
     } catch (err) {
       console.error('[pool-cleanup] Error:', err);
     }

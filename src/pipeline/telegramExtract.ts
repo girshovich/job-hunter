@@ -21,8 +21,8 @@ const DEFAULT_EXTRACT_PROMPT = `Extract job openings from this Telegram post. Re
 
 One object per role. Fields:
 - title: job title. Skip the role if absent.
-- company: real employer named in the text (not the channel). null if missing.
-- location: as written in the post (e.g. "Berlin", "Remote"). null if not mentioned.
+- company: real employer named in the text (not the channel). Keep it exactly as written in the post — do not translate or transliterate it. null if missing.
+- location: in English — translate it if written in another language (e.g. "Berlin", "Remote"). null if not mentioned.
 - applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
 
 The full post text is stored as the job description — do not repeat or summarise it.`;

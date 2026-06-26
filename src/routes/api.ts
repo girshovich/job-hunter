@@ -1159,6 +1159,11 @@ router.get('/ats/status', (req: Request, res: Response) => {
   const ashbyCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Ashby'`).get() as { c: number }).c;
   const telegramCount = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Telegram'`).get() as { c: number }).c;
   const telegramChannelCount = (db.prepare(`SELECT COUNT(*) AS c FROM telegram_channels WHERE is_active = 1`).get() as { c: number }).c;
+  const telegramPostCount = (db.prepare(`SELECT COUNT(*) AS c FROM telegram_posts`).get() as { c: number }).c;
+  const telegramLastRun = db.prepare(`
+    SELECT started_at, channels, posts, inserted, edited, jobs_created, duration_ms
+    FROM telegram_ingest_runs ORDER BY id DESC LIMIT 1
+  `).get() ?? null;
   const unknownLocationCount = (db.prepare(`
     SELECT COUNT(DISTINCT j.location) AS c
     FROM jobs j
@@ -1197,6 +1202,8 @@ router.get('/ats/status', (req: Request, res: Response) => {
     telegramCounts: {
       jobs: telegramCount,
       channels: telegramChannelCount,
+      posts: telegramPostCount,
+      lastRun: telegramLastRun,
     },
   });
 });

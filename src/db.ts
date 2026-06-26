@@ -1321,8 +1321,8 @@ function runMigrations(db: Database): void {
 
 One object per role. Fields:
 - title: job title in English — translate it if the post is written in another language. Skip the role if absent.
-- company: real employer named in the text (not the channel). null if missing.
-- location: as written in the post (e.g. "Berlin", "Remote"). null if not mentioned.
+- company: real employer named in the text (not the channel). Keep it exactly as written in the post — do not translate or transliterate it. null if missing.
+- location: in English — translate it if written in another language (e.g. "Berlin", "Remote"). null if not mentioned.
 - applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
 
 The full post text is stored as the job description — do not repeat or summarise it.`;
@@ -1337,6 +1337,24 @@ The full post text is stored as the job description — do not repeat or summari
     }
   } catch (err) {
     console.warn('[db] Migration v_telegram_prompt_seed failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_telegram_runs: persist per-ingest run stats for the admin "last ingest" display
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS telegram_ingest_runs (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at   TEXT NOT NULL,
+        channels     INTEGER NOT NULL,
+        posts        INTEGER NOT NULL,
+        inserted     INTEGER NOT NULL,
+        edited       INTEGER NOT NULL,
+        jobs_created INTEGER NOT NULL,
+        duration_ms  INTEGER NOT NULL
+      );
+    `);
+  } catch (err) {
+    console.warn('[db] Migration v_telegram_runs failed (non-fatal):', (err as Error).message);
   }
 }
 

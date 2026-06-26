@@ -1,0 +1,71 @@
+<div class="flex items-center justify-between mb-8">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Telegram — Last Ingest</h1>
+    <p class="text-sm text-gray-500 mt-1">
+      <span class="font-medium text-gray-700"><%= postCount.toLocaleString() %></span> unique post(s)
+      <% if (repostCount > 0) { %>
+        · <span class="font-medium text-gray-700"><%= repostCount.toLocaleString() %></span> repost(s) excluded
+      <% } %>
+      <% if (lastRunAt) { %>
+        · ingested <span class="font-medium text-gray-700"><%= lastRunAt %> UTC</span>
+      <% } %>
+    </p>
+  </div>
+  <a href="/settings?tab=admin"
+     class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors">
+    Back to Admin
+  </a>
+</div>
+
+<% if (channels.length === 0) { %>
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
+    <p class="text-sm text-gray-500">No posts were ingested in the last run.</p>
+  </div>
+<% } else { %>
+  <div class="space-y-8">
+    <% channels.forEach(group => { %>
+      <section>
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">
+          @<%= group.channel %>
+          <span class="text-gray-400 font-normal">· <%= group.posts.length %> post(s)</span>
+        </h2>
+        <div class="space-y-4">
+          <% group.posts.forEach(post => { %>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
+                <a href="<%= post.post_url %>" target="_blank" rel="noopener"
+                   class="text-xs font-medium text-sky-600 hover:text-sky-800 underline break-all">
+                  <%= post.post_url %>
+                </a>
+                <span class="text-xs text-gray-400 flex-shrink-0 ml-3"><%= post.published_at || '—' %></span>
+              </div>
+              <div class="px-5 py-4">
+                <pre class="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed"><%= post.text || '(no text)' %></pre>
+              </div>
+              <div class="px-5 py-3 border-t border-gray-100">
+                <% if (post.jobs.length === 0) { %>
+                  <p class="text-xs text-gray-400">No jobs scraped from this post.</p>
+                <% } else { %>
+                  <p class="text-xs font-medium text-gray-500 mb-2"><%= post.jobs.length %> job(s) scraped</p>
+                  <div class="space-y-1">
+                    <% post.jobs.forEach(job => { %>
+                      <div class="text-xs text-gray-600">
+                        <span class="font-medium text-gray-800"><%= job.company %></span>
+                        <span class="text-gray-300">·</span>
+                        <span><%= job.title %></span>
+                        <% if (job.location) { %>
+                          <span class="text-gray-300">·</span>
+                          <span class="text-gray-500"><%= job.location %></span>
+                        <% } %>
+                      </div>
+                    <% }) %>
+                  </div>
+                <% } %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% }) %>
+  </div>
+<% } %>

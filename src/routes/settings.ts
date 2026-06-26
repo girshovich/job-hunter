@@ -184,6 +184,65 @@ router.get('/unresolved-locations', (req: Request, res: Response) => {
   });
 });
 
+// Telegram posts ingested in the last run, grouped by channel, with the jobs scraped from each
+router.get('/telegram-posts', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  const db = getDb();
+  const lastRun = db.prepare(
+    `SELECT started_at FROM telegram_ingest_runs ORDER BY id DESC LIMIT 1`,
+  ).get() as { started_at: string } | undefined;
+
+  type PostRow = {
+    channel_username: string;
+    post_url: string;
+    published_at: string | null;
+    text: string | null;
+  };
+  const posts: PostRow[] = lastRun
+    ? db.prepare(`
+        SELECT channel_username, post_url, published_at, text
+        FROM telegram_posts
+        WHERE is_repost_of IS NULL
+          AND (first_seen_at >= ? OR edited_at >= ?)
+        ORDER BY channel_username ASC, published_at DESC, id DESC
+      `).all(lastRun.started_at, lastRun.started_at) as PostRow[]
+    : [];
+
+  const jobStmt = db.prepare(`
+    SELECT company, title, location
+    FROM jobs
+    WHERE job_source = 'Telegram' AND url = ?
+    ORDER BY id ASC
+  `);
+
+  const repostCount = lastRun
+    ? (db.prepare(`
+        SELECT COUNT(*) AS c FROM telegram_posts
+        WHERE is_repost_of IS NOT NULL AND (first_seen_at >= ? OR edited_at >= ?)
+      `).get(lastRun.started_at, lastRun.started_at) as { c: number }).c
+    : 0;
+
+  const byChannel = new Map<string, Array<PostRow & { jobs: Array<{ company: string; title: string; location: string | null }> }>>();
+  for (const p of posts) {
+    const jobs = jobStmt.all(p.post_url) as Array<{ company: string; title: string; location: string | null }>;
+    if (!byChannel.has(p.channel_username)) byChannel.set(p.channel_username, []);
+    byChannel.get(p.channel_username)!.push({ ...p, jobs });
+  }
+  const channels = [...byChannel.entries()].map(([channel, channelPosts]) => ({ channel, posts: channelPosts }));
+
+  res.render('telegram-posts', {
+    title: 'Telegram — Last Ingest',
+    channels,
+    postCount: posts.length,
+    repostCount,
+    lastRunAt: lastRun?.started_at ?? null,
+  });
+});
+
 router.post('/', async (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;

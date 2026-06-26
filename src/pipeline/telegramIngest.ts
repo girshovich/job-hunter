@@ -151,6 +151,7 @@ function parseTelegramPage(html: string, channelUsername: string): ParsedPost[] 
 
 export async function runTelegramIngest(db: Database): Promise<TelegramIngestResult> {
   const start = Date.now();
+  const startedAt = (db.prepare(`SELECT datetime('now') AS t`).get() as { t: string }).t;
 
   const channels = db.prepare(
     `SELECT channel_username FROM telegram_channels WHERE is_active = 1`,
@@ -258,6 +259,12 @@ export async function runTelegramIngest(db: Database): Promise<TelegramIngestRes
 
   const durationMs = Date.now() - start;
   console.log(`[telegram-ingest] Done — ${channels.length} channels, ${totalPosts} posts, ${inserted} new, ${edited} edited, ${jobsCreated} jobs (${Math.round(durationMs / 1000)}s)`);
+
+  db.prepare(`
+    INSERT INTO telegram_ingest_runs
+      (started_at, channels, posts, inserted, edited, jobs_created, duration_ms)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(startedAt, channels.length, totalPosts, inserted, edited, jobsCreated, durationMs);
 
   return { channels: channels.length, posts: totalPosts, inserted, edited, extracted, jobsCreated, durationMs };
 }
