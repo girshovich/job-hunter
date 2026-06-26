@@ -63,6 +63,19 @@ router.get('/', (req: Request, res: Response) => {
         ORDER BY jps.ai_score DESC
       `).all(profileId, lastRunAt) as JobWithState[])
     : [];
+  if (lastRunJobs.length > 0) {
+    const ids = lastRunJobs.map((j) => j.id);
+    const ph = ids.map(() => '?').join(',');
+    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph})`).all(...ids) as Array<{ job_id: number; label: string }>;
+    const labelsMap = new Map<number, string[]>();
+    for (const { job_id, label } of locRows) {
+      if (!labelsMap.has(job_id)) labelsMap.set(job_id, []);
+      labelsMap.get(job_id)!.push(label);
+    }
+    for (const job of lastRunJobs) {
+      (job as JobWithState & { locationLabels: string[] }).locationLabels = labelsMap.get(job.id) ?? [];
+    }
+  }
 
   const newCount = db
     .prepare(`SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND seen = 0 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`)
@@ -330,7 +343,9 @@ router.get('/job/:id', (req: Request, res: Response) => {
   const companyNoteRow = db.prepare('SELECT note FROM company_notes WHERE profile_id = ? AND company = ?').get(profileId, job.company) as { note: string } | undefined;
   const companyNote = companyNoteRow?.note || '';
 
-  res.render('job-detail', { job, original, duplicatesOfThis, title: job.title, backUrl, backLabel, prevId, nextId, from, cvs, settings, companyNote });
+  const locationLabelRows = db.prepare(`SELECT label FROM job_locations WHERE job_id = ? ORDER BY rowid ASC`).all(id) as Array<{ label: string }>;
+  const locationLabels = locationLabelRows.map((r) => r.label);
+  res.render('job-detail', { job, original, duplicatesOfThis, title: job.title, backUrl, backLabel, prevId, nextId, from, cvs, settings, companyNote, locationLabels });
 });
 
 export { router as dashboardRouter };

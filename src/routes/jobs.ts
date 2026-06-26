@@ -105,6 +105,21 @@ router.get('/', (req: Request, res: Response) => {
     ) as JobWithState[];
   }
 
+  // Attach job_locations labels to each job for +N badge
+  if (jobs.length > 0) {
+    const ids = jobs.map((j) => j.id);
+    const ph = ids.map(() => '?').join(',');
+    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph})`).all(...ids) as Array<{ job_id: number; label: string }>;
+    const labelsMap = new Map<number, string[]>();
+    for (const { job_id, label } of locRows) {
+      if (!labelsMap.has(job_id)) labelsMap.set(job_id, []);
+      labelsMap.get(job_id)!.push(label);
+    }
+    for (const job of jobs) {
+      (job as JobWithState & { locationLabels: string[] }).locationLabels = labelsMap.get(job.id) ?? [];
+    }
+  }
+
   // Group jobs by date (newest first, score-sorted within each date)
   const dateMap = new Map<string, JobWithState[]>();
   for (const job of jobs) {

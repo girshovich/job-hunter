@@ -329,10 +329,13 @@ export function renderCompanyLogo(company: string, logoUrl?: string | null): str
     `</span>`;
 }
 
-export function renderLocationCell(location: unknown, country?: string | null): string {
-  if (!location) return '<span class="text-xs text-gray-300">—</span>';
+export function renderLocationCell(location: unknown, country?: string | null, locationLabels?: string[]): string {
+  const primary = (locationLabels && locationLabels.length > 0) ? locationLabels[0] : location;
+  if (!primary) return '<span class="text-xs text-gray-300">—</span>';
+  const extra = locationLabels && locationLabels.length > 1 ? locationLabels.length - 1 : 0;
+  const badge = extra > 0 ? ` <span class="text-gray-400">+${extra}</span>` : '';
   const flag = countryToFlag(country);
-  const text = `<span class="job-location-text text-xs leading-snug text-gray-500">${escapeHtml(location)}</span>`;
+  const text = `<span class="job-location-text text-xs leading-snug text-gray-500">${escapeHtml(primary)}${badge}</span>`;
   return flag ? `<span class="inline-flex items-start gap-1">${flag} ${text}</span>` : text;
 }
 
