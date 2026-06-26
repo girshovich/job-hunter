@@ -9,6 +9,13 @@ import { sendDiscoveryEmptyAlert } from './emailReport';
 import { config } from '../config';
 import { getDb } from '../db';
 
+// Schedules for the ATS crons. Single source of truth — both startup (index.ts) and the
+// admin toggle (api.ts) read these, so a time change ships via git push alone. The matching
+// settings.ats_*_cron columns are vestigial (never drive scheduling) and are ignored.
+export const ATS_DISCOVERY_CRON  = '0 1 1 * *';
+export const ATS_LEVER_CRON      = '0 3 1 * *';
+export const ATS_VALIDATION_CRON = '0 5 1 * *';
+
 let discoveryTask:        ReturnType<typeof cron.schedule> | null = null;
 let leverDiscoveryTask:   ReturnType<typeof cron.schedule> | null = null;
 let validationTask:       ReturnType<typeof cron.schedule> | null = null;

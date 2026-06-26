@@ -11,7 +11,7 @@ import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/sche
 import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
-import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron, startTelegramIngestCron, stopTelegramIngestCron } from '../pipeline/atsScheduler';
+import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron, startTelegramIngestCron, stopTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from '../pipeline/atsScheduler';
 import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries } from '../pipeline/atsPoolFetcher';
 import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipeline/poolLock';
 import { runTelegramIngest } from '../pipeline/telegramIngest';
@@ -1133,10 +1133,6 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
 
 // ── ATS Board Discovery & Validation (admin-only) ──
 
-const DISC_CRON  = '0 1 1 * *';
-const LEVER_CRON = '0 3 1 * *';
-const VAL_CRON   = '0 5 1 * *';
-
 router.get('/ats/status', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const db = getDb();
@@ -1361,19 +1357,19 @@ router.post('/ats/settings', (req: Request, res: Response) => {
         ats_validation_enabled = ?, ats_validation_cron = ?
     WHERE profile_id = ?
   `).run(
-    discoveryEnabled  ? 1 : 0, DISC_CRON,
-    leverDiscEnabled  ? 1 : 0, LEVER_CRON,
-    validationEnabled ? 1 : 0, VAL_CRON,
+    discoveryEnabled  ? 1 : 0, ATS_DISCOVERY_CRON,
+    leverDiscEnabled  ? 1 : 0, ATS_LEVER_CRON,
+    validationEnabled ? 1 : 0, ATS_VALIDATION_CRON,
     req.profile.id,
   );
 
-  if (discoveryEnabled) startAtsDiscoveryCron(DISC_CRON, tz);
+  if (discoveryEnabled) startAtsDiscoveryCron(ATS_DISCOVERY_CRON, tz);
   else stopAtsDiscoveryCron();
 
-  if (leverDiscEnabled) startLeverDiscoveryCron(LEVER_CRON, tz);
+  if (leverDiscEnabled) startLeverDiscoveryCron(ATS_LEVER_CRON, tz);
   else stopLeverDiscoveryCron();
 
-  if (validationEnabled) startAtsValidationCron(VAL_CRON, tz);
+  if (validationEnabled) startAtsValidationCron(ATS_VALIDATION_CRON, tz);
   else stopAtsValidationCron();
 
   res.json({ success: true, timezone: tz });

@@ -13,7 +13,7 @@ import { analyticsRouter } from './routes/analytics';
 import { rundiffRouter } from './routes/rundiff';
 import { publicAnonymousRouter, publicAuthedRouter } from './routes/public';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
-import { startAtsDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron, startTelegramIngestCron } from './pipeline/atsScheduler';
+import { startAtsDiscoveryCron, startLeverDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron, startTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from './pipeline/atsScheduler';
 import { uiHelpers } from './uiHelpers';
 
 const app = express();
@@ -179,14 +179,13 @@ async function start(): Promise<void> {
   const adminProfile = db.prepare(`SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1`).get() as { id: number } | undefined;
   if (adminProfile) {
     const atsSettings = db.prepare(`
-      SELECT ats_discovery_enabled, ats_discovery_cron, ats_validation_enabled, ats_validation_cron,
+      SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled,
              ats_pool_gh_enabled, ats_pool_ashby_enabled, telegram_ingest_enabled, timezone
       FROM settings WHERE profile_id = ?
     `).get(adminProfile.id) as {
       ats_discovery_enabled: number;
-      ats_discovery_cron: string;
+      ats_lever_disc_enabled: number;
       ats_validation_enabled: number;
-      ats_validation_cron: string;
       ats_pool_gh_enabled: number;
       ats_pool_ashby_enabled: number;
       telegram_ingest_enabled: number;
@@ -194,10 +193,13 @@ async function start(): Promise<void> {
     } | undefined;
     const atsTz = atsSettings?.timezone || 'UTC';
     if (atsSettings?.ats_discovery_enabled) {
-      startAtsDiscoveryCron(atsSettings.ats_discovery_cron || '0 1 1 * *', atsTz);
+      startAtsDiscoveryCron(ATS_DISCOVERY_CRON, atsTz);
+    }
+    if (atsSettings?.ats_lever_disc_enabled) {
+      startLeverDiscoveryCron(ATS_LEVER_CRON, atsTz);
     }
     if (atsSettings?.ats_validation_enabled) {
-      startAtsValidationCron(atsSettings.ats_validation_cron || '0 5 1 * *', atsTz);
+      startAtsValidationCron(ATS_VALIDATION_CRON, atsTz);
     }
     if (atsSettings?.ats_pool_gh_enabled) {
       startGhPoolCron('0 5 * * *', atsTz);
