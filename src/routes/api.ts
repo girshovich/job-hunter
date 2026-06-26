@@ -19,7 +19,8 @@ import { activeRuns } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
 import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
-import { resolveCountries } from '../pipeline/locationNormalizer';
+import { resolveCountries, COUNTRY_NAMES } from '../pipeline/locationNormalizer';
+import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
 import { config } from '../config';
 import { checkOpenAiBalance } from '../utils/openaiBalance';
@@ -1442,6 +1443,105 @@ router.get('/telegram/settings', (req: Request, res: Response) => {
   const db = getDb();
   const row = db.prepare(`SELECT telegram_ingest_enabled, telegram_extract_prompt FROM settings WHERE profile_id = ?`).get(req.profile.id) as { telegram_ingest_enabled: number; telegram_extract_prompt: string } | undefined;
   res.json({ enabled: !!(row?.telegram_ingest_enabled), extract_prompt: row?.telegram_extract_prompt || '' });
+});
+
+// ── Region definitions (admin-only) ─────────────────────────────────────────
+
+async function reDeriveRegion(regionName: string): Promise<number> {
+  const db = getDb();
+  const affected = db.prepare<{ job_id: number }>(
+    `SELECT DISTINCT job_id FROM job_locations WHERE LOWER(label) = LOWER(?)`,
+  ).all(regionName);
+  if (affected.length === 0) return 0;
+
+  const BATCH = 100;
+  let changed = 0;
+  for (let i = 0; i < affected.length; i += BATCH) {
+    const batchIds = affected.slice(i, i + BATCH).map((r) => r.job_id);
+    await acquirePoolLock('region-re-derive');
+    try {
+      db.transaction(() => {
+        for (const jobId of batchIds) {
+          const labels = db.prepare<{ label: string }>(`SELECT label FROM job_locations WHERE job_id = ?`).all(jobId);
+          db.prepare(`DELETE FROM job_countries WHERE job_id = ?`).run(jobId);
+          for (const { label } of labels) {
+            const lower = label.toLowerCase();
+            if (COUNTRY_NAMES[lower]) {
+              db.prepare(`INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, ?)`).run(jobId, lower);
+            } else {
+              db.prepare(`
+                INSERT OR IGNORE INTO job_countries (job_id, country)
+                SELECT ?, rd.country FROM region_definitions rd
+                WHERE rd.name = ? COLLATE NOCASE AND rd.is_active = 1
+              `).run(jobId, label);
+            }
+          }
+          changed++;
+        }
+      });
+    } finally {
+      releasePoolLock();
+    }
+  }
+  return changed;
+}
+
+router.get('/regions', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const names = db.prepare<{ name: string }>(`SELECT DISTINCT name FROM region_definitions ORDER BY name ASC`).all();
+  const regions = names.map(({ name }) => {
+    const members = db.prepare<{ country: string; is_active: number }>(
+      `SELECT country, is_active FROM region_definitions WHERE name = ? ORDER BY country ASC`,
+    ).all(name);
+    const affectedCount = (db.prepare<{ c: number }>(
+      `SELECT COUNT(DISTINCT job_id) as c FROM job_locations WHERE LOWER(label) = LOWER(?)`,
+    ).get(name) as { c: number }).c;
+    return { name, members, affectedCount, is_active: members.some((m) => m.is_active) };
+  });
+  res.json({ regions });
+});
+
+router.post('/regions/:name/members', async (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const name = req.params.name;
+  const country = String((req.body as Record<string, unknown>).country || '').toLowerCase().trim();
+  if (!country) return res.status(400).json({ error: 'country required' });
+  const now = new Date().toISOString();
+  db.prepare(`INSERT OR IGNORE INTO region_definitions (name, country, is_active, updated_at) VALUES (?, ?, 1, ?)`).run(name, country, now);
+  const changed = await reDeriveRegion(name);
+  res.json({ success: true, changed });
+});
+
+router.delete('/regions/:name/members/:country', async (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const { name, country } = req.params;
+  db.prepare(`DELETE FROM region_definitions WHERE name = ? AND country = ?`).run(name, country.toLowerCase());
+  const changed = await reDeriveRegion(name);
+  res.json({ success: true, changed });
+});
+
+router.post('/regions/:name/toggle', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const name = req.params.name;
+  const now = new Date().toISOString();
+  const row = db.prepare<{ is_active: number }>(`SELECT MAX(is_active) as is_active FROM region_definitions WHERE name = ?`).get(name);
+  const newActive = (row?.is_active ?? 1) === 1 ? 0 : 1;
+  db.prepare(`UPDATE region_definitions SET is_active = ?, updated_at = ? WHERE name = ?`).run(newActive, now, name);
+  res.json({ success: true, is_active: newActive });
+});
+
+router.get('/regions/:name/affected-count', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const name = req.params.name;
+  const count = (db.prepare<{ c: number }>(
+    `SELECT COUNT(DISTINCT job_id) as c FROM job_locations WHERE LOWER(label) = LOWER(?)`,
+  ).get(name) as { c: number }).c;
+  res.json({ count });
 });
 
 export { router as apiRouter };
