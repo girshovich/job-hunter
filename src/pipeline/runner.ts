@@ -232,6 +232,11 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
+    const insertPosting = db.prepare(`
+      INSERT OR IGNORE INTO job_postings (job_id, job_source, posting_job_id, url, apply_url, location, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
     // Shared across all providers — keyed as "source::jobId" to avoid cross-source collisions
     const seenInRunJobIds = new Set<string>();
     let lastResult: PipelineResult | null = null;
@@ -612,6 +617,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
@@ -641,6 +647,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
             jobIdByKey.set(`${jobSource}::${job.jobId}`, jobId);
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
@@ -664,6 +671,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
