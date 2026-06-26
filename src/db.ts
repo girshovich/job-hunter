@@ -1369,6 +1369,57 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_ats_pool_last_fetch failed (non-fatal):', (err as Error).message);
   }
+
+  // v_mc_tables: multi-country support — job_postings, job_locations, job_countries, region_definitions
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_mc_tables'`).get();
+    if (!done) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS job_postings (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          job_source      TEXT    NOT NULL,
+          posting_job_id  TEXT    NOT NULL,
+          url             TEXT,
+          apply_url       TEXT,
+          location        TEXT,
+          created_at      TEXT    NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_job_postings_source_id ON job_postings(job_source, posting_job_id);
+        CREATE INDEX IF NOT EXISTS idx_job_postings_job_id    ON job_postings(job_id);
+        CREATE INDEX IF NOT EXISTS idx_job_postings_url       ON job_postings(url);
+        CREATE INDEX IF NOT EXISTS idx_job_postings_apply_url ON job_postings(apply_url);
+
+        CREATE TABLE IF NOT EXISTS job_locations (
+          job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          label   TEXT    NOT NULL,
+          PRIMARY KEY (job_id, label)
+        );
+        CREATE INDEX IF NOT EXISTS idx_job_locations_job_id ON job_locations(job_id);
+
+        CREATE TABLE IF NOT EXISTS job_countries (
+          job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          country TEXT    NOT NULL,
+          PRIMARY KEY (job_id, country)
+        );
+        CREATE INDEX IF NOT EXISTS idx_job_countries_country ON job_countries(country, job_id);
+
+        CREATE TABLE IF NOT EXISTS region_definitions (
+          name       TEXT    NOT NULL,
+          country    TEXT    NOT NULL,
+          is_active  INTEGER NOT NULL DEFAULT 1,
+          updated_at TEXT    NOT NULL,
+          PRIMARY KEY (name, country)
+        );
+        CREATE INDEX IF NOT EXISTS idx_region_definitions_name ON region_definitions(name);
+      `);
+      db.exec(`INSERT INTO _migrations VALUES ('v_mc_tables')`);
+      console.log('[db] Migration v_mc_tables: job_postings, job_locations, job_countries, region_definitions created');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_mc_tables failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -1607,6 +1658,44 @@ function initSchema(db: Database): void {
       logo_url   TEXT,
       fetched_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS job_postings (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      job_source      TEXT    NOT NULL,
+      posting_job_id  TEXT    NOT NULL,
+      url             TEXT,
+      apply_url       TEXT,
+      location        TEXT,
+      created_at      TEXT    NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_job_postings_source_id ON job_postings(job_source, posting_job_id);
+    CREATE INDEX IF NOT EXISTS idx_job_postings_job_id    ON job_postings(job_id);
+    CREATE INDEX IF NOT EXISTS idx_job_postings_url       ON job_postings(url);
+    CREATE INDEX IF NOT EXISTS idx_job_postings_apply_url ON job_postings(apply_url);
+
+    CREATE TABLE IF NOT EXISTS job_locations (
+      job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      label   TEXT    NOT NULL,
+      PRIMARY KEY (job_id, label)
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_locations_job_id ON job_locations(job_id);
+
+    CREATE TABLE IF NOT EXISTS job_countries (
+      job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      country TEXT    NOT NULL,
+      PRIMARY KEY (job_id, country)
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_countries_country ON job_countries(country, job_id);
+
+    CREATE TABLE IF NOT EXISTS region_definitions (
+      name       TEXT    NOT NULL,
+      country    TEXT    NOT NULL,
+      is_active  INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT    NOT NULL,
+      PRIMARY KEY (name, country)
+    );
+    CREATE INDEX IF NOT EXISTS idx_region_definitions_name ON region_definitions(name);
   `);
 }
 
