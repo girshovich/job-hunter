@@ -1437,6 +1437,123 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_mc_tables failed (non-fatal):', (err as Error).message);
   }
+
+  // mc_backfill_v1: populate job_postings/job_locations/job_countries from existing data
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'mc_backfill_v1'`).get();
+    if (!done) {
+      // Safety backup (idempotent — skipped if already exists)
+      const backupExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='jobs_backup_mc'`).get();
+      if (!backupExists) {
+        db.exec(`CREATE TABLE IF NOT EXISTS jobs_backup_mc AS SELECT * FROM jobs`);
+        db.prepare(`INSERT OR IGNORE INTO _migrations VALUES (?)`).run(`mc_backfill_backup_at=${new Date().toISOString()}`);
+        console.log('[db] mc_backfill_v1: jobs_backup_mc created');
+      }
+
+      const BATCH = 2000;
+
+      // Phase 1: job_postings for ALL jobs (including duplicates)
+      const selectPostingBatch = db.prepare<{
+        id: number; job_source: string; linkedin_job_id: string;
+        url: string | null; apply_url: string | null; location: string | null; fetched_at: string;
+      }>(`SELECT id, job_source, linkedin_job_id, url, apply_url, location, fetched_at
+          FROM jobs WHERE id > ? ORDER BY id ASC LIMIT ${BATCH}`);
+      const insertPosting = db.prepare<unknown>(
+        `INSERT OR IGNORE INTO job_postings (job_id, job_source, posting_job_id, url, apply_url, location, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      );
+      let lastId = 0;
+      let totalPostings = 0;
+      while (true) {
+        const rows = selectPostingBatch.all(lastId);
+        if (rows.length === 0) break;
+        db.transaction(() => {
+          for (const r of rows) insertPosting.run(r.id, r.job_source, r.linkedin_job_id, r.url, r.apply_url, r.location, r.fetched_at);
+        });
+        totalPostings += rows.length;
+        lastId = rows[rows.length - 1].id;
+        console.log(`[db] mc_backfill_v1: job_postings ${totalPostings} done, last_id=${lastId}`);
+        db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+        if (rows.length < BATCH) break;
+      }
+
+      // Phase 2: job_locations + job_countries for visible non-duplicate roles only
+      const selectLocBatch = db.prepare<{ id: number; country: string }>(
+        `SELECT j.id, j.country FROM jobs j
+         WHERE j.country IS NOT NULL AND j.country != ''
+           AND j.id > ?
+           AND EXISTS (SELECT 1 FROM job_profile_states jps WHERE jps.job_id = j.id AND jps.is_duplicate = 0)
+         ORDER BY j.id ASC LIMIT ${BATCH}`,
+      );
+      const insertLoc = db.prepare<unknown>(`INSERT OR IGNORE INTO job_locations (job_id, label) VALUES (?, ?)`);
+      const checkRegion = db.prepare<{ c: number }>(
+        `SELECT COUNT(*) as c FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
+      );
+      const insertCountryDirect = db.prepare<unknown>(
+        `INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, LOWER(?))`,
+      );
+      const insertCountryRegion = db.prepare<unknown>(
+        `INSERT OR IGNORE INTO job_countries (job_id, country)
+         SELECT ?, rd.country FROM region_definitions rd
+         WHERE rd.name = ? COLLATE NOCASE AND rd.is_active = 1`,
+      );
+
+      lastId = 0;
+      let totalLocs = 0;
+      while (true) {
+        const rows = selectLocBatch.all(lastId);
+        if (rows.length === 0) break;
+        db.transaction(() => {
+          for (const r of rows) {
+            insertLoc.run(r.id, r.country);
+            const regionRow = checkRegion.get(r.country);
+            if (regionRow && regionRow.c > 0) {
+              insertCountryRegion.run(r.id, r.country);
+            } else {
+              insertCountryDirect.run(r.id, r.country);
+            }
+          }
+        });
+        totalLocs += rows.length;
+        lastId = rows[rows.length - 1].id;
+        console.log(`[db] mc_backfill_v1: job_locations/countries ${totalLocs} done, last_id=${lastId}`);
+        db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+        if (rows.length < BATCH) break;
+      }
+
+      db.exec(`INSERT INTO _migrations VALUES ('mc_backfill_v1')`);
+      console.log(`[db] mc_backfill_v1: complete (${totalPostings} postings, ${totalLocs} location rows)`);
+    }
+  } catch (err) {
+    console.warn('[db] Migration mc_backfill_v1 failed (non-fatal):', (err as Error).message);
+  }
+
+  // mc_backfill_cleanup: drop backup + VACUUM after ~2 days (self-cleaning)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const cleanDone = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'mc_backfill_cleanup'`).get();
+    if (!cleanDone) {
+      const backupExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='jobs_backup_mc'`).get();
+      if (backupExists) {
+        const tsRow = db.prepare<{ name: string }>(`SELECT name FROM _migrations WHERE name LIKE 'mc_backfill_backup_at=%' LIMIT 1`).get();
+        if (tsRow) {
+          const ts = tsRow.name.replace('mc_backfill_backup_at=', '');
+          const ageMs = Date.now() - new Date(ts).getTime();
+          if (ageMs >= 2 * 24 * 60 * 60 * 1000) {
+            db.exec(`DROP TABLE IF EXISTS jobs_backup_mc`);
+            db.exec(`VACUUM`);
+            db.exec(`INSERT INTO _migrations VALUES ('mc_backfill_cleanup')`);
+            console.log('[db] mc_backfill_cleanup: backup dropped and VACUUM done');
+          }
+        }
+      } else {
+        db.exec(`INSERT OR IGNORE INTO _migrations VALUES ('mc_backfill_cleanup')`);
+      }
+    }
+  } catch (err) {
+    console.warn('[db] Migration mc_backfill_cleanup failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
