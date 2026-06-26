@@ -139,6 +139,25 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   return enqueue(() => runPipelineInner(trigger, profileId, options));
 }
 
+/**
+ * D14 label selector: picks the most relevant display label for a resolved job location.
+ * Uses current_location when it's a preferred search location AND matches the job's country.
+ */
+function selectDisplayLabel(
+  resolvedLabel: string | null,
+  currentLocation: string,
+  searchLocationsJson: string,
+): string | null {
+  if (!resolvedLabel) return null;
+  if (!currentLocation) return resolvedLabel;
+  let searchLocations: string[] = [];
+  try { searchLocations = JSON.parse(searchLocationsJson || '[]'); } catch { /* keep empty */ }
+  const curLower = currentLocation.toLowerCase().trim();
+  const isPreferred = searchLocations.some((sl) => sl.toLowerCase().trim() === curLower);
+  if (isPreferred && resolvedLabel.toLowerCase() === curLower) return currentLocation;
+  return resolvedLabel;
+}
+
 function buildLocationData(label: string | null): { labels: string[]; countries: string[] } {
   if (!label) return { labels: [], countries: [] };
   const lower = label.toLowerCase();
@@ -586,17 +605,27 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       const loggedAt = new Date().toISOString();
       db.transaction(() => {
         for (const job of blacklistedJobs) {
+          const logLoc = selectDisplayLabel(
+            countryMap.get(job.location ?? '') ?? job.location ?? null,
+            settings.current_location ?? '',
+            settings.search_locations ?? '',
+          );
           insertJobLog.run(
             runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
-            job.location || null, job.url || null,
+            logLoc, job.url || null,
             null, 'BLACKLISTED', null, null, loggedAt,
           );
         }
         for (const { scored, isDuplicate } of jobResults) {
           const logVerdict = isDuplicate ? 'DUPLICATE' : scored.verdict;
+          const logLoc = selectDisplayLabel(
+            countryMap.get(scored.job.location ?? '') ?? scored.job.location ?? null,
+            settings.current_location ?? '',
+            settings.search_locations ?? '',
+          );
           insertJobLog.run(
             runId, group.id, scored.job.jobId, scored.job.jobSource ?? 'LinkedIn', scored.job.title, scored.job.company,
-            scored.job.location || null, scored.job.url || null,
+            logLoc, scored.job.url || null,
             scored.score, logVerdict, scored.rationale || null,
             scored.rejectionCategory || null, loggedAt,
           );
