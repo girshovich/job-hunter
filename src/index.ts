@@ -14,12 +14,21 @@ import { rundiffRouter } from './routes/rundiff';
 import { publicAnonymousRouter, publicAuthedRouter } from './routes/public';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
 import { startAtsDiscoveryCron, startLeverDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron, startTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from './pipeline/atsScheduler';
+import compression from 'compression';
 import { uiHelpers } from './uiHelpers';
 
 const app = express();
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+app.use(compression({
+  filter: (req, res) => {
+    const type = String(res.getHeader('Content-Type') || '');
+    if (type.includes('text/event-stream')) return false;
+    return compression.filter(req, res);
+  },
+}));
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
