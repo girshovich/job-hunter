@@ -252,7 +252,7 @@ export async function runTelegramIngest(db: Database): Promise<TelegramIngestRes
     : undefined;
 
   const openAiKey = adminSettings?.openai_api_key?.trim() || '';
-  const model = adminSettings?.ai_model?.trim() || 'gpt-4o-mini';
+  const model = adminSettings?.ai_model?.trim() || '';
   const prompt = adminSettings?.telegram_extract_prompt?.trim() || '';
 
   const { jobsCreated, postsProcessed: extracted } = await runExtraction(db, model, openAiKey, prompt);
