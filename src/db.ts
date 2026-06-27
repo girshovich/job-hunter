@@ -938,6 +938,22 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_lever_discovery failed (non-fatal):', (err as Error).message);
   }
 
+  // v_run_once_settings: persist Run Once date range + providers separately from the schedule
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_run_once_settings'`).get();
+    if (!done) {
+      const cols = (db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[]).map((c) => c.name);
+      if (!cols.includes('run_date_range'))
+        db.exec(`ALTER TABLE settings ADD COLUMN run_date_range TEXT NOT NULL DEFAULT '24h'`);
+      if (!cols.includes('run_providers'))
+        db.exec(`ALTER TABLE settings ADD COLUMN run_providers TEXT NOT NULL DEFAULT '["harvestapi"]'`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_run_once_settings')`);
+      console.log('[db] Migration v_run_once_settings: Run Once settings columns added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_run_once_settings failed (non-fatal):', (err as Error).message);
+  }
+
   // vMT_repair: if job_profile_states is empty but jobs_backup_vMT has data, restore from backup
   try {
     const jpsCount = (db.prepare(`SELECT COUNT(*) AS c FROM job_profile_states`).get() as { c: number }).c;
@@ -2060,6 +2076,8 @@ export interface SettingsRow {
   schedule_group_ids: string;   // JSON number[] | '' for all active
   scraping_provider: string;    // 'harvestapi' | 'valig' (legacy single value)
   scraping_providers: string;  // JSON string[] e.g. '["harvestapi","valig"]'
+  run_date_range: string;       // '24h' | '7d' | 'month' — Run Once, separate from schedule
+  run_providers: string;        // JSON string[] — Run Once providers, separate from schedule
   cv_comparison_prompt: string;
   languages: string;            // comma-separated professional languages
   current_location: string;    // user's current country

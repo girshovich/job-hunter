@@ -142,11 +142,10 @@ router.post('/run', async (req: Request, res: Response) => {
     }
   }
 
-  // Persist provider selection as the new default for future runs
-  if (resolvedProviders) {
-    db.prepare('UPDATE settings SET scraping_providers = ? WHERE profile_id = ?')
-      .run(JSON.stringify(resolvedProviders), profileId);
-  }
+  // Persist Run Once date range + provider selection as defaults for next time
+  // (separate columns from the schedule, so the two don't overwrite each other).
+  db.prepare('UPDATE settings SET run_date_range = ?, run_providers = COALESCE(?, run_providers) WHERE profile_id = ?')
+    .run(dateRange, resolvedProviders ? JSON.stringify(resolvedProviders) : null, profileId);
 
   // Respond immediately, run in background
   res.json({ success: true, message: 'Pipeline started. Check dashboard for results.' });
@@ -463,7 +462,7 @@ router.get('/stats', (req: Request, res: Response) => {
 router.get('/schedule/status', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
-  const settings = db.prepare('SELECT email_send_time, timezone, schedule_date_range, schedule_group_ids, cron_schedule, scraping_providers FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'email_send_time' | 'timezone' | 'schedule_date_range' | 'schedule_group_ids' | 'cron_schedule' | 'scraping_providers'> | undefined;
+  const settings = db.prepare('SELECT email_send_time, timezone, schedule_date_range, schedule_group_ids, cron_schedule, scraping_providers, run_date_range, run_providers FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'email_send_time' | 'timezone' | 'schedule_date_range' | 'schedule_group_ids' | 'cron_schedule' | 'scraping_providers' | 'run_date_range' | 'run_providers'> | undefined;
   const savedGroupIds: number[] = settings?.schedule_group_ids ? JSON.parse(settings.schedule_group_ids) : [];
   const groups = db.prepare('SELECT id, group_name, is_active FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as Array<{ id: number; group_name: string; is_active: number }>;
   res.json({
@@ -474,6 +473,8 @@ router.get('/schedule/status', (req: Request, res: Response) => {
     schedule_date_range: settings?.schedule_date_range || '24h',
     schedule_group_ids: savedGroupIds,
     scraping_providers: JSON.parse(settings?.scraping_providers || '["harvestapi"]'),
+    run_date_range: settings?.run_date_range || '24h',
+    run_providers: JSON.parse(settings?.run_providers || '["harvestapi"]'),
     groups,
   });
 });
