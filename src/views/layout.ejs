@@ -1804,18 +1804,23 @@
       document.getElementById('run-modal-submit').disabled = false;
       document.getElementById('run-modal-groups').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
       document.getElementById('run-provider-options').innerHTML = '<span class="text-sm text-gray-400">Loading…</span>';
-      setRunDateRange('24h');
 
       const [schedRes, groupsRes] = await Promise.allSettled([
         fetch('/api/schedule/status'),
         fetch('/api/groups'),
       ]);
 
-      // Restore last-used provider selection; fall back to all checked
+      // Restore last-used Run Once date range + provider selection (saved by the last Run)
+      let runDateRange = '24h';
       let savedProviders = null;
       if (schedRes.status === 'fulfilled') {
-        try { savedProviders = (await schedRes.value.json()).scraping_providers; } catch (_) {}
+        try {
+          const sched = await schedRes.value.json();
+          runDateRange = sched.run_date_range || '24h';
+          savedProviders = sched.run_providers;
+        } catch (_) {}
       }
+      setRunDateRange(runDateRange);
       renderRunProviders(savedProviders || SCHED_PROVIDER_OPTIONS.map(p => p.value));
 
       if (groupsRes.status === 'fulfilled') {

@@ -98,7 +98,7 @@ function buildEmailHtml(
                 <a href="${escapeHtml(job.url || '#')}" style="color:#111827;text-decoration:none;">${escapeHtml(job.title)}</a>
               </h3>
               <p class="jh-meta" style="margin:4px 0 0;font-size:13px;color:#6B7280;line-height:1.4;">
-                <b style="color:#374151;font-weight:600;">${escapeHtml(job.company)}</b>${job.location ? ` · ${escapeHtml(job.location)}` : ''}${job.work_mode ? ` · <span style="text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
+                <b style="color:#374151;font-weight:600;">${escapeHtml(job.company)}</b>${(job.country || job.location) ? ` · ${escapeHtml(job.country || job.location)}` : ''}${job.work_mode ? ` · <span style="text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
               </p>
             </td>
             <td style="vertical-align:top;text-align:right;white-space:nowrap;width:1%;">

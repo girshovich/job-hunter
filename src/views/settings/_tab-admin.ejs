@@ -491,6 +491,27 @@
     </details>
   </div><!-- end telegram card -->
 
+  <!-- Region Definitions -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Region Definitions</h2>
+    <p class="text-xs text-gray-500 mb-4">Define which countries belong to each region label (e.g. DACH, EMEA). Changes re-derive affected roles' country sets.</p>
+    <div id="regions-list" class="space-y-4">
+      <span class="text-xs text-gray-400">Loading…</span>
+    </div>
+    <div class="mt-4 pt-4 border-t border-gray-100 flex items-end gap-3">
+      <div class="flex-1">
+        <label class="text-xs font-medium text-gray-600 block mb-1">Region name</label>
+        <input id="new-region-name" type="text" placeholder="e.g. EMEA" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div class="flex-1">
+        <label class="text-xs font-medium text-gray-600 block mb-1">First member country (lowercase)</label>
+        <input id="new-region-country" type="text" placeholder="e.g. germany" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <button onclick="addRegionMember(document.getElementById('new-region-name').value, document.getElementById('new-region-country').value)"
+              class="shrink-0 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">Add</button>
+    </div>
+  </div><!-- end regions card -->
+
 </div><!-- end tab-pane-admin -->
 
 <script>
@@ -1087,4 +1108,72 @@ async function setUserCredits(profileId, btn) {
   btn.disabled = false;
   btn.textContent = orig;
 }
+
+// ── Region definitions ────────────────────────────────────────────────────────
+async function loadRegions() {
+  const list = document.getElementById('regions-list');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/regions');
+    const data = await res.json();
+    if (!data.regions || data.regions.length === 0) {
+      list.innerHTML = '<span class="text-xs text-gray-400">No regions defined.</span>';
+      return;
+    }
+    list.innerHTML = data.regions.map(r => `
+      <div class="border border-gray-100 rounded-lg p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-sm font-semibold text-gray-800">${escHtml(r.name)}</span>
+          <span class="text-xs text-gray-400">${r.affectedCount} role(s) affected</span>
+          <button onclick="toggleRegion('${escHtml(r.name)}')" class="ml-auto text-xs px-2 py-0.5 rounded border ${r.is_active ? 'border-green-300 text-green-700' : 'border-gray-300 text-gray-500'}">${r.is_active ? 'Active' : 'Inactive'}</button>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-2" id="region-members-${escHtml(r.name)}">
+          ${(r.members || []).map(m => `
+            <span class="inline-flex items-center gap-1 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+              ${escHtml(m.country)}
+              <button onclick="removeRegionMember('${escHtml(r.name)}','${escHtml(m.country)}')" class="text-gray-400 hover:text-red-500">×</button>
+            </span>
+          `).join('')}
+        </div>
+        <div class="flex gap-2">
+          <input id="add-country-${escHtml(r.name)}" type="text" placeholder="add country (lowercase)" class="flex-1 text-xs rounded border border-gray-200 px-2 py-1 focus:ring-1 focus:ring-blue-400" />
+          <button onclick="addRegionMember('${escHtml(r.name)}', document.getElementById('add-country-${escHtml(r.name)}').value)"
+                  class="text-xs px-3 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">Add</button>
+        </div>
+      </div>
+    `).join('');
+  } catch { list.innerHTML = '<span class="text-xs text-red-400">Failed to load regions.</span>'; }
+}
+
+function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function addRegionMember(name, country) {
+  name = (name || '').trim(); country = (country || '').toLowerCase().trim();
+  if (!name || !country) { alert('Region name and country are required'); return; }
+  const res = await fetch(`/api/regions/${encodeURIComponent(name)}/members`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ country }),
+  });
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+  await loadRegions();
+}
+
+async function removeRegionMember(name, country) {
+  if (!confirm(`Remove ${country} from ${name}?`)) return;
+  const res = await fetch(`/api/regions/${encodeURIComponent(name)}/members/${encodeURIComponent(country)}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+  await loadRegions();
+}
+
+async function toggleRegion(name) {
+  const res = await fetch(`/api/regions/${encodeURIComponent(name)}/toggle`, { method: 'POST' });
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+  await loadRegions();
+}
+
+// Load on page ready (only when admin tab is active or becomes active)
+if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', loadRegions); }
+else { loadRegions(); }
 </script>

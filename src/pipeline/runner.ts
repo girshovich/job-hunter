@@ -13,7 +13,8 @@ import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { providerToSource } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
-import { resolveCountries } from './locationNormalizer';
+import { resolveLocationString, COUNTRY_NAMES, expandRegionToCountries } from './locationNormalizer';
+import { groupOrDrop } from './locationGrouping';
 import pLimit from 'p-limit';
 import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
 import { fetchClearbitLogosForAts } from './companyLogos';
@@ -138,6 +139,32 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   return enqueue(() => runPipelineInner(trigger, profileId, options));
 }
 
+/**
+ * D14 label selector: picks the most relevant display label for a resolved job location.
+ * Uses current_location when it's a preferred search location AND matches the job's country.
+ */
+function selectDisplayLabel(
+  resolvedLabel: string | null,
+  currentLocation: string,
+  searchLocationsJson: string,
+): string | null {
+  if (!resolvedLabel) return null;
+  if (!currentLocation) return resolvedLabel;
+  let searchLocations: string[] = [];
+  try { searchLocations = JSON.parse(searchLocationsJson || '[]'); } catch { /* keep empty */ }
+  const curLower = currentLocation.toLowerCase().trim();
+  const isPreferred = searchLocations.some((sl) => sl.toLowerCase().trim() === curLower);
+  if (isPreferred && resolvedLabel.toLowerCase() === curLower) return currentLocation;
+  return resolvedLabel;
+}
+
+function buildLocationData(label: string | null): { labels: string[]; countries: string[] } {
+  if (!label) return { labels: [], countries: [] };
+  const lower = label.toLowerCase();
+  const countries = COUNTRY_NAMES[lower] ? [lower] : expandRegionToCountries(label);
+  return { labels: [label], countries };
+}
+
 async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: number, options: RunOptions): Promise<PipelineResult> {
   const overallStart = Date.now();
   const overallRanAt = new Date().toISOString();
@@ -230,6 +257,11 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         run_id, group_id, linkedin_job_id, job_source, title, company, location, url,
         ai_score, ai_verdict, ai_rationale, rejection_category, logged_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertPosting = db.prepare(`
+      INSERT OR IGNORE INTO job_postings (job_id, job_source, posting_job_id, url, apply_url, location, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     // Shared across all providers — keyed as "source::jobId" to avoid cross-source collisions
@@ -569,34 +601,53 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         `[runner] Group ${group.id}: scored ${scoredJobs.length} — Strong=${jobsStrongMatch} Weak=${jobsWeakMatch} NoMatch=${jobsNoMatch} Dupes=${jobsDuplicate} (cumulative)`,
       );
 
-      // 5. Log all jobs from this group to run_job_logs
-      const loggedAt = new Date().toISOString();
-      db.transaction(() => {
-        for (const job of blacklistedJobs) {
-          insertJobLog.run(
-            runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
-            job.location || null, job.url || null,
-            null, 'BLACKLISTED', null, null, loggedAt,
-          );
-        }
-        for (const { scored, isDuplicate } of jobResults) {
-          const logVerdict = isDuplicate ? 'DUPLICATE' : scored.verdict;
-          insertJobLog.run(
-            runId, group.id, scored.job.jobId, scored.job.jobSource ?? 'LinkedIn', scored.job.title, scored.job.company,
-            scored.job.location || null, scored.job.url || null,
-            scored.score, logVerdict, scored.rationale || null,
-            scored.rejectionCategory || null, loggedAt,
-          );
-        }
-      });
-
-      // Resolve country for all jobs in this group (cache-first, Nominatim fallback)
+      // Resolve countries for all jobs in this group. Multi-location strings are split
+      // (';'/'|' + country-aware) and every element resolved cache-first (Nominatim
+      // fallback), so a surfaced multi-country job gets its full country set, not just
+      // the first segment. countryMap holds the primary (first) label per location.
       const allLocations = [
         ...blacklistedJobs.map(j => j.location).filter(Boolean) as string[],
         ...jobResults.map(r => r.scored.job.location).filter(Boolean) as string[],
         ...urlDuplicates.map(d => d.job.location).filter(Boolean) as string[],
       ];
-      const countryMap = await resolveCountries(allLocations);
+      const locDataMap = new Map<string, { labels: string[]; countries: string[] }>();
+      const countryMap = new Map<string, string | null>();
+      for (const loc of new Set(allLocations)) {
+        const data = await resolveLocationString(loc);
+        locDataMap.set(loc, data);
+        countryMap.set(loc, data.labels[0] ?? null);
+      }
+
+      // 5. Log all jobs from this group to run_job_logs
+      const loggedAt = new Date().toISOString();
+      db.transaction(() => {
+        for (const job of blacklistedJobs) {
+          const logLoc = selectDisplayLabel(
+            countryMap.get(job.location ?? '') ?? job.location ?? null,
+            settings.current_location ?? '',
+            settings.search_locations ?? '',
+          );
+          insertJobLog.run(
+            runId, group.id, job.jobId, job.jobSource ?? 'LinkedIn', job.title, job.company,
+            logLoc, job.url || null,
+            null, 'BLACKLISTED', null, null, loggedAt,
+          );
+        }
+        for (const { scored, isDuplicate } of jobResults) {
+          const logVerdict = isDuplicate ? 'DUPLICATE' : scored.verdict;
+          const logLoc = selectDisplayLabel(
+            countryMap.get(scored.job.location ?? '') ?? scored.job.location ?? null,
+            settings.current_location ?? '',
+            settings.search_locations ?? '',
+          );
+          insertJobLog.run(
+            runId, group.id, scored.job.jobId, scored.job.jobSource ?? 'LinkedIn', scored.job.title, scored.job.company,
+            logLoc, scored.job.url || null,
+            scored.score, logVerdict, scored.rationale || null,
+            scored.rejectionCategory || null, loggedAt,
+          );
+        }
+      });
 
       // Store blacklisted jobs in jobs table (INSERT OR IGNORE — first encounter wins)
       if (blacklistedJobs.length > 0) {
@@ -612,6 +663,8 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+            groupOrDrop(jobId, locDataMap.get(job.location ?? '') ?? buildLocationData(country));
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
@@ -641,6 +694,13 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+            const locationData = locDataMap.get(job.location ?? '') ?? buildLocationData(country);
+            if (isDuplicate && duplicateOfId) {
+              groupOrDrop(duplicateOfId, locationData);
+            } else {
+              groupOrDrop(jobId, locationData);
+            }
             jobIdByKey.set(`${jobSource}::${job.jobId}`, jobId);
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
@@ -664,6 +724,8 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               job.postedDate || null, now,
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
+            insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+            groupOrDrop(duplicateOfId, locDataMap.get(job.location ?? '') ?? buildLocationData(country));
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,

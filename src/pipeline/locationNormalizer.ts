@@ -94,8 +94,118 @@ export const HARDCODED: Record<string, string> = {
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT = 'JobHunterApp/1.0 (self-hosted job search tool)';
 
+/**
+ * Words that are not place names and mislead geocoding (work-mode, facility,
+ * scope, company/school leakage). Stripped whole-word, case-insensitive, from a
+ * query before it is sent to Nominatim. Hardcoded for now; an admin-editable
+ * list can replace this later.
+ */
+export const POISON_WORDS = new Set<string>([
+  'remote', 'hybrid', 'office', 'home', 'based', 'hq', 'academy', 'site',
+  'only', 'preparatory', 'multiple', 'locations', 'onsite', 'college',
+  'federal', 'time', 'campus', 'blvd', 'headquarters', 'virtual', 'location',
+  'офис',
+]);
+
+function stripPoisonWords(s: string): string {
+  const out = s.replace(/\p{L}+/gu, (w) => (POISON_WORDS.has(w.toLowerCase()) ? '' : w));
+  return out
+    .replace(/\s+/g, ' ')
+    .replace(/(?:\s*,\s*)+/g, ', ')
+    .replace(/^[\s,;/\-]+|[\s,;/\-]+$/g, '')
+    .trim();
+}
+
+/**
+ * Prepares a raw location string for geocoding. Shared by the per-run resolver
+ * (nominatimLookup) and the manual ATS pool sweep (resolvePoolCountries).
+ * Returns a country resolved directly from a parenthetical hint (e.g.
+ * "Remote (United States)") if present, plus a cleaned query with structural
+ * noise and poison words removed (may be empty → caller treats it as unknown).
+ */
+export function cleanLocationForGeocoding(raw: string): { parenCountry: string | null; query: string } {
+  // Country hint inside parentheses, e.g. "San Francisco or Remote (United States)"
+  const parenCountry = [...raw.matchAll(/\(([^)]+)\)/g)]
+    .map((m) => COUNTRY_NAMES[m[1].trim().toLowerCase()])
+    .find(Boolean) ?? null;
+
+  // Structural cleaning: drop [object Object] + parentheticals, take the first ';'/'|'
+  // segment, strip "or …" alternatives, cap at two comma parts. Work-mode words are
+  // removed by stripPoisonWords below (position-agnostic), so we no longer split on
+  // dashes/slashes — that dropped the place whenever the work-mode came first.
+  const cleaned  = raw.replace(/\[object Object\]/gi, '').replace(/\([^)]*\)/g, '').trim();
+  const firstSeg = cleaned.split(/[;|]/)[0].trim();
+  let base: string;
+  const anywhereMatch = firstSeg.match(/^anywhere\s+in\s+(.*)/i);
+  if (anywhereMatch) {
+    base = anywhereMatch[1].split(',')[0].trim();
+  } else {
+    const candidate = firstSeg.replace(/\s+or\s+.*/i, '').replace(/,\s*$/, '');
+    const parts = candidate.split(',').map((s) => s.trim()).filter(Boolean);
+    base = parts.length > 2 ? parts.slice(0, 2).join(', ') : candidate;
+  }
+
+  return { parenCountry, query: stripPoisonWords(base) };
+}
+
+// Short geo aliases absent from COUNTRY_NAMES (which holds full ISO names) plus
+// macro-regions — used only by the country-aware and/or splitter below.
+const GEO_ALIASES: Record<string, string> = {
+  'us': 'United States', 'usa': 'United States', 'u.s.': 'United States', 'u.s.a.': 'United States',
+  'uk': 'United Kingdom', 'u.k.': 'United Kingdom', 'britain': 'United Kingdom', 'england': 'United Kingdom',
+  'uae': 'United Arab Emirates',
+  'eu': 'EU', 'eea': 'EEA', 'emea': 'EMEA', 'apac': 'APAC', 'latam': 'LATAM', 'anz': 'ANZ',
+  'europe': 'Europe', 'africa': 'Africa', 'asia': 'Asia', 'americas': 'Americas', 'oceania': 'Oceania',
+  'north america': 'North America', 'south america': 'South America', 'middle east': 'Middle East',
+  'nordics': 'Nordics', 'benelux': 'Benelux', 'dach': 'DACH',
+};
+
+// Multi-word geo phrases (longest first) for spotting a country embedded in a
+// part like "Remote United States".
+const MULTIWORD_GEO: Array<[string, string]> = [...Object.entries(COUNTRY_NAMES), ...Object.entries(GEO_ALIASES)]
+  .filter(([k]) => k.includes(' '))
+  .sort((a, b) => b[0].length - a[0].length);
+
+function resolveGeoPart(part: string): string | null {
+  const s = part.toLowerCase().replace(/[.!?]+$/g, '').replace(/\s+/g, ' ').trim();
+  if (!s) return null;
+  if (COUNTRY_NAMES[s]) return COUNTRY_NAMES[s];
+  if (GEO_ALIASES[s]) return GEO_ALIASES[s];
+  for (const [phrase, label] of MULTIWORD_GEO) {
+    if (s.includes(phrase)) return label;
+  }
+  for (const tok of s.split(/[\s,\-]+/)) {
+    if (COUNTRY_NAMES[tok]) return COUNTRY_NAMES[tok];
+    if (GEO_ALIASES[tok]) return GEO_ALIASES[tok];
+  }
+  return null;
+}
+
+/**
+ * Country-aware "and"/"or" split. Splits one location element on and/or (and
+ * Oxford commas) ONLY when ≥2 parts resolve to DISTINCT known countries/regions,
+ * so real names ("Bosnia and Herzegovina") and single locations ("Berlin,
+ * Germany") stay intact. Returns the resolved labels, or null when it is not a
+ * confident multi-country string.
+ */
+export function splitCountryAware(text: string): string[] | null {
+  if (!/\b(?:and|or)\b|,/i.test(text)) return null;
+  const parts = text.split(/\s*,\s*|\s+and\s+|\s+or\s+/i).map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  const labels: string[] = [];
+  for (const p of parts) {
+    const g = resolveGeoPart(p);
+    if (g && !labels.includes(g)) labels.push(g);
+  }
+  return labels.length >= 2 ? labels : null;
+}
+
 async function nominatimLookup(location: string): Promise<string | null> {
-  const url = `${NOMINATIM_URL}?q=${encodeURIComponent(location)}&format=json&addressdetails=1&limit=1`;
+  const { parenCountry, query } = cleanLocationForGeocoding(location);
+  const direct = parenCountry ?? COUNTRY_NAMES[query.toLowerCase().trim()];
+  if (direct) return direct;
+  if (!query) return null;
+  const url = `${NOMINATIM_URL}?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1`;
   const resp = await fetch(url, {
     headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
     signal: AbortSignal.timeout(8_000),
@@ -107,6 +217,29 @@ async function nominatimLookup(location: string): Promise<string | null> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Returns lowercased member countries for a region (from region_definitions).
+ * Returns [] if the region has no members or is not found.
+ */
+export function expandRegionToCountries(label: string): string[] {
+  const db = getDb();
+  const rows = db.prepare<{ country: string }>(
+    `SELECT country FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
+  ).all(label);
+  return rows.map((r) => r.country);
+}
+
+/**
+ * Returns true if label is a known region (has at least one row in region_definitions).
+ */
+export function isRegionLabel(label: string): boolean {
+  const db = getDb();
+  const row = db.prepare(
+    `SELECT 1 FROM region_definitions WHERE name = ? COLLATE NOCASE LIMIT 1`,
+  ).get(label);
+  return row !== undefined;
 }
 
 /**
@@ -138,14 +271,68 @@ export function resolveCountriesFromCache(
   }
 
   const countries = new Set<string>();
-  for (const country of resolved.values()) {
-    if (country) countries.add(country.toLowerCase());
+  for (const label of resolved.values()) {
+    if (!label) continue;
+    const lower = label.toLowerCase();
+    if (COUNTRY_NAMES[lower]) {
+      countries.add(lower);
+    } else {
+      // Not a recognized country — treat as region label; expand to member countries (may be [])
+      for (const c of expandRegionToCountries(label)) {
+        countries.add(c);
+      }
+    }
   }
 
   return {
     countries,
     hasUnresolved: unique.some((loc) => !resolved.has(loc)),
   };
+}
+
+/**
+ * Resolves a list of raw location strings to a de-duped label set and expanded country set.
+ * Labels are display strings (e.g. "Germany", "DACH"); countries are lowercased members.
+ * Regions expand to their member countries ([] if unpopulated).
+ */
+// Expands display labels (country names or region names) to a lowercased country set.
+function labelsToCountrySet(labels: Iterable<string>): Set<string> {
+  const countries = new Set<string>();
+  for (const label of labels) {
+    const lower = label.toLowerCase();
+    if (COUNTRY_NAMES[lower]) countries.add(lower);
+    else for (const c of expandRegionToCountries(label)) countries.add(c);
+  }
+  return countries;
+}
+
+export async function resolveLocationSet(
+  locations: string[],
+): Promise<{ labels: string[]; countries: string[] }> {
+  const resolved = await resolveCountries(locations);
+  const labels = new Set<string>();
+  for (const label of resolved.values()) if (label) labels.add(label);
+  return { labels: [...labels], countries: [...labelsToCountrySet(labels)] };
+}
+
+/**
+ * Resolves a single raw location string that may pack several locations (joined
+ * by ';'/'|' or natural and/or) into its full label + expanded country set.
+ * Structured delimiters are split, country-aware and/or strings expanded, and the
+ * remaining elements geocoded cache-first (Nominatim fallback). Used by the runner
+ * so surfaced multi-location jobs resolve every country live, not just the first.
+ */
+export async function resolveLocationString(raw: string): Promise<{ labels: string[]; countries: string[] }> {
+  const toResolve: string[] = [];
+  const labels = new Set<string>();
+  for (const el of raw.split(/\s*[;|]\s*/).map((s) => s.trim()).filter(Boolean)) {
+    const ca = splitCountryAware(el);
+    if (ca) for (const l of ca) labels.add(l);
+    else toResolve.push(el);
+  }
+  const resolved = await resolveCountries(toResolve);
+  for (const v of resolved.values()) if (v) labels.add(v);
+  return { labels: [...labels], countries: [...labelsToCountrySet(labels)] };
 }
 
 /**

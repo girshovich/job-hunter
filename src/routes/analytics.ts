@@ -7,49 +7,6 @@ import { getDb, type SearchGroupRow } from '../db';
 
 const router = Router();
 
-// Same country-extraction logic as jobs.ts
-const AGGREGATES = new Set([
-  'emea', 'european union', 'european economic area', 'eea',
-  'eu', 'worldwide', 'global', 'international', 'apac', 'latam',
-  'mena', 'dach', 'benelux', 'cee', 'anz',
-]);
-const REGION_TO_COUNTRY: Record<string, string> = {
-  'greater london metropolitan area': 'United Kingdom',
-  'greater london': 'United Kingdom',
-  'greater manchester': 'United Kingdom',
-  'greater barcelona metropolitan area': 'Spain',
-  'greater madrid metropolitan area': 'Spain',
-  'basque country': 'Spain',
-  'catalonia': 'Spain',
-  'community of madrid': 'Spain',
-  'ile-de-france': 'France',
-  'grand paris': 'France',
-  'greater paris metropolitan area': 'France',
-  'north holland': 'Netherlands',
-  'greater amsterdam metropolitan area': 'Netherlands',
-  'greater berlin metropolitan area': 'Germany',
-  'bavaria': 'Germany',
-  'flanders': 'Belgium',
-  'wallonia': 'Belgium',
-  'lombardy': 'Italy',
-  'greater milan metropolitan area': 'Italy',
-  'greater warsaw metropolitan area': 'Poland',
-  'masovian voivodeship': 'Poland',
-};
-
-function extractCountry(location: string | null): string {
-  if (!location) return 'Unknown';
-  const trimmed = location.trim();
-  if (!trimmed || trimmed.toLowerCase() === 'remote') return 'Remote';
-  if (AGGREGATES.has(trimmed.toLowerCase())) return trimmed;
-  const parts = trimmed.split(',').map((s) => s.trim()).filter(Boolean);
-  const last = parts[parts.length - 1];
-  if (!last) return trimmed;
-  if (AGGREGATES.has(last.toLowerCase())) return last;
-  if (parts.length === 1) return REGION_TO_COUNTRY[last.toLowerCase()] ?? last;
-  return last;
-}
-
 router.get('/', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
@@ -102,17 +59,17 @@ router.get('/', (req: Request, res: Response) => {
     return { id: g.id, name: g.group_name || `Role ${g.id}`, ...s };
   });
 
-  // Per-country stats (strong matches only, non-duplicate)
-  interface JobLocationRow { location: string | null; applied: number }
+  // Per-country stats (strong matches only, non-duplicate) — single primary jobs.country (multi-country.md §15)
+  interface JobLocationRow { country: string | null; applied: number }
   const allStrongJobs = db.prepare<JobLocationRow>(`
-    SELECT j.location, jps.applied FROM jobs j
+    SELECT j.country, jps.applied FROM jobs j
     JOIN job_profile_states jps ON jps.job_id = j.id
     WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
   `).all(profileId) as JobLocationRow[];
 
   const countryMap = new Map<string, { strong: number; applied: number }>();
   for (const job of allStrongJobs) {
-    const country = extractCountry(job.location);
+    const country = job.country && job.country.trim() ? job.country.trim() : 'Unknown';
     if (!countryMap.has(country)) countryMap.set(country, { strong: 0, applied: 0 });
     const entry = countryMap.get(country)!;
     entry.strong++;

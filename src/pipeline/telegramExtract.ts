@@ -9,11 +9,13 @@ import OpenAI from 'openai';
 import pLimit from 'p-limit';
 import type { Database } from '../db';
 import { populateCountriesFromCache } from './atsPoolFetcher';
+import { resolveLocationSet } from './locationNormalizer';
+import { groupOrDrop } from './locationGrouping';
 
 export interface ExtractedJob {
   title: string;
   company: string | null;
-  location: string | null;
+  locations: string[];
   applyUrl: string | null;
 }
 
@@ -22,7 +24,7 @@ const DEFAULT_EXTRACT_PROMPT = `Extract job openings from this Telegram post. Re
 One object per role. Fields:
 - title: job title. Skip the role if absent.
 - company: real employer named in the text (not the channel). Keep it exactly as written in the post — do not translate or transliterate it. null if missing.
-- location: in English — translate it if written in another language (e.g. "Berlin", "Remote"). null if not mentioned.
+- locations: array of location strings in English (translate if written in another language). One element per distinct location mentioned (e.g. ["Berlin", "Remote EU"]). Empty array if not mentioned. Never split a single location into multiple elements.
 - applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
 
 The full post text is stored as the job description — do not repeat or summarise it.`;
@@ -82,12 +84,12 @@ export async function extractJobsFromPost(
                 type: 'object',
                 additionalProperties: false,
                 properties: {
-                  title:    { type: 'string' },
-                  company:  { type: ['string', 'null'] },
-                  location: { type: ['string', 'null'] },
-                  applyUrl: { type: ['string', 'null'] },
+                  title:     { type: 'string' },
+                  company:   { type: ['string', 'null'] },
+                  locations: { type: 'array', items: { type: 'string' } },
+                  applyUrl:  { type: ['string', 'null'] },
                 },
-                required: ['title', 'company', 'location', 'applyUrl'],
+                required: ['title', 'company', 'locations', 'applyUrl'],
               },
             },
           },
@@ -100,7 +102,10 @@ export async function extractJobsFromPost(
   const text = response.output_text;
   if (!text) return [];
   const parsed = JSON.parse(text) as { jobs: ExtractedJob[] };
-  return (parsed.jobs ?? []).filter((j) => j.title?.trim());
+  return (parsed.jobs ?? []).filter((j) => j.title?.trim()).map((j) => ({
+    ...j,
+    locations: Array.isArray(j.locations) ? j.locations.filter(Boolean) : [],
+  }));
 }
 
 interface PostRow {
@@ -152,6 +157,9 @@ export async function runExtraction(
       posted_date  = excluded.posted_date,
       fetched_at   = excluded.fetched_at
   `);
+  const selectJobId = db.prepare<{ id: number }>(
+    `SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = 'Telegram'`,
+  );
 
   const markExtracted = db.prepare(`
     UPDATE telegram_posts SET extracted_hash = ? WHERE id = ?
@@ -178,23 +186,35 @@ export async function runExtraction(
       return;
     }
 
+    // Resolve location sets before entering the sync transaction
+    const locationSets = await Promise.all(
+      jobs.map((j) => j.locations.length > 0 ? resolveLocationSet(j.locations) : Promise.resolve({ labels: [], countries: [] })),
+    );
+
     const channelUsername = post.channel_username;
     const postId = post.post_id;
 
     db.transaction(() => {
-      for (const job of jobs) {
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        const locationSet = locationSets[i];
+        const locationStr = job.locations.length > 0 ? job.locations.join('; ') : null;
         const roleHash = computeRoleHash(job.title, job.company, job.applyUrl);
         const jobId = `${channelUsername}_${postId}_${roleHash}`;
         upsertJob.run(
           jobId,
           job.title,
           job.company ?? channelUsername,
-          job.location ?? null,
+          locationStr,
           postText,
           post.post_url,
           job.applyUrl ?? null,
           post.published_at ?? null,
         );
+        const row = selectJobId.get(jobId);
+        if (row && locationSet.labels.length > 0) {
+          groupOrDrop(row.id, locationSet);
+        }
         jobsCreated++;
       }
       markExtracted.run(post.post_hash, post.id);

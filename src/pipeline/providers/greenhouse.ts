@@ -108,8 +108,9 @@ export async function fetchWithGreenhouse(
   const keywordClauses = filters.keywords.map(() => `LOWER(j.title) LIKE ?`).join(' OR ');
   const keywordParams  = filters.keywords.map((k) => `%${k.toLowerCase()}%`);
 
-  // Primary: match jobs.country (populated by resolve-countries / post-fetch sweep).
-  // Fallback: LIKE on raw location string for jobs whose country is still NULL.
+  // Primary: match via job_countries (expanded region members included).
+  // Fallback: LIKE on raw location text for any target country — also covers
+  // partially-resolved jobs whose searched country isn't in job_countries yet.
   let locationClause = '';
   let locationParams: string[] = [];
   if (targetCountries.size > 0) {
@@ -117,8 +118,8 @@ export async function fetchWithGreenhouse(
     const inPlaceholders = countryList.map(() => '?').join(', ');
     const likeClauses    = countryList.map(() => `LOWER(COALESCE(j.location, '')) LIKE ?`).join(' OR ');
     locationClause = `AND (
-      LOWER(j.country) IN (${inPlaceholders})
-      OR (j.country IS NULL AND (${likeClauses}))
+      EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id AND jc.country IN (${inPlaceholders}))
+      OR (${likeClauses})
     )`;
     locationParams = [
       ...countryList,

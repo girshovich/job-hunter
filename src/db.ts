@@ -938,6 +938,22 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_lever_discovery failed (non-fatal):', (err as Error).message);
   }
 
+  // v_run_once_settings: persist Run Once date range + providers separately from the schedule
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_run_once_settings'`).get();
+    if (!done) {
+      const cols = (db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[]).map((c) => c.name);
+      if (!cols.includes('run_date_range'))
+        db.exec(`ALTER TABLE settings ADD COLUMN run_date_range TEXT NOT NULL DEFAULT '24h'`);
+      if (!cols.includes('run_providers'))
+        db.exec(`ALTER TABLE settings ADD COLUMN run_providers TEXT NOT NULL DEFAULT '["harvestapi"]'`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_run_once_settings')`);
+      console.log('[db] Migration v_run_once_settings: Run Once settings columns added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_run_once_settings failed (non-fatal):', (err as Error).message);
+  }
+
   // vMT_repair: if job_profile_states is empty but jobs_backup_vMT has data, restore from backup
   try {
     const jpsCount = (db.prepare(`SELECT COUNT(*) AS c FROM job_profile_states`).get() as { c: number }).c;
@@ -1369,6 +1385,196 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_ats_pool_last_fetch failed (non-fatal):', (err as Error).message);
   }
+
+  // v_mc_regions_seed: seed DACH region members (EMEA/EU/EEA start empty — admin populates via UI)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_mc_regions_seed'`).get();
+    if (!done) {
+      const now = new Date().toISOString();
+      const insertRegion = db.prepare<unknown>(`INSERT OR IGNORE INTO region_definitions (name, country, is_active, updated_at) VALUES (?, ?, 1, ?)`);
+      insertRegion.run('DACH', 'germany', now);
+      insertRegion.run('DACH', 'austria', now);
+      insertRegion.run('DACH', 'switzerland', now);
+      db.exec(`INSERT INTO _migrations VALUES ('v_mc_regions_seed')`);
+      console.log('[db] Migration v_mc_regions_seed: DACH members seeded');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_mc_regions_seed failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_mc_tables: multi-country support — job_postings, job_locations, job_countries, region_definitions
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_mc_tables'`).get();
+    if (!done) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS job_postings (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          job_source      TEXT    NOT NULL,
+          posting_job_id  TEXT    NOT NULL,
+          url             TEXT,
+          apply_url       TEXT,
+          location        TEXT,
+          created_at      TEXT    NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_job_postings_source_id ON job_postings(job_source, posting_job_id);
+        CREATE INDEX IF NOT EXISTS idx_job_postings_job_id    ON job_postings(job_id);
+        CREATE INDEX IF NOT EXISTS idx_job_postings_url       ON job_postings(url);
+        CREATE INDEX IF NOT EXISTS idx_job_postings_apply_url ON job_postings(apply_url);
+
+        CREATE TABLE IF NOT EXISTS job_locations (
+          job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          label   TEXT    NOT NULL,
+          PRIMARY KEY (job_id, label)
+        );
+        CREATE INDEX IF NOT EXISTS idx_job_locations_job_id ON job_locations(job_id);
+
+        CREATE TABLE IF NOT EXISTS job_countries (
+          job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          country TEXT    NOT NULL,
+          PRIMARY KEY (job_id, country)
+        );
+        CREATE INDEX IF NOT EXISTS idx_job_countries_country ON job_countries(country, job_id);
+
+        CREATE TABLE IF NOT EXISTS region_definitions (
+          name       TEXT    NOT NULL,
+          country    TEXT    NOT NULL,
+          is_active  INTEGER NOT NULL DEFAULT 1,
+          updated_at TEXT    NOT NULL,
+          PRIMARY KEY (name, country)
+        );
+        CREATE INDEX IF NOT EXISTS idx_region_definitions_name ON region_definitions(name);
+      `);
+      db.exec(`INSERT INTO _migrations VALUES ('v_mc_tables')`);
+      console.log('[db] Migration v_mc_tables: job_postings, job_locations, job_countries, region_definitions created');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_mc_tables failed (non-fatal):', (err as Error).message);
+  }
+
+  // mc_backfill_v1: populate job_postings/job_locations/job_countries from existing data
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'mc_backfill_v1'`).get();
+    if (!done) {
+      // Safety backup (idempotent — skipped if already exists)
+      const backupExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='jobs_backup_mc'`).get();
+      if (!backupExists) {
+        db.exec(`CREATE TABLE IF NOT EXISTS jobs_backup_mc AS SELECT * FROM jobs`);
+        db.prepare(`INSERT OR IGNORE INTO _migrations VALUES (?)`).run(`mc_backfill_backup_at=${new Date().toISOString()}`);
+        console.log('[db] mc_backfill_v1: jobs_backup_mc created');
+      }
+
+      const BATCH = 2000;
+
+      // Phase 1: job_postings for processed jobs only (scored roles + their duplicates,
+      // i.e. rows present in job_profile_states). Unscored pool candidates are skipped —
+      // a posting means "processed by the runner", and giving the pool one would make
+      // filterNewJobs treat it as already-seen and never score it.
+      const selectPostingBatch = db.prepare<{
+        id: number; job_source: string; linkedin_job_id: string;
+        url: string | null; apply_url: string | null; location: string | null; fetched_at: string;
+      }>(`SELECT id, job_source, linkedin_job_id, url, apply_url, location, fetched_at
+          FROM jobs j WHERE j.id > ?
+            AND EXISTS (SELECT 1 FROM job_profile_states jps WHERE jps.job_id = j.id)
+          ORDER BY j.id ASC LIMIT ${BATCH}`);
+      const insertPosting = db.prepare<unknown>(
+        `INSERT OR IGNORE INTO job_postings (job_id, job_source, posting_job_id, url, apply_url, location, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      );
+      let lastId = 0;
+      let totalPostings = 0;
+      while (true) {
+        const rows = selectPostingBatch.all(lastId);
+        if (rows.length === 0) break;
+        db.transaction(() => {
+          for (const r of rows) insertPosting.run(r.id, r.job_source, r.linkedin_job_id, r.url, r.apply_url, r.location, r.fetched_at);
+        });
+        totalPostings += rows.length;
+        lastId = rows[rows.length - 1].id;
+        console.log(`[db] mc_backfill_v1: job_postings ${totalPostings} done, last_id=${lastId}`);
+        db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+        if (rows.length < BATCH) break;
+      }
+
+      // Phase 2: job_locations + job_countries for visible non-duplicate roles only
+      const selectLocBatch = db.prepare<{ id: number; country: string }>(
+        `SELECT j.id, j.country FROM jobs j
+         WHERE j.country IS NOT NULL AND j.country != ''
+           AND j.id > ?
+           AND EXISTS (SELECT 1 FROM job_profile_states jps WHERE jps.job_id = j.id AND jps.is_duplicate = 0)
+         ORDER BY j.id ASC LIMIT ${BATCH}`,
+      );
+      const insertLoc = db.prepare<unknown>(`INSERT OR IGNORE INTO job_locations (job_id, label) VALUES (?, ?)`);
+      const checkRegion = db.prepare<{ c: number }>(
+        `SELECT COUNT(*) as c FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
+      );
+      const insertCountryDirect = db.prepare<unknown>(
+        `INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, LOWER(?))`,
+      );
+      const insertCountryRegion = db.prepare<unknown>(
+        `INSERT OR IGNORE INTO job_countries (job_id, country)
+         SELECT ?, rd.country FROM region_definitions rd
+         WHERE rd.name = ? COLLATE NOCASE AND rd.is_active = 1`,
+      );
+
+      lastId = 0;
+      let totalLocs = 0;
+      while (true) {
+        const rows = selectLocBatch.all(lastId);
+        if (rows.length === 0) break;
+        db.transaction(() => {
+          for (const r of rows) {
+            insertLoc.run(r.id, r.country);
+            const regionRow = checkRegion.get(r.country);
+            if (regionRow && regionRow.c > 0) {
+              insertCountryRegion.run(r.id, r.country);
+            } else {
+              insertCountryDirect.run(r.id, r.country);
+            }
+          }
+        });
+        totalLocs += rows.length;
+        lastId = rows[rows.length - 1].id;
+        console.log(`[db] mc_backfill_v1: job_locations/countries ${totalLocs} done, last_id=${lastId}`);
+        db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+        if (rows.length < BATCH) break;
+      }
+
+      db.exec(`INSERT INTO _migrations VALUES ('mc_backfill_v1')`);
+      console.log(`[db] mc_backfill_v1: complete (${totalPostings} postings, ${totalLocs} location rows)`);
+    }
+  } catch (err) {
+    console.warn('[db] Migration mc_backfill_v1 failed (non-fatal):', (err as Error).message);
+  }
+
+  // mc_backfill_cleanup: drop backup + VACUUM after ~2 days (self-cleaning)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const cleanDone = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'mc_backfill_cleanup'`).get();
+    if (!cleanDone) {
+      const backupExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='jobs_backup_mc'`).get();
+      if (backupExists) {
+        const tsRow = db.prepare<{ name: string }>(`SELECT name FROM _migrations WHERE name LIKE 'mc_backfill_backup_at=%' LIMIT 1`).get();
+        if (tsRow) {
+          const ts = tsRow.name.replace('mc_backfill_backup_at=', '');
+          const ageMs = Date.now() - new Date(ts).getTime();
+          if (ageMs >= 2 * 24 * 60 * 60 * 1000) {
+            db.exec(`DROP TABLE IF EXISTS jobs_backup_mc`);
+            db.exec(`VACUUM`);
+            db.exec(`INSERT INTO _migrations VALUES ('mc_backfill_cleanup')`);
+            console.log('[db] mc_backfill_cleanup: backup dropped and VACUUM done');
+          }
+        }
+      } else {
+        db.exec(`INSERT OR IGNORE INTO _migrations VALUES ('mc_backfill_cleanup')`);
+      }
+    }
+  } catch (err) {
+    console.warn('[db] Migration mc_backfill_cleanup failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -1607,6 +1813,44 @@ function initSchema(db: Database): void {
       logo_url   TEXT,
       fetched_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS job_postings (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      job_source      TEXT    NOT NULL,
+      posting_job_id  TEXT    NOT NULL,
+      url             TEXT,
+      apply_url       TEXT,
+      location        TEXT,
+      created_at      TEXT    NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_job_postings_source_id ON job_postings(job_source, posting_job_id);
+    CREATE INDEX IF NOT EXISTS idx_job_postings_job_id    ON job_postings(job_id);
+    CREATE INDEX IF NOT EXISTS idx_job_postings_url       ON job_postings(url);
+    CREATE INDEX IF NOT EXISTS idx_job_postings_apply_url ON job_postings(apply_url);
+
+    CREATE TABLE IF NOT EXISTS job_locations (
+      job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      label   TEXT    NOT NULL,
+      PRIMARY KEY (job_id, label)
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_locations_job_id ON job_locations(job_id);
+
+    CREATE TABLE IF NOT EXISTS job_countries (
+      job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      country TEXT    NOT NULL,
+      PRIMARY KEY (job_id, country)
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_countries_country ON job_countries(country, job_id);
+
+    CREATE TABLE IF NOT EXISTS region_definitions (
+      name       TEXT    NOT NULL,
+      country    TEXT    NOT NULL,
+      is_active  INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT    NOT NULL,
+      PRIMARY KEY (name, country)
+    );
+    CREATE INDEX IF NOT EXISTS idx_region_definitions_name ON region_definitions(name);
   `);
 }
 
@@ -1832,6 +2076,8 @@ export interface SettingsRow {
   schedule_group_ids: string;   // JSON number[] | '' for all active
   scraping_provider: string;    // 'harvestapi' | 'valig' (legacy single value)
   scraping_providers: string;  // JSON string[] e.g. '["harvestapi","valig"]'
+  run_date_range: string;       // '24h' | '7d' | 'month' — Run Once, separate from schedule
+  run_providers: string;        // JSON string[] — Run Once providers, separate from schedule
   cv_comparison_prompt: string;
   languages: string;            // comma-separated professional languages
   current_location: string;    // user's current country
