@@ -100,7 +100,7 @@ function renderTable(groups, idPrefix, hideCol) {
       html += `<td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score)}</td>`;
       html += `<td class="${getJobTableCellClass('verdict')}"><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${jobVerdict}" data-chip-style="compact">${verdictChip(jobVerdict)}</button></td>`;
       html += `<td class="${getJobTableCellClass('applied')}">
-        ${renderAppliedSelector(job.applied, { onclick: `quickToggleApplied(event,${job.id},this)`, 'data-applied': job.applied ? '1' : '0' })}
+        ${renderAppliedSelector(job.applied, { 'data-job-id': job.id })}
       </td>`;
       html += `<td class="${getJobTableCellClass('source')}">${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</td>`;
       html += '</tr>';
@@ -136,7 +136,7 @@ function renderCards(groups, idPrefix) {
         html += `<div class="job-summary-text text-xs text-gray-500 leading-relaxed mt-3">${summary}</div>`;
       }
       html += `<div class="mt-3 flex items-end justify-between gap-3">`;
-      html += `<div class="flex-shrink-0">${renderAppliedSelector(job.applied, { onclick: `quickToggleApplied(event,${job.id},this)`, 'data-applied': job.applied ? '1' : '0' })}</div>`;
+      html += `<div class="flex-shrink-0">${renderAppliedSelector(job.applied, { 'data-job-id': job.id })}</div>`;
       html += `<div class="min-w-0 flex items-center justify-end gap-2 text-right"><div class="min-w-0">${renderLocationCell(job.location, job.country, job.locationLabels)}</div>${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</div>`;
       html += `</div>`;
       html += `</div>`;
@@ -365,20 +365,6 @@ document.addEventListener('click', function(e) {
     closeNotePopover();
   }
 });
-
-async function quickToggleApplied(event, jobId, btn) {
-  event.stopPropagation();
-  const current = btn.dataset.applied === '1';
-  const next = !current;
-  btn.dataset.applied = next ? '1' : '0';
-  btn.className = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium border transition-colors whitespace-nowrap ' + window.JHUI.getAppliedTone(next);
-  btn.textContent = window.JHUI.formatAppliedLabel(next);
-  await fetch('/api/jobs/' + jobId + '/applied', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ applied: next }),
-  }).catch(() => {});
-}
 
 function toggleGroup(prefix, gi) {
   const rows = document.querySelectorAll('.job-row-' + prefix + '-' + gi);

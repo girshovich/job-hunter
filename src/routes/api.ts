@@ -893,12 +893,13 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
   res.json({ success: true, internal_job_id: internalJobId });
 });
 
-// PATCH /api/jobs/:id/applied — mark/unmark as applied
+// PATCH /api/jobs/:id/applied — set applied status (0 = not applied, 1 = applied, 2 = won't apply)
 router.patch('/jobs/:id/applied', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ success: false, error: 'Invalid job id.' }); return; }
   const b = req.body as Record<string, unknown>;
-  const applied = b.applied === true || b.applied === 1 ? 1 : 0;
+  const raw = Number(b.applied);
+  const applied = raw === 1 || raw === 2 ? raw : 0;
   const db = getDb();
   const changes = db.prepare(`
     UPDATE job_profile_states SET applied = ? WHERE job_id = ? AND profile_id = ?

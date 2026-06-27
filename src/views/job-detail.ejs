@@ -130,8 +130,8 @@ function formatDate(iso) {
         View on <%= sourceName %>
       </a>
       <% } %>
-      <!-- Applied toggle -->
-      <%- renderAppliedSelector(job.applied, { id: 'applied-btn', onclick: 'toggleApplied()', class: 'w-full h-7 text-xs font-medium' }) %>
+      <!-- Applied selector -->
+      <%- renderAppliedSelector(job.applied, { 'data-job-id': job.id, 'data-chip-style': 'detail' }) %>
       <!-- Compare to CV -->
       <button id="cv-compare-btn" onclick="openCvModal()"
               class="w-full h-7 inline-flex items-center justify-center gap-2 text-xs font-medium px-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors">
@@ -391,19 +391,6 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'ArrowLeft')  { const a = document.getElementById('nav-prev'); if (a) a.click(); }
   if (e.key === 'ArrowRight') { const a = document.getElementById('nav-next'); if (a) a.click(); }
 });
-
-let _applied = <%= job.applied ? 'true' : 'false' %>;
-async function toggleApplied() {
-  _applied = !_applied;
-  const btn = document.getElementById('applied-btn');
-  btn.className = 'inline-flex h-7 items-center justify-center rounded-lg px-2 border transition-colors whitespace-nowrap w-full text-xs font-medium ' + window.JHUI.getAppliedTone(_applied);
-  btn.textContent = window.JHUI.formatAppliedLabel(_applied);
-  await fetch('/api/jobs/' + _jobId + '/applied', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ applied: _applied }),
-  }).catch(() => {});
-}
 
 function renderMdJs(text) {
   if (!text) return '';

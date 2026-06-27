@@ -146,12 +146,16 @@ router.get('/', (req: Request, res: Response) => {
     const placeholders = preloadIds.map(() => '?').join(', ');
     const logs = db
       .prepare<JobLogWithInternalId>(
-        `SELECT rjl.*, j.id AS internal_job_id, j.country AS resolved_country
+        // internal_job_id is ownership-based (job_profile_states): set only when THIS
+        // profile owns the job, so detail links never 404. The jobs join is kept solely
+        // for resolved_country (global pool data, available regardless of ownership).
+        `SELECT rjl.*, jps.job_id AS internal_job_id, j.country AS resolved_country
          FROM run_job_logs rjl
          LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
+         LEFT JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
          WHERE rjl.run_id IN (${placeholders})`,
       )
-      .all(...preloadIds);
+      .all(profileId, ...preloadIds);
 
     // Group by run_id in one pass, then process+sort each group
     const byRunId = new Map<number, JobLogWithInternalId[]>();
@@ -196,12 +200,14 @@ router.get('/runs/:id/logs', (req: Request, res: Response) => {
 
   const logs = db
     .prepare<JobLogWithInternalId>(
-      `SELECT rjl.*, j.id AS internal_job_id, j.country AS resolved_country
+      // Ownership-based internal_job_id (see preload query above).
+      `SELECT rjl.*, jps.job_id AS internal_job_id, j.country AS resolved_country
        FROM run_job_logs rjl
        LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
+       LEFT JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
        WHERE rjl.run_id = ?`,
     )
-    .all(runId);
+    .all(profileId, runId);
 
   res.json({ jobs: processJobs(logs, timezone) });
 });

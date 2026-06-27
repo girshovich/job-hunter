@@ -23,6 +23,8 @@ function scoreClass(score) {
 }
 
 function runJobDetailHref(job) {
+  // internal_job_id is set only when this profile owns the job (see reports.ts),
+  // so an unowned job (e.g. filtered) has no link and can't 404.
   return job.internal_job_id ? `/job/${job.internal_job_id}` : '';
 }
 
@@ -169,13 +171,17 @@ function runProviderName(run) {
                 <%- renderScoreCell(job.ai_score) %>
               </td>
               <td class="<%= getJobTableCellClass('verdict') %>">
+                <% if (job.internal_job_id) { %>
                 <button class="verdict-btn cursor-pointer"
-                      <% if (job.internal_job_id) { %>data-job-id="<%= job.internal_job_id %>"<% } %>
+                      data-job-id="<%= job.internal_job_id %>"
                       data-log-id="<%= job.id %>"
                       data-verdict="<%= job.ai_verdict %>"
                       data-chip-style="compact">
                   <%- verdictChip(job.ai_verdict, job.rejection_category) %>
                 </button>
+                <% } else { %>
+                <%- renderVerdictChip(job.ai_verdict) %>
+                <% } %>
               </td>
               <td class="<%= getJobTableCellClass('date') %>">
                 <%- renderDateTimeCell(job.logged_at, timezone || 'UTC') %>
@@ -191,7 +197,7 @@ function runProviderName(run) {
         <!-- Mobile list -->
         <div class="<%= getJobMobileListClass() %> jobs-mobile-list">
           <% run.jobs.forEach(function(job, idx) { %>
-          <% const target = job.internal_job_id ? '/job/' + job.internal_job_id : (job.url || null); %>
+          <% const target = runJobDetailHref(job) || null; %>
           <div class="job-mobile-row <%= getJobMobileCardClass(target ? 'cursor-pointer' : '') %>"
                data-row-idx="<%= idx %>"
                data-country="<%= job.country %>"
@@ -203,13 +209,17 @@ function runProviderName(run) {
             <div class="mt-1 flex items-start justify-between gap-3">
               <span class="job-identity-meta text-xs text-gray-500 flex items-center gap-1.5"><%- renderCompanyLogo(job.company, job.logo_url) %><%= job.company || 'Unknown company' %></span>
               <div class="flex-shrink-0">
+                <% if (job.internal_job_id) { %>
                 <button class="verdict-btn cursor-pointer"
-                      <% if (job.internal_job_id) { %>data-job-id="<%= job.internal_job_id %>"<% } %>
+                      data-job-id="<%= job.internal_job_id %>"
                       data-log-id="<%= job.id %>"
                       data-verdict="<%= job.ai_verdict %>"
                       data-chip-style="compact">
                   <%- verdictChip(job.ai_verdict, job.rejection_category) %>
                 </button>
+                <% } else { %>
+                <%- renderVerdictChip(job.ai_verdict) %>
+                <% } %>
               </div>
             </div>
             <div class="mt-2 flex items-start justify-between gap-3">
@@ -262,9 +272,10 @@ function scoreClass(score) {
   return score >= 71 ? 'text-emerald-600 font-semibold' : score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500';
 }
 
-function logVerdictChip(verdict, rejectionCategory) {
+function logVerdictChip(verdict, rejectionCategory, editable) {
   const base = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium whitespace-nowrap';
-  const label = window.JHUI.formatVerdictLabel(verdict) + (window.JHUI.isVerdictEditable(verdict) ? ' \u25be' : '');
+  const canEdit = editable === undefined ? window.JHUI.isVerdictEditable(verdict) : editable;
+  const label = window.JHUI.formatVerdictLabel(verdict) + (canEdit ? ' \u25be' : '');
   return '<span class="' + base + ' ' + window.JHUI.getVerdictTone(verdict) + '">' + label + '</span>';
 }
 
@@ -286,13 +297,15 @@ function buildJobsHTML(jobs) {
 
   jobs.forEach(function(job, idx) {
     const sc = scoreClass(job.ai_score);
-    const target = job.internal_job_id ? '/job/' + job.internal_job_id : (job.url || null);
-
-    const detailHref = job.internal_job_id ? '/job/' + job.internal_job_id : '';
+    // internal_job_id is ownership-based (set only when this profile owns the job),
+    // so unowned rows (e.g. filtered) get no link and no 404.
+    const linkable = !!job.internal_job_id;
+    const detailHref = linkable ? '/job/' + job.internal_job_id : '';
+    const target = detailHref || null;
     tableRows += '<tr data-row-idx="' + idx + '" data-country="' + escHtml(job.country) + '" class="job-table-row">'
       + '<td class="job-table-cell pl-5">'
       + '<div class="min-w-0">'
-      + (job.internal_job_id
+      + (linkable
           ? '<a href="' + detailHref + '" class="job-identity-title text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">' + escHtml(job.title) + '</a>'
           : '<span class="job-identity-title text-sm font-semibold text-gray-900">' + escHtml(job.title) + '</span>')
       + '<span class="job-identity-meta text-xs text-gray-500 mt-0.5">' + escHtml(job.company || 'Unknown company') + '</span>'
@@ -300,13 +313,10 @@ function buildJobsHTML(jobs) {
       + '<td class="job-table-cell">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</td>'
       + '<td class="job-table-cell job-table-fixed">' + (job.ai_score != null ? '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge ' + (job.ai_score >= 71 ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100') + '">' + window.JHUI.formatScore(job.ai_score) + '</span>' : '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge text-gray-600 bg-gray-100">\u2014</span>') + '</td>'
       + '<td class="job-table-cell job-table-fixed">'
-      + '<button class="verdict-btn cursor-pointer"'
-      + (job.internal_job_id ? ' data-job-id="' + job.internal_job_id + '"' : '')
-      + ' data-log-id="' + job.id + '"'
-      + ' data-verdict="' + job.ai_verdict + '"'
-      + ' data-chip-style="compact">'
-      + logVerdictChip(job.ai_verdict, job.rejection_category)
-      + '</button></td>'
+      + (linkable
+          ? '<button class="verdict-btn cursor-pointer" data-job-id="' + job.internal_job_id + '" data-log-id="' + job.id + '" data-verdict="' + job.ai_verdict + '" data-chip-style="compact">' + logVerdictChip(job.ai_verdict, job.rejection_category) + '</button>'
+          : logVerdictChip(job.ai_verdict, job.rejection_category, false))
+      + '</td>'
       + '<td class="job-table-cell job-table-fixed"><span class="text-xs text-gray-500 whitespace-nowrap">' + escHtml(formatDateTimeToMinutes(job.logged_at)) + '</span></td>'
       + '<td class="job-table-cell job-table-fixed">' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</td>'
       + '</tr>';
@@ -323,13 +333,9 @@ function buildJobsHTML(jobs) {
       + '<div class="mt-1 flex items-start justify-between gap-3">'
       + '<span class="job-identity-meta text-xs text-gray-500">' + escHtml(job.company || 'Unknown company') + '</span>'
       + '<div class="flex-shrink-0">'
-      + '<button class="verdict-btn cursor-pointer"'
-      + (job.internal_job_id ? ' data-job-id="' + job.internal_job_id + '"' : '')
-      + ' data-log-id="' + job.id + '"'
-      + ' data-verdict="' + job.ai_verdict + '"'
-      + ' data-chip-style="compact">'
-      + logVerdictChip(job.ai_verdict, job.rejection_category)
-      + '</button>'
+      + (linkable
+          ? '<button class="verdict-btn cursor-pointer" data-job-id="' + job.internal_job_id + '" data-log-id="' + job.id + '" data-verdict="' + job.ai_verdict + '" data-chip-style="compact">' + logVerdictChip(job.ai_verdict, job.rejection_category) + '</button>'
+          : logVerdictChip(job.ai_verdict, job.rejection_category, false))
       + '</div></div>'
       + '<div class="mt-2 flex items-start justify-between gap-3"><div class="min-w-0">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</div>' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</div>'
       + '</div>';

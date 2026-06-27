@@ -142,13 +142,15 @@ export function formatScore(value: unknown): string {
 }
 
 export function formatAppliedLabel(value: unknown): string {
-  return 'Applied';
+  const n = Number(value);
+  return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'Not Applied';
 }
 
 export function getAppliedTone(value: unknown): string {
-  return value === true || value === 1 || value === '1' || value === 'true'
-    ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'
-    : 'bg-gray-50 text-gray-300 border-gray-200 hover:bg-gray-100 hover:border-gray-300 hover:text-gray-400';
+  const n = Number(value);
+  if (n === 1) return 'bg-emerald-600 text-white';
+  if (n === 2) return 'bg-red-600 text-white';
+  return 'border border-gray-200 bg-gray-50 text-gray-300';
 }
 
 export function formatDateTimeToMinutes(value: unknown, timezone = 'UTC'): string {
@@ -245,10 +247,18 @@ export function renderAppliedStatus(value: unknown): string {
   return `<span class="inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium border ${getAppliedTone(value)} whitespace-nowrap">${formatAppliedLabel(value)}</span>`;
 }
 
+export function renderAppliedChip(value: unknown, options: { editable?: boolean; full?: boolean } = {}): string {
+  const caret = options.editable ? ' ▾' : '';
+  const width = options.full ? 'w-full' : 'w-24';
+  return `<span class="${width} inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium ${getAppliedTone(value)} whitespace-nowrap">${formatAppliedLabel(value)}${caret}</span>`;
+}
+
 export function renderAppliedSelector(value: unknown, attrs: HtmlAttrs = {}): string {
-  const className = `inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium border ${getAppliedTone(value)} transition-colors whitespace-nowrap ${attrs.class ?? ''}`.trim();
-  const htmlAttrs = attrsToHtml({ type: 'button', ...attrs, class: className });
-  return `<button ${htmlAttrs}>${formatAppliedLabel(value)}</button>`;
+  const full = attrs['data-chip-style'] === 'detail';
+  const state = Number(value) === 1 ? 1 : Number(value) === 2 ? 2 : 0;
+  const className = `applied-btn ${full ? 'w-full ' : ''}cursor-pointer ${attrs.class ?? ''}`.trim();
+  const htmlAttrs = attrsToHtml({ type: 'button', 'data-applied': String(state), ...attrs, class: className });
+  return `<button ${htmlAttrs}>${renderAppliedChip(value, { editable: true, full })}</button>`;
 }
 
 export function renderScoreCell(value: unknown): string {

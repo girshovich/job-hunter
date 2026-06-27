@@ -348,13 +348,14 @@
         return Number.isFinite(num) ? String(Math.round(num)) : '\u2014';
       },
       formatAppliedLabel(value) {
-        return 'Applied';
+        const n = Number(value);
+        return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'Not Applied';
       },
       getAppliedTone(value) {
-        return this.formatAppliedLabel(value) === 'Applied'
-          && (value === true || value === 1 || value === '1' || value === 'true')
-          ? 'jh-btn-success text-white'
-          : 'bg-gray-50 text-gray-300 border-gray-200 hover:bg-gray-100 hover:border-gray-300 hover:text-gray-400';
+        const n = Number(value);
+        if (n === 1) return 'bg-emerald-600 text-white';
+        if (n === 2) return 'bg-red-600 text-white';
+        return 'border border-gray-200 bg-gray-50 text-gray-300';
       }
     };
   </script>
@@ -728,6 +729,15 @@
       <button onclick="setVerdict('WEAK_MATCH')"   class="w-full text-left px-4 py-2 text-sm hover:bg-yellow-50 text-yellow-700 font-medium">Weak</button>
       <button onclick="setVerdict('NO_MATCH')"     class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">No match</button>
       <button onclick="setVerdict('DUPLICATE')"    class="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 text-purple-600 font-medium">Duplicate</button>
+    </div>
+  </div>
+
+  <!-- Applied dropdown -->
+  <div id="applied-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
+    <div class="py-1">
+      <button onclick="setApplied(0)" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-600 font-medium">Not Applied</button>
+      <button onclick="setApplied(1)" class="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 text-emerald-700 font-medium">Applied</button>
+      <button onclick="setApplied(2)" class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">Won't Apply</button>
     </div>
   </div>
 
@@ -2069,6 +2079,68 @@
           }
         } else {
           await showAlert(data.error || 'Failed to update status');
+        }
+      } catch (e) {
+        await showAlert('Could not reach the server. Make sure the app is running and try again.');
+      }
+    }
+
+    // ---- Applied dropdown ----
+    let _appliedBtn = null;
+
+    function openAppliedDropdown(btn) {
+      _appliedBtn = btn;
+      const dd = document.getElementById('applied-dropdown');
+      dd.classList.remove('hidden');
+      const rect = btn.getBoundingClientRect();
+      const ddW = 160;
+      let left = rect.left;
+      if (left + ddW > window.innerWidth - 8) left = window.innerWidth - ddW - 8;
+      dd.style.top  = (rect.bottom + 4) + 'px';
+      dd.style.left = left + 'px';
+    }
+
+    function closeAppliedDropdown() {
+      document.getElementById('applied-dropdown').classList.add('hidden');
+      _appliedBtn = null;
+    }
+
+    document.addEventListener('click', e => {
+      const dd = document.getElementById('applied-dropdown');
+      if (!dd.classList.contains('hidden') && !dd.contains(e.target) && !e.target.closest('.applied-btn')) {
+        closeAppliedDropdown();
+      }
+    });
+
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.applied-btn');
+      if (btn) { e.stopPropagation(); openAppliedDropdown(btn); }
+    });
+
+    function appliedChipHTML(state, full) {
+      const base = (full ? 'w-full' : 'w-24') + ' inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium whitespace-nowrap';
+      return '<span class="' + base + ' ' + window.JHUI.getAppliedTone(state) + '">' + window.JHUI.formatAppliedLabel(state) + ' ▾</span>';
+    }
+
+    async function setApplied(newState) {
+      const btn = _appliedBtn;
+      if (!btn) return;
+      const jobId = btn.dataset.jobId;
+      const current = Number(btn.dataset.applied);
+      closeAppliedDropdown();
+      if (newState === current) return;
+      try {
+        const res = await fetch('/api/jobs/' + jobId + '/applied', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ applied: newState }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          btn.dataset.applied = String(newState);
+          btn.innerHTML = appliedChipHTML(newState, btn.dataset.chipStyle === 'detail');
+        } else {
+          await showAlert(data.error || 'Failed to update applied status');
         }
       } catch (e) {
         await showAlert('Could not reach the server. Make sure the app is running and try again.');
