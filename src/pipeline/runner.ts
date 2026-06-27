@@ -13,7 +13,7 @@ import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { providerToSource } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
-import { resolveCountries, COUNTRY_NAMES, expandRegionToCountries } from './locationNormalizer';
+import { resolveLocationString, COUNTRY_NAMES, expandRegionToCountries } from './locationNormalizer';
 import { groupOrDrop } from './locationGrouping';
 import pLimit from 'p-limit';
 import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
@@ -601,13 +601,22 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         `[runner] Group ${group.id}: scored ${scoredJobs.length} — Strong=${jobsStrongMatch} Weak=${jobsWeakMatch} NoMatch=${jobsNoMatch} Dupes=${jobsDuplicate} (cumulative)`,
       );
 
-      // Resolve country for all jobs in this group (cache-first, Nominatim fallback)
+      // Resolve countries for all jobs in this group. Multi-location strings are split
+      // (';'/'|' + country-aware) and every element resolved cache-first (Nominatim
+      // fallback), so a surfaced multi-country job gets its full country set, not just
+      // the first segment. countryMap holds the primary (first) label per location.
       const allLocations = [
         ...blacklistedJobs.map(j => j.location).filter(Boolean) as string[],
         ...jobResults.map(r => r.scored.job.location).filter(Boolean) as string[],
         ...urlDuplicates.map(d => d.job.location).filter(Boolean) as string[],
       ];
-      const countryMap = await resolveCountries(allLocations);
+      const locDataMap = new Map<string, { labels: string[]; countries: string[] }>();
+      const countryMap = new Map<string, string | null>();
+      for (const loc of new Set(allLocations)) {
+        const data = await resolveLocationString(loc);
+        locDataMap.set(loc, data);
+        countryMap.set(loc, data.labels[0] ?? null);
+      }
 
       // 5. Log all jobs from this group to run_job_logs
       const loggedAt = new Date().toISOString();
@@ -655,7 +664,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
             insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
-            groupOrDrop(jobId, buildLocationData(country));
+            groupOrDrop(jobId, locDataMap.get(job.location ?? '') ?? buildLocationData(country));
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,
@@ -686,7 +695,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
             insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
-            const locationData = buildLocationData(country);
+            const locationData = locDataMap.get(job.location ?? '') ?? buildLocationData(country);
             if (isDuplicate && duplicateOfId) {
               groupOrDrop(duplicateOfId, locationData);
             } else {
@@ -716,7 +725,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             );
             const { id: jobId } = selectJobId.get(job.jobId, jobSource) as { id: number };
             insertPosting.run(jobId, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
-            groupOrDrop(duplicateOfId, buildLocationData(country));
+            groupOrDrop(duplicateOfId, locDataMap.get(job.location ?? '') ?? buildLocationData(country));
             if (job.description) upsertJobDescription.run(jobId, job.description, now);
             insertJobState.run(
               jobId, profileId, group.id, now,

@@ -129,8 +129,10 @@ export function cleanLocationForGeocoding(raw: string): { parenCountry: string |
     .map((m) => COUNTRY_NAMES[m[1].trim().toLowerCase()])
     .find(Boolean) ?? null;
 
-  // Structural cleaning: drop [object Object] + parentheticals, take first segment,
-  // strip work-mode suffixes / "or …" alternatives, cap at two comma parts.
+  // Structural cleaning: drop [object Object] + parentheticals, take the first ';'/'|'
+  // segment, strip "or …" alternatives, cap at two comma parts. Work-mode words are
+  // removed by stripPoisonWords below (position-agnostic), so we no longer split on
+  // dashes/slashes — that dropped the place whenever the work-mode came first.
   const cleaned  = raw.replace(/\[object Object\]/gi, '').replace(/\([^)]*\)/g, '').trim();
   const firstSeg = cleaned.split(/[;|]/)[0].trim();
   let base: string;
@@ -138,8 +140,7 @@ export function cleanLocationForGeocoding(raw: string): { parenCountry: string |
   if (anywhereMatch) {
     base = anywhereMatch[1].split(',')[0].trim();
   } else {
-    const dashParts = firstSeg.split(/\s*[–—]\s*|\s+-\s+|\s+\/\s+/);
-    const candidate = dashParts[0].trim().replace(/\s+or\s+.*/i, '').replace(/,\s*$/, '');
+    const candidate = firstSeg.replace(/\s+or\s+.*/i, '').replace(/,\s*$/, '');
     const parts = candidate.split(',').map((s) => s.trim()).filter(Boolean);
     base = parts.length > 2 ? parts.slice(0, 2).join(', ') : candidate;
   }
@@ -294,30 +295,44 @@ export function resolveCountriesFromCache(
  * Labels are display strings (e.g. "Germany", "DACH"); countries are lowercased members.
  * Regions expand to their member countries ([] if unpopulated).
  */
+// Expands display labels (country names or region names) to a lowercased country set.
+function labelsToCountrySet(labels: Iterable<string>): Set<string> {
+  const countries = new Set<string>();
+  for (const label of labels) {
+    const lower = label.toLowerCase();
+    if (COUNTRY_NAMES[lower]) countries.add(lower);
+    else for (const c of expandRegionToCountries(label)) countries.add(c);
+  }
+  return countries;
+}
+
 export async function resolveLocationSet(
   locations: string[],
 ): Promise<{ labels: string[]; countries: string[] }> {
   const resolved = await resolveCountries(locations);
-  const seenLabels = new Set<string>();
-  const seenCountries = new Set<string>();
+  const labels = new Set<string>();
+  for (const label of resolved.values()) if (label) labels.add(label);
+  return { labels: [...labels], countries: [...labelsToCountrySet(labels)] };
+}
 
-  for (const label of resolved.values()) {
-    if (!label) continue;
-    seenLabels.add(label);
-    const lower = label.toLowerCase();
-    if (COUNTRY_NAMES[lower]) {
-      seenCountries.add(lower);
-    } else {
-      for (const c of expandRegionToCountries(label)) {
-        seenCountries.add(c);
-      }
-    }
+/**
+ * Resolves a single raw location string that may pack several locations (joined
+ * by ';'/'|' or natural and/or) into its full label + expanded country set.
+ * Structured delimiters are split, country-aware and/or strings expanded, and the
+ * remaining elements geocoded cache-first (Nominatim fallback). Used by the runner
+ * so surfaced multi-location jobs resolve every country live, not just the first.
+ */
+export async function resolveLocationString(raw: string): Promise<{ labels: string[]; countries: string[] }> {
+  const toResolve: string[] = [];
+  const labels = new Set<string>();
+  for (const el of raw.split(/\s*[;|]\s*/).map((s) => s.trim()).filter(Boolean)) {
+    const ca = splitCountryAware(el);
+    if (ca) for (const l of ca) labels.add(l);
+    else toResolve.push(el);
   }
-
-  return {
-    labels: [...seenLabels],
-    countries: [...seenCountries],
-  };
+  const resolved = await resolveCountries(toResolve);
+  for (const v of resolved.values()) if (v) labels.add(v);
+  return { labels: [...labels], countries: [...labelsToCountrySet(labels)] };
 }
 
 /**
