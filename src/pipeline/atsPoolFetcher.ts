@@ -312,7 +312,7 @@ export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'G
   const resolved = new Map<string, string>();
   for (const { id, location } of jobs) {
     const elements: string[] = [];
-    for (const raw of location.split(/\s*[;|]\s*/).map((s) => s.trim()).filter(Boolean)) {
+    for (const raw of location.split(/\s*[;|]\s*|\s+or\s+/i).map((s) => s.trim()).filter(Boolean)) {
       const caLabels = splitCountryAware(raw);
       if (caLabels) {
         for (const lbl of caLabels) { elements.push(lbl); resolved.set(lbl, lbl); }
@@ -432,7 +432,7 @@ export async function resolvePoolCountries(
   // mode takes uncached elements; recheck mode retries those cached as unknown.
   const work = new Set<string>();
   for (const { location } of jobLocs) {
-    for (const raw of location.split(/\s*[;|]\s*/).map((s) => s.trim()).filter(Boolean)) {
+    for (const raw of location.split(/\s*[;|]\s*|\s+or\s+/i).map((s) => s.trim()).filter(Boolean)) {
       if (splitCountryAware(raw)) continue;
       const cached = cache.get(raw);
       if (recheckUnknowns ? cached === '' : cached === undefined) work.add(raw);

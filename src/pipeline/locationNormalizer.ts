@@ -325,7 +325,9 @@ export async function resolveLocationSet(
 export async function resolveLocationString(raw: string): Promise<{ labels: string[]; countries: string[] }> {
   const toResolve: string[] = [];
   const labels = new Set<string>();
-  for (const el of raw.split(/\s*[;|]\s*/).map((s) => s.trim()).filter(Boolean)) {
+  // Split on structured delimiters ';'/'|' and on ' or ' (safe — no place name
+  // contains it), so city-based alternatives like "London or Paris" resolve each.
+  for (const el of raw.split(/\s*[;|]\s*|\s+or\s+/i).map((s) => s.trim()).filter(Boolean)) {
     const ca = splitCountryAware(el);
     if (ca) for (const l of ca) labels.add(l);
     else toResolve.push(el);
