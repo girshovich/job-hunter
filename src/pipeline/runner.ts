@@ -601,6 +601,14 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         `[runner] Group ${group.id}: scored ${scoredJobs.length} — Strong=${jobsStrongMatch} Weak=${jobsWeakMatch} NoMatch=${jobsNoMatch} Dupes=${jobsDuplicate} (cumulative)`,
       );
 
+      // Resolve country for all jobs in this group (cache-first, Nominatim fallback)
+      const allLocations = [
+        ...blacklistedJobs.map(j => j.location).filter(Boolean) as string[],
+        ...jobResults.map(r => r.scored.job.location).filter(Boolean) as string[],
+        ...urlDuplicates.map(d => d.job.location).filter(Boolean) as string[],
+      ];
+      const countryMap = await resolveCountries(allLocations);
+
       // 5. Log all jobs from this group to run_job_logs
       const loggedAt = new Date().toISOString();
       db.transaction(() => {
@@ -631,14 +639,6 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           );
         }
       });
-
-      // Resolve country for all jobs in this group (cache-first, Nominatim fallback)
-      const allLocations = [
-        ...blacklistedJobs.map(j => j.location).filter(Boolean) as string[],
-        ...jobResults.map(r => r.scored.job.location).filter(Boolean) as string[],
-        ...urlDuplicates.map(d => d.job.location).filter(Boolean) as string[],
-      ];
-      const countryMap = await resolveCountries(allLocations);
 
       // Store blacklisted jobs in jobs table (INSERT OR IGNORE — first encounter wins)
       if (blacklistedJobs.length > 0) {

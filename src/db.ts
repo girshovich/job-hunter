@@ -1453,12 +1453,17 @@ The full post text is stored as the job description — do not repeat or summari
 
       const BATCH = 2000;
 
-      // Phase 1: job_postings for ALL jobs (including duplicates)
+      // Phase 1: job_postings for processed jobs only (scored roles + their duplicates,
+      // i.e. rows present in job_profile_states). Unscored pool candidates are skipped —
+      // a posting means "processed by the runner", and giving the pool one would make
+      // filterNewJobs treat it as already-seen and never score it.
       const selectPostingBatch = db.prepare<{
         id: number; job_source: string; linkedin_job_id: string;
         url: string | null; apply_url: string | null; location: string | null; fetched_at: string;
       }>(`SELECT id, job_source, linkedin_job_id, url, apply_url, location, fetched_at
-          FROM jobs WHERE id > ? ORDER BY id ASC LIMIT ${BATCH}`);
+          FROM jobs j WHERE j.id > ?
+            AND EXISTS (SELECT 1 FROM job_profile_states jps WHERE jps.job_id = j.id)
+          ORDER BY j.id ASC LIMIT ${BATCH}`);
       const insertPosting = db.prepare<unknown>(
         `INSERT OR IGNORE INTO job_postings (job_id, job_source, posting_job_id, url, apply_url, location, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,

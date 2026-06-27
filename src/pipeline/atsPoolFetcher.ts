@@ -6,7 +6,7 @@
 import type { Database } from '../db';
 import { emitToRun, isCancelled } from './atsRunState';
 import { parsePostedDate } from './types';
-import { HARDCODED, COUNTRY_NAMES } from './locationNormalizer';
+import { HARDCODED, COUNTRY_NAMES, cleanLocationForGeocoding, splitCountryAware } from './locationNormalizer';
 import COUNTRIES_LIST from './countries.json';
 import { resolveAshbyCompanyName } from './ashbyCompanyName';
 
@@ -303,20 +303,30 @@ export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'G
   ).all(jobSource);
   if (jobs.length === 0) return;
 
-  // For Ashby: split joined "loc1; loc2" into per-element arrays. Others: single element.
+  // Split multi-location strings on ';' or '|' — both are list delimiters used by ATS
+  // feeds (Ashby joins with '; '; Greenhouse uses ';' and/or '|', sometimes mixed).
+  // Each element is then run through a country-aware and/or split ("Canada and US"
+  // → two pre-resolved country labels) before falling back to cache resolution.
   const jobElements = new Map<number, string[]>();
   const allElements = new Set<string>();
+  const resolved = new Map<string, string>();
   for (const { id, location } of jobs) {
-    const elements = jobSource === 'Ashby'
-      ? location.split('; ').map((s) => s.trim()).filter(Boolean)
-      : [location];
+    const elements: string[] = [];
+    for (const raw of location.split(/\s*[;|]\s*/).map((s) => s.trim()).filter(Boolean)) {
+      const caLabels = splitCountryAware(raw);
+      if (caLabels) {
+        for (const lbl of caLabels) { elements.push(lbl); resolved.set(lbl, lbl); }
+      } else {
+        elements.push(raw);
+      }
+    }
     jobElements.set(id, elements);
     for (const e of elements) allElements.add(e);
   }
 
-  // Resolve unique elements from HARDCODED and DB cache
-  const resolved = new Map<string, string>();
+  // Resolve remaining unique elements from HARDCODED and DB cache
   for (const e of allElements) {
+    if (resolved.has(e)) continue;
     const h = HARDCODED[e.toLowerCase().trim()];
     if (h) resolved.set(e, h);
   }
@@ -389,9 +399,12 @@ function clearUnclaimedPoolDescriptions(db: Database, jobSource: 'Ashby' | 'Gree
 }
 
 /**
- * Manual resolve: finds all pool jobs with country IS NULL and resolves their
- * locations via hardcoded map → DB cache → Nominatim (1 req/sec).
- * Updates both jobs.country and the location_country cache.
+ * Manual resolve: warms the location cache for every distinct UNRESOLVED pool
+ * location *element* (each whole string split on ';'/'|'; country-aware and/or
+ * strings are skipped — they self-resolve), via substring scan → hardcoded →
+ * Nominatim (1 req/sec). Each element is geocoded at most once and cached, so
+ * cost scales with distinct places, not jobs. Assembly of jobs.country +
+ * job_locations/job_countries is then delegated to populateCountriesFromCache.
  */
 export async function resolvePoolCountries(
   db: Database,
@@ -401,115 +414,78 @@ export async function resolvePoolCountries(
   const start = Date.now();
   const recheckUnknowns = !!options.recheckUnknowns;
 
-  const locs = recheckUnknowns
-    ? db.prepare(
-      `SELECT DISTINCT j.location FROM jobs j
-       JOIN location_country lc ON lc.location = j.location AND lc.country = ''
-       WHERE j.job_source IN ('Ashby', 'Greenhouse', 'Telegram') AND j.location IS NOT NULL AND j.country IS NULL`,
-    ).all() as { location: string }[]
-    : db.prepare(
-      `SELECT DISTINCT j.location FROM jobs j
-       LEFT JOIN location_country lc ON lc.location = j.location
-       WHERE j.job_source IN ('Ashby', 'Greenhouse', 'Telegram')
-         AND j.location IS NOT NULL
-         AND j.country IS NULL
-         AND (lc.location IS NULL OR lc.country != '')`,
-    ).all() as { location: string }[];
+  // Distinct location strings from pool jobs still missing a country.
+  const jobLocs = db.prepare(
+    `SELECT DISTINCT location FROM jobs
+     WHERE job_source IN ('Ashby', 'Greenhouse', 'Telegram')
+       AND location IS NOT NULL AND country IS NULL`,
+  ).all() as { location: string }[];
 
-  const total = locs.length;
+  // Preload the cache so we only geocode genuinely unresolved elements.
+  const cache = new Map<string, string>();
+  for (const r of db.prepare(`SELECT location, country FROM location_country`).all() as { location: string; country: string }[]) {
+    cache.set(r.location, r.country);
+  }
+
+  // Work-set: distinct elements needing a Nominatim lookup. Split on ';'/'|';
+  // skip country-aware and/or strings (they resolve without geocoding). Normal
+  // mode takes uncached elements; recheck mode retries those cached as unknown.
+  const work = new Set<string>();
+  for (const { location } of jobLocs) {
+    for (const raw of location.split(/\s*[;|]\s*/).map((s) => s.trim()).filter(Boolean)) {
+      if (splitCountryAware(raw)) continue;
+      const cached = cache.get(raw);
+      if (recheckUnknowns ? cached === '' : cached === undefined) work.add(raw);
+    }
+  }
+  const elements = [...work];
+  const total = elements.length;
   emitToRun(runId ?? '', {
     msg: recheckUnknowns
-      ? `Found ${total} previously unknown location(s)…`
-      : `Found ${total} new/cacheable unresolved location(s)…`,
+      ? `Found ${total} previously unknown location element(s)…`
+      : `Found ${total} new location element(s) to resolve…`,
     total,
   });
 
-  if (total === 0) {
-    emitToRun(runId ?? '', {
-      msg: recheckUnknowns ? 'No cached unknown locations to re-check.' : 'No new pool job locations to resolve.',
-      done: true,
-      inserted: 0,
-    });
-    return { resolved: 0, total: 0, durationMs: Date.now() - start };
-  }
-
-  const updateJobs   = db.prepare(
-    `UPDATE jobs SET country = ? WHERE job_source IN ('Ashby', 'Greenhouse', 'Telegram') AND location = ? AND country IS NULL`,
-  );
-  const cacheUpsert  = db.prepare(
+  const cacheUpsert = db.prepare(
     `INSERT OR REPLACE INTO location_country (location, country, created_at) VALUES (?, ?, ?)`,
   );
 
-  let resolved  = 0;
+  let resolved = 0;
   let nominatimCalls = 0;
 
-  for (let i = 0; i < locs.length; i++) {
+  for (let i = 0; i < elements.length; i++) {
     if (isCancelled(runId ?? '')) break;
-    const loc = locs[i].location;
+    const el = elements[i];
 
-    // 1. Country-name substring scan — find the first known country mentioned in the string
-    const locLower = loc.toLowerCase();
-    const containedCountry = COUNTRIES_LIST.find(name => locLower.includes(name.toLowerCase())) ?? null;
+    // 1. Country-name substring scan — first known country mentioned in the element
+    const elLower = el.toLowerCase();
+    const containedCountry = COUNTRIES_LIST.find((name) => elLower.includes(name.toLowerCase())) ?? null;
     if (containedCountry) {
-      updateJobs.run(containedCountry, loc);
-      cacheUpsert.run(loc, containedCountry, new Date().toISOString());
+      cacheUpsert.run(el, containedCountry, new Date().toISOString());
       resolved++;
-      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${loc}" → ${containedCountry}`, processed: i + 1, total });
+      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${el}" → ${containedCountry}`, processed: i + 1, total });
       continue;
     }
 
     // 2. Hardcoded map
-    const hardcoded = HARDCODED[loc.toLowerCase().trim()];
+    const hardcoded = HARDCODED[el.toLowerCase().trim()];
     if (hardcoded) {
-      updateJobs.run(hardcoded, loc);
-      cacheUpsert.run(loc, hardcoded, new Date().toISOString());
+      cacheUpsert.run(el, hardcoded, new Date().toISOString());
       resolved++;
-      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${loc}" → ${hardcoded}`, processed: i + 1, total });
+      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${el}" → ${hardcoded}`, processed: i + 1, total });
       continue;
     }
 
-    // 3. DB cache
-    const cached = recheckUnknowns ? undefined : db.prepare(
-      `SELECT country FROM location_country WHERE location = ?`,
-    ).get(loc) as { country: string } | undefined;
-    if (cached !== undefined) {
-      if (cached.country) { updateJobs.run(cached.country, loc); resolved++; }
-      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${loc}" → ${cached.country || 'unknown'} (cached)`, processed: i + 1, total });
-      continue;
-    }
+    // 3. Clean + direct country-name recognition (avoids a Nominatim round-trip)
+    const { parenCountry, query } = cleanLocationForGeocoding(el);
+    let country: string | null = parenCountry ?? COUNTRY_NAMES[query.toLowerCase().trim()] ?? null;
 
-    // 4. Resolve via direct country-name lookup or Nominatim.
-    let country: string | null = null;
-
-    // 4a. Extract country from parenthetical hints, e.g. "San Francisco or Remote (United States)"
-    const parenCountry = [...loc.matchAll(/\(([^)]+)\)/g)]
-      .map(m => COUNTRY_NAMES[m[1].trim().toLowerCase()])
-      .find(Boolean) ?? null;
-
-    // 4b. Build cleaned query for Nominatim.
-    const locForQuery = (() => {
-      const cleaned  = loc.replace(/\[object Object\]/gi, '').replace(/\([^)]*\)/g, '').trim();
-      const firstSeg = cleaned.split(';')[0].trim();
-      // "Anywhere in France, Belgium, Spain" → take first country after prefix
-      const anywhereMatch = firstSeg.match(/^anywhere\s+in\s+(.*)/i);
-      if (anywhereMatch) return anywhereMatch[1].split(',')[0].trim();
-      // split on em/en-dash, space-hyphen-space, or space-slash-space (work-mode suffixes)
-      const dashParts = firstSeg.split(/\s*[–—]\s*|\s+-\s+|\s+\/\s+/);
-      // strip "or …" alternatives e.g. "New York City or San Francisco"
-      const candidate = dashParts[0].trim().replace(/\s+or\s+.*/i, '').replace(/,\s*$/, '');
-      const parts = candidate.split(',').map((s) => s.trim()).filter(Boolean);
-      return parts.length > 2 ? parts.slice(0, 2).join(', ') : candidate;
-    })();
-
-    // 4c. Direct country-name recognition (avoids a Nominatim round-trip)
-    const directCountry = parenCountry ?? COUNTRY_NAMES[locForQuery.toLowerCase().trim()];
-    if (directCountry) {
-      country = directCountry;
-    } else {
-      // 4d. Nominatim
+    // 4. Nominatim
+    if (!country) {
       try {
-        if (!locForQuery) throw new Error('empty query');
-        const url = `${NOMINATIM_URL}?q=${encodeURIComponent(locForQuery)}&format=json&addressdetails=1&limit=1`;
+        if (!query) throw new Error('empty query');
+        const url = `${NOMINATIM_URL}?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1`;
         const resp = await fetch(url, {
           headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
           signal: AbortSignal.timeout(8_000),
@@ -520,22 +496,22 @@ export async function resolvePoolCountries(
         }
       } catch { /* timeout/network error — leave as null */ }
       nominatimCalls++;
-      if (i < locs.length - 1) await new Promise((r) => setTimeout(r, 1100));
+      if (i < elements.length - 1) await new Promise((r) => setTimeout(r, 1100));
     }
 
-    if (country) {
-      cacheUpsert.run(loc, country, new Date().toISOString());
-      updateJobs.run(country, loc);
-      resolved++;
-    } else {
-      cacheUpsert.run(loc, '', new Date().toISOString());
-    }
-    emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${loc}" → ${country || 'unknown'}`, processed: i + 1, total });
+    cacheUpsert.run(el, country ?? '', new Date().toISOString());
+    if (country) resolved++;
+    emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${el}" → ${country || 'unknown'}`, processed: i + 1, total });
+  }
+
+  // Assemble jobs.country + child tables from the now-warm cache.
+  for (const src of ['Ashby', 'Greenhouse', 'Telegram'] as const) {
+    populateCountriesFromCache(db, src);
   }
 
   const durationMs = Date.now() - start;
   emitToRun(runId ?? '', {
-    msg: `Done — ${resolved}/${total} resolved (${nominatimCalls} Nominatim calls, ${Math.round(durationMs / 1000)}s)`,
+    msg: `Done — ${resolved}/${total} element(s) resolved (${nominatimCalls} Nominatim calls, ${Math.round(durationMs / 1000)}s)`,
     done: true,
     inserted: resolved,
   });
