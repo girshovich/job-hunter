@@ -1937,7 +1937,7 @@
             _runCallback();
             _runCallback = null;
           } else {
-            startRunCooldown(5 * 60 * 1000);
+            startRunCooldown(3 * 60 * 1000);
           }
         } else if (data.retryAfterMs) {
           startRunCooldown(data.retryAfterMs);

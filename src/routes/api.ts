@@ -30,7 +30,7 @@ const router = Router();
 
 const lastRunAt = new Map<number, number>();
 const lastFetchAt = new Map<number, number>();
-const RUN_COOLDOWN_MS = 5 * 60_000;
+const RUN_COOLDOWN_MS = 3 * 60_000;
 const FETCH_COOLDOWN_MS = 2 * 60_000;
 
 function rateLimited(profileId: number, map: Map<number, number>, cooldownMs: number): number | false {
