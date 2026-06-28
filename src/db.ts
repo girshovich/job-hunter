@@ -1689,11 +1689,10 @@ The full post text is stored as the job description — do not repeat or summari
       const regionSeed: Array<[string, string]> = [
         ['eu', 'EU'], ['european union', 'EU'],
         ['eea', 'EEA'], ['european economic area', 'EEA'],
-        ['emea', 'EMEA'], ['apac', 'APAC'], ['latam', 'LATAM'], ['anz', 'ANZ'],
-        ['europe', 'Europe'], ['africa', 'Africa'], ['asia', 'Asia'],
-        ['americas', 'Americas'], ['oceania', 'Oceania'],
+        ['emea', 'EMEA'], ['apac', 'APAC'], ['latam', 'LATAM'],
+        ['europe', 'Europe'], ['africa', 'Africa'],
+        ['americas', 'Americas'],
         ['north america', 'North America'], ['south america', 'South America'],
-        ['middle east', 'Middle East'], ['nordics', 'Nordics'], ['benelux', 'Benelux'],
         ['dach', 'DACH'],
       ];
       const insAlias = db.prepare(`INSERT OR IGNORE INTO region_aliases (alias, region_name, updated_at) VALUES (?, ?, ?)`);
