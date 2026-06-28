@@ -6,8 +6,7 @@
 import type { Database } from '../db';
 import { emitToRun, isCancelled } from './atsRunState';
 import { parsePostedDate } from './types';
-import { lookupCountry, canonicalRegion, cleanLocationForGeocoding, splitCountryAware } from './locationNormalizer';
-import COUNTRIES_LIST from './countries.json';
+import { lookupCountry, canonicalRegion, resolveLabelLocal, cleanLocationForGeocoding, splitCountryAware } from './locationNormalizer';
 import { resolveAshbyCompanyName } from './ashbyCompanyName';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
@@ -459,18 +458,10 @@ export async function resolvePoolCountries(
     if (isCancelled(runId ?? '')) break;
     const el = elements[i];
 
-    // 1. Country-name substring scan — first known country mentioned in the element
-    const elLower = el.toLowerCase();
-    const containedCountry = COUNTRIES_LIST.find((name) => elLower.includes(name.toLowerCase())) ?? null;
-    if (containedCountry) {
-      cacheUpsert.run(el, containedCountry, new Date().toISOString());
-      resolved++;
-      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${el}" → ${containedCountry}`, processed: i + 1, total });
-      continue;
-    }
-
-    // 2. Direct recognition: country/synonym/metro + region label (exact key)
-    const direct = lookupCountry(el) ?? canonicalRegion(el);
+    // 1. Local recognition (no HTTP): exact key, then whole-token n-gram over
+    //    countries/synonyms then regions/aliases. Replaces the old country substring
+    //    scan — token matching is word-boundary safe and synonym/region aware.
+    const direct = lookupCountry(el) ?? canonicalRegion(el) ?? resolveLabelLocal(el);
     if (direct) {
       cacheUpsert.run(el, direct, new Date().toISOString());
       resolved++;
@@ -478,7 +469,7 @@ export async function resolvePoolCountries(
       continue;
     }
 
-    // 3. Clean + direct country-name recognition (avoids a Nominatim round-trip)
+    // 2. Clean + parenthetical/exact country recognition (avoids a Nominatim round-trip)
     const { parenCountry, query } = cleanLocationForGeocoding(el);
     let country: string | null = parenCountry ?? lookupCountry(query) ?? null;
 

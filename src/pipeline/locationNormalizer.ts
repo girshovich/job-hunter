@@ -217,6 +217,31 @@ function resolveGeoPart(part: string): string | null {
 }
 
 /**
+ * Local, network-free resolution of a location string to a single country or region
+ * label via whole-token n-gram matching (longest span first): **countries — including
+ * synonyms — first, then regions — including aliases**. Whole-token spans give word-
+ * boundary safety (no "us" inside "Houston") and handle multiword names. Returns the
+ * canonical label, or null if nothing matches. Does NOT resolve bare cities (those
+ * need Nominatim); resolves an ambiguous token like "Georgia" to the country (a known
+ * limitation — see PRD §7.14). Shared first pass for both the live and pool resolvers.
+ */
+export function resolveLabelLocal(text: string): string | null {
+  ensureLocationData();
+  const toks = text.toLowerCase().match(/\p{L}+/gu) ?? [];
+  if (toks.length === 0) return null;
+  const maxN = Math.min(toks.length, 6);
+  for (const map of [COUNTRY_NAMES, REGION_ALIAS_TO_CANONICAL]) {
+    for (let n = maxN; n >= 1; n--) {
+      for (let i = 0; i + n <= toks.length; i++) {
+        const hit = map[toks.slice(i, i + n).join(' ')];
+        if (hit) return hit;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Country-aware "and"/"or" split. Splits one location element on and/or (and
  * Oxford commas) ONLY when ≥2 parts resolve to DISTINCT known countries/regions,
  * so real names ("Bosnia and Herzegovina") and single locations ("Berlin,
@@ -377,9 +402,11 @@ export async function resolveLocationString(raw: string): Promise<{ labels: stri
 
 /**
  * Resolves a list of raw LinkedIn location strings to country/region labels.
- * Order of resolution: direct recognition (country names/synonyms/metros + region
- * labels) → DB cache → Nominatim API (1 req/sec). Region aliases resolve to their
- * canonical region name, so the stored label is normalized at write time.
+ * Order of resolution: local recognition (exact, then token n-gram over countries/
+ * synonyms then regions/aliases) → DB cache → Nominatim API (1 req/sec). The local
+ * pass resolves any string that *names* a country/region without a network call;
+ * only bare places (cities) fall through to Nominatim. Region aliases resolve to
+ * their canonical name, so the stored label is normalized at write time.
  * Returns a Map from input location string to resolved country (or null if unknown).
  */
 export async function resolveCountries(locations: string[]): Promise<Map<string, string | null>> {
@@ -388,9 +415,10 @@ export async function resolveCountries(locations: string[]): Promise<Map<string,
   const result = new Map<string, string | null>();
   const unique = [...new Set(locations.filter(Boolean))];
 
-  // 1. Direct recognition: countries/synonyms/metros + region labels (no HTTP)
+  // 1. Local recognition (no HTTP): exact key, then token n-gram (countries/synonyms
+  //    first, then regions/aliases).
   for (const loc of unique) {
-    const direct = lookupCountry(loc) ?? canonicalRegion(loc);
+    const direct = lookupCountry(loc) ?? canonicalRegion(loc) ?? resolveLabelLocal(loc);
     if (direct) result.set(loc, direct);
   }
 
