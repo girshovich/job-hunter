@@ -15,9 +15,8 @@ import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, s
 import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries } from '../pipeline/atsPoolFetcher';
 import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipeline/poolLock';
 import { runTelegramIngest } from '../pipeline/telegramIngest';
-import { activeRuns } from '../pipeline/atsRunState';
+import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
-import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
@@ -1214,35 +1213,35 @@ router.get('/ats/status', (req: Request, res: Response) => {
 
 router.post('/ats/discover', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  const runId = randomUUID();
-  activeRuns.set(runId, { type: 'discovery', cancelled: false, listeners: new Set() });
+  const runId = tryStartRun({ kind: 'discover', label: 'Discovery (GH & Ashby)', unit: 'boards', cancellable: true });
+  if (!runId) return res.status(409).json({ error: 'Discovery is already running.' });
   res.json({ runId });
   runDiscovery(getDb(), runId)
     .then((r) => console.log('[ats-discovery] Manual run complete:', r))
     .catch((e) => console.error('[ats-discovery] Manual run error:', e))
-    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+    .finally(() => endRun(runId));
 });
 
 router.post('/ats/discover-lever', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  const runId = randomUUID();
-  activeRuns.set(runId, { type: 'discovery', cancelled: false, listeners: new Set() });
+  const runId = tryStartRun({ kind: 'discover-lever', label: 'Discovery (Lever)', unit: 'boards', cancellable: true });
+  if (!runId) return res.status(409).json({ error: 'Lever discovery is already running.' });
   res.json({ runId });
   runLeverDiscovery(getDb(), runId)
     .then((r) => console.log('[lever-discovery] Manual run complete:', r))
     .catch((e) => console.error('[lever-discovery] Manual run error:', e))
-    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+    .finally(() => endRun(runId));
 });
 
 router.post('/ats/validate', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  const runId = randomUUID();
-  activeRuns.set(runId, { type: 'validation', cancelled: false, listeners: new Set() });
+  const runId = tryStartRun({ kind: 'validate', label: 'Validation', unit: 'boards', cancellable: true });
+  if (!runId) return res.status(409).json({ error: 'Validation is already running.' });
   res.json({ runId });
   runValidation(getDb(), runId)
     .then((r) => console.log('[ats-validation] Manual run complete:', r))
     .catch((e) => console.error('[ats-validation] Manual run error:', e))
-    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+    .finally(() => endRun(runId));
 });
 
 router.get('/ats/stream/:runId', (req: Request, res: Response) => {
@@ -1257,16 +1256,22 @@ router.get('/ats/stream/:runId', (req: Request, res: Response) => {
   res.flushHeaders();
 
   const send = (data: string) => res.write(data);
+  for (const msg of run.log) send(`data: ${JSON.stringify({ msg })}\n\n`);   // replay buffered log
+  if (run.progress) send(`data: ${JSON.stringify(run.progress)}\n\n`);        // replay last progress
   run.listeners.add(send);
   req.on('close', () => run.listeners.delete(send));
 });
 
 router.delete('/ats/run/:runId', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  const run = activeRuns.get(req.params.runId);
-  if (!run) { res.status(404).json({ error: 'Run not found.' }); return; }
-  run.cancelled = true;
-  res.json({ success: true });
+  return cancelRun(req.params.runId)
+    ? res.json({ success: true })
+    : res.status(404).json({ error: 'Run not found.' });
+});
+
+router.get('/ats/active', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) { res.status(403).json({ error: 'Admin only.' }); return; }
+  res.json(listActiveRuns());
 });
 
 router.post('/ats/pool/fetch-greenhouse', (req: Request, res: Response) => {
@@ -1274,13 +1279,12 @@ router.post('/ats/pool/fetch-greenhouse', (req: Request, res: Response) => {
   if (!tryAcquirePoolLock('Greenhouse')) {
     return res.status(409).json({ error: `A ${getActivePoolFetch()} pool fetch is already running.` });
   }
-  const runId = randomUUID();
-  activeRuns.set(runId, { type: 'pool-fetch' as 'discovery', cancelled: false, listeners: new Set() });
+  const runId = createRun({ kind: 'pool-gh', label: 'Greenhouse pool fetch', unit: 'boards', cancellable: true });
   res.json({ runId });
   fetchGreenhousePool(getDb(), runId)
     .then((r) => console.log('[gh-pool] Manual fetch complete:', r))
     .catch((e) => console.error('[gh-pool] Manual fetch error:', e))
-    .finally(() => { releasePoolLock(); setTimeout(() => activeRuns.delete(runId), 5_000); });
+    .finally(() => { releasePoolLock(); endRun(runId); });
 });
 
 router.post('/ats/pool/fetch-ashby', (req: Request, res: Response) => {
@@ -1288,35 +1292,34 @@ router.post('/ats/pool/fetch-ashby', (req: Request, res: Response) => {
   if (!tryAcquirePoolLock('Ashby')) {
     return res.status(409).json({ error: `A ${getActivePoolFetch()} pool fetch is already running.` });
   }
-  const runId = randomUUID();
-  activeRuns.set(runId, { type: 'pool-fetch' as 'validation', cancelled: false, listeners: new Set() });
+  const runId = createRun({ kind: 'pool-ashby', label: 'Ashby pool fetch', unit: 'boards', cancellable: true });
   res.json({ runId });
   fetchAshbyPool(getDb(), runId)
     .then((r) => console.log('[ashby-pool] Manual fetch complete:', r))
     .catch((e) => console.error('[ashby-pool] Manual fetch error:', e))
-    .finally(() => { releasePoolLock(); setTimeout(() => activeRuns.delete(runId), 5_000); });
+    .finally(() => { releasePoolLock(); endRun(runId); });
 });
 
 router.post('/ats/pool/resolve-countries', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  const runId = randomUUID();
-  activeRuns.set(runId, { type: 'pool-fetch' as 'discovery', cancelled: false, listeners: new Set() });
+  const runId = tryStartRun({ kind: 'resolve-countries', label: 'Resolving job countries', unit: 'locations', cancellable: true });
+  if (!runId) return res.status(409).json({ error: 'Country resolution is already running.' });
   res.json({ runId });
   resolvePoolCountries(getDb(), runId)
     .then((r) => console.log('[pool] Resolve countries complete:', r))
     .catch((e) => console.error('[pool] Resolve countries error:', e))
-    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+    .finally(() => endRun(runId));
 });
 
 router.post('/ats/pool/recheck-unknown-countries', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
-  const runId = randomUUID();
-  activeRuns.set(runId, { type: 'pool-fetch' as 'discovery', cancelled: false, listeners: new Set() });
+  const runId = tryStartRun({ kind: 'recheck-unknowns', label: 'Re-checking unknown countries', unit: 'locations', cancellable: true });
+  if (!runId) return res.status(409).json({ error: 'Re-check is already running.' });
   res.json({ runId });
   resolvePoolCountries(getDb(), runId, { recheckUnknowns: true })
     .then((r) => console.log('[pool] Re-check unknown countries complete:', r))
     .catch((e) => console.error('[pool] Re-check unknown countries error:', e))
-    .finally(() => setTimeout(() => activeRuns.delete(runId), 5_000));
+    .finally(() => endRun(runId));
 });
 
 router.post('/ats/pool/settings', (req: Request, res: Response) => {
@@ -1407,11 +1410,13 @@ router.post('/telegram/fetch-now', (req: Request, res: Response) => {
   if (!tryAcquirePoolLock('Telegram')) {
     return res.status(409).json({ error: `A ${getActivePoolFetch()} pool fetch is already running.` });
   }
-  res.json({ success: true });
+  const runId = createRun({ kind: 'telegram', label: 'Telegram fetch', cancellable: false });
+  res.json({ success: true, runId });
+  emitToRun(runId, { msg: 'Telegram fetch started…' });
   runTelegramIngest(getDb())
-    .then((r) => console.log('[telegram] Manual fetch complete:', r))
-    .catch((e) => console.error('[telegram] Manual fetch error:', e))
-    .finally(() => releasePoolLock());
+    .then((r) => { console.log('[telegram] Manual fetch complete:', r); emitToRun(runId, { msg: `Done: ${JSON.stringify(r)}`, done: true }); })
+    .catch((e) => { console.error('[telegram] Manual fetch error:', e); emitToRun(runId, { msg: `Failed: ${e.message}`, done: true }); })
+    .finally(() => { releasePoolLock(); endRun(runId); });
 });
 
 router.get('/telegram/channels', (req: Request, res: Response) => {

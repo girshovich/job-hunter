@@ -6,6 +6,7 @@ import { fetchGreenhousePool, fetchAshbyPool } from './atsPoolFetcher';
 import { acquirePoolLock, releasePoolLock } from './poolLock';
 import { runTelegramIngest } from './telegramIngest';
 import { sendDiscoveryEmptyAlert } from './emailReport';
+import { tryStartRun, createRun, endRun, emitToRun } from './atsRunState';
 import { config } from '../config';
 import { getDb } from '../db';
 
@@ -80,13 +81,17 @@ export function startAtsDiscoveryCron(expression: string, timezone = 'UTC'): voi
     expression = '0 8 1 * *';
   }
   discoveryTask = cron.schedule(expression, async () => {
+    const runId = tryStartRun({ kind: 'discover', label: 'Discovery (GH & Ashby) — scheduled', unit: 'boards', cancellable: true });
+    if (!runId) { console.log('[ats-discovery] Skipped — discovery already running'); return; }
     console.log('[ats-discovery] Starting scheduled discovery run');
     try {
-      const result = await runDiscovery(getDb());
+      const result = await runDiscovery(getDb(), runId);
       console.log('[ats-discovery] Done:', result);
       await alertIfDiscoveryEmpty('ATS discovery', result);
     } catch (err) {
       console.error('[ats-discovery] Error:', err);
+    } finally {
+      endRun(runId);
     }
   }, { timezone });
   console.log(`[ats-discovery] Cron scheduled: "${expression}" (${timezone})`);
@@ -105,13 +110,17 @@ export function startLeverDiscoveryCron(expression: string, timezone = 'UTC'): v
     expression = '0 8 1 * *';
   }
   leverDiscoveryTask = cron.schedule(expression, async () => {
+    const runId = tryStartRun({ kind: 'discover-lever', label: 'Discovery (Lever) — scheduled', unit: 'boards', cancellable: true });
+    if (!runId) { console.log('[lever-discovery] Skipped — lever discovery already running'); return; }
     console.log('[lever-discovery] Starting scheduled discovery run');
     try {
-      const result = await runLeverDiscovery(getDb());
+      const result = await runLeverDiscovery(getDb(), runId);
       console.log('[lever-discovery] Done:', result);
       await alertIfDiscoveryEmpty('Lever discovery', result);
     } catch (err) {
       console.error('[lever-discovery] Error:', err);
+    } finally {
+      endRun(runId);
     }
   }, { timezone });
   console.log(`[lever-discovery] Cron scheduled: "${expression}" (${timezone})`);
@@ -130,12 +139,16 @@ export function startAtsValidationCron(expression: string, timezone = 'UTC'): vo
     expression = '0 8 * * 0';
   }
   validationTask = cron.schedule(expression, async () => {
+    const runId = tryStartRun({ kind: 'validate', label: 'Validation — scheduled', unit: 'boards', cancellable: true });
+    if (!runId) { console.log('[ats-validation] Skipped — validation already running'); return; }
     console.log('[ats-validation] Starting scheduled validation run');
     try {
-      const result = await runValidation(getDb());
+      const result = await runValidation(getDb(), runId);
       console.log('[ats-validation] Done:', result);
     } catch (err) {
       console.error('[ats-validation] Error:', err);
+    } finally {
+      endRun(runId);
     }
   }, { timezone });
   console.log(`[ats-validation] Cron scheduled: "${expression}" (${timezone})`);
@@ -156,13 +169,15 @@ export function startGhPoolCron(expression: string, timezone = 'UTC'): void {
   ghPoolTask = cron.schedule(expression, async () => {
     console.log('[gh-pool] Starting scheduled Greenhouse pool fetch');
     await acquirePoolLock('Greenhouse');
+    const runId = createRun({ kind: 'pool-gh', label: 'Greenhouse pool fetch — scheduled', unit: 'boards', cancellable: true });
     try {
-      const result = await fetchGreenhousePool(getDb());
+      const result = await fetchGreenhousePool(getDb(), runId);
       console.log('[gh-pool] Done:', result);
     } catch (err) {
       console.error('[gh-pool] Error:', err);
     } finally {
       releasePoolLock();
+      endRun(runId);
     }
   }, { timezone });
   console.log(`[gh-pool] Cron scheduled: "${expression}" (${timezone})`);
@@ -183,13 +198,15 @@ export function startAshbyPoolCron(expression: string, timezone = 'UTC'): void {
   ashbyPoolTask = cron.schedule(expression, async () => {
     console.log('[ashby-pool] Starting scheduled Ashby pool fetch');
     await acquirePoolLock('Ashby');
+    const runId = createRun({ kind: 'pool-ashby', label: 'Ashby pool fetch — scheduled', unit: 'boards', cancellable: true });
     try {
-      const result = await fetchAshbyPool(getDb());
+      const result = await fetchAshbyPool(getDb(), runId);
       console.log('[ashby-pool] Done:', result);
     } catch (err) {
       console.error('[ashby-pool] Error:', err);
     } finally {
       releasePoolLock();
+      endRun(runId);
     }
   }, { timezone });
   console.log(`[ashby-pool] Cron scheduled: "${expression}" (${timezone})`);
@@ -210,13 +227,18 @@ export function startTelegramIngestCron(expression: string, timezone = 'UTC'): v
   telegramIngestTask = cron.schedule(expression, async () => {
     console.log('[telegram-ingest] Starting scheduled ingest run');
     await acquirePoolLock('Telegram');
+    const runId = createRun({ kind: 'telegram', label: 'Telegram fetch — scheduled', cancellable: false });
+    emitToRun(runId, { msg: 'Telegram fetch started…' });
     try {
       const result = await runTelegramIngest(getDb());
       console.log('[telegram-ingest] Done:', result);
+      emitToRun(runId, { msg: `Done: ${JSON.stringify(result)}`, done: true });
     } catch (err) {
       console.error('[telegram-ingest] Error:', err);
+      emitToRun(runId, { msg: `Failed: ${(err as Error).message}`, done: true });
     } finally {
       releasePoolLock();
+      endRun(runId);
     }
   }, { timezone });
   console.log(`[telegram-ingest] Cron scheduled: "${expression}" (${timezone})`);
