@@ -9,7 +9,7 @@ import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { Resend } from 'resend';
 import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
-import ALL_COUNTRIES from '../pipeline/countries.json';
+import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { getAtsSchedules } from '../pipeline/atsScheduler';
 
 const router = Router();
@@ -82,7 +82,7 @@ router.get('/', (req: Request, res: Response) => {
       `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; credits_balance: number }>)
     : [];
 
-  const locationCountries = ALL_COUNTRIES;
+  const locationCountries = getCanonicalCountries();
 
   const errorParam = String(req.query.error || '');
   const queryError = errorParam === 'email-taken-on-confirm'
@@ -411,7 +411,7 @@ router.post('/', async (req: Request, res: Response) => {
     const allProfiles = req.profile.isAdmin
       ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
       : [];
-    const locationCountries = ALL_COUNTRIES;
+    const locationCountries = getCanonicalCountries();
     res.status(400).render('settings', {
       settings,
       groups: getGroups(db, profileId),
@@ -482,7 +482,7 @@ router.post('/cvs/upload', upload.single('cv_file'), (req: Request, res: Respons
     const allProfiles = req.profile.isAdmin
       ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
       : [];
-    const locationCountries = ALL_COUNTRIES;
+    const locationCountries = getCanonicalCountries();
     res.status(400).render('settings', {
       settings,
       groups: getGroups(db, profileId),

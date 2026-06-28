@@ -13,7 +13,7 @@ import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { providerToSource } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
-import { resolveLocationString, COUNTRY_NAMES, expandRegionToCountries } from './locationNormalizer';
+import { resolveLocationString, lookupCountry, expandRegionToCountries } from './locationNormalizer';
 import { groupOrDrop } from './locationGrouping';
 import pLimit from 'p-limit';
 import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
@@ -161,7 +161,7 @@ function selectDisplayLabel(
 function buildLocationData(label: string | null): { labels: string[]; countries: string[] } {
   if (!label) return { labels: [], countries: [] };
   const lower = label.toLowerCase();
-  const countries = COUNTRY_NAMES[lower] ? [lower] : expandRegionToCountries(label);
+  const countries = lookupCountry(lower) ? [lower] : expandRegionToCountries(label);
   return { labels: [label], countries };
 }
 

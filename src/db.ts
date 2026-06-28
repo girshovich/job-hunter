@@ -12,6 +12,7 @@ const { DatabaseSync } = require('node:sqlite') as {
 import * as fs from 'fs';
 import * as path from 'path';
 import { config } from './config';
+import ALL_COUNTRIES from './pipeline/countries.json';
 
 // Minimal type surface for node:sqlite
 interface NodeSQLiteStatement {
@@ -1337,8 +1338,8 @@ function runMigrations(db: Database): void {
   try {
     const TELEGRAM_DEFAULT_PROMPT = `Extract job openings from this Telegram post. Return jobs: [] for ads, news, or posts with no vacancy.
 
-One object per role. Fields:
-- title: job title in English — translate it if the post is written in another language. Skip the role if absent.
+One object per job. Fields:
+- title: job title in English — translate it if the post is written in another language. Skip the job if absent.
 - company: real employer named in the text (not the channel). Keep it exactly as written in the post — do not translate or transliterate it. null if missing.
 - location: in English — translate it if written in another language (e.g. "Berlin", "Remote"). null if not mentioned.
 - applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
@@ -1469,7 +1470,7 @@ The full post text is stored as the job description — do not repeat or summari
 
       const BATCH = 2000;
 
-      // Phase 1: job_postings for processed jobs only (scored roles + their duplicates,
+      // Phase 1: job_postings for processed jobs only (scored jobs + their duplicates,
       // i.e. rows present in job_profile_states). Unscored pool candidates are skipped —
       // a posting means "processed by the runner", and giving the pool one would make
       // filterNewJobs treat it as already-seen and never score it.
@@ -1499,7 +1500,7 @@ The full post text is stored as the job description — do not repeat or summari
         if (rows.length < BATCH) break;
       }
 
-      // Phase 2: job_locations + job_countries for visible non-duplicate roles only
+      // Phase 2: job_locations + job_countries for visible non-duplicate jobs only
       const selectLocBatch = db.prepare<{ id: number; country: string }>(
         `SELECT j.id, j.country FROM jobs j
          WHERE j.country IS NOT NULL AND j.country != ''
@@ -1574,6 +1575,308 @@ The full post text is stored as the job description — do not repeat or summari
     }
   } catch (err) {
     console.warn('[db] Migration mc_backfill_cleanup failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_country_synonyms: admin-editable lowercase synonyms/folds → canonical country.
+  // Seeded with the aliases previously hardcoded in COUNTRY_NAMES, plus Guam/Puerto Rico
+  // folded into the United States. Canonical names match countries.json spellings.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_country_synonyms'`).get();
+    if (!done) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS country_synonyms (
+          synonym TEXT PRIMARY KEY,
+          country TEXT NOT NULL
+        );
+      `);
+      const seed: Array<[string, string]> = [
+        ['czech republic', 'Czechia'],
+        ['congo', 'Republic of the Congo'],
+        ['turkiye', 'Turkey'],
+        ['uae', 'United Arab Emirates'],
+        ['dubai', 'United Arab Emirates'],
+        ['abu dhabi', 'United Arab Emirates'],
+        ['usa', 'United States'],
+        ['united states of america', 'United States'],
+        ['uk', 'United Kingdom'],
+        ['guam', 'United States'],
+        ['puerto rico', 'United States'],
+      ];
+      const ins = db.prepare(`INSERT OR IGNORE INTO country_synonyms (synonym, country) VALUES (?, ?)`);
+      for (const [synonym, country] of seed) ins.run(synonym, country);
+      db.exec(`INSERT INTO _migrations VALUES ('v_country_synonyms')`);
+      console.log('[db] Migration v_country_synonyms: country_synonyms table created + seeded');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_country_synonyms failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_region_aliases: alias → canonical region name (lowercase keys), admin-editable.
+  // Lets several spellings share one member list (EU / European Union). The base
+  // schema also creates this; the migration covers already-migrated DBs.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_region_aliases'`).get();
+    if (!done) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS region_aliases (
+          alias       TEXT PRIMARY KEY,
+          region_name TEXT NOT NULL,
+          updated_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_region_aliases_region ON region_aliases(region_name);
+      `);
+      db.exec(`INSERT INTO _migrations VALUES ('v_region_aliases')`);
+      console.log('[db] Migration v_region_aliases: region_aliases table created');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_region_aliases failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_seed_geo_into_db: move the previously-hardcoded GEO_ALIASES/HARDCODED maps
+  // out of locationNormalizer.ts and into the DB so they are admin-editable.
+  //  - country aliases + metro areas → country_synonyms (resolved via lookupCountry)
+  //  - macro-regions / region labels → region_aliases (canonical region created;
+  //    members start empty except DACH, already seeded by v_mc_regions_seed)
+  // EU/EEA fold their long spellings ("European Union"/"European Economic Area")
+  // as aliases of one canonical region. INSERT OR IGNORE keeps re-runs and overlaps
+  // with v_country_synonyms / v_mc_regions_seed safe.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_seed_geo_into_db'`).get();
+    if (!done) {
+      const now = new Date().toISOString();
+
+      // Country aliases + metro areas (string → canonical country)
+      const countrySeed: Array<[string, string]> = [
+        ['us', 'United States'], ['usa', 'United States'],
+        ['u.s.', 'United States'], ['u.s.a.', 'United States'],
+        ['uk', 'United Kingdom'], ['u.k.', 'United Kingdom'],
+        ['britain', 'United Kingdom'], ['england', 'United Kingdom'],
+        ['uae', 'United Arab Emirates'],
+        ['greater alicante area', 'Spain'],
+        ['greater barcelona metropolitan area', 'Spain'],
+        ['greater bilbao metropolitan area', 'Spain'],
+        ['greater madrid metropolitan area', 'Spain'],
+        ['greater málaga metropolitan area', 'Spain'],
+        ['greater orense area', 'Spain'],
+        ['greater santander metropolitan area', 'Spain'],
+        ['greater san sebastian area', 'Spain'],
+        ['greater cádiz metropolitan area', 'Spain'],
+        ['greater munich metropolitan area', 'Germany'],
+        ['greater hamburg area', 'Germany'],
+        ['greater dusseldorf area', 'Germany'],
+        ['frankfurt rhine-main metropolitan area', 'Germany'],
+        ['berlin metropolitan area', 'Germany'],
+        ['berlin area', 'Germany'],
+        ['greater paris metropolitan region', 'France'],
+        ['greater marseille metropolitan area', 'France'],
+        ['greater chicago area', 'United States'],
+        ['greater houston', 'United States'],
+        ['greater philadelphia', 'United States'],
+        ['dallas-fort worth metroplex', 'United States'],
+        ['greater hyderabad area', 'India'],
+        ['greater johor bahru', 'Malaysia'],
+        ['greater kempten area', 'Germany'],
+        ['amsterdam area', 'Netherlands'],
+        ['the randstad, netherlands', 'Netherlands'],
+      ];
+      const insSyn = db.prepare(`INSERT OR IGNORE INTO country_synonyms (synonym, country) VALUES (?, ?)`);
+
+      // Region aliases (string → canonical region name). The canonical region is
+      // listable/resolvable via its alias rows even with no members.
+      const regionSeed: Array<[string, string]> = [
+        ['eu', 'EU'], ['european union', 'EU'],
+        ['eea', 'EEA'], ['european economic area', 'EEA'],
+        ['emea', 'EMEA'], ['apac', 'APAC'], ['latam', 'LATAM'], ['anz', 'ANZ'],
+        ['europe', 'Europe'], ['africa', 'Africa'], ['asia', 'Asia'],
+        ['americas', 'Americas'], ['oceania', 'Oceania'],
+        ['north america', 'North America'], ['south america', 'South America'],
+        ['middle east', 'Middle East'], ['nordics', 'Nordics'], ['benelux', 'Benelux'],
+        ['dach', 'DACH'],
+      ];
+      const insAlias = db.prepare(`INSERT OR IGNORE INTO region_aliases (alias, region_name, updated_at) VALUES (?, ?, ?)`);
+
+      db.transaction(() => {
+        for (const [syn, country] of countrySeed) insSyn.run(syn, country);
+        for (const [alias, region] of regionSeed) insAlias.run(alias, region, now);
+      });
+      db.exec(`INSERT INTO _migrations VALUES ('v_seed_geo_into_db')`);
+      console.log('[db] Migration v_seed_geo_into_db: GEO/HARDCODED seeds moved into country_synonyms + region_aliases');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_seed_geo_into_db failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_region_label_backfill: historical job_locations rows hold the standalone
+  // labels "European Union"/"European Economic Area" that are now aliases of the
+  // canonical regions EU/EEA. Rewrite them to the canonical name so a region never
+  // appears under two names. job_countries is unaffected (both old and new labels
+  // expand to the same empty member set — EU/EEA have no members), so no re-derive
+  // is needed here. OR IGNORE + a follow-up DELETE collapse any (canonical, alias)
+  // pair already present on the same job.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_region_label_backfill'`).get();
+    if (!done) {
+      const renames: Array<[string, string]> = [
+        ['european union', 'EU'],
+        ['european economic area', 'EEA'],
+      ];
+      db.transaction(() => {
+        for (const [alias, canonical] of renames) {
+          db.prepare(`UPDATE OR IGNORE job_locations SET label = ? WHERE LOWER(label) = ?`).run(canonical, alias);
+          db.prepare(`DELETE FROM job_locations WHERE LOWER(label) = ?`).run(alias);
+        }
+      });
+      db.exec(`INSERT INTO _migrations VALUES ('v_region_label_backfill')`);
+      console.log('[db] Migration v_region_label_backfill: alias labels rewritten to canonical region names');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_region_label_backfill failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_unfold_territory_synonyms: countries.json is the immutable source of truth, so a
+  // synonym must never use a country's own name as its key (that folds/removes the country).
+  // The original seed folded Guam and Puerto Rico into the United States — un-fold them so
+  // they are their own countries again, then re-derive any jobs that were tagged with those
+  // labels (self-contained region-expand-else-country pattern; no synonym lookup needed).
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_unfold_territory_synonyms'`).get();
+    if (!done) {
+      const affected = db.prepare<{ job_id: number }>(
+        `SELECT DISTINCT job_id FROM job_locations WHERE LOWER(label) IN ('guam', 'puerto rico')`,
+      ).all().map((r) => r.job_id);
+      db.prepare(`DELETE FROM country_synonyms WHERE LOWER(synonym) IN ('guam', 'puerto rico')`).run();
+
+      if (affected.length > 0) {
+        const checkRegion = db.prepare<{ c: number }>(
+          `SELECT COUNT(*) as c FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
+        );
+        const insCountry = db.prepare<unknown>(`INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, LOWER(?))`);
+        const insRegion  = db.prepare<unknown>(
+          `INSERT OR IGNORE INTO job_countries (job_id, country)
+           SELECT ?, rd.country FROM region_definitions rd WHERE rd.name = ? COLLATE NOCASE AND rd.is_active = 1`,
+        );
+        db.transaction(() => {
+          for (const jobId of affected) {
+            const labels = db.prepare<{ label: string }>(`SELECT label FROM job_locations WHERE job_id = ?`).all(jobId);
+            db.prepare(`DELETE FROM job_countries WHERE job_id = ?`).run(jobId);
+            for (const { label } of labels) {
+              const r = checkRegion.get(label) as { c: number } | undefined;
+              if (r && r.c > 0) insRegion.run(jobId, label);
+              else insCountry.run(jobId, label);
+            }
+          }
+        });
+      }
+      db.exec(`INSERT INTO _migrations VALUES ('v_unfold_territory_synonyms')`);
+      console.log(`[db] Migration v_unfold_territory_synonyms: un-folded Guam/Puerto Rico; re-derived ${affected.length} job(s)`);
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_unfold_territory_synonyms failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_seed_macro_regions: populate the macro-regions with member countries (admin-approved
+  // composition). Member names must match countries.json exactly (lowercased on insert).
+  // Recreates Europe/MENA/CIS/Worldwide (new or previously deleted) and fills the rest +
+  // EEA/APAC. Overlap between regions is expected (e.g. CIS members also in EMEA). Existing
+  // jobs tagged with these regions are re-derived so their job_countries expand.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_seed_macro_regions'`).get();
+    if (!done) {
+      const uniq = (...xs: string[][]): string[] => [...new Set(xs.flat())];
+
+      const EU = ['Austria', 'Belgium', 'Bulgaria', 'Croatia', 'Cyprus', 'Czechia', 'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary', 'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg', 'Malta', 'Netherlands', 'Poland', 'Portugal', 'Romania', 'Slovakia', 'Slovenia', 'Spain', 'Sweden'];
+      const EEA = uniq(EU, ['Iceland', 'Liechtenstein', 'Norway']);
+      const EUROPE = ['Albania', 'Andorra', 'Austria', 'Belarus', 'Belgium', 'Bosnia and Herzegovina', 'Bulgaria', 'Croatia', 'Cyprus', 'Czechia', 'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary', 'Iceland', 'Ireland', 'Italy', 'Kosovo', 'Latvia', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Malta', 'Moldova', 'Monaco', 'Montenegro', 'Netherlands', 'North Macedonia', 'Norway', 'Poland', 'Portugal', 'Romania', 'San Marino', 'Serbia', 'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland', 'Ukraine', 'United Kingdom', 'Vatican City'];
+      const MIDDLE_EAST = ['Bahrain', 'Iran', 'Iraq', 'Israel', 'Jordan', 'Kuwait', 'Lebanon', 'Oman', 'Palestine', 'Qatar', 'Saudi Arabia', 'Syria', 'Turkey', 'United Arab Emirates', 'Yemen'];
+      const NORTH_AFRICA = ['Algeria', 'Egypt', 'Libya', 'Morocco', 'Tunisia', 'Western Sahara'];
+      const MENA = uniq(MIDDLE_EAST, NORTH_AFRICA);
+      const AFRICA = ['Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 'Central African Republic', 'Chad', 'Comoros', 'DR Congo', 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Ivory Coast', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Republic of the Congo', 'Rwanda', 'São Tomé and Príncipe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Western Sahara', 'Zambia', 'Zimbabwe'];
+      const CENTRAL_ASIA = ['Kazakhstan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Uzbekistan'];
+      const CAUCASUS = ['Georgia', 'Armenia', 'Azerbaijan'];
+      const EMEA = uniq(EUROPE, MIDDLE_EAST, AFRICA, CENTRAL_ASIA, CAUCASUS);
+      const NORTH_AMERICA = ['United States', 'Canada', 'Mexico'];
+      const CENTRAL_AMERICA = ['Belize', 'Costa Rica', 'El Salvador', 'Guatemala', 'Honduras', 'Nicaragua', 'Panama'];
+      const CARIBBEAN = ['Antigua and Barbuda', 'Bahamas', 'Barbados', 'Cuba', 'Dominica', 'Dominican Republic', 'Grenada', 'Haiti', 'Jamaica', 'Puerto Rico', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Trinidad and Tobago'];
+      const SOUTH_AMERICA = ['Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay', 'Peru', 'Suriname', 'Uruguay', 'Venezuela'];
+      const AMERICAS = uniq(NORTH_AMERICA, CENTRAL_AMERICA, CARIBBEAN, SOUTH_AMERICA);
+      const LATAM = ['Mexico', 'Guatemala', 'Honduras', 'El Salvador', 'Nicaragua', 'Costa Rica', 'Panama', 'Cuba', 'Dominican Republic', 'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay', 'Venezuela'];
+      const EAST_ASIA = ['China', 'Hong Kong', 'Japan', 'Macau', 'Mongolia', 'North Korea', 'South Korea', 'Taiwan'];
+      const SE_ASIA = ['Brunei', 'Cambodia', 'Indonesia', 'Laos', 'Malaysia', 'Myanmar', 'Philippines', 'Singapore', 'Thailand', 'Timor-Leste', 'Vietnam'];
+      const SOUTH_ASIA = ['Afghanistan', 'Bangladesh', 'Bhutan', 'India', 'Maldives', 'Nepal', 'Pakistan', 'Sri Lanka'];
+      const OCEANIA = ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu'];
+      const APAC = uniq(EAST_ASIA, SE_ASIA, SOUTH_ASIA, OCEANIA);
+      const CIS = ['Russia', 'Belarus', 'Kazakhstan', 'Kyrgyzstan', 'Tajikistan', 'Uzbekistan', 'Armenia', 'Azerbaijan', 'Moldova', 'Turkmenistan'];
+      const WORLDWIDE = (ALL_COUNTRIES as string[]);
+
+      const REGIONS: Array<{ name: string; members: string[]; aliases: string[] }> = [
+        { name: 'Worldwide', members: WORLDWIDE, aliases: ['anywhere'] },
+        { name: 'EMEA', members: EMEA, aliases: [] },
+        { name: 'EU', members: EU, aliases: [] },
+        { name: 'MENA', members: MENA, aliases: [] },
+        { name: 'Europe', members: EUROPE, aliases: [] },
+        { name: 'LATAM', members: LATAM, aliases: [] },
+        { name: 'North America', members: NORTH_AMERICA, aliases: [] },
+        { name: 'South America', members: SOUTH_AMERICA, aliases: [] },
+        { name: 'Africa', members: AFRICA, aliases: [] },
+        { name: 'Americas', members: AMERICAS, aliases: [] },
+        { name: 'EEA', members: EEA, aliases: [] },
+        { name: 'APAC', members: APAC, aliases: [] },
+        { name: 'CIS', members: CIS, aliases: [] },
+      ];
+
+      const now = new Date().toISOString();
+      const insDef = db.prepare<unknown>(`INSERT OR IGNORE INTO region_definitions (name, country, is_active, updated_at) VALUES (?, ?, 1, ?)`);
+      const insAlias = db.prepare<unknown>(`INSERT OR IGNORE INTO region_aliases (alias, region_name, updated_at) VALUES (?, ?, ?)`);
+      db.transaction(() => {
+        for (const r of REGIONS) {
+          for (const m of r.members) insDef.run(r.name, m.toLowerCase(), now);
+          for (const a of r.aliases) insAlias.run(a.toLowerCase(), r.name, now);
+        }
+      });
+
+      // Re-derive jobs tagged with any of these regions so their job_countries expand.
+      const labelKeys = [...REGIONS.map((r) => r.name.toLowerCase()), 'anywhere'];
+      const ph = labelKeys.map(() => '?').join(',');
+      const affected = db.prepare<{ job_id: number }>(
+        `SELECT DISTINCT job_id FROM job_locations WHERE LOWER(label) IN (${ph})`,
+      ).all(...labelKeys).map((r) => r.job_id);
+      if (affected.length > 0) {
+        const checkRegion = db.prepare<{ c: number }>(
+          `SELECT COUNT(*) as c FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
+        );
+        const insCountry = db.prepare<unknown>(`INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, LOWER(?))`);
+        const insRegion = db.prepare<unknown>(
+          `INSERT OR IGNORE INTO job_countries (job_id, country)
+           SELECT ?, rd.country FROM region_definitions rd WHERE rd.name = ? COLLATE NOCASE AND rd.is_active = 1`,
+        );
+        const BATCH = 300;
+        for (let i = 0; i < affected.length; i += BATCH) {
+          const batch = affected.slice(i, i + BATCH);
+          db.transaction(() => {
+            for (const jobId of batch) {
+              const labels = db.prepare<{ label: string }>(`SELECT label FROM job_locations WHERE job_id = ?`).all(jobId);
+              db.prepare(`DELETE FROM job_countries WHERE job_id = ?`).run(jobId);
+              for (const { label } of labels) {
+                const rr = checkRegion.get(label) as { c: number } | undefined;
+                if (rr && rr.c > 0) insRegion.run(jobId, label);
+                else insCountry.run(jobId, label);
+              }
+            }
+          });
+          db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+        }
+      }
+      db.exec(`INSERT INTO _migrations VALUES ('v_seed_macro_regions')`);
+      console.log(`[db] Migration v_seed_macro_regions: ${REGIONS.length} regions populated; re-derived ${affected.length} job(s)`);
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_seed_macro_regions failed (non-fatal):', (err as Error).message);
   }
 }
 
@@ -1851,6 +2154,13 @@ function initSchema(db: Database): void {
       PRIMARY KEY (name, country)
     );
     CREATE INDEX IF NOT EXISTS idx_region_definitions_name ON region_definitions(name);
+
+    CREATE TABLE IF NOT EXISTS region_aliases (
+      alias       TEXT PRIMARY KEY,
+      region_name TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_region_aliases_region ON region_aliases(region_name);
   `);
 }
 

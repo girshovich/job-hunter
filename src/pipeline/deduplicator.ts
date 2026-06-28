@@ -51,7 +51,7 @@ export function filterNewJobs(jobs: JobPosting[], _profileId: number): { newJobs
  * URL-level dedup — checks whether a job's url or applyUrl matches any existing job
  * that this profile has already encountered.  Runs after provider-level dedup so the
  * new job's jobId is guaranteed to be unique; the URL match indicates a cross-source
- * repost (e.g. same role on LinkedIn and Greenhouse).
+ * repost (e.g. same job on LinkedIn and Greenhouse).
  */
 export function filterDuplicatesByUrl(
   jobs: JobPosting[],

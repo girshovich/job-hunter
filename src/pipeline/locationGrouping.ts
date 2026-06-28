@@ -1,7 +1,7 @@
 import { getDb } from '../db';
 
 /**
- * Merges incoming location labels and countries into an existing role's child tables.
+ * Merges incoming location labels and countries into an existing job's child tables.
  * Uses INSERT OR IGNORE so already-present rows are skipped.
  * Returns true if any new row was inserted (useful for logging).
  */

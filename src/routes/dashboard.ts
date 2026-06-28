@@ -5,6 +5,7 @@
 import { Router, type Request, type Response } from 'express';
 import { getDb, type JobWithState, type SearchRunRow, type SearchGroupRow, type SettingsRow, type CvRow } from '../db';
 import { getScheduleStatus } from '../pipeline/scheduler';
+import { lookupCountry } from '../pipeline/locationNormalizer';
 
 const router = Router();
 
@@ -216,6 +217,21 @@ router.get('/history', (req: Request, res: Response) => {
     `)
     .all(...params, limit, offset) as JobWithState[];
 
+  // Attach job_locations labels to each job for the primary + N badge (same as Matches/Start)
+  if (jobs.length > 0) {
+    const ids = jobs.map((j) => j.id);
+    const ph = ids.map(() => '?').join(',');
+    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph})`).all(...ids) as Array<{ job_id: number; label: string }>;
+    const labelsMap = new Map<number, string[]>();
+    for (const { job_id, label } of locRows) {
+      if (!labelsMap.has(job_id)) labelsMap.set(job_id, []);
+      labelsMap.get(job_id)!.push(label);
+    }
+    for (const job of jobs) {
+      (job as JobWithState & { locationLabels: string[] }).locationLabels = labelsMap.get(job.id) ?? [];
+    }
+  }
+
   const totalPages = Math.ceil(total / limit);
   const groups = db.prepare('SELECT id, group_name FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as Pick<SearchGroupRow, 'id' | 'group_name'>[];
   const histSettings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
@@ -227,7 +243,13 @@ router.get('/history', (req: Request, res: Response) => {
     WHERE jps.profile_id = ?
     ORDER BY jc.country ASC
   `).all(profileId) as Array<{ country: string }>;
-  const countries = countryRows.map(r => r.country);
+  // Stored values are lowercase; display capitalized. Fall back to title-case for
+  // values not in the recognition map (e.g. Nominatim spellings like "czech republic").
+  const titleCase = (s: string) => s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+  const countries = countryRows.map(r => ({
+    value: r.country,
+    label: lookupCountry(r.country) ?? titleCase(r.country),
+  }));
 
   res.render('history', {
     jobs,

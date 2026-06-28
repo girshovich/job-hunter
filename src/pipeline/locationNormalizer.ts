@@ -1,95 +1,135 @@
 import { getDb } from '../db';
+import ALL_COUNTRIES from './countries.json';
 
-// ISO 3166-1 country names (lowercase) → canonical display name.
-// Used to recognize country names directly without a Nominatim call.
-export const COUNTRY_NAMES: Record<string, string> = {
-  'afghanistan': 'Afghanistan', 'albania': 'Albania', 'algeria': 'Algeria',
-  'andorra': 'Andorra', 'angola': 'Angola', 'argentina': 'Argentina',
-  'armenia': 'Armenia', 'australia': 'Australia', 'austria': 'Austria',
-  'azerbaijan': 'Azerbaijan', 'bahrain': 'Bahrain', 'bangladesh': 'Bangladesh',
-  'belarus': 'Belarus', 'belgium': 'Belgium', 'belize': 'Belize',
-  'benin': 'Benin', 'bolivia': 'Bolivia', 'bosnia and herzegovina': 'Bosnia and Herzegovina',
-  'botswana': 'Botswana', 'brazil': 'Brazil', 'brunei': 'Brunei',
-  'bulgaria': 'Bulgaria', 'burkina faso': 'Burkina Faso', 'cambodia': 'Cambodia',
-  'cameroon': 'Cameroon', 'canada': 'Canada', 'chile': 'Chile',
-  'china': 'China', 'colombia': 'Colombia', 'congo': 'Congo',
-  'costa rica': 'Costa Rica', 'croatia': 'Croatia', 'cuba': 'Cuba',
-  'cyprus': 'Cyprus', 'czech republic': 'Czech Republic', 'czechia': 'Czechia',
-  'denmark': 'Denmark', 'dominican republic': 'Dominican Republic',
-  'ecuador': 'Ecuador', 'egypt': 'Egypt', 'el salvador': 'El Salvador',
-  'estonia': 'Estonia', 'ethiopia': 'Ethiopia', 'finland': 'Finland',
-  'france': 'France', 'georgia': 'Georgia', 'germany': 'Germany',
-  'ghana': 'Ghana', 'greece': 'Greece', 'guatemala': 'Guatemala',
-  'honduras': 'Honduras', 'hong kong': 'Hong Kong', 'hungary': 'Hungary',
-  'iceland': 'Iceland', 'india': 'India', 'indonesia': 'Indonesia',
-  'iran': 'Iran', 'iraq': 'Iraq', 'ireland': 'Ireland',
-  'israel': 'Israel', 'italy': 'Italy', 'ivory coast': 'Ivory Coast',
-  'jamaica': 'Jamaica', 'japan': 'Japan', 'jordan': 'Jordan',
-  'kazakhstan': 'Kazakhstan', 'kenya': 'Kenya', 'kosovo': 'Kosovo',
-  'kuwait': 'Kuwait', 'kyrgyzstan': 'Kyrgyzstan', 'latvia': 'Latvia',
-  'lebanon': 'Lebanon', 'libya': 'Libya', 'liechtenstein': 'Liechtenstein',
-  'lithuania': 'Lithuania', 'luxembourg': 'Luxembourg', 'malaysia': 'Malaysia',
-  'malta': 'Malta', 'mexico': 'Mexico', 'moldova': 'Moldova',
-  'monaco': 'Monaco', 'mongolia': 'Mongolia', 'morocco': 'Morocco',
-  'mozambique': 'Mozambique', 'myanmar': 'Myanmar', 'namibia': 'Namibia',
-  'nepal': 'Nepal', 'netherlands': 'Netherlands', 'new zealand': 'New Zealand',
-  'nicaragua': 'Nicaragua', 'nigeria': 'Nigeria', 'north korea': 'North Korea',
-  'north macedonia': 'North Macedonia', 'norway': 'Norway', 'oman': 'Oman',
-  'pakistan': 'Pakistan', 'panama': 'Panama', 'paraguay': 'Paraguay',
-  'peru': 'Peru', 'philippines': 'Philippines', 'poland': 'Poland',
-  'portugal': 'Portugal', 'qatar': 'Qatar', 'romania': 'Romania',
-  'russia': 'Russia', 'rwanda': 'Rwanda', 'saudi arabia': 'Saudi Arabia',
-  'senegal': 'Senegal', 'serbia': 'Serbia', 'singapore': 'Singapore',
-  'slovakia': 'Slovakia', 'slovenia': 'Slovenia', 'somalia': 'Somalia',
-  'south africa': 'South Africa', 'south korea': 'South Korea',
-  'spain': 'Spain', 'sri lanka': 'Sri Lanka', 'sudan': 'Sudan',
-  'sweden': 'Sweden', 'switzerland': 'Switzerland', 'syria': 'Syria',
-  'taiwan': 'Taiwan', 'tanzania': 'Tanzania', 'thailand': 'Thailand',
-  'tunisia': 'Tunisia', 'turkey': 'Turkey', 'turkiye': 'Turkey',
-  'uganda': 'Uganda', 'ukraine': 'Ukraine',
-  'united arab emirates': 'United Arab Emirates', 'uae': 'United Arab Emirates',
-  'dubai': 'United Arab Emirates', 'abu dhabi': 'United Arab Emirates',
-  'united kingdom': 'United Kingdom', 'uk': 'United Kingdom',
-  'united states': 'United States', 'usa': 'United States',
-  'united states of america': 'United States',
-  'uruguay': 'Uruguay', 'uzbekistan': 'Uzbekistan', 'venezuela': 'Venezuela',
-  'vietnam': 'Vietnam', 'yemen': 'Yemen', 'zambia': 'Zambia',
-  'zimbabwe': 'Zimbabwe',
-};
+// Lowercase recognition map: { lowercase country name | synonym → canonical display name }.
+// Canonical names come from countries.json (the source of truth); synonyms/folds come from
+// the admin-editable country_synonyms table. Built lazily on first use and rebuilt in place
+// via loadCountryNames() after an admin edit. Used to recognize a country without a Nominatim call.
+export const COUNTRY_NAMES: Record<string, string> = {};
+let _countryNamesLoaded = false;
 
-// Strings Nominatim can't resolve — regional labels and LinkedIn-specific metro area names
-export const HARDCODED: Record<string, string> = {
-  'emea': 'EMEA',
-  'dach': 'DACH',
-  'european union': 'European Union',
-  'european economic area': 'European Economic Area',
-  'greater alicante area': 'Spain',
-  'greater barcelona metropolitan area': 'Spain',
-  'greater bilbao metropolitan area': 'Spain',
-  'greater madrid metropolitan area': 'Spain',
-  'greater málaga metropolitan area': 'Spain',
-  'greater orense area': 'Spain',
-  'greater santander metropolitan area': 'Spain',
-  'greater san sebastian area': 'Spain',
-  'greater cádiz metropolitan area': 'Spain',
-  'greater munich metropolitan area': 'Germany',
-  'greater hamburg area': 'Germany',
-  'greater dusseldorf area': 'Germany',
-  'frankfurt rhine-main metropolitan area': 'Germany',
-  'berlin metropolitan area': 'Germany',
-  'berlin area': 'Germany',
-  'greater paris metropolitan region': 'France',
-  'greater marseille metropolitan area': 'France',
-  'greater chicago area': 'United States',
-  'greater houston': 'United States',
-  'greater philadelphia': 'United States',
-  'dallas-fort worth metroplex': 'United States',
-  'greater hyderabad area': 'India',
-  'greater johor bahru': 'Malaysia',
-  'greater kempten area': 'Germany',
-  'amsterdam area': 'Netherlands',
-  'the randstad, netherlands': 'Netherlands',
-};
+function buildCountryNames(): void {
+  const db = getDb();
+  let synonyms: Array<{ synonym: string; country: string }> = [];
+  try {
+    synonyms = db.prepare<{ synonym: string; country: string }>(
+      `SELECT synonym, country FROM country_synonyms`,
+    ).all();
+  } catch { synonyms = []; } // table may not exist yet during early migrations
+  const synonymKeys = new Set(synonyms.map((s) => s.synonym.toLowerCase()));
+
+  for (const k of Object.keys(COUNTRY_NAMES)) delete COUNTRY_NAMES[k];
+  // Canonical self-names, except those shadowed by a synonym (i.e. folded into another country).
+  for (const name of ALL_COUNTRIES as string[]) {
+    const lower = name.toLowerCase();
+    if (!synonymKeys.has(lower)) COUNTRY_NAMES[lower] = name;
+  }
+  // Synonyms / folds resolve to their canonical country.
+  for (const { synonym, country } of synonyms) {
+    COUNTRY_NAMES[synonym.toLowerCase()] = country;
+  }
+  rebuildMultiwordGeo();
+  _countryNamesLoaded = true;
+}
+
+function ensureCountryNames(): void {
+  if (!_countryNamesLoaded) buildCountryNames();
+}
+
+/** Rebuilds the in-memory country map from countries.json + DB synonyms. Call after edits. */
+export function loadCountryNames(): void {
+  buildCountryNames();
+}
+
+// In-memory region caches, rebuilt by loadRegionData() from the DB (mirrors COUNTRY_NAMES).
+//  REGION_MEMBERS:            canonicalLower → member countries (lowercase), from region_definitions.
+//  REGION_ALIAS_TO_CANONICAL: aliasLower → canonical region display name, from region_aliases,
+//                             plus an identity entry per canonical so the canonical resolves too.
+export const REGION_MEMBERS: Record<string, string[]> = {};
+export const REGION_ALIAS_TO_CANONICAL: Record<string, string> = {};
+let _regionDataLoaded = false;
+
+function buildRegionData(): void {
+  const db = getDb();
+  let members: Array<{ name: string; country: string }> = [];
+  let aliases: Array<{ alias: string; region_name: string }> = [];
+  try {
+    members = db.prepare<{ name: string; country: string }>(
+      `SELECT name, country FROM region_definitions WHERE is_active = 1`,
+    ).all();
+  } catch { members = []; } // table may not exist yet during early migrations
+  try {
+    aliases = db.prepare<{ alias: string; region_name: string }>(
+      `SELECT alias, region_name FROM region_aliases`,
+    ).all();
+  } catch { aliases = []; }
+
+  for (const k of Object.keys(REGION_MEMBERS)) delete REGION_MEMBERS[k];
+  for (const k of Object.keys(REGION_ALIAS_TO_CANONICAL)) delete REGION_ALIAS_TO_CANONICAL[k];
+
+  for (const { name, country } of members) {
+    (REGION_MEMBERS[name.toLowerCase()] ??= []).push(country.toLowerCase());
+  }
+  // Canonical region set = region_aliases.region_name ∪ region_definitions.name, so an
+  // empty (member-less) region still resolves and lists via its alias/identity entry.
+  const canonicals = new Set<string>([
+    ...aliases.map((a) => a.region_name),
+    ...members.map((m) => m.name),
+  ]);
+  for (const name of canonicals) REGION_ALIAS_TO_CANONICAL[name.toLowerCase()] = name;
+  for (const { alias, region_name } of aliases) REGION_ALIAS_TO_CANONICAL[alias.toLowerCase()] = region_name;
+
+  rebuildMultiwordGeo();
+  _regionDataLoaded = true;
+}
+
+function ensureRegionData(): void {
+  if (!_regionDataLoaded) buildRegionData();
+}
+
+/** Ensures both the country map and the region caches are loaded. */
+function ensureLocationData(): void {
+  ensureCountryNames();
+  ensureRegionData();
+}
+
+/** Rebuilds the region caches from region_definitions + region_aliases. Call after edits. */
+export function loadRegionData(): void {
+  buildRegionData();
+}
+
+/** Single entry point: rebuilds the country map and region caches together. Call after any
+ *  country-synonym or region/alias edit so one save refreshes all recognition. */
+export function loadLocationData(): void {
+  buildCountryNames();
+  buildRegionData();
+}
+
+/** alias/canonical region name (any case) → canonical region display name, or undefined. */
+export function canonicalRegion(label: string): string | undefined {
+  ensureRegionData();
+  return REGION_ALIAS_TO_CANONICAL[label.toLowerCase().trim()];
+}
+
+/** Lowercase name/synonym → canonical country, or undefined. Ensures the map is loaded. */
+export function lookupCountry(s: string): string | undefined {
+  ensureCountryNames();
+  return COUNTRY_NAMES[s.toLowerCase().trim()];
+}
+
+/** Sorted canonical country list (countries.json minus folded), for pickers/dropdowns. */
+export function getCanonicalCountries(): string[] {
+  ensureCountryNames();
+  return [...new Set(Object.values(COUNTRY_NAMES))].sort((a, b) => a.localeCompare(b));
+}
+
+// Immutable source-of-truth country set from countries.json, independent of the
+// editable synonym/fold table. Used to forbid a synonym/alias from shadowing a country.
+const SOURCE_COUNTRY_SET = new Set((ALL_COUNTRIES as string[]).map((n) => n.toLowerCase()));
+/** True if s is a canonical country name in the source-of-truth list (countries.json). */
+export function isSourceCountry(s: string): boolean {
+  return SOURCE_COUNTRY_SET.has(s.toLowerCase().trim());
+}
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT = 'JobHunterApp/1.0 (self-hosted job search tool)';
@@ -124,6 +164,7 @@ function stripPoisonWords(s: string): string {
  * noise and poison words removed (may be empty → caller treats it as unknown).
  */
 export function cleanLocationForGeocoding(raw: string): { parenCountry: string | null; query: string } {
+  ensureCountryNames();
   // Country hint inside parentheses, e.g. "San Francisco or Remote (United States)"
   const parenCountry = [...raw.matchAll(/\(([^)]+)\)/g)]
     .map((m) => COUNTRY_NAMES[m[1].trim().toLowerCase()])
@@ -148,35 +189,29 @@ export function cleanLocationForGeocoding(raw: string): { parenCountry: string |
   return { parenCountry, query: stripPoisonWords(base) };
 }
 
-// Short geo aliases absent from COUNTRY_NAMES (which holds full ISO names) plus
-// macro-regions — used only by the country-aware and/or splitter below.
-const GEO_ALIASES: Record<string, string> = {
-  'us': 'United States', 'usa': 'United States', 'u.s.': 'United States', 'u.s.a.': 'United States',
-  'uk': 'United Kingdom', 'u.k.': 'United Kingdom', 'britain': 'United Kingdom', 'england': 'United Kingdom',
-  'uae': 'United Arab Emirates',
-  'eu': 'EU', 'eea': 'EEA', 'emea': 'EMEA', 'apac': 'APAC', 'latam': 'LATAM', 'anz': 'ANZ',
-  'europe': 'Europe', 'africa': 'Africa', 'asia': 'Asia', 'americas': 'Americas', 'oceania': 'Oceania',
-  'north america': 'North America', 'south america': 'South America', 'middle east': 'Middle East',
-  'nordics': 'Nordics', 'benelux': 'Benelux', 'dach': 'DACH',
-};
-
-// Multi-word geo phrases (longest first) for spotting a country embedded in a
-// part like "Remote United States".
-const MULTIWORD_GEO: Array<[string, string]> = [...Object.entries(COUNTRY_NAMES), ...Object.entries(GEO_ALIASES)]
-  .filter(([k]) => k.includes(' '))
-  .sort((a, b) => b[0].length - a[0].length);
+// Multi-word geo phrases (longest first) for spotting a country/region embedded in a
+// part like "Remote United States". Rebuilt by buildCountryNames()/buildRegionData()
+// since COUNTRY_NAMES and the region alias map are dynamic. Country aliases and macro-
+// regions now live in country_synonyms / region_aliases (seeded from the old hardcoded maps).
+let MULTIWORD_GEO: Array<[string, string]> = [];
+function rebuildMultiwordGeo(): void {
+  MULTIWORD_GEO = [...Object.entries(COUNTRY_NAMES), ...Object.entries(REGION_ALIAS_TO_CANONICAL)]
+    .filter(([k]) => k.includes(' '))
+    .sort((a, b) => b[0].length - a[0].length);
+}
 
 function resolveGeoPart(part: string): string | null {
+  ensureLocationData();
   const s = part.toLowerCase().replace(/[.!?]+$/g, '').replace(/\s+/g, ' ').trim();
   if (!s) return null;
   if (COUNTRY_NAMES[s]) return COUNTRY_NAMES[s];
-  if (GEO_ALIASES[s]) return GEO_ALIASES[s];
+  if (REGION_ALIAS_TO_CANONICAL[s]) return REGION_ALIAS_TO_CANONICAL[s];
   for (const [phrase, label] of MULTIWORD_GEO) {
     if (s.includes(phrase)) return label;
   }
   for (const tok of s.split(/[\s,\-]+/)) {
     if (COUNTRY_NAMES[tok]) return COUNTRY_NAMES[tok];
-    if (GEO_ALIASES[tok]) return GEO_ALIASES[tok];
+    if (REGION_ALIAS_TO_CANONICAL[tok]) return REGION_ALIAS_TO_CANONICAL[tok];
   }
   return null;
 }
@@ -220,43 +255,44 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Returns lowercased member countries for a region (from region_definitions).
- * Returns [] if the region has no members or is not found.
+ * Returns lowercased member countries for a region label. The label is resolved
+ * through the alias map to its canonical region first, then expanded to members.
+ * Returns [] if the region has no members or the label is not a known region.
  */
 export function expandRegionToCountries(label: string): string[] {
-  const db = getDb();
-  const rows = db.prepare<{ country: string }>(
-    `SELECT country FROM region_definitions WHERE name = ? COLLATE NOCASE AND is_active = 1`,
-  ).all(label);
-  return rows.map((r) => r.country);
+  ensureRegionData();
+  const canonical = REGION_ALIAS_TO_CANONICAL[label.toLowerCase().trim()];
+  if (!canonical) return [];
+  return REGION_MEMBERS[canonical.toLowerCase()] ?? [];
 }
 
 /**
- * Returns true if label is a known region (has at least one row in region_definitions).
+ * Returns true if label is a known region (resolves via the alias/canonical map),
+ * including member-less regions (e.g. EMEA before an admin populates it).
  */
 export function isRegionLabel(label: string): boolean {
-  const db = getDb();
-  const row = db.prepare(
-    `SELECT 1 FROM region_definitions WHERE name = ? COLLATE NOCASE LIMIT 1`,
-  ).get(label);
-  return row !== undefined;
+  ensureRegionData();
+  return label.toLowerCase().trim() in REGION_ALIAS_TO_CANONICAL;
 }
 
 /**
- * Synchronous version — hardcoded map + DB cache only, no HTTP.
- * Returns resolved countries and a flag indicating whether any locations
- * could not be resolved (caller decides how to handle unknowns).
+ * Synchronous version — direct recognition (country names/synonyms/metros + region
+ * labels) and the DB cache only, no HTTP. Returns resolved countries and a flag
+ * indicating whether any locations could not be resolved (caller decides how to
+ * handle unknowns). A genuinely unknown string stays unresolved (the ATS gate
+ * throws on it to warm the cache); known countries/regions resolve directly.
  */
 export function resolveCountriesFromCache(
   locations: string[],
 ): { countries: Set<string>; hasUnresolved: boolean } {
+  ensureLocationData();
   const db = getDb();
   const resolved = new Map<string, string | null>();
   const unique = [...new Set(locations.filter(Boolean))];
 
   for (const loc of unique) {
-    const h = HARDCODED[loc.toLowerCase().trim()];
-    if (h) resolved.set(loc, h);
+    const direct = lookupCountry(loc) ?? canonicalRegion(loc);
+    if (direct) resolved.set(loc, direct);
   }
 
   const uncached = unique.filter((loc) => !resolved.has(loc));
@@ -296,7 +332,9 @@ export function resolveCountriesFromCache(
  * Regions expand to their member countries ([] if unpopulated).
  */
 // Expands display labels (country names or region names) to a lowercased country set.
-function labelsToCountrySet(labels: Iterable<string>): Set<string> {
+// Region labels resolve via the alias map, so an alias label expands to its canonical's members.
+export function labelsToCountrySet(labels: Iterable<string>): Set<string> {
+  ensureLocationData();
   const countries = new Set<string>();
   for (const label of labels) {
     const lower = label.toLowerCase();
@@ -339,18 +377,21 @@ export async function resolveLocationString(raw: string): Promise<{ labels: stri
 
 /**
  * Resolves a list of raw LinkedIn location strings to country/region labels.
- * Order of resolution: hardcoded map → DB cache → Nominatim API (1 req/sec).
+ * Order of resolution: direct recognition (country names/synonyms/metros + region
+ * labels) → DB cache → Nominatim API (1 req/sec). Region aliases resolve to their
+ * canonical region name, so the stored label is normalized at write time.
  * Returns a Map from input location string to resolved country (or null if unknown).
  */
 export async function resolveCountries(locations: string[]): Promise<Map<string, string | null>> {
+  ensureLocationData();
   const db = getDb();
   const result = new Map<string, string | null>();
   const unique = [...new Set(locations.filter(Boolean))];
 
-  // 1. Hardcoded regional labels
+  // 1. Direct recognition: countries/synonyms/metros + region labels (no HTTP)
   for (const loc of unique) {
-    const h = HARDCODED[loc.toLowerCase().trim()];
-    if (h) result.set(loc, h);
+    const direct = lookupCountry(loc) ?? canonicalRegion(loc);
+    if (direct) result.set(loc, direct);
   }
 
   // 2. DB cache

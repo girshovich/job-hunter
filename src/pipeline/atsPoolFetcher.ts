@@ -6,7 +6,7 @@
 import type { Database } from '../db';
 import { emitToRun, isCancelled } from './atsRunState';
 import { parsePostedDate } from './types';
-import { HARDCODED, COUNTRY_NAMES, cleanLocationForGeocoding, splitCountryAware } from './locationNormalizer';
+import { lookupCountry, canonicalRegion, cleanLocationForGeocoding, splitCountryAware } from './locationNormalizer';
 import COUNTRIES_LIST from './countries.json';
 import { resolveAshbyCompanyName } from './ashbyCompanyName';
 
@@ -324,10 +324,11 @@ export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'G
     for (const e of elements) allElements.add(e);
   }
 
-  // Resolve remaining unique elements from HARDCODED and DB cache
+  // Resolve remaining unique elements by direct recognition (country/synonym/metro
+  // + region label) then DB cache
   for (const e of allElements) {
     if (resolved.has(e)) continue;
-    const h = HARDCODED[e.toLowerCase().trim()];
+    const h = lookupCountry(e) ?? canonicalRegion(e);
     if (h) resolved.set(e, h);
   }
   const uncached = [...allElements].filter((e) => !resolved.has(e));
@@ -468,18 +469,18 @@ export async function resolvePoolCountries(
       continue;
     }
 
-    // 2. Hardcoded map
-    const hardcoded = HARDCODED[el.toLowerCase().trim()];
-    if (hardcoded) {
-      cacheUpsert.run(el, hardcoded, new Date().toISOString());
+    // 2. Direct recognition: country/synonym/metro + region label (exact key)
+    const direct = lookupCountry(el) ?? canonicalRegion(el);
+    if (direct) {
+      cacheUpsert.run(el, direct, new Date().toISOString());
       resolved++;
-      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${el}" → ${hardcoded}`, processed: i + 1, total });
+      emitToRun(runId ?? '', { msg: `[${i + 1}/${total}] "${el}" → ${direct}`, processed: i + 1, total });
       continue;
     }
 
     // 3. Clean + direct country-name recognition (avoids a Nominatim round-trip)
     const { parenCountry, query } = cleanLocationForGeocoding(el);
-    let country: string | null = parenCountry ?? COUNTRY_NAMES[query.toLowerCase().trim()] ?? null;
+    let country: string | null = parenCountry ?? lookupCountry(query) ?? null;
 
     // 4. Nominatim
     if (!country) {

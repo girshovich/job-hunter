@@ -494,7 +494,7 @@
   <!-- Region Definitions -->
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">Region Definitions</h2>
-    <p class="text-xs text-gray-500 mb-4">Define which countries belong to each region label (e.g. DACH, EMEA). Changes re-derive affected roles' country sets.</p>
+    <p class="text-xs text-gray-500 mb-4">Define which countries belong to each region label (e.g. DACH, EMEA). Add aliases so several spellings (EU / European Union) share one member list. Editing members or aliases re-derives affected jobs automatically.</p>
     <div id="regions-list" class="space-y-4">
       <span class="text-xs text-gray-400">Loading…</span>
     </div>
@@ -504,13 +504,51 @@
         <input id="new-region-name" type="text" placeholder="e.g. EMEA" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
       </div>
       <div class="flex-1">
-        <label class="text-xs font-medium text-gray-600 block mb-1">First member country (lowercase)</label>
-        <input id="new-region-country" type="text" placeholder="e.g. germany" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+        <label class="text-xs font-medium text-gray-600 block mb-1">Select member countries</label>
+        <select id="new-region-country" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+          <option value="">— select country —</option>
+          <% locationCountries.forEach(function(country) { %>
+            <option value="<%= country.toLowerCase() %>"><%= country %></option>
+          <% }); %>
+        </select>
       </div>
-      <button onclick="addRegionMember(document.getElementById('new-region-name').value, document.getElementById('new-region-country').value)"
+      <button onclick="addRegionMember(document.getElementById('new-region-name').value, document.getElementById('new-region-country').value, true, 'region-create-warn')"
               class="shrink-0 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">Add</button>
     </div>
+    <span id="region-create-warn" role="alert" class="block mt-2 text-xs text-red-600"></span>
+    <p class="mt-3 text-xs text-gray-400">Region names are permanent — they can't be renamed. To use another name for the same countries, add it as an alias. To change the canonical name you must delete and recreate the region.</p>
   </div><!-- end regions card -->
+
+  <!-- Country Recognition -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Country Recognition</h2>
+    <p class="text-xs text-gray-500 mb-4">Manage the lowercase synonyms used to recognize each country in scraped job locations (e.g. <span class="font-mono">uk → United Kingdom</span>, or fold <span class="font-mono">guam → United States</span>).</p>
+    <button onclick="openSynonymsModal()" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Manage country synonyms</button>
+  </div>
+
+  <!-- Country synonyms modal -->
+  <div id="synonyms-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closeSynonymsModal()">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+      <div class="p-5 border-b border-gray-100">
+        <div class="flex items-start justify-between gap-3">
+          <h3 class="text-base font-semibold text-gray-900">Country synonyms</h3>
+          <button onclick="closeSynonymsModal()" aria-label="Close" class="shrink-0 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Add a lowercase alias under a country to recognize it in scraped locations (e.g. <span class="font-mono">uk → United Kingdom</span>). A synonym can't be a country or region name. Each add or remove <strong>saves and re-derives immediately</strong>.</p>
+      </div>
+      <div class="p-3 border-b border-gray-100">
+        <input id="synonyms-search" type="text" placeholder="Filter countries…" oninput="renderSynonyms()" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div id="synonyms-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+        <span class="text-xs text-gray-400">Loading…</span>
+      </div>
+      <p class="px-4 py-3 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">
+        Changes apply to future runs and newly resolved locations, and automatically re-derive the affected jobs.
+      </p>
+    </div>
+  </div>
+
+  <script>window.__CANON_COUNTRIES = <%- JSON.stringify(locationCountries) %>;</script>
 
 </div><!-- end tab-pane-admin -->
 
@@ -1120,57 +1158,193 @@ async function loadRegions() {
       list.innerHTML = '<span class="text-xs text-gray-400">No regions defined.</span>';
       return;
     }
-    list.innerHTML = data.regions.map(r => `
+    list.innerHTML = data.regions.map((r, i) => {
+      const w = `region-warn-${i}`;
+      const nm = escHtml(r.name);
+      return `
       <div class="border border-gray-100 rounded-lg p-3">
         <div class="flex items-center gap-2 mb-2">
-          <span class="text-sm font-semibold text-gray-800">${escHtml(r.name)}</span>
-          <span class="text-xs text-gray-400">${r.affectedCount} role(s) affected</span>
-          <button onclick="toggleRegion('${escHtml(r.name)}')" class="ml-auto text-xs px-2 py-0.5 rounded border ${r.is_active ? 'border-green-300 text-green-700' : 'border-gray-300 text-gray-500'}">${r.is_active ? 'Active' : 'Inactive'}</button>
+          <span class="text-sm font-semibold text-gray-800">${nm}</span>
+          <span class="text-xs text-gray-400">${r.affectedCount} job(s) affected</span>
+          <button onclick="deleteRegion('${nm}','${w}')" class="ml-auto text-xs px-2 py-0.5 rounded border border-red-300 text-red-600 hover:bg-red-50">Delete</button>
         </div>
-        <div class="flex flex-wrap gap-1 mb-2" id="region-members-${escHtml(r.name)}">
+        <div class="flex flex-wrap gap-1 mb-2">
           ${(r.members || []).map(m => `
             <span class="inline-flex items-center gap-1 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-              ${escHtml(m.country)}
-              <button onclick="removeRegionMember('${escHtml(r.name)}','${escHtml(m.country)}')" class="text-gray-400 hover:text-red-500">×</button>
+              ${escHtml(canonLabel(m.country))}
+              <button onclick="removeRegionMember('${nm}','${escHtml(m.country)}','${w}')" class="text-gray-400 hover:text-red-500">×</button>
+            </span>
+          `).join('') || '<span class="text-xs text-gray-300 italic">no member countries yet</span>'}
+        </div>
+        <div class="flex gap-2 mb-2">
+          <select id="add-country-${i}" class="flex-1 text-xs rounded border border-gray-200 px-2 py-1 focus:ring-1 focus:ring-blue-400">${countryOptions()}</select>
+          <button onclick="addRegionMember('${nm}', document.getElementById('add-country-${i}').value, false, '${w}')"
+                  class="text-xs px-3 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">Add country</button>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 pt-2 border-t border-gray-50">
+          <span class="text-xs text-gray-400 mr-1">Aliases:</span>
+          ${(r.aliases || []).map(a => `
+            <span class="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+              ${escHtml(a)}
+              <button onclick="removeRegionAlias('${nm}','${escHtml(a)}','${w}')" class="text-blue-300 hover:text-red-500">×</button>
             </span>
           `).join('')}
+          <span class="inline-flex items-center gap-1">
+            <input id="alias-input-${i}" type="text" placeholder="add alias" onkeydown="if(event.key==='Enter'){addRegionAlias('${nm}', this.value, '${w}'); this.value='';}"
+                   class="text-xs rounded border border-gray-200 px-2 py-0.5 focus:ring-1 focus:ring-blue-400 w-28" />
+            <button onclick="const el=document.getElementById('alias-input-${i}'); addRegionAlias('${nm}', el.value, '${w}'); el.value='';"
+                    class="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">Add</button>
+          </span>
         </div>
-        <div class="flex gap-2">
-          <input id="add-country-${escHtml(r.name)}" type="text" placeholder="add country (lowercase)" class="flex-1 text-xs rounded border border-gray-200 px-2 py-1 focus:ring-1 focus:ring-blue-400" />
-          <button onclick="addRegionMember('${escHtml(r.name)}', document.getElementById('add-country-${escHtml(r.name)}').value)"
-                  class="text-xs px-3 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">Add</button>
-        </div>
-      </div>
-    `).join('');
+        <span id="${w}" role="alert" class="block mt-2 text-xs text-red-600"></span>
+      </div>`;
+    }).join('');
   } catch { list.innerHTML = '<span class="text-xs text-red-400">Failed to load regions.</span>'; }
 }
 
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-async function addRegionMember(name, country) {
+// Inline warning: red text in the given element, auto-cleared after 3s (replaces alert()).
+const _warnTimers = {};
+function showWarn(elId, msg) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = msg || '';
+  if (_warnTimers[elId]) clearTimeout(_warnTimers[elId]);
+  if (msg) _warnTimers[elId] = setTimeout(() => { const e = document.getElementById(elId); if (e) e.textContent = ''; }, 3000);
+}
+
+// Canonical countries (capitalized) for region dropdowns + chip labels.
+const _CANON = window.__CANON_COUNTRIES || [];
+const _CANON_LABEL = {}; _CANON.forEach(n => { _CANON_LABEL[n.toLowerCase()] = n; });
+function canonLabel(lc) { return _CANON_LABEL[lc] || String(lc).replace(/\b\w/g, c => c.toUpperCase()); }
+function countryOptions() {
+  return '<option value="">— select country —</option>' +
+    _CANON.map(n => `<option value="${escHtml(n.toLowerCase())}">${escHtml(n)}</option>`).join('');
+}
+
+async function addRegionMember(name, country, isCreate, warnId) {
   name = (name || '').trim(); country = (country || '').toLowerCase().trim();
-  if (!name || !country) { alert('Region name and country are required'); return; }
+  if (!name || !country) { showWarn(warnId, 'Region name and country are required.'); return; }
+  if (isCreate && _CANON_LABEL[name.toLowerCase()]) { showWarn(warnId, `"${name}" is a country name — a region can't share a country's name.`); return; }
   const res = await fetch(`/api/regions/${encodeURIComponent(name)}/members`, {
-    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ country }),
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ country, create: !!isCreate }),
   });
   const data = await res.json();
-  if (data.error) { alert(data.error); return; }
+  if (data.error) { showWarn(warnId, data.error); return; }
+  if (isCreate) document.getElementById('new-region-name').value = '';
   await loadRegions();
 }
 
-async function removeRegionMember(name, country) {
+async function removeRegionMember(name, country, warnId) {
   if (!confirm(`Remove ${country} from ${name}?`)) return;
   const res = await fetch(`/api/regions/${encodeURIComponent(name)}/members/${encodeURIComponent(country)}`, { method: 'DELETE' });
   const data = await res.json();
-  if (data.error) { alert(data.error); return; }
+  if (data.error) { showWarn(warnId, data.error); return; }
   await loadRegions();
 }
 
-async function toggleRegion(name) {
-  const res = await fetch(`/api/regions/${encodeURIComponent(name)}/toggle`, { method: 'POST' });
+async function deleteRegion(name, warnId) {
+  if (!confirm(`Delete region "${name}", its member countries and aliases? This cannot be undone.`)) return;
+  const res = await fetch(`/api/regions/${encodeURIComponent(name)}`, { method: 'DELETE' });
   const data = await res.json();
-  if (data.error) { alert(data.error); return; }
+  if (data.error) { showWarn(warnId, data.error); return; }
   await loadRegions();
+}
+
+async function addRegionAlias(name, alias, warnId) {
+  alias = (alias || '').toLowerCase().trim();
+  if (!alias) return;
+  const res = await fetch(`/api/regions/${encodeURIComponent(name)}/aliases`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ alias }),
+  });
+  const data = await res.json();
+  if (data.error) { showWarn(warnId, data.error); return; }
+  await loadRegions();
+}
+
+async function removeRegionAlias(name, alias, warnId) {
+  if (!confirm(`Remove alias "${alias}" from ${name}?`)) return;
+  const res = await fetch(`/api/regions/${encodeURIComponent(name)}/aliases/${encodeURIComponent(alias)}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.error) { showWarn(warnId, data.error); return; }
+  await loadRegions();
+}
+
+// ── Country synonyms editor (per-item, like regions) ──────────────────────────
+let _synData = [];               // [{ country, synonyms: [] }]
+let _regionLabels = new Set();   // lowercased region names + aliases, for the client-side guard
+
+async function openSynonymsModal() {
+  document.getElementById('synonyms-modal').classList.remove('hidden');
+  document.getElementById('synonyms-list').innerHTML = '<span class="text-xs text-gray-400">Loading…</span>';
+  try {
+    const [sres, rres] = await Promise.all([fetch('/api/country-synonyms'), fetch('/api/regions')]);
+    _synData = (await sres.json()).countries || [];
+    _regionLabels = new Set();
+    try {
+      const rdata = await rres.json();
+      for (const r of (rdata.regions || [])) {
+        _regionLabels.add((r.name || '').toLowerCase());
+        for (const a of (r.aliases || [])) _regionLabels.add((a || '').toLowerCase());
+      }
+    } catch {}
+    renderSynonyms();
+  } catch { document.getElementById('synonyms-list').innerHTML = '<span class="text-xs text-red-400">Failed to load.</span>'; }
+}
+
+function closeSynonymsModal() { document.getElementById('synonyms-modal').classList.add('hidden'); }
+
+function renderSynonyms() {
+  const q = (document.getElementById('synonyms-search').value || '').toLowerCase().trim();
+  const list = document.getElementById('synonyms-list');
+  const rows = _synData.filter(c => !q || c.country.toLowerCase().includes(q) || c.synonyms.some(s => s.includes(q)));
+  list.innerHTML = rows.map(c => {
+    const i = _synData.indexOf(c);
+    return `
+      <div class="border border-gray-100 rounded-lg p-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-sm font-medium text-gray-800 min-w-[140px]">${escHtml(c.country)}</span>
+          ${c.synonyms.map(s => `
+            <span class="inline-flex items-center gap-1 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+              ${escHtml(s)}
+              <button onclick="removeSynonym(${i}, '${escHtml(s)}')" class="text-gray-400 hover:text-red-500">×</button>
+            </span>`).join('')}
+          <span class="inline-flex items-center gap-1">
+            <input id="syn-input-${i}" type="text" placeholder="add synonym" onkeydown="if(event.key==='Enter'){addSynonym(${i}, this.value); this.value='';}"
+                   class="text-xs rounded border border-gray-200 px-2 py-0.5 focus:ring-1 focus:ring-blue-400 w-32" />
+            <button onclick="const el=document.getElementById('syn-input-${i}'); addSynonym(${i}, el.value); el.value='';"
+                    class="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">Add</button>
+          </span>
+        </div>
+        <span id="syn-warn-${i}" role="alert" class="block mt-1 text-xs text-red-600"></span>
+      </div>`;
+  }).join('');
+}
+
+async function addSynonym(idx, val) {
+  const s = String(val || '').toLowerCase().trim();
+  if (!s) return;
+  const wid = `syn-warn-${idx}`;
+  if (_CANON_LABEL[s]) { showWarn(wid, `"${s}" is a country name — it can't be a synonym.`); return; }
+  if (_regionLabels.has(s)) { showWarn(wid, `"${s}" is a region name — it can't be a synonym.`); return; }
+  if (_synData[idx].synonyms.includes(s)) return;
+  const res = await fetch('/api/country-synonyms', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ synonym: s, country: _synData[idx].country }),
+  });
+  const data = await res.json();
+  if (data.error) { showWarn(wid, data.error); return; }
+  _synData[idx].synonyms.push(s);
+  _synData[idx].synonyms.sort();
+  renderSynonyms();
+}
+
+async function removeSynonym(idx, val) {
+  const res = await fetch(`/api/country-synonyms/${encodeURIComponent(val)}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.error) { showWarn(`syn-warn-${idx}`, data.error); return; }
+  _synData[idx].synonyms = _synData[idx].synonyms.filter(s => s !== val);
+  renderSynonyms();
 }
 
 // Load on page ready (only when admin tab is active or becomes active)

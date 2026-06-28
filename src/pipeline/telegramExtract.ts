@@ -21,8 +21,8 @@ export interface ExtractedJob {
 
 const DEFAULT_EXTRACT_PROMPT = `Extract job openings from this Telegram post. Return jobs: [] for ads, news, or posts with no vacancy.
 
-One object per role. Fields:
-- title: job title. Skip the role if absent.
+One object per job. Fields:
+- title: job title. Skip the job if absent.
 - company: real employer named in the text (not the channel). Keep it exactly as written in the post — do not translate or transliterate it. null if missing.
 - locations: array of location strings in English (translate if written in another language). One element per distinct location mentioned (e.g. ["Berlin", "Remote EU"]). Empty array if not mentioned. Never split a single location into multiple elements.
 - applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
@@ -45,7 +45,7 @@ function canonicalUrl(url: string): string {
   }
 }
 
-export function computeRoleHash(title: string, company: string | null, applyUrl: string | null): string {
+export function computeJobHash(title: string, company: string | null, applyUrl: string | null): string {
   const raw = [
     normalizeForHash(title),
     normalizeForHash(company ?? ''),
@@ -199,8 +199,8 @@ export async function runExtraction(
         const job = jobs[i];
         const locationSet = locationSets[i];
         const locationStr = job.locations.length > 0 ? job.locations.join('; ') : null;
-        const roleHash = computeRoleHash(job.title, job.company, job.applyUrl);
-        const jobId = `${channelUsername}_${postId}_${roleHash}`;
+        const jobHash = computeJobHash(job.title, job.company, job.applyUrl);
+        const jobId = `${channelUsername}_${postId}_${jobHash}`;
         upsertJob.run(
           jobId,
           job.title,

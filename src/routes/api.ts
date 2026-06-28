@@ -19,7 +19,7 @@ import { activeRuns } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
 import { randomUUID } from 'crypto';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
-import { resolveCountries, COUNTRY_NAMES } from '../pipeline/locationNormalizer';
+import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
 import { config } from '../config';
@@ -1449,34 +1449,28 @@ router.get('/telegram/settings', (req: Request, res: Response) => {
 
 // ── Region definitions (admin-only) ─────────────────────────────────────────
 
-async function reDeriveRegion(regionName: string): Promise<number> {
+/**
+ * Re-derives job_countries for an explicit set of job ids (diff-scoped re-derive).
+ * Each job's labels are re-expanded via labelsToCountrySet, which resolves region
+ * aliases to their canonical's members and country names/synonyms to countries.
+ * Batched and pool-locked. Returns how many jobs were re-derived.
+ */
+async function reDeriveJobs(ids: number[]): Promise<number> {
+  if (ids.length === 0) return 0;
   const db = getDb();
-  const affected = db.prepare<{ job_id: number }>(
-    `SELECT DISTINCT job_id FROM job_locations WHERE LOWER(label) = LOWER(?)`,
-  ).all(regionName);
-  if (affected.length === 0) return 0;
-
   const BATCH = 100;
   let changed = 0;
-  for (let i = 0; i < affected.length; i += BATCH) {
-    const batchIds = affected.slice(i, i + BATCH).map((r) => r.job_id);
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batchIds = ids.slice(i, i + BATCH);
     await acquirePoolLock('region-re-derive');
     try {
       db.transaction(() => {
         for (const jobId of batchIds) {
-          const labels = db.prepare<{ label: string }>(`SELECT label FROM job_locations WHERE job_id = ?`).all(jobId);
+          const labels = db.prepare<{ label: string }>(`SELECT label FROM job_locations WHERE job_id = ?`)
+            .all(jobId).map((r) => r.label);
           db.prepare(`DELETE FROM job_countries WHERE job_id = ?`).run(jobId);
-          for (const { label } of labels) {
-            const lower = label.toLowerCase();
-            if (COUNTRY_NAMES[lower]) {
-              db.prepare(`INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, ?)`).run(jobId, lower);
-            } else {
-              db.prepare(`
-                INSERT OR IGNORE INTO job_countries (job_id, country)
-                SELECT ?, rd.country FROM region_definitions rd
-                WHERE rd.name = ? COLLATE NOCASE AND rd.is_active = 1
-              `).run(jobId, label);
-            }
+          for (const c of labelsToCountrySet(labels)) {
+            db.prepare(`INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, ?)`).run(jobId, c);
           }
           changed++;
         }
@@ -1488,30 +1482,99 @@ async function reDeriveRegion(regionName: string): Promise<number> {
   return changed;
 }
 
+/** Distinct job ids whose job_locations.label (lowercased) matches any changed key. */
+function jobIdsForLabels(keys: string[]): number[] {
+  if (keys.length === 0) return [];
+  const db = getDb();
+  const placeholders = keys.map(() => '?').join(',');
+  return db.prepare<{ job_id: number }>(
+    `SELECT DISTINCT job_id FROM job_locations WHERE LOWER(label) IN (${placeholders})`,
+  ).all(...keys).map((r) => r.job_id);
+}
+
+/** All label keys (lowercased) a region's jobs may be tagged with: canonical name + its aliases. */
+function regionLabelKeys(name: string): string[] {
+  const db = getDb();
+  const aliases = db.prepare<{ alias: string }>(
+    `SELECT alias FROM region_aliases WHERE region_name = ? COLLATE NOCASE`,
+  ).all(name).map((r) => r.alias.toLowerCase());
+  return [...new Set([name.toLowerCase(), ...aliases])];
+}
+
+/** Re-derive every job tagged with a region (by canonical name or any alias). */
+async function reDeriveRegion(regionName: string): Promise<number> {
+  return reDeriveJobs(jobIdsForLabels(regionLabelKeys(regionName)));
+}
+
 router.get('/regions', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const db = getDb();
-  const names = db.prepare<{ name: string }>(`SELECT DISTINCT name FROM region_definitions ORDER BY name ASC`).all();
+  // Canonical region set = region_definitions.name ∪ region_aliases.region_name, so
+  // member-less regions (e.g. EMEA before populating) still list.
+  const names = db.prepare<{ name: string }>(`
+    SELECT name FROM (
+      SELECT name AS name FROM region_definitions
+      UNION
+      SELECT region_name AS name FROM region_aliases
+    ) GROUP BY LOWER(name) ORDER BY name ASC
+  `).all();
   const regions = names.map(({ name }) => {
     const members = db.prepare<{ country: string; is_active: number }>(
-      `SELECT country, is_active FROM region_definitions WHERE name = ? ORDER BY country ASC`,
+      `SELECT country, is_active FROM region_definitions WHERE name = ? COLLATE NOCASE ORDER BY country ASC`,
     ).all(name);
+    const aliases = db.prepare<{ alias: string }>(
+      `SELECT alias FROM region_aliases WHERE region_name = ? COLLATE NOCASE ORDER BY alias ASC`,
+    ).all(name).map((r) => r.alias);
+    // Count jobs tagged with the canonical name OR any alias — same key set the
+    // re-derive uses, so the displayed count matches what an edit re-derives.
+    const labelKeys = [...new Set([name.toLowerCase(), ...aliases.map((a) => a.toLowerCase())])];
+    const ph = labelKeys.map(() => '?').join(',');
     const affectedCount = (db.prepare<{ c: number }>(
-      `SELECT COUNT(DISTINCT job_id) as c FROM job_locations WHERE LOWER(label) = LOWER(?)`,
-    ).get(name) as { c: number }).c;
-    return { name, members, affectedCount, is_active: members.some((m) => m.is_active) };
+      `SELECT COUNT(DISTINCT job_id) as c FROM job_locations WHERE LOWER(label) IN (${ph})`,
+    ).get(...labelKeys) as { c: number }).c;
+    return { name, members, aliases, affectedCount, is_active: members.some((m) => m.is_active) };
   });
   res.json({ regions });
 });
 
+/** Existing region's stored (canonical-cased) name matching `input` case-insensitively, or undefined. */
+function existingRegionName(input: string): string | undefined {
+  const db = getDb();
+  const row = db.prepare<{ name: string }>(`
+    SELECT name FROM (
+      SELECT name FROM region_definitions
+      UNION
+      SELECT region_name AS name FROM region_aliases
+    ) WHERE LOWER(name) = LOWER(?) LIMIT 1
+  `).get(input) as { name: string } | undefined;
+  return row?.name;
+}
+
 router.post('/regions/:name/members', async (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const db = getDb();
-  const name = req.params.name;
-  const country = String((req.body as Record<string, unknown>).country || '').toLowerCase().trim();
+  const body = req.body as Record<string, unknown>;
+  const country = String(body.country || '').toLowerCase().trim();
   if (!country) return res.status(400).json({ error: 'country required' });
+  // Reuse an existing region's stored casing so "emea" can't create a second "EMEA".
+  const existing = existingRegionName(req.params.name);
+  if (!existing) {
+    // Creating a NEW region — guard the shared label namespace.
+    if (isSourceCountry(req.params.name)) {
+      return res.status(400).json({ error: `'${req.params.name}' is a country name; a region can't share a country's name.` });
+    }
+    const owner = canonicalRegion(req.params.name);
+    if (owner) {
+      return res.status(409).json({ error: `'${req.params.name}' is already an alias of region '${owner}'.` });
+    }
+  } else if (body.create === true) {
+    // The Create-region form sets create=true; reject if the region already exists.
+    return res.status(409).json({ error: `Region '${existing}' already exists — add countries from its card above.` });
+  }
+  const name = existing ?? req.params.name;
   const now = new Date().toISOString();
   db.prepare(`INSERT OR IGNORE INTO region_definitions (name, country, is_active, updated_at) VALUES (?, ?, 1, ?)`).run(name, country, now);
+  loadLocationData(); // refresh in-memory caches before re-derive
   const changed = await reDeriveRegion(name);
   res.json({ success: true, changed });
 });
@@ -1520,7 +1583,8 @@ router.delete('/regions/:name/members/:country', async (req: Request, res: Respo
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const db = getDb();
   const { name, country } = req.params;
-  db.prepare(`DELETE FROM region_definitions WHERE name = ? AND country = ?`).run(name, country.toLowerCase());
+  db.prepare(`DELETE FROM region_definitions WHERE name = ? COLLATE NOCASE AND country = ?`).run(name, country.toLowerCase());
+  loadLocationData();
   const changed = await reDeriveRegion(name);
   res.json({ success: true, changed });
 });
@@ -1530,9 +1594,9 @@ router.post('/regions/:name/toggle', (req: Request, res: Response) => {
   const db = getDb();
   const name = req.params.name;
   const now = new Date().toISOString();
-  const row = db.prepare<{ is_active: number }>(`SELECT MAX(is_active) as is_active FROM region_definitions WHERE name = ?`).get(name);
+  const row = db.prepare<{ is_active: number }>(`SELECT MAX(is_active) as is_active FROM region_definitions WHERE name = ? COLLATE NOCASE`).get(name);
   const newActive = (row?.is_active ?? 1) === 1 ? 0 : 1;
-  db.prepare(`UPDATE region_definitions SET is_active = ?, updated_at = ? WHERE name = ?`).run(newActive, now, name);
+  db.prepare(`UPDATE region_definitions SET is_active = ?, updated_at = ? WHERE name = ? COLLATE NOCASE`).run(newActive, now, name);
   res.json({ success: true, is_active: newActive });
 });
 
@@ -1544,6 +1608,123 @@ router.get('/regions/:name/affected-count', (req: Request, res: Response) => {
     `SELECT COUNT(DISTINCT job_id) as c FROM job_locations WHERE LOWER(label) = LOWER(?)`,
   ).get(name) as { c: number }).c;
   res.json({ count });
+});
+
+router.delete('/regions/:name', async (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const name = req.params.name;
+  const keys = regionLabelKeys(name); // snapshot keys (incl. aliases) before delete
+  db.prepare(`DELETE FROM region_definitions WHERE name = ? COLLATE NOCASE`).run(name);
+  db.prepare(`DELETE FROM region_aliases WHERE region_name = ? COLLATE NOCASE`).run(name);
+  loadLocationData();
+  const changed = await reDeriveJobs(jobIdsForLabels(keys));
+  res.json({ success: true, changed });
+});
+
+// Region aliases (admin-only): an alias lets another spelling resolve to the same
+// region. Adding one also folds historical job_locations rows that used the alias
+// spelling onto the canonical name, then re-derives them.
+router.post('/regions/:name/aliases', async (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const name = req.params.name;
+  const alias = String((req.body as Record<string, unknown>).alias || '').toLowerCase().trim();
+  if (!alias) return res.status(400).json({ error: 'alias required' });
+  if (alias === name.toLowerCase()) return res.status(400).json({ error: 'alias equals the region name' });
+  // Collision guards (one label namespace): an alias must not already be a country
+  // name or belong to another region — otherwise it would silently shadow/steal it.
+  if (lookupCountry(alias)) {
+    return res.status(400).json({ error: `'${alias}' is a country name; aliases must be region labels.` });
+  }
+  const owner = canonicalRegion(alias);
+  if (owner && owner.toLowerCase() !== name.toLowerCase()) {
+    return res.status(409).json({ error: `'${alias}' is already the region '${owner}'. Delete that region first to reuse the name.` });
+  }
+  const now = new Date().toISOString();
+  // Jobs currently tagged with the alias spelling, captured before relabeling.
+  const ids = jobIdsForLabels([alias]);
+  db.transaction(() => {
+    db.prepare(`INSERT OR REPLACE INTO region_aliases (alias, region_name, updated_at) VALUES (?, ?, ?)`).run(alias, name, now);
+    // Fold alias-spelled labels onto the canonical name (OR IGNORE + delete collapses
+    // a job that already carries both the canonical and the alias label).
+    db.prepare(`UPDATE OR IGNORE job_locations SET label = ? WHERE LOWER(label) = ?`).run(name, alias);
+    db.prepare(`DELETE FROM job_locations WHERE LOWER(label) = ?`).run(alias);
+  });
+  loadLocationData();
+  const changed = await reDeriveJobs(ids);
+  res.json({ success: true, changed });
+});
+
+router.delete('/regions/:name/aliases/:alias', async (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const { name } = req.params;
+  const alias = String(req.params.alias || '').toLowerCase().trim();
+  db.prepare(`DELETE FROM region_aliases WHERE alias = ? AND region_name = ? COLLATE NOCASE`).run(alias, name);
+  loadLocationData();
+  // Re-derive any job still tagged with the alias spelling (it no longer expands).
+  const changed = await reDeriveJobs(jobIdsForLabels([alias]));
+  res.json({ success: true, changed });
+});
+
+// ── Country synonyms (admin-only) ────────────────────────────────────────────
+// Editor is driven off countries.json: one row per canonical country, with the
+// lowercase synonyms that resolve to it. Add/remove persist one synonym at a time
+// (guardrailed + diff-scoped re-derive), mirroring the region editor.
+
+router.get('/country-synonyms', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const rows = db.prepare<{ synonym: string; country: string }>(
+    `SELECT synonym, country FROM country_synonyms`,
+  ).all();
+  const byCountry = new Map<string, string[]>();
+  for (const { synonym, country } of rows) {
+    if (!byCountry.has(country)) byCountry.set(country, []);
+    byCountry.get(country)!.push(synonym);
+  }
+  const countries = getCanonicalCountries().map((country) => ({
+    country,
+    synonyms: (byCountry.get(country) || []).sort((a, b) => a.localeCompare(b)),
+  }));
+  res.json({ countries });
+});
+
+// Add one synonym → country (guardrailed + diff-scoped re-derive).
+router.post('/country-synonyms', async (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const body = req.body as Record<string, unknown>;
+  const synonym = String(body.synonym || '').toLowerCase().trim();
+  const country = String(body.country || '').trim();
+  if (!synonym || !country) return res.status(400).json({ error: 'synonym and country required' });
+  if (!isSourceCountry(country)) return res.status(400).json({ error: `'${country}' is not a known country.` });
+  if (synonym === country.toLowerCase()) return res.status(400).json({ error: 'synonym equals the country name' });
+  // Guardrails (one label namespace): a synonym can't be a country name (countries.json
+  // is the immutable source of truth) nor a region name/alias (it would shadow the region).
+  if (isSourceCountry(synonym)) return res.status(400).json({ error: `'${synonym}' is a country name; it can't be a synonym.` });
+  if (isRegionLabel(synonym)) return res.status(400).json({ error: `'${synonym}' is a region name; it can't be a synonym.` });
+  // No silent steal: reject if it's already a synonym of a different country.
+  const existing = db.prepare<{ country: string }>(`SELECT country FROM country_synonyms WHERE synonym = ?`).get(synonym) as { country: string } | undefined;
+  if (existing && existing.country.toLowerCase() !== country.toLowerCase()) {
+    return res.status(409).json({ error: `'${synonym}' is already a synonym of ${existing.country}.` });
+  }
+  db.prepare(`INSERT OR REPLACE INTO country_synonyms (synonym, country) VALUES (?, ?)`).run(synonym, country);
+  loadLocationData();
+  const changed = await reDeriveJobs(jobIdsForLabels([synonym]));
+  res.json({ success: true, changed });
+});
+
+// Remove one synonym (diff-scoped re-derive).
+router.delete('/country-synonyms/:synonym', async (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  const db = getDb();
+  const synonym = String(req.params.synonym || '').toLowerCase().trim();
+  db.prepare(`DELETE FROM country_synonyms WHERE synonym = ?`).run(synonym);
+  loadLocationData();
+  const changed = await reDeriveJobs(jobIdsForLabels([synonym]));
+  res.json({ success: true, changed });
 });
 
 export { router as apiRouter };
