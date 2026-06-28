@@ -1841,53 +1841,6 @@
       }
     }
 
-    let _runCooldownEnd = 0;
-
-    function startRunCooldown(ms) {
-      _runCooldownEnd = Date.now() + ms;
-      const btn = document.getElementById('sidebar-run-btn');
-      const label = document.getElementById('sidebar-run-label');
-      if (btn && label) {
-        btn.disabled = true;
-        (function tick() {
-          const remaining = _runCooldownEnd - Date.now();
-          if (remaining <= 0) {
-            btn.disabled = false;
-            label.textContent = 'Run once';
-            return;
-          }
-          const m = Math.floor(remaining / 60000);
-          const s = Math.floor((remaining % 60000) / 1000);
-          label.textContent = 'Run (' + m + ':' + String(s).padStart(2, '0') + ')';
-          setTimeout(tick, 1000);
-        })();
-      }
-      applyHomeBtnCooldown();
-    }
-
-    function applyHomeBtnCooldown() {
-      const remaining = _runCooldownEnd - Date.now();
-      if (remaining <= 0) return;
-      const btn = document.getElementById('home-run-btn');
-      const label = document.getElementById('home-run-label');
-      if (!btn || !label || btn.disabled) return;
-      btn.disabled = true;
-      btn.classList.add('opacity-60', 'cursor-not-allowed');
-      (function tick() {
-        const r = _runCooldownEnd - Date.now();
-        if (r <= 0) {
-          btn.disabled = false;
-          btn.classList.remove('opacity-60', 'cursor-not-allowed');
-          label.textContent = 'Run Once';
-          return;
-        }
-        const m = Math.floor(r / 60000);
-        const s = Math.floor((r % 60000) / 1000);
-        label.textContent = 'Run (' + m + ':' + String(s).padStart(2, '0') + ')';
-        setTimeout(tick, 1000);
-      })();
-    }
-
     function closeRunModal() {
       document.getElementById('run-modal').classList.add('hidden');
       closeRunRolePicker();
@@ -1946,11 +1899,7 @@
           if (typeof _runCallback === 'function') {
             _runCallback();
             _runCallback = null;
-          } else {
-            startRunCooldown(3 * 60 * 1000);
           }
-        } else if (data.retryAfterMs) {
-          startRunCooldown(data.retryAfterMs);
         } else {
           await showAlert(data.error || 'Failed to start pipeline.');
         }

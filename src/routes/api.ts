@@ -27,19 +27,6 @@ import OpenAI from 'openai';
 
 const router = Router();
 
-const lastRunAt = new Map<number, number>();
-const lastFetchAt = new Map<number, number>();
-const RUN_COOLDOWN_MS = 3 * 60_000;
-const FETCH_COOLDOWN_MS = 2 * 60_000;
-
-function rateLimited(profileId: number, map: Map<number, number>, cooldownMs: number): number | false {
-  const last = map.get(profileId) ?? 0;
-  const elapsed = Date.now() - last;
-  if (elapsed < cooldownMs) return cooldownMs - elapsed;
-  map.set(profileId, Date.now());
-  return false;
-}
-
 // Pre-flight check — validates everything required to run the pipeline
 router.get('/preflight', (req: Request, res: Response) => {
   try {
@@ -101,11 +88,6 @@ router.post('/run', async (req: Request, res: Response) => {
   const profileId = req.profile.id;
   if (getIsRunning(profileId)) {
     res.status(409).json({ success: false, error: 'Pipeline is already running.' });
-    return;
-  }
-  const runLimited = rateLimited(profileId, lastRunAt, RUN_COOLDOWN_MS);
-  if (runLimited !== false) {
-    res.status(429).json({ success: false, error: 'You can only trigger a run once every 5 minutes. Please wait.', retryAfterMs: runLimited });
     return;
   }
 
@@ -371,11 +353,6 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
   const profileId = req.profile.id;
   if (getIsRunning(profileId)) {
     res.status(409).json({ success: false, error: 'Pipeline is already running.' });
-    return;
-  }
-  const fetchLimited = rateLimited(profileId, lastFetchAt, FETCH_COOLDOWN_MS);
-  if (fetchLimited !== false) {
-    res.status(429).json({ success: false, error: 'You can only trigger a fetch preview once every 2 minutes. Please wait.', retryAfterMs: fetchLimited });
     return;
   }
 
