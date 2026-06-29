@@ -12,7 +12,7 @@ import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
 import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron, startTelegramIngestCron, stopTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from '../pipeline/atsScheduler';
-import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries } from '../pipeline/atsPoolFetcher';
+import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries, unresolvedPoolElements } from '../pipeline/atsPoolFetcher';
 import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipeline/poolLock';
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
@@ -1144,31 +1144,17 @@ router.get('/ats/status', (req: Request, res: Response) => {
     SELECT started_at, channels, posts, inserted, edited, jobs_created, duration_ms
     FROM telegram_ingest_runs ORDER BY id DESC LIMIT 1
   `).get() ?? null;
-  const unknownLocationCount = (db.prepare(`
-    SELECT COUNT(DISTINCT j.location) AS c
-    FROM jobs j
-    JOIN location_country lc ON lc.location = j.location AND lc.country = ''
-    WHERE j.job_source IN ('Greenhouse', 'Ashby')
-      AND j.location IS NOT NULL
-      AND j.country IS NULL
-  `).get() as { c: number }).c;
-  const newUnresolvedLocationCount = (db.prepare(`
-    SELECT COUNT(DISTINCT j.location) AS c
-    FROM jobs j
-    LEFT JOIN location_country lc ON lc.location = j.location
-    WHERE j.job_source IN ('Greenhouse', 'Ashby')
-      AND j.location IS NOT NULL
-      AND j.country IS NULL
-      AND lc.location IS NULL
-  `).get() as { c: number }).c;
-  const resolvedLocationCount = (db.prepare(`
-    SELECT COUNT(DISTINCT location) AS c
-    FROM jobs
-    WHERE job_source IN ('Greenhouse', 'Ashby')
-      AND location IS NOT NULL
-      AND country IS NOT NULL
-      AND country != ''
-  `).get() as { c: number }).c;
+  // Location chunk counts — all element-level. Known/Unknown read the location_country
+  // cache directly (each row is one distinct chunk we've saved: resolved vs failed);
+  // Need-resolving is the resolver's own work-set (chunks seen in jobs, not yet cached),
+  // so the badge matches what "Resolve now" will do and drains to 0 after a run.
+  const resolvedLocationCount = (db.prepare(
+    `SELECT COUNT(*) AS c FROM location_country WHERE country != ''`,
+  ).get() as { c: number }).c;
+  const unknownLocationCount = (db.prepare(
+    `SELECT COUNT(*) AS c FROM location_country WHERE country = ''`,
+  ).get() as { c: number }).c;
+  const newUnresolvedLocationCount = unresolvedPoolElements(db).length;
   res.json({
     boards,
     settings,
@@ -1235,6 +1221,10 @@ router.get('/ats/stream/:runId', (req: Request, res: Response) => {
   const send = (data: string) => res.write(data);
   for (const msg of run.log) send(`data: ${JSON.stringify({ msg })}\n\n`);   // replay buffered log
   if (run.progress) send(`data: ${JSON.stringify(run.progress)}\n\n`);        // replay last progress
+  // If the run already finished (e.g. a fast, all-cached resolve completes before the
+  // client's stream even connects), replay the terminal event too — not just its text —
+  // so a late subscriber finalizes immediately instead of hanging until an idle timeout.
+  if (run.done) { send(`data: ${JSON.stringify({ done: true, cancelled: run.cancelled })}\n\n`); res.end(); return; }
   run.listeners.add(send);
   req.on('close', () => run.listeners.delete(send));
 });

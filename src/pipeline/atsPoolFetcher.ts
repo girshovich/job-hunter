@@ -399,6 +399,37 @@ function clearUnclaimedPoolDescriptions(db: Database, jobSource: 'Ashby' | 'Gree
 }
 
 /**
+ * Distinct pool location *elements* still needing resolution. Each unresolved job
+ * location is split on ';'/'|'/' or '; country-aware and/or strings are skipped (they
+ * self-resolve without geocoding); the rest are keyed individually against the
+ * location_country cache. Normal mode returns elements never looked at (uncached);
+ * recheck mode returns those cached as unknown (''). Shared by the resolver (the work
+ * to geocode) and the admin badge (how many chunks are left to resolve).
+ */
+export function unresolvedPoolElements(db: Database, recheckUnknowns = false): string[] {
+  const jobLocs = db.prepare(
+    `SELECT DISTINCT location FROM jobs
+     WHERE job_source IN ('Ashby', 'Greenhouse', 'Telegram')
+       AND location IS NOT NULL AND country IS NULL`,
+  ).all() as { location: string }[];
+
+  const cache = new Map<string, string>();
+  for (const r of db.prepare(`SELECT location, country FROM location_country`).all() as { location: string; country: string }[]) {
+    cache.set(r.location, r.country);
+  }
+
+  const work = new Set<string>();
+  for (const { location } of jobLocs) {
+    for (const raw of location.split(/\s*[;|]\s*|\s+or\s+/i).map((s) => s.trim()).filter(Boolean)) {
+      if (splitCountryAware(raw)) continue;
+      const cached = cache.get(raw);
+      if (recheckUnknowns ? cached === '' : cached === undefined) work.add(raw);
+    }
+  }
+  return [...work];
+}
+
+/**
  * Manual resolve: warms the location cache for every distinct UNRESOLVED pool
  * location *element* (each whole string split on ';'/'|'; country-aware and/or
  * strings are skipped — they self-resolve), via substring scan → hardcoded →
@@ -414,31 +445,7 @@ export async function resolvePoolCountries(
   const start = Date.now();
   const recheckUnknowns = !!options.recheckUnknowns;
 
-  // Distinct location strings from pool jobs still missing a country.
-  const jobLocs = db.prepare(
-    `SELECT DISTINCT location FROM jobs
-     WHERE job_source IN ('Ashby', 'Greenhouse', 'Telegram')
-       AND location IS NOT NULL AND country IS NULL`,
-  ).all() as { location: string }[];
-
-  // Preload the cache so we only geocode genuinely unresolved elements.
-  const cache = new Map<string, string>();
-  for (const r of db.prepare(`SELECT location, country FROM location_country`).all() as { location: string; country: string }[]) {
-    cache.set(r.location, r.country);
-  }
-
-  // Work-set: distinct elements needing a Nominatim lookup. Split on ';'/'|';
-  // skip country-aware and/or strings (they resolve without geocoding). Normal
-  // mode takes uncached elements; recheck mode retries those cached as unknown.
-  const work = new Set<string>();
-  for (const { location } of jobLocs) {
-    for (const raw of location.split(/\s*[;|]\s*|\s+or\s+/i).map((s) => s.trim()).filter(Boolean)) {
-      if (splitCountryAware(raw)) continue;
-      const cached = cache.get(raw);
-      if (recheckUnknowns ? cached === '' : cached === undefined) work.add(raw);
-    }
-  }
-  const elements = [...work];
+  const elements = unresolvedPoolElements(db, recheckUnknowns);
   const total = elements.length;
   emitToRun(runId ?? '', {
     msg: recheckUnknowns
