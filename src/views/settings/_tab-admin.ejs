@@ -853,8 +853,8 @@ function _applyPoolState(ghEnabled, ashbyEnabled, tz, ghLastFetch, ashbyLastFetc
   document.getElementById('pool-gh-tz').textContent    = tzLabel;
   document.getElementById('pool-ashby-tz').textContent = tzLabel;
   const _fmtLast = (v) => v ? ' · last fetch ' + new Date(v).toLocaleString() : ' · never fetched';
-  document.getElementById('pool-gh-last').textContent    = _fmtLast(ghLastFetch);
-  document.getElementById('pool-ashby-last').textContent = _fmtLast(ashbyLastFetch);
+  if (ghLastFetch !== undefined)    document.getElementById('pool-gh-last').textContent    = _fmtLast(ghLastFetch);
+  if (ashbyLastFetch !== undefined) document.getElementById('pool-ashby-last').textContent = _fmtLast(ashbyLastFetch);
   const ghDot    = document.getElementById('pool-gh-dot');
   const ashbyDot = document.getElementById('pool-ashby-dot');
   ghDot.classList.toggle('bg-emerald-400', ghEnabled);

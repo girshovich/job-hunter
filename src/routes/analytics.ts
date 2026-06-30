@@ -14,7 +14,7 @@ router.get('/', (req: Request, res: Response) => {
   // Overall totals
   const totals = db.prepare<{ total: number; strong: number; applied: number }>(`
     SELECT
-      COUNT(*) as total,
+      COUNT(CASE WHEN jps.is_duplicate = 0 THEN 1 END) as total,
       SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
       SUM(CASE WHEN jps.applied = 1 AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
     FROM job_profile_states jps WHERE jps.profile_id = ?
@@ -44,7 +44,7 @@ router.get('/', (req: Request, res: Response) => {
   const groupRows = db.prepare<GroupStat>(`
     SELECT
       jps.group_id,
-      COUNT(*) as total,
+      COUNT(CASE WHEN jps.is_duplicate = 0 THEN 1 END) as total,
       SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
       SUM(CASE WHEN jps.applied = 1 AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
     FROM job_profile_states jps WHERE jps.profile_id = ?
