@@ -155,7 +155,11 @@ export function getAppliedTone(value: unknown): string {
 
 export function formatDateTimeToMinutes(value: unknown, timezone = 'UTC'): string {
   if (value == null || value === '') return '—';
-  const date = new Date(String(value));
+  const raw = String(value);
+  // SQLite datetime('now') yields naive UTC "YYYY-MM-DD HH:MM:SS" (no zone); mark it UTC
+  // so it converts to the target timezone instead of being parsed as local time.
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw) ? `${raw.replace(' ', 'T')}Z` : raw;
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 16) || '—';
   const datePart = date.toLocaleDateString('en-GB', {
     day: 'numeric',

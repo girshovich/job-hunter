@@ -194,6 +194,7 @@ router.get('/telegram-posts', (req: Request, res: Response) => {
   }
 
   const db = getDb();
+  const adminTimezone = (db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(req.profile.id) as { timezone?: string } | undefined)?.timezone || 'UTC';
   const lastRun = db.prepare(
     `SELECT started_at FROM telegram_ingest_runs ORDER BY id DESC LIMIT 1`,
   ).get() as { started_at: string } | undefined;
@@ -242,6 +243,7 @@ router.get('/telegram-posts', (req: Request, res: Response) => {
     postCount: posts.length,
     repostCount,
     lastRunAt: lastRun?.started_at ?? null,
+    timezone: adminTimezone,
   });
 });
 

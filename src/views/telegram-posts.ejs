@@ -7,7 +7,7 @@
         · <span class="font-medium text-gray-700"><%= repostCount.toLocaleString() %></span> repost(s) excluded
       <% } %>
       <% if (lastRunAt) { %>
-        · ingested <span class="font-medium text-gray-700"><%= lastRunAt %> UTC</span>
+        · ingested <span class="font-medium text-gray-700"><%= formatDateTimeToMinutes(lastRunAt, timezone) %></span>
       <% } %>
     </p>
   </div>
