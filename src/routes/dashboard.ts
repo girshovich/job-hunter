@@ -67,7 +67,7 @@ router.get('/', (req: Request, res: Response) => {
   if (lastRunJobs.length > 0) {
     const ids = lastRunJobs.map((j) => j.id);
     const ph = ids.map(() => '?').join(',');
-    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph})`).all(...ids) as Array<{ job_id: number; label: string }>;
+    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph}) ORDER BY rowid ASC`).all(...ids) as Array<{ job_id: number; label: string }>;
     const labelsMap = new Map<number, string[]>();
     for (const { job_id, label } of locRows) {
       if (!labelsMap.has(job_id)) labelsMap.set(job_id, []);
@@ -222,7 +222,7 @@ router.get('/history', (req: Request, res: Response) => {
   if (jobs.length > 0) {
     const ids = jobs.map((j) => j.id);
     const ph = ids.map(() => '?').join(',');
-    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph})`).all(...ids) as Array<{ job_id: number; label: string }>;
+    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph}) ORDER BY rowid ASC`).all(...ids) as Array<{ job_id: number; label: string }>;
     const labelsMap = new Map<number, string[]>();
     for (const { job_id, label } of locRows) {
       if (!labelsMap.has(job_id)) labelsMap.set(job_id, []);
