@@ -508,7 +508,7 @@
         <p class="text-xs text-gray-400 mt-3 mb-1">Fixed field schema — always appended, read-only:</p>
         <pre id="tg-prompt-fixed" class="w-full px-3 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-gray-100 text-gray-500 whitespace-pre-wrap overflow-x-auto"></pre>
         <div class="flex justify-end mt-2">
-          <button type="button" id="tg-prompt-save-btn" onclick="telegramSavePrompt()" disabled
+          <button type="button" id="tg-prompt-save-btn" onclick="telegramSavePrompt()"
                   class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
             Save prompt
           </button>
@@ -924,7 +924,6 @@ async function poolToggle(provider, enabled) {
 // ── Telegram admin JS ────────────────────────────────────────────────────────
 
 let _tgChannels = [];
-let _tgPromptSaved = '';
 
 async function loadTelegramState() {
   try {
@@ -941,17 +940,8 @@ async function loadTelegramState() {
     _setDot('tg-ingest-dot', !!settings.enabled);
 
     const prompt = settings.extract_prompt || '';
-    const promptTextarea = document.getElementById('tg-prompt-textarea');
-    const promptSaveBtn  = document.getElementById('tg-prompt-save-btn');
-    promptTextarea.value = prompt;
+    document.getElementById('tg-prompt-textarea').value = prompt;
     document.getElementById('tg-prompt-fixed').textContent = settings.fixed_schema || '';
-    // Dirty-tracking: Save is enabled only when the prompt differs from the saved value.
-    _tgPromptSaved = prompt.trim();
-    promptSaveBtn.disabled = true;
-    promptSaveBtn.textContent = 'Save prompt';
-    promptTextarea.oninput = () => {
-      promptSaveBtn.disabled = (promptTextarea.value.trim() === _tgPromptSaved);
-    };
 
     const tz = statsData?.settings?.timezone || 'UTC';
     document.getElementById('tg-tz').textContent = tz;
@@ -1079,9 +1069,8 @@ async function telegramSavePrompt() {
     });
     const data = await res.json();
     if (data.error) { alert(data.error); btn.disabled = false; return; }
-    _tgPromptSaved = prompt;
     btn.textContent = 'Saved ✓';
-    setTimeout(() => { btn.textContent = 'Save prompt'; }, 1500);
+    setTimeout(() => { btn.textContent = 'Save prompt'; btn.disabled = false; }, 1500);
   } catch {
     alert('Failed to save prompt.');
     btn.disabled = false;
