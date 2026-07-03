@@ -4,6 +4,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type JobWithState, type SettingsRow } from '../db';
+import { getPreferredCountries } from '../pipeline/locationNormalizer';
 
 const router = Router();
 const PAGE_DATES = 10; // number of distinct run-dates shown per page
@@ -153,6 +154,7 @@ router.get('/', (req: Request, res: Response) => {
     title: 'Matches',
     companyNotes,
     timezone: settings?.timezone || 'UTC',
+    locPref: getPreferredCountries(profileId),
   });
 });
 

@@ -16,7 +16,7 @@ function renderJobsAllDesktopRows(jobs) {
     const verdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
     return `<tr class="${getJobTableRowClass()}" onclick="jobRowClick(event, '/job/${job.id}?from=history')">
       <td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company, undefined, job.logo_url)}</td>
-      <td class="${getJobTableCellClass()}">${renderLocationCell(job.location, job.country, job.locationLabels)}</td>
+      <td class="${getJobTableCellClass()}">${renderLocationCell(job.location, job.country, job.locationLabels, locPref)}</td>
       <td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score)}</td>
       <td class="${getJobTableCellClass('verdict')}">${renderVerdictSelector(verdict, { 'data-job-id': job.id, 'data-verdict': verdict, 'data-chip-style': 'compact', title: 'Click to change status', class: 'cursor-pointer' })}</td>
       <td class="${getJobTableCellClass('date')}">${renderDateTimeCell(job.fetched_at, tz)}</td>
@@ -41,7 +41,7 @@ function renderJobsAllMobileCards(jobs) {
       <div class="mt-3 flex items-end justify-between gap-3">
         <div class="flex-shrink-0">${renderDateTimeCell(job.fetched_at, tz)}</div>
         <div class="min-w-0 flex items-center justify-end gap-2 text-right">
-          <div class="min-w-0">${renderLocationCell(job.location, job.country, job.locationLabels)}</div>
+          <div class="min-w-0">${renderLocationCell(job.location, job.country, job.locationLabels, locPref)}</div>
           ${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}
         </div>
       </div>

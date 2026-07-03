@@ -352,6 +352,25 @@ export function resolveCountriesFromCache(
 }
 
 /**
+ * A profile's preferred locations for display: the union of all its roles' search
+ * locations resolved to a lowercased country set, plus its current_location. Used to
+ * pick which of a multi-country job's labels leads the card + flag (§ display primary).
+ */
+export function getPreferredCountries(profileId: number): { preferred: Set<string>; currentLocation: string } {
+  const db = getDb();
+  const rows = db.prepare<{ locations: string }>(
+    `SELECT locations FROM search_groups WHERE profile_id = ?`,
+  ).all(profileId);
+  const locs: string[] = [];
+  for (const r of rows) { try { locs.push(...JSON.parse(r.locations || '[]')); } catch { /* skip bad JSON */ } }
+  const { countries } = resolveCountriesFromCache(locs);
+  const s = db.prepare<{ current_location: string }>(
+    `SELECT current_location FROM settings WHERE profile_id = ?`,
+  ).get(profileId);
+  return { preferred: countries, currentLocation: (s?.current_location || '').toLowerCase().trim() };
+}
+
+/**
  * Resolves a list of raw location strings to a de-duped label set and expanded country set.
  * Labels are display strings (e.g. "Germany", "DACH"); countries are lowercased members.
  * Regions expand to their member countries ([] if unpopulated).

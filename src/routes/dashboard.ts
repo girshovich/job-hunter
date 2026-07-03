@@ -5,7 +5,7 @@
 import { Router, type Request, type Response } from 'express';
 import { getDb, type JobWithState, type SearchRunRow, type SearchGroupRow, type SettingsRow, type CvRow } from '../db';
 import { getScheduleStatus } from '../pipeline/scheduler';
-import { lookupCountry } from '../pipeline/locationNormalizer';
+import { lookupCountry, getPreferredCountries } from '../pipeline/locationNormalizer';
 
 const router = Router();
 
@@ -141,6 +141,7 @@ router.get('/', (req: Request, res: Response) => {
     timezone: settings?.timezone || 'UTC',
     scheduleStatus,
     title: 'Start',
+    locPref: getPreferredCountries(profileId),
   });
 });
 
@@ -261,6 +262,7 @@ router.get('/history', (req: Request, res: Response) => {
     filters: { verdict, company, country, scoreMin, scoreMax, dateFrom, dateTo, groupId },
     timezone: histSettings?.timezone || 'UTC',
     title: 'All Jobs',
+    locPref: getPreferredCountries(profileId),
   });
 });
 
@@ -367,7 +369,7 @@ router.get('/job/:id', (req: Request, res: Response) => {
 
   const locationLabelRows = db.prepare(`SELECT label FROM job_locations WHERE job_id = ? ORDER BY rowid ASC`).all(id) as Array<{ label: string }>;
   const locationLabels = locationLabelRows.map((r) => r.label);
-  res.render('job-detail', { job, original, duplicatesOfThis, title: job.title, backUrl, backLabel, prevId, nextId, from, cvs, settings, companyNote, locationLabels });
+  res.render('job-detail', { job, original, duplicatesOfThis, title: job.title, backUrl, backLabel, prevId, nextId, from, cvs, settings, companyNote, locationLabels, locPref: getPreferredCountries(profileId) });
 });
 
 export { router as dashboardRouter };

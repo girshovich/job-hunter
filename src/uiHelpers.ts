@@ -347,12 +347,40 @@ export function renderCompanyLogo(company: string, logoUrl?: string | null): str
     `</span>`;
 }
 
-export function renderLocationCell(location: unknown, country?: string | null, locationLabels?: string[]): string {
-  const primary = (locationLabels && locationLabels.length > 0) ? locationLabels[0] : location;
+export type LocationPreference = { preferred?: Set<string>; currentLocation?: string };
+
+/**
+ * Picks a multi-country job's displayed primary label + flag country, per viewing profile.
+ * 1) current_location when it's preferred AND one of the job's labels; 2) first label (in
+ * label order) whose country is preferred; 3) fallback: first label + the stored primary
+ * country. The flag follows the chosen label, not jobs.country. No pref → rung 3 (legacy).
+ */
+export function pickPrimaryLocation(
+  locationLabels: string[] | undefined,
+  country?: string | null,
+  pref?: LocationPreference,
+): { primary: string | null; flagCountry: string | null } {
+  const labels = locationLabels ?? [];
+  const preferred = pref?.preferred;
+  if (preferred && preferred.size && labels.length) {
+    const cur = pref?.currentLocation;
+    if (cur && preferred.has(cur)) {
+      const home = labels.find((l) => l.toLowerCase().trim() === cur);
+      if (home) return { primary: home, flagCountry: home };
+    }
+    const hit = labels.find((l) => preferred.has(l.toLowerCase().trim()));
+    if (hit) return { primary: hit, flagCountry: hit };
+  }
+  return { primary: labels[0] ?? null, flagCountry: country ?? null };
+}
+
+export function renderLocationCell(location: unknown, country?: string | null, locationLabels?: string[], pref?: LocationPreference): string {
+  const picked = pickPrimaryLocation(locationLabels, country, pref);
+  const primary = picked.primary ?? location;
   if (!primary) return '<span class="text-xs text-gray-300">—</span>';
   const extra = locationLabels && locationLabels.length > 1 ? locationLabels.length - 1 : 0;
   const badge = extra > 0 ? ` <span class="text-gray-400">+${extra}</span>` : '';
-  const flag = countryToFlag(country);
+  const flag = countryToFlag(picked.flagCountry);
   const text = `<span class="job-location-text text-xs leading-snug text-gray-500">${escapeHtml(primary)}${badge}</span>`;
   return flag ? `<span class="inline-flex items-start gap-1">${flag} ${text}</span>` : text;
 }
@@ -504,6 +532,7 @@ export const uiHelpers = {
   renderJobPositionCompanyCell,
   renderJobSummaryCell,
   renderLocationCell,
+  pickPrimaryLocation,
   renderJobTableHeader,
   renderJobsAllColgroup,
   renderJobsAllTableHeader,
