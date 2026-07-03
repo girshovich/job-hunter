@@ -743,7 +743,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           ...jobResults.map(({ scored }) => scored.job),
           ...urlDuplicates.map(({ job }) => job),
           ...blacklistedJobs,
-        ].filter((j) => j.jobSource === 'Greenhouse' || j.jobSource === 'Ashby')
+        ].filter((j) => j.jobSource === 'Greenhouse' || j.jobSource === 'Ashby' || j.jobSource === 'Lever')
           .map((j) => ({ company: j.company, ats: j.jobSource.toLowerCase() }));
         if (atsForClearbit.length > 0) {
           fetchClearbitLogosForAts(db, atsForClearbit).catch(() => {});

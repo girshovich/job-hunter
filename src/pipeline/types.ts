@@ -2,13 +2,14 @@
  * Shared types and utilities for scraping providers.
  */
 
-export type JobSource = 'LinkedIn' | 'Indeed' | 'StepStone' | 'Greenhouse' | 'Ashby' | 'Telegram';
+export type JobSource = 'LinkedIn' | 'Indeed' | 'StepStone' | 'Greenhouse' | 'Ashby' | 'Lever' | 'Telegram';
 
 export function providerToSource(provider: string): JobSource {
   if (provider === 'indeed')      return 'Indeed';
   if (provider === 'stepstone')   return 'StepStone';
   if (provider === 'greenhouse')  return 'Greenhouse';
   if (provider === 'ashby')       return 'Ashby';
+  if (provider === 'lever')       return 'Lever';
   if (provider === 'telegram')    return 'Telegram';
   return 'LinkedIn';
 }

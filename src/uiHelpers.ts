@@ -66,12 +66,14 @@ const SOURCE_LABELS: Record<string, string> = {
   stepstone: 'StepStone: valig (S)',
   greenhouse: 'Greenhouse (ATS)',
   ashby: 'Ashby (ATS)',
+  lever: 'Lever (ATS)',
   telegram: 'Telegram',
   LinkedIn: 'LinkedIn',
   Indeed: 'Indeed',
   StepStone: 'StepStone',
   Greenhouse: 'Greenhouse',
   Ashby: 'Ashby',
+  Lever: 'Lever',
   Telegram: 'Telegram',
 };
 
@@ -88,6 +90,8 @@ const SOURCE_NAMES: Record<string, string> = {
   Greenhouse: 'Greenhouse',
   ashby: 'Ashby',
   Ashby: 'Ashby',
+  lever: 'Lever',
+  Lever: 'Lever',
   telegram: 'Telegram',
   Telegram: 'Telegram',
 };

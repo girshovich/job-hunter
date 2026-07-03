@@ -13,7 +13,7 @@ import { analyticsRouter } from './routes/analytics';
 import { rundiffRouter } from './routes/rundiff';
 import { publicAnonymousRouter, publicAuthedRouter } from './routes/public';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
-import { startAtsDiscoveryCron, startLeverDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startPoolCleanupCron, startTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from './pipeline/atsScheduler';
+import { startAtsDiscoveryCron, startLeverDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startLeverPoolCron, startPoolCleanupCron, startTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from './pipeline/atsScheduler';
 import compression from 'compression';
 import { uiHelpers } from './uiHelpers';
 
@@ -189,7 +189,7 @@ async function start(): Promise<void> {
   if (adminProfile) {
     const atsSettings = db.prepare(`
       SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled,
-             ats_pool_gh_enabled, ats_pool_ashby_enabled, telegram_ingest_enabled, timezone
+             ats_pool_gh_enabled, ats_pool_ashby_enabled, ats_pool_lever_enabled, telegram_ingest_enabled, timezone
       FROM settings WHERE profile_id = ?
     `).get(adminProfile.id) as {
       ats_discovery_enabled: number;
@@ -197,6 +197,7 @@ async function start(): Promise<void> {
       ats_validation_enabled: number;
       ats_pool_gh_enabled: number;
       ats_pool_ashby_enabled: number;
+      ats_pool_lever_enabled: number;
       telegram_ingest_enabled: number;
       timezone: string;
     } | undefined;
@@ -215,6 +216,9 @@ async function start(): Promise<void> {
     }
     if (atsSettings?.ats_pool_ashby_enabled) {
       startAshbyPoolCron('15 5 * * *', atsTz);
+    }
+    if (atsSettings?.ats_pool_lever_enabled) {
+      startLeverPoolCron('45 5 * * *', atsTz);
     }
     if (atsSettings?.telegram_ingest_enabled) {
       startTelegramIngestCron('30 5 * * *', atsTz);

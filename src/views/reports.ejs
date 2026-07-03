@@ -29,7 +29,7 @@ function runJobDetailHref(job) {
 }
 
 function runSourceName(run) {
-  return formatSourceName(run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : 'LinkedIn'));
+  return formatSourceName(run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider === 'lever' ? 'Lever' : 'LinkedIn'));
 }
 
 function runProviderName(run) {
@@ -107,7 +107,7 @@ function runProviderName(run) {
       <% if (run.job_source || run.scraping_provider) { %>
       <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
         <span>Source</span>
-        <span class="font-medium text-gray-700"><%= formatSourceLabel(run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider)) %></span>
+        <span class="font-medium text-gray-700"><%= formatSourceLabel(run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider === 'lever' ? 'Lever' : run.scraping_provider)) %></span>
       </div>
       <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
         <span>Provider</span>

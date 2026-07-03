@@ -1426,6 +1426,17 @@ The full post text is stored as the job description — do not repeat or summari
     console.warn('[db] Migration v_ats_pool_last_fetch failed (non-fatal):', (err as Error).message);
   }
 
+  // v_ats_pool_lever: add Lever pool toggle + last-fetch columns
+  try {
+    const cols = (db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[]).map((c) => c.name);
+    if (!cols.includes('ats_pool_lever_enabled'))
+      db.exec(`ALTER TABLE settings ADD COLUMN ats_pool_lever_enabled INTEGER NOT NULL DEFAULT 0`);
+    if (!cols.includes('ats_pool_lever_last_fetch'))
+      db.exec(`ALTER TABLE settings ADD COLUMN ats_pool_lever_last_fetch TEXT`);
+  } catch (err) {
+    console.warn('[db] Migration v_ats_pool_lever failed (non-fatal):', (err as Error).message);
+  }
+
   // v_mc_regions_seed: seed DACH region members (EMEA/EU/EEA start empty — admin populates via UI)
   try {
     db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
@@ -2440,6 +2451,8 @@ export interface SettingsRow {
   ats_pool_ashby_enabled: number;
   ats_pool_gh_last_fetch: string | null;
   ats_pool_ashby_last_fetch: string | null;
+  ats_pool_lever_enabled: number;
+  ats_pool_lever_last_fetch: string | null;
   use_jh_credits: number;          // 1 = use JH credits (global admin keys), 0 = use own keys
   user_apify_api_token: string;    // user-specific Apify key (used when use_jh_credits = 0)
   user_openai_api_key: string;     // user-specific OpenAI key (used when use_jh_credits = 0)

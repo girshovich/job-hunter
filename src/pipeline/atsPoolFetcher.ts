@@ -6,11 +6,42 @@
 import type { Database } from '../db';
 import { emitToRun, isCancelled } from './atsRunState';
 import { parsePostedDate } from './types';
-import { lookupCountry, canonicalRegion, resolveLabelLocal, cleanLocationForGeocoding, splitCountryAware } from './locationNormalizer';
+import { lookupCountry, canonicalRegion, resolveLabelLocal, cleanLocationForGeocoding, splitCountryAware, getCanonicalCountries } from './locationNormalizer';
 import { resolveAshbyCompanyName } from './ashbyCompanyName';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT    = 'JobHunterApp/1.0 (self-hosted job search tool)';
+
+// ISO-3166-1 alpha-2 → canonical country name (must match countries.json values).
+// Lever postings expose `country` as an alpha-2 code; used to pre-resolve job countries
+// without geocoding. Unmapped codes → null (job flows through resolvePoolCountries instead).
+const ISO_ALPHA2_TO_COUNTRY: Record<string, string> = {
+  US: 'United States', GB: 'United Kingdom', CA: 'Canada', IE: 'Ireland',
+  DE: 'Germany', FR: 'France', ES: 'Spain', PT: 'Portugal', IT: 'Italy',
+  NL: 'Netherlands', BE: 'Belgium', LU: 'Luxembourg', AT: 'Austria', CH: 'Switzerland',
+  SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', IS: 'Iceland',
+  PL: 'Poland', CZ: 'Czechia', SK: 'Slovakia', HU: 'Hungary', RO: 'Romania',
+  BG: 'Bulgaria', GR: 'Greece', HR: 'Croatia', SI: 'Slovenia', RS: 'Serbia',
+  EE: 'Estonia', LV: 'Latvia', LT: 'Lithuania', UA: 'Ukraine',
+  IN: 'India', SG: 'Singapore', AU: 'Australia', NZ: 'New Zealand',
+  JP: 'Japan', KR: 'South Korea', CN: 'China', HK: 'Hong Kong', TW: 'Taiwan',
+  IL: 'Israel', AE: 'United Arab Emirates', TR: 'Turkey', ZA: 'South Africa',
+  BR: 'Brazil', MX: 'Mexico', AR: 'Argentina', CL: 'Chile', CO: 'Colombia',
+  // Extend as needed; unmapped codes safely fall back to the resolve pipeline.
+};
+
+function countryFromCode(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return ISO_ALPHA2_TO_COUNTRY[code.toUpperCase().trim()] ?? null;
+}
+
+// Dev guard: warn if any mapped name isn't a canonical country (spelling drift → silent no-match).
+if (process.env.NODE_ENV !== 'production') {
+  const canon = new Set(getCanonicalCountries().map((c) => c.toLowerCase()));
+  for (const name of Object.values(ISO_ALPHA2_TO_COUNTRY)) {
+    if (!canon.has(name.toLowerCase())) console.warn(`[lever] ISO map value not canonical: "${name}"`);
+  }
+}
 
 export interface PoolFetchResult {
   fetched: number;
@@ -287,6 +318,167 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
   return { fetched, boards: slugs.length, durationMs };
 }
 
+// ── Lever ─────────────────────────────────────────────────────────────────────
+
+interface LeverPostingRaw {
+  id: string;
+  text: string;
+  createdAt: number | null;
+  workplaceType: string | null;
+  country: string | null;
+  hostedUrl: string;
+  applyUrl: string | null;
+  categories: { location?: string | null; allLocations?: string[] | null } | null;
+}
+
+interface LeverJobToInsert {
+  linkedin_job_id: string;
+  title: string;
+  company: string;
+  location: string | null;        // allLocations joined with '; '
+  locationLabels: string[];       // individual labels (for job_locations)
+  work_mode: string;
+  url: string;
+  apply_url: string | null;
+  posted_date: string | null;
+  ats_slug: string;
+  countryName: string | null;     // resolved from ISO code, or null
+}
+
+function mapLeverWorkMode(job: LeverPostingRaw): string {
+  const wt = (job.workplaceType || '').toLowerCase();
+  if (wt === 'hybrid') return 'hybrid';
+  if (wt === 'remote') return 'remote';
+  return 'onsite';
+}
+
+async function fetchLeverBoard(slug: string, companyName: string): Promise<LeverJobToInsert[]> {
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://api.lever.co/v0/postings/${slug}?mode=json`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+  } catch { return []; }
+  if (!res.ok) return [];
+  let data: LeverPostingRaw[];
+  try { data = await res.json() as LeverPostingRaw[]; } catch { return []; }
+  if (!Array.isArray(data)) return [];
+
+  return data.map((job): LeverJobToInsert => {
+    const { date: postedDate } = parsePostedDate(job.createdAt ?? undefined);
+    const labels = (job.categories?.allLocations && job.categories.allLocations.length > 0
+      ? job.categories.allLocations
+      : [job.categories?.location].filter(Boolean) as string[])
+      .filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
+    return {
+      linkedin_job_id: job.id,
+      title:           job.text || '',
+      company:         companyName || slug,
+      location:        labels.join('; ') || null,
+      locationLabels:  labels,
+      work_mode:       mapLeverWorkMode(job),
+      url:             job.hostedUrl || '',
+      apply_url:       job.applyUrl || null,
+      posted_date:     postedDate,
+      ats_slug:        slug,
+      // Trust Lever's single country code ONLY for single-location postings.
+      // Multi-location postings (>1 location) get one code for the whole posting,
+      // which can't describe multiple countries — leave null so the resolve
+      // pipeline resolves each location element correctly.
+      countryName:     labels.length <= 1 ? countryFromCode(job.country) : null,
+    };
+  });
+}
+
+export async function fetchLeverPool(db: Database, runId?: string): Promise<PoolFetchResult> {
+  const start = Date.now();
+  const slugs = db.prepare(
+    `SELECT slug, company_name FROM ats_boards WHERE ats = 'lever' AND is_active = 1`,
+  ).all() as Array<{ slug: string; company_name: string | null }>;
+
+  emitToRun(runId ?? '', { msg: `Fetching jobs from ${slugs.length} Lever boards…`, total: slugs.length });
+
+  const now = new Date().toISOString();
+  const upsert = db.prepare(`
+    INSERT INTO jobs (linkedin_job_id, job_source, provider, ats_slug, title, company, location, country, work_mode,
+                      description, url, apply_url, posted_date, fetched_at)
+    VALUES (?, 'Lever', 'lever', ?, ?, ?, ?, NULL, ?, '', ?, ?, ?, ?)
+    ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
+      fetched_at  = excluded.fetched_at,
+      ats_slug    = excluded.ats_slug,
+      title       = excluded.title,
+      company     = excluded.company,
+      location    = excluded.location,
+      -- Q1: reset country when the location set changes so it is re-resolved (matches Ashby's
+      -- upsert). Single-location jobs are re-set from the ISO code below; multi-location jobs
+      -- fall to populateCountriesFromCache/resolvePoolCountries. Without this, a job whose
+      -- location changed (esp. single→multi) would keep a stale country + job_countries forever.
+      country     = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
+      work_mode   = excluded.work_mode,
+      url         = excluded.url,
+      apply_url   = COALESCE(excluded.apply_url, jobs.apply_url),
+      posted_date = excluded.posted_date
+    RETURNING id
+  `);
+  // Inline country-from-code assembly (mirrors populateCountriesFromCache output).
+  // Q3-B: the upsert uses RETURNING id (verified working in this project's node:sqlite on both
+  // insert and conflict-update paths), so no separate SELECT id is needed.
+  const setCountry  = db.prepare(`UPDATE jobs SET country = ? WHERE id = ?`);
+  const delLoc      = db.prepare(`DELETE FROM job_locations WHERE job_id = ?`);
+  const delCty      = db.prepare(`DELETE FROM job_countries WHERE job_id = ?`);
+  const insLoc      = db.prepare(`INSERT OR IGNORE INTO job_locations (job_id, label) VALUES (?, ?)`);
+  const insCty      = db.prepare(`INSERT OR IGNORE INTO job_countries (job_id, country) VALUES (?, LOWER(?))`);
+
+  let fetched = 0;
+  let processed = 0;
+
+  await withConcurrencyMap(slugs, 10, async ({ slug, company_name }) => {
+    if (isCancelled(runId ?? '')) return;
+    const jobs = await fetchLeverBoard(slug, company_name || slug);
+    db.transaction(() => {
+      for (const j of jobs) {
+        const row = upsert.get(
+          j.linkedin_job_id, j.ats_slug, j.title, j.company, j.location, j.work_mode, j.url, j.apply_url, j.posted_date, now,
+        ) as { id: number } | undefined;
+        fetched++;
+        if (j.countryName && row) {
+          setCountry.run(j.countryName, row.id);
+          delLoc.run(row.id);
+          delCty.run(row.id);
+          for (const label of j.locationLabels) insLoc.run(row.id, label);
+          insCty.run(row.id, j.countryName);
+        }
+      }
+    });
+    processed++;
+    if (processed % 100 === 0 || processed === slugs.length) {
+      emitToRun(runId ?? '', { msg: `${processed}/${slugs.length} boards`, processed, total: slugs.length });
+    }
+    if (processed % 200 === 0) {
+      db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  });
+
+  // Jobs whose ISO code was missing/unmappable still have country = NULL — let the
+  // shared cache resolver fill them (same path as Greenhouse/Ashby).
+  populateCountriesFromCache(db, 'Lever');
+  clearUnclaimedPoolDescriptions(db, 'Lever');
+  db.exec(`PRAGMA wal_checkpoint(PASSIVE)`);
+
+  const durationMs = Date.now() - start;
+  emitToRun(runId ?? '', {
+    msg: `Done — ${fetched} Lever jobs stored (${Math.round(durationMs / 1000)}s)`,
+    done: true,
+    inserted: fetched,
+  });
+  db.prepare(
+    `UPDATE settings SET ats_pool_lever_last_fetch = ? WHERE profile_id = (SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1)`,
+  ).run(new Date().toISOString());
+  return { fetched, boards: slugs.length, durationMs };
+}
+
 // ── Country resolution ────────────────────────────────────────────────────────
 
 /**
@@ -296,7 +488,7 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
  * Also writes job_locations + job_countries child tables for resolved jobs.
  * Change-guard: only jobs with country IS NULL (new or location-changed) are processed.
  */
-export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'Greenhouse' | 'Telegram'): void {
+export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'Greenhouse' | 'Lever' | 'Telegram'): void {
   const jobs = db.prepare<{ id: number; location: string }>(
     `SELECT id, location FROM jobs WHERE job_source = ? AND location IS NOT NULL AND country IS NULL`,
   ).all(jobSource);
@@ -383,7 +575,7 @@ export function populateCountriesFromCache(db: Database, jobSource: 'Ashby' | 'G
   console.log(`[pool] Populated country/child tables for ${updatedCount} ${jobSource} job(s) from cache`);
 }
 
-function clearUnclaimedPoolDescriptions(db: Database, jobSource: 'Ashby' | 'Greenhouse'): void {
+function clearUnclaimedPoolDescriptions(db: Database, jobSource: 'Ashby' | 'Greenhouse' | 'Lever'): void {
   const result = db.prepare(`
     DELETE FROM job_descriptions
     WHERE job_id IN (
@@ -409,7 +601,7 @@ function clearUnclaimedPoolDescriptions(db: Database, jobSource: 'Ashby' | 'Gree
 export function unresolvedPoolElements(db: Database, recheckUnknowns = false): string[] {
   const jobLocs = db.prepare(
     `SELECT DISTINCT location FROM jobs
-     WHERE job_source IN ('Ashby', 'Greenhouse', 'Telegram')
+     WHERE job_source IN ('Ashby', 'Greenhouse', 'Lever', 'Telegram')
        AND location IS NOT NULL AND country IS NULL`,
   ).all() as { location: string }[];
 
@@ -504,7 +696,7 @@ export async function resolvePoolCountries(
   }
 
   // Assemble jobs.country + child tables from the now-warm cache.
-  for (const src of ['Ashby', 'Greenhouse', 'Telegram'] as const) {
+  for (const src of ['Ashby', 'Greenhouse', 'Lever', 'Telegram'] as const) {
     populateCountriesFromCache(db, src);
   }
 

@@ -11,8 +11,8 @@ import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/sche
 import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
 import { runValidation } from '../pipeline/atsValidation';
-import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron, startTelegramIngestCron, stopTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from '../pipeline/atsScheduler';
-import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries, unresolvedPoolElements } from '../pipeline/atsPoolFetcher';
+import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, stopLeverDiscoveryCron, startAtsValidationCron, stopAtsValidationCron, startGhPoolCron, stopGhPoolCron, startAshbyPoolCron, stopAshbyPoolCron, startLeverPoolCron, stopLeverPoolCron, startTelegramIngestCron, stopTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from '../pipeline/atsScheduler';
+import { fetchGreenhousePool, fetchAshbyPool, fetchLeverPool, resolvePoolCountries, unresolvedPoolElements } from '../pipeline/atsPoolFetcher';
 import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipeline/poolLock';
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
@@ -105,7 +105,7 @@ router.post('/run', async (req: Request, res: Response) => {
   else if (b.dateRange === 'month') dateRange = 'month';
 
   // Parse optional providers override
-  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby', 'telegram'];
+  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby', 'lever', 'telegram'];
   const providers = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validProviders.includes(p))
     : undefined;
@@ -1128,16 +1128,19 @@ router.get('/ats/status', (req: Request, res: Response) => {
   const settings = db.prepare(`
     SELECT ats_discovery_enabled, ats_lever_disc_enabled, ats_validation_enabled,
            ats_pool_gh_enabled, ats_pool_ashby_enabled, ats_pool_gh_last_fetch, ats_pool_ashby_last_fetch,
+           ats_pool_lever_enabled, ats_pool_lever_last_fetch,
            telegram_ingest_enabled, timezone
     FROM settings WHERE profile_id = ?
   `).get(req.profile.id) as {
     ats_discovery_enabled: number; ats_lever_disc_enabled: number; ats_validation_enabled: number;
     ats_pool_gh_enabled: number; ats_pool_ashby_enabled: number;
     ats_pool_gh_last_fetch: string | null; ats_pool_ashby_last_fetch: string | null;
+    ats_pool_lever_enabled: number; ats_pool_lever_last_fetch: string | null;
     telegram_ingest_enabled: number; timezone: string;
   } | undefined;
   const ghCount       = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Greenhouse'`).get() as { c: number }).c;
   const ashbyCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Ashby'`).get() as { c: number }).c;
+  const leverCount    = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Lever'`).get() as { c: number }).c;
   const telegramCount = (db.prepare(`SELECT COUNT(*) AS c FROM jobs WHERE job_source = 'Telegram'`).get() as { c: number }).c;
   const telegramChannelCount = (db.prepare(`SELECT COUNT(*) AS c FROM telegram_channels WHERE is_active = 1`).get() as { c: number }).c;
   const telegramPostCount = (db.prepare(`SELECT COUNT(*) AS c FROM telegram_posts`).get() as { c: number }).c;
@@ -1162,6 +1165,7 @@ router.get('/ats/status', (req: Request, res: Response) => {
     poolCounts: {
       greenhouse: ghCount,
       ashby: ashbyCount,
+      lever: leverCount,
       resolvedLocations: resolvedLocationCount,
       unknownLocations: unknownLocationCount,
       newUnresolvedLocations: newUnresolvedLocationCount,
@@ -1268,6 +1272,19 @@ router.post('/ats/pool/fetch-ashby', (req: Request, res: Response) => {
     .finally(() => { releasePoolLock(); endRun(runId); });
 });
 
+router.post('/ats/pool/fetch-lever', (req: Request, res: Response) => {
+  if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
+  if (!tryAcquirePoolLock('Lever')) {
+    return res.status(409).json({ error: `A ${getActivePoolFetch()} pool fetch is already running.` });
+  }
+  const runId = createRun({ kind: 'pool-lever', label: 'Lever pool fetch', unit: 'boards', cancellable: true });
+  res.json({ runId });
+  fetchLeverPool(getDb(), runId)
+    .then((r) => console.log('[lever-pool] Manual fetch complete:', r))
+    .catch((e) => console.error('[lever-pool] Manual fetch error:', e))
+    .finally(() => { releasePoolLock(); endRun(runId); });
+});
+
 router.post('/ats/pool/resolve-countries', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const runId = tryStartRun({ kind: 'resolve-countries', label: 'Resolving job countries', unit: 'locations', cancellable: true });
@@ -1295,20 +1312,24 @@ router.post('/ats/pool/settings', (req: Request, res: Response) => {
   const b = req.body as Record<string, unknown>;
   const ghEnabled    = !!b.gh_enabled;
   const ashbyEnabled = !!b.ashby_enabled;
+  const leverEnabled = !!b.lever_enabled;
 
   const db = getDb();
   const row = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(req.profile.id) as { timezone: string } | undefined;
   const tz = row?.timezone || 'UTC';
 
   db.prepare(`
-    UPDATE settings SET ats_pool_gh_enabled = ?, ats_pool_ashby_enabled = ? WHERE profile_id = ?
-  `).run(ghEnabled ? 1 : 0, ashbyEnabled ? 1 : 0, req.profile.id);
+    UPDATE settings SET ats_pool_gh_enabled = ?, ats_pool_ashby_enabled = ?, ats_pool_lever_enabled = ? WHERE profile_id = ?
+  `).run(ghEnabled ? 1 : 0, ashbyEnabled ? 1 : 0, leverEnabled ? 1 : 0, req.profile.id);
 
   if (ghEnabled) startGhPoolCron('0 5 * * *', tz);
   else stopGhPoolCron();
 
   if (ashbyEnabled) startAshbyPoolCron('15 5 * * *', tz);
   else stopAshbyPoolCron();
+
+  if (leverEnabled) startLeverPoolCron('45 5 * * *', tz);
+  else stopLeverPoolCron();
 
   res.json({ success: true, timezone: tz });
 });

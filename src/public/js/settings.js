@@ -412,7 +412,7 @@ async function fetchLocationHints(locationsStr) {
       return `<span class="text-amber-600">${loc} → not supported by Indeed</span>`;
     });
 
-    // Greenhouse / Ashby row (country-level keyword match)
+    // Greenhouse / Ashby / Lever row (country-level keyword match)
     const atsParts = locations.map(loc => {
       const r = data[loc];
       if (!r) return `<span class="text-gray-400">${loc} → ?</span>`;
@@ -422,7 +422,7 @@ async function fetchLocationHints(locationsStr) {
 
     hintsEl.innerHTML =
       '<div><span class="text-gray-400">Indeed: </span>' + indeedParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
-      '<div class="mt-0.5"><span class="text-gray-400">Greenhouse / Ashby: </span>' + atsParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
+      '<div class="mt-0.5"><span class="text-gray-400">Greenhouse / Ashby / Lever: </span>' + atsParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
       '<div class="mt-0.5"><span class="text-gray-400">Telegram: </span><span class="text-amber-600">keeps target-country &amp; unknown-location jobs; drops known off-target (AI judges the rest)</span></div>';
   } catch (_) {
     hintsEl.classList.add('hidden');

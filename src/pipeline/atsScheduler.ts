@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { runDiscovery } from './atsDiscovery';
 import { runLeverDiscovery } from './leverDiscovery';
 import { runValidation } from './atsValidation';
-import { fetchGreenhousePool, fetchAshbyPool } from './atsPoolFetcher';
+import { fetchGreenhousePool, fetchAshbyPool, fetchLeverPool } from './atsPoolFetcher';
 import { acquirePoolLock, releasePoolLock } from './poolLock';
 import { runTelegramIngest } from './telegramIngest';
 import { sendDiscoveryEmptyAlert } from './emailReport';
@@ -48,6 +48,7 @@ let leverDiscoveryTask:   ReturnType<typeof cron.schedule> | null = null;
 let validationTask:       ReturnType<typeof cron.schedule> | null = null;
 let ghPoolTask:           ReturnType<typeof cron.schedule> | null = null;
 let ashbyPoolTask:        ReturnType<typeof cron.schedule> | null = null;
+let leverPoolTask:        ReturnType<typeof cron.schedule> | null = null;
 let telegramIngestTask:   ReturnType<typeof cron.schedule> | null = null;
 
 // A scheduled discovery that returns neither new nor already-known companies has almost
@@ -218,6 +219,35 @@ export function stopAshbyPoolCron(): void {
   console.log('[ashby-pool] Cron stopped');
 }
 
+export function startLeverPoolCron(expression: string, timezone = 'UTC'): void {
+  leverPoolTask?.stop();
+  if (!cron.validate(expression)) {
+    console.warn(`[lever-pool] Invalid cron expression "${expression}" — using fallback "45 5 * * *"`);
+    expression = '45 5 * * *';
+  }
+  leverPoolTask = cron.schedule(expression, async () => {
+    console.log('[lever-pool] Starting scheduled Lever pool fetch');
+    await acquirePoolLock('Lever');
+    const runId = createRun({ kind: 'pool-lever', label: 'Lever pool fetch — scheduled', unit: 'boards', cancellable: true });
+    try {
+      const result = await fetchLeverPool(getDb(), runId);
+      console.log('[lever-pool] Done:', result);
+    } catch (err) {
+      console.error('[lever-pool] Error:', err);
+    } finally {
+      releasePoolLock();
+      endRun(runId);
+    }
+  }, { timezone });
+  console.log(`[lever-pool] Cron scheduled: "${expression}" (${timezone})`);
+}
+
+export function stopLeverPoolCron(): void {
+  leverPoolTask?.stop();
+  leverPoolTask = null;
+  console.log('[lever-pool] Cron stopped');
+}
+
 export function startTelegramIngestCron(expression: string, timezone = 'UTC'): void {
   telegramIngestTask?.stop();
   if (!cron.validate(expression)) {
@@ -257,7 +287,7 @@ export function startPoolCleanupCron(): void {
       const db = getDb();
       const result = db.prepare(`
         DELETE FROM jobs
-        WHERE job_source IN ('Greenhouse', 'Ashby', 'Telegram')
+        WHERE job_source IN ('Greenhouse', 'Ashby', 'Lever', 'Telegram')
           AND fetched_at < datetime('now', '-30 days')
           AND id NOT IN (SELECT job_id FROM job_profile_states)
       `).run() as { changes: number };
