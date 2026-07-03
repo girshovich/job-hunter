@@ -35,10 +35,11 @@ export async function fetchWithTelegram(
   const keywordClauses = filters.keywords.map(() => `(LOWER(j.title) LIKE ? OR LOWER(j.description) LIKE ?)`).join(' OR ');
   const keywordParams  = filters.keywords.flatMap((k) => [`%${k.toLowerCase()}%`, `%${k.toLowerCase()}%`]);
 
-  // Location filter for Telegram: keep jobs in a target country OR with unknown (NULL)
-  // country — the AI scorer judges those downstream. Jobs with a known non-target
-  // country are dropped before scoring. (No text-LIKE fallback: country is rarely
-  // populated for Telegram, so a fallback would wrongly drop NULL-country target jobs.)
+  // Location filter for Telegram — mirrors the Ashby/Greenhouse pool filters so the
+  // full resolved country set is checked (not just the first). Keep a job if any of:
+  //   • a target country is in its job_countries (region members already expanded), or
+  //   • its raw location text mentions a target country (partially-resolved fallback), or
+  //   • it has no resolved country at all (unknown → the AI scorer judges it downstream).
   let locationClause = '';
   let locationParams: string[] = [];
 
@@ -47,8 +48,13 @@ export async function fetchWithTelegram(
     if (targetCountries.size > 0) {
       const countryList    = [...targetCountries];
       const inPlaceholders = countryList.map(() => '?').join(', ');
-      locationClause = `AND (j.country IS NULL OR LOWER(j.country) IN (${inPlaceholders}))`;
-      locationParams = countryList;
+      const likeClauses    = countryList.map(() => `LOWER(COALESCE(j.location, '')) LIKE ?`).join(' OR ');
+      locationClause = `AND (
+        EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id AND jc.country IN (${inPlaceholders}))
+        OR NOT EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id)
+        OR (${likeClauses})
+      )`;
+      locationParams = [...countryList, ...countryList.map((c) => `%${c}%`)];
     }
     // If no countries resolved yet, skip location filter so Telegram still returns keyword matches.
   }

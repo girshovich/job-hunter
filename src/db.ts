@@ -1358,6 +1358,45 @@ The full post text is stored as the job description — do not repeat or summari
     console.warn('[db] Migration v_telegram_prompt_seed failed (non-fatal):', (err as Error).message);
   }
 
+  // v_telegram_workmode_fix: work mode is now its own extracted field, so (1) reseed
+  // the editable prompt (the old default told the LLM to store "Remote" as a location,
+  // which then geocoded to a real place and dropped remote jobs), and (2) clean the
+  // poisoned location→country cache + rescue the Telegram jobs it mislabeled.
+  try {
+    const NEW_EDITABLE_PROMPT = `Extract job openings from this Telegram post. Return jobs: [] for ads, news, or posts with no vacancy.`;
+    const OLD_BUGGY_PROMPT = `Extract job openings from this Telegram post. Return jobs: [] for ads, news, or posts with no vacancy.
+
+One object per job. Fields:
+- title: job title in English — translate it if the post is written in another language. Skip the job if absent.
+- company: real employer named in the text (not the channel). Keep it exactly as written in the post — do not translate or transliterate it. null if missing.
+- location: in English — translate it if written in another language (e.g. "Berlin", "Remote"). null if not mentioned.
+- applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
+
+The full post text is stored as the job description — do not repeat or summarise it.`;
+
+    const adminProfile = db.prepare(`SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1`).get() as { id: number } | undefined;
+    if (adminProfile) {
+      // Only reseed a blank prompt or the untouched old default — never clobber a customised one.
+      db.prepare(`
+        UPDATE settings SET telegram_extract_prompt = ?
+        WHERE profile_id = ? AND (telegram_extract_prompt IS NULL OR telegram_extract_prompt = '' OR telegram_extract_prompt = ?)
+      `).run(NEW_EDITABLE_PROMPT, adminProfile.id, OLD_BUGGY_PROMPT);
+    }
+
+    // Work-mode words that wrongly geocoded to real places (e.g. "Remote" → USA).
+    const POISON = ['remote', 'hybrid', 'onsite', 'on-site', 'wfh', 'virtual', 'work from home'];
+    const ph = POISON.map(() => '?').join(',');
+    db.prepare(`DELETE FROM location_country WHERE LOWER(location) IN (${ph})`).run(...POISON);
+    // Rescue Telegram jobs whose whole location was a work-mode word: clear the wrong
+    // country + derived rows so they resolve as unknown (and reach the scorer) next run.
+    db.prepare(`DELETE FROM job_countries WHERE job_id IN (SELECT id FROM jobs WHERE job_source = 'Telegram' AND LOWER(location) IN (${ph}))`).run(...POISON);
+    db.prepare(`DELETE FROM job_locations WHERE job_id IN (SELECT id FROM jobs WHERE job_source = 'Telegram' AND LOWER(location) IN (${ph}))`).run(...POISON);
+    db.prepare(`UPDATE jobs SET country = NULL WHERE job_source = 'Telegram' AND LOWER(location) IN (${ph})`).run(...POISON);
+    console.log('[db] Migration v_telegram_workmode_fix: prompt reseeded + poisoned location cache cleaned');
+  } catch (err) {
+    console.warn('[db] Migration v_telegram_workmode_fix failed (non-fatal):', (err as Error).message);
+  }
+
   // v_telegram_runs: persist per-ingest run stats for the admin "last ingest" display
   try {
     db.exec(`

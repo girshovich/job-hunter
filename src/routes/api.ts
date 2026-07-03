@@ -15,6 +15,7 @@ import { startAtsDiscoveryCron, stopAtsDiscoveryCron, startLeverDiscoveryCron, s
 import { fetchGreenhousePool, fetchAshbyPool, resolvePoolCountries, unresolvedPoolElements } from '../pipeline/atsPoolFetcher';
 import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipeline/poolLock';
 import { runTelegramIngest } from '../pipeline/telegramIngest';
+import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
@@ -1416,7 +1417,7 @@ router.get('/telegram/settings', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) return res.status(403).json({ error: 'Admin only.' });
   const db = getDb();
   const row = db.prepare(`SELECT telegram_ingest_enabled, telegram_extract_prompt FROM settings WHERE profile_id = ?`).get(req.profile.id) as { telegram_ingest_enabled: number; telegram_extract_prompt: string } | undefined;
-  res.json({ enabled: !!(row?.telegram_ingest_enabled), extract_prompt: row?.telegram_extract_prompt || '' });
+  res.json({ enabled: !!(row?.telegram_ingest_enabled), extract_prompt: row?.telegram_extract_prompt || '', fixed_schema: FIXED_SCHEMA_PROMPT });
 });
 
 // ── Region definitions (admin-only) ─────────────────────────────────────────

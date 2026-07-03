@@ -15,16 +15,24 @@ import { groupOrDrop } from './locationGrouping';
 export interface ExtractedJob {
   title: string;
   company: string | null;
+  workMode: string;
   locations: string[];
   applyUrl: string | null;
 }
 
-const DEFAULT_EXTRACT_PROMPT = `Extract job openings from this Telegram post. Return jobs: [] for ads, news, or posts with no vacancy.
+// Editable instructions — admin-tunable via the settings UI. The field schema below
+// is appended at runtime and is intentionally NOT part of this editable text.
+const DEFAULT_EXTRACT_PROMPT = `Extract job openings from this Telegram post. Return jobs: [] for ads, news, or posts with no vacancy.`;
 
-One object per job. Fields:
-- title: job title. Skip the job if absent.
+// Fixed field schema — always appended to the editable instructions. Kept out of the
+// admin-editable prompt so the field rules that drive extraction and country
+// resolution (notably: work mode is its own field, never a location) can't be
+// accidentally removed.
+const FIXED_SCHEMA_PROMPT = `One object per job. Fields:
+- title: job title in English — translate it if the post is written in another language. Skip the job if absent.
 - company: real employer named in the text (not the channel). Keep it exactly as written in the post — do not translate or transliterate it. null if missing.
-- locations: array of location strings in English (translate if written in another language). One element per distinct location mentioned (e.g. ["Berlin", "Remote EU"]). Empty array if not mentioned. Never split a single location into multiple elements.
+- workMode: one of "remote", "hybrid", "onsite". Infer from the post; use "onsite" if unstated.
+- locations: array of real places in English (e.g. "Berlin", "Germany", "EU"). Empty array if not mentioned. Never split one location into multiple elements.
 - applyUrl: best available link — prefer an application/careers page, then a t.me post, then a recruiter contact. Capture as-is. null if none.
 
 The full post text is stored as the job description — do not repeat or summarise it.`;
@@ -86,10 +94,11 @@ export async function extractJobsFromPost(
                 properties: {
                   title:     { type: 'string' },
                   company:   { type: ['string', 'null'] },
+                  workMode:  { type: 'string', enum: ['remote', 'hybrid', 'onsite'] },
                   locations: { type: 'array', items: { type: 'string' } },
                   applyUrl:  { type: ['string', 'null'] },
                 },
-                required: ['title', 'company', 'locations', 'applyUrl'],
+                required: ['title', 'company', 'workMode', 'locations', 'applyUrl'],
               },
             },
           },
@@ -104,6 +113,7 @@ export async function extractJobsFromPost(
   const parsed = JSON.parse(text) as { jobs: ExtractedJob[] };
   return (parsed.jobs ?? []).filter((j) => j.title?.trim()).map((j) => ({
     ...j,
+    workMode: ['remote', 'hybrid', 'onsite'].includes(j.workMode) ? j.workMode : 'onsite',
     locations: Array.isArray(j.locations) ? j.locations.filter(Boolean) : [],
   }));
 }
@@ -129,7 +139,8 @@ export async function runExtraction(
     return { jobsCreated: 0, postsProcessed: 0 };
   }
 
-  const effectivePrompt = prompt?.trim() || DEFAULT_EXTRACT_PROMPT;
+  const editablePrompt  = prompt?.trim() || DEFAULT_EXTRACT_PROMPT;
+  const effectivePrompt = `${editablePrompt}\n\n${FIXED_SCHEMA_PROMPT}`;
 
   const posts = db.prepare(`
     SELECT id, channel_username, post_id, post_url, published_at, text, post_hash
@@ -145,12 +156,13 @@ export async function runExtraction(
   const upsertJob = db.prepare(`
     INSERT INTO jobs (linkedin_job_id, job_source, provider, title, company, location, country,
                       work_mode, description, url, apply_url, posted_date, fetched_at)
-    VALUES (?, 'Telegram', 'telegram', ?, ?, ?, NULL, 'onsite', ?, ?, ?, ?, datetime('now'))
+    VALUES (?, 'Telegram', 'telegram', ?, ?, ?, NULL, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
       title        = excluded.title,
       company      = excluded.company,
       location     = excluded.location,
       country      = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
+      work_mode    = excluded.work_mode,
       description  = excluded.description,
       url          = excluded.url,
       apply_url    = excluded.apply_url,
@@ -206,6 +218,7 @@ export async function runExtraction(
           job.title,
           job.company ?? channelUsername,
           locationStr,
+          job.workMode,
           postText,
           post.post_url,
           job.applyUrl ?? null,
@@ -229,4 +242,4 @@ export async function runExtraction(
   return { jobsCreated, postsProcessed };
 }
 
-export { DEFAULT_EXTRACT_PROMPT };
+export { DEFAULT_EXTRACT_PROMPT, FIXED_SCHEMA_PROMPT };
