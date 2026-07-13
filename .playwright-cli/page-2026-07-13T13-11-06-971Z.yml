@@ -1,0 +1,109 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "Job Hunter" [ref=e5] [cursor=pointer]:
+        - /url: /pricing
+      - navigation [ref=e6]:
+        - link "Pricing" [ref=e7] [cursor=pointer]:
+          - /url: /pricing
+        - link "Terms" [ref=e8] [cursor=pointer]:
+          - /url: /terms
+        - link "Privacy" [ref=e9] [cursor=pointer]:
+          - /url: /privacy
+        - link "Sign in" [ref=e10] [cursor=pointer]:
+          - /url: /welcome
+  - main [ref=e11]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - heading "Privacy Policy" [level=1] [ref=e16]
+        - paragraph [ref=e17]: "Effective date: July 13, 2026"
+      - generic [ref=e18]:
+        - heading "Who this applies to" [level=2] [ref=e19]
+        - paragraph [ref=e20]:
+          - text: Job Hunter is operated by
+          - strong [ref=e21]: Mikhail Girshovich
+          - text: ", an individual based in Armenia. This policy explains what data the service collects, how it's used, and your rights over it. It covers the hosted service and all public pages. Questions can be sent to"
+          - link "mikhail@girshovich.me" [ref=e22] [cursor=pointer]:
+            - /url: mailto:mikhail@girshovich.me
+          - text: .
+      - generic [ref=e23]:
+        - heading "Data I collect" [level=2] [ref=e24]
+        - list [ref=e25]:
+          - listitem [ref=e26]:
+            - strong [ref=e27]: "Account data:"
+            - text: your email address, account creation time, admin status, login codes, email-change requests, and session records.
+          - listitem [ref=e28]:
+            - strong [ref=e29]: "Profile and search settings:"
+            - text: roles, keywords, locations, work modes, preferred languages, current location, profile text, scoring rules, prompts, schedules, and notification settings.
+          - listitem [ref=e30]:
+            - strong [ref=e31]: "Provider credentials:"
+            - text: OpenAI, Apify, and Resend API keys when you enter them in settings.
+          - listitem [ref=e32]:
+            - strong [ref=e33]: "CV data:"
+            - text: uploaded PDF, TXT, or MD files, filenames, file type, file size, upload time, and CV comparison results.
+          - listitem [ref=e34]:
+            - strong [ref=e35]: "Job workflow data:"
+            - text: fetched job posts, job descriptions, companies, locations, URLs, AI scores, rationales, summaries, duplicate status, verdict overrides, applied status, notes, blacklisted companies, and company notes.
+          - listitem [ref=e36]:
+            - strong [ref=e37]: "Operational data:"
+            - text: run history, run status, error logs, provider/source labels, token/cost estimates, and ATS board discovery data.
+      - generic [ref=e38]:
+        - heading "How I use it" [level=2] [ref=e39]
+        - list [ref=e40]:
+          - listitem [ref=e41]: Create and protect your account, including passwordless login and session management.
+          - listitem [ref=e42]: Fetch jobs from configured providers and ATS boards, filter them against your settings, and save useful results.
+          - listitem [ref=e43]: Send job posts, profile criteria, prompts, and CV content to configured AI providers when scoring, summarizing, deduplicating, or comparing CVs.
+          - listitem [ref=e44]: Send login codes, email-change confirmations, test emails, and job digest emails through the configured email provider.
+          - listitem [ref=e45]: Show analytics, run logs, job history, and cost estimates inside the app.
+          - listitem [ref=e46]: Maintain, debug, secure, and improve the service.
+      - generic [ref=e47]:
+        - heading "Sensitive data notice" [level=2] [ref=e48]
+        - paragraph [ref=e49]: CVs, profile descriptions, prompts, notes, and job preferences can include employment history, location preferences, immigration or relocation context, and other personal details. Only upload information you are comfortable using for job-search automation.
+      - generic [ref=e50]:
+        - heading "Third-party services" [level=2] [ref=e51]
+        - paragraph [ref=e52]: Job Hunter uses third-party services only where needed to run the product. These can include OpenAI for AI scoring, summaries, deduplication, balance checks, and CV comparison; Apify and scraping providers for job collection; Resend for email delivery; and job sources such as LinkedIn, Indeed, StepStone, Greenhouse, Ashby, and Lever.
+        - paragraph [ref=e53]: Those providers process the data sent to them under their own terms and privacy policies. For example, AI requests can include job descriptions, your role criteria, prompt text, and — when you use CV comparison — your selected CV.
+      - generic [ref=e54]:
+        - heading "Payments through Hipolink" [level=2] [ref=e55]
+        - paragraph [ref=e56]:
+          - text: Hosted credit purchases are handled by
+          - strong [ref=e57]: Hipolink
+          - text: ", the payment provider. Checkout takes place on Hipolink's secure payment page — you never enter payment card details into Job Hunter directly. Hipolink collects your name, email, and payment information and handles that data under"
+          - link "Hipolink's privacy policy" [ref=e58] [cursor=pointer]:
+            - /url: https://hipolink.net/en/app/privacy-policy
+          - text: .
+        - paragraph [ref=e59]: Job Hunter receives only the transaction information needed to activate your credits and support your account — such as transaction ID, purchase amount, and billing email. Card details are never shared with Job Hunter.
+        - paragraph [ref=e60]: Hosted credit purchasing is planned and not yet live, so no Hipolink transaction data is currently being collected.
+      - generic [ref=e61]:
+        - heading "Cookies and local storage" [level=2] [ref=e62]
+        - paragraph [ref=e63]: The app uses an HTTP-only session cookie named jh_session to keep you signed in for up to 30 days. It also uses browser local storage for small interface preferences, such as whether a dashboard guide is open. No advertising cookies or third-party analytics trackers are used.
+      - generic [ref=e64]:
+        - heading "API key storage" [level=2] [ref=e65]
+        - paragraph [ref=e66]: API keys entered in settings are stored in the application database as plain text. No application-level encryption is applied to those keys. Keep your server access restricted, rotate keys when needed, and remove keys from settings when you no longer want the app to use them.
+      - generic [ref=e67]:
+        - heading "Retention and deletion" [level=2] [ref=e68]
+        - paragraph [ref=e69]: Account, settings, CV, job, note, and run data is kept while your account exists so the app can show history and continue scheduled workflows. CV files can be deleted from settings. Other deletion, export, or correction requests can be sent to the contact email above, subject to any records that must be kept for legal, tax, refund, or payment-dispute reasons.
+      - generic [ref=e70]:
+        - heading "Your choices and rights" [level=2] [ref=e71]
+        - list [ref=e72]:
+          - listitem [ref=e73]: Request access, export, correction, or deletion of your data.
+          - listitem [ref=e74]: Change your login email, notification preferences, timezone, languages, current location, roles, prompts, and search settings.
+          - listitem [ref=e75]: Rotate, revoke, or remove API keys in settings.
+          - listitem [ref=e76]: Delete uploaded CVs from settings.
+          - listitem [ref=e77]: Turn off email digests in profile settings.
+      - generic [ref=e78]:
+        - heading "Security" [level=2] [ref=e79]
+        - paragraph [ref=e80]: Job Hunter uses passwordless email login, expiring login codes, session records, file type and size limits for CV uploads, and profile-scoped database queries for user data. No method of storage or transmission is completely secure. Self-hosted users are responsible for their own server, database, network, backups, and access controls.
+      - generic [ref=e81]:
+        - heading "International transfers" [level=2] [ref=e82]
+        - paragraph [ref=e83]: The service and its providers may process data in countries different from where you live. This can happen when job providers, AI providers, email providers, Hipolink, or hosting infrastructure operate internationally.
+      - generic [ref=e84]:
+        - heading "Changes" [level=2] [ref=e85]
+        - paragraph [ref=e86]: This policy may be updated as the product evolves — especially if hosted billing, Hipolink integration, or additional providers are added. The effective date at the top shows the current version.
+      - generic [ref=e87]:
+        - heading "Contact" [level=2] [ref=e88]
+        - paragraph [ref=e89]:
+          - text: "Privacy questions or data requests:"
+          - link "mikhail@girshovich.me" [ref=e90] [cursor=pointer]:
+            - /url: mailto:mikhail@girshovich.me
+          - text: .
