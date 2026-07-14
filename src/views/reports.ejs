@@ -9,6 +9,7 @@ function statusBadge(status) {
   if (status === 'success')       return 'bg-emerald-50 text-emerald-700';
   if (status === 'partial_error') return 'bg-yellow-50 text-yellow-700';
   if (status === 'running')       return 'bg-blue-50 text-blue-700';
+  if (status === 'stopped')       return 'bg-gray-100 text-gray-600';
   return 'bg-red-50 text-red-600';
 }
 

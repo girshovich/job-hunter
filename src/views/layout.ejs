@@ -2153,6 +2153,34 @@
         window.addEventListener('DOMContentLoaded', wantsRun ? jhOnboardRun : jhOnboardSchedule);
       }
     })();
+
+    // ── Sidebar "Run once": disabled while a run is in progress ─────
+    // A run can also be started by the schedule or in another tab, so this reflects server state
+    // rather than what this page did. Stopping a run lives on Start, next to the progress bar.
+    (function () {
+      let poller = null;
+
+      function apply(isRunning) {
+        const btn = document.getElementById('sidebar-run-btn');
+        if (!btn) return;
+        btn.disabled = isRunning;
+        btn.title = isRunning ? 'Run in progress — open Start to stop it' : '';
+        document.getElementById('sidebar-run-label').textContent = isRunning ? 'Running…' : 'Run once';
+      }
+
+      async function check() {
+        let isRunning = false;
+        try {
+          isRunning = !!(await (await fetch('/api/status')).json()).isRunning;
+        } catch (e) { return; }   // server unreachable — leave the button as it is
+        apply(isRunning);
+        if (isRunning && !poller) poller = setInterval(check, 3000);
+        else if (!isRunning && poller) { clearInterval(poller); poller = null; }
+      }
+
+      window.addEventListener('DOMContentLoaded', check);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    })();
   </script>
 </body>
 </html>

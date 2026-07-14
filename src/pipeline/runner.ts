@@ -73,6 +73,31 @@ function matchesTitleFilter(title: string, filter: string): boolean {
 
 const isRunningMap = new Map<number, boolean>();
 const lastRunResultMap = new Map<number, PipelineResult | null>();
+const stopRequestedSet = new Set<number>();
+
+/** Thrown at a checkpoint when the user asked to stop the run. Not a failure. */
+export class RunStoppedError extends Error {
+  constructor() { super('Run stopped by user'); this.name = 'RunStoppedError'; }
+}
+
+/** Returns false if there is no run to stop. */
+export function requestStop(profileId: number): boolean {
+  if (!isRunningMap.get(profileId)) return false;
+  stopRequestedSet.add(profileId);
+  return true;
+}
+
+export function isStopRequested(profileId: number): boolean {
+  return stopRequestedSet.has(profileId);
+}
+
+/**
+ * Cooperative cancellation: called at seams where no work is pending persistence, so a stop
+ * never discards jobs we already paid to score. In-flight API calls are not aborted.
+ */
+function throwIfStopped(profileId: number): void {
+  if (stopRequestedSet.has(profileId)) throw new RunStoppedError();
+}
 
 interface StageInfo {
   text: string; pct: number; totalSections: number;
@@ -112,7 +137,7 @@ export interface PipelineResult {
   jobsWeakMatch: number;
   jobsNoMatch: number;
   jobsDuplicate: number;
-  status: 'success' | 'partial_error' | 'failed' | 'running';
+  status: 'success' | 'partial_error' | 'failed' | 'running' | 'stopped';
   errorLog: string | null;
   trigger: 'scheduled' | 'manual';
 }
@@ -169,8 +194,12 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
   const overallStart = Date.now();
   const overallRanAt = new Date().toISOString();
   const sessionId = randomUUID();
+  // Hoisted out of the try so the outer catch/finally can reach them on every exit path.
+  let lastResult: PipelineResult | null = null;
+  let deductCredits: () => void = () => {};
 
   try {
+    throwIfStopped(profileId);   // stopped while still queued
     const db = getDb();
 
     // Load settings for this profile
@@ -266,7 +295,6 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
 
     // Shared across all providers — keyed as "source::jobId" to avoid cross-source collisions
     const seenInRunJobIds = new Set<string>();
-    let lastResult: PipelineResult | null = null;
 
     // Pre-compute active groups once (same filter for all providers) for global progress tracking
     const activeGroupsForProgress = groups.filter((g) =>
@@ -277,6 +305,32 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     let globalSectionOffset = 0;
     let totalRunCostOpenAiUsd = 0;
     let totalRunCostApifyUsd = 0;
+
+    // Deduct JH credits for all providers combined. Called from the outer `finally`, so a run that
+    // was stopped or that died on a fatal error still pays for the work it already did.
+    let creditsDeducted = false;
+    deductCredits = () => {
+      if (creditsDeducted || !useJhCredits) return;
+      creditsDeducted = true;
+      const totalCost = totalRunCostOpenAiUsd + totalRunCostApifyUsd;
+      if (totalCost <= 0) return;
+      const row = db.prepare('SELECT credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { credits_balance: number } | undefined;
+      const currentBalance = row?.credits_balance ?? 0;
+      const newBalance = Math.max(0, currentBalance - totalCost);
+      db.prepare('UPDATE settings SET credits_balance = ? WHERE profile_id = ?').run(newBalance, profileId);
+      console.log(`[runner] Deducted $${totalCost.toFixed(4)} from credits. New balance: $${newBalance.toFixed(4)}`);
+      if (newBalance < 0.5) {
+        // Cancel schedule — use dynamic import to avoid circular dep with scheduler
+        import('./scheduler').then(({ stopSchedule }) => stopSchedule(profileId)).catch(() => {});
+        const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
+        const recipientEmail = profileEmailRow?.email || '';
+        if (recipientEmail && resendApiKey && emailFrom) {
+          sendLowCreditsEmail(recipientEmail, newBalance, resendApiKey, emailFrom).catch((err) => {
+            console.warn('[runner] Failed to send low credits email:', (err as Error).message);
+          });
+        }
+      }
+    };
 
     // Session-wide state — accumulated across all providers, sent as one email after the loop
     const sessionStrongMatchJobIds = new Set<number>();
@@ -309,6 +363,22 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       let hardOutputTokens = 0;
       let totalApifyCostUsd = 0;
       let apifyRunCount = 0;
+
+      // Tokens → dollars → run totals. Called on the clean path AND from the catch, so a provider
+      // that crashed or was stopped is still billed for what it spent (it previously was not).
+      let costAccounted = false;
+      let costOpenAiUsd = 0;
+      let costApifyUsd: number | null = null;
+      const accountProviderCost = () => {
+        if (costAccounted) return;   // idempotent — must never double-charge
+        costAccounted = true;
+        costOpenAiUsd =
+          (calcOpenAiCost(settings.ai_model, totalInputTokens, totalCachedInputTokens, totalOutputTokens) ?? 0) +
+          (calcOpenAiCost(settings.ai_model_hard, hardInputTokens, hardCachedInputTokens, hardOutputTokens) ?? 0);
+        costApifyUsd = apifyRunCount > 0 ? totalApifyCostUsd : null;
+        totalRunCostOpenAiUsd += costOpenAiUsd;
+        if (costApifyUsd != null) totalRunCostApifyUsd += costApifyUsd;
+      };
 
       // In-run semantic dedup context — reset per provider run
       const strongMatchesInRun = new Map<string, ExistingJob[]>();
@@ -359,6 +429,8 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           continue;
         }
       }
+
+      throwIfStopped(profileId);   // before this role's first fetch
 
       const keywords: string[] = JSON.parse(group.keywords);
       const locations: string[] = JSON.parse(group.locations);
@@ -489,6 +561,8 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         score_weak_match_max: group.score_weak_match_max,
         score_strong_match_min: group.score_strong_match_min,
       };
+
+      throwIfStopped(profileId);   // before the scoring call
 
       let scoredJobs: ScoredJob[] = [];
       if (newJobsToScore.length > 0) {
@@ -766,6 +840,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     } // end group loop
 
     // 7a. Re-score all STRONG_MATCH jobs from this run using the hard model
+    throwIfStopped(profileId);   // before the re-scoring calls; all group results are persisted by now
     if (strongMatchesForReScoring.length > 0) {
       console.log(`[runner] Re-scoring ${strongMatchesForReScoring.length} strong match(es) with hard model (${settings.ai_model_hard})…`);
       setStage(profileId, 'Re-scoring strong matches', Math.round((globalSectionOffset + activeGroups.length * 2) * sw), globalTotalSections,
@@ -826,12 +901,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     const durationMs = Date.now() - startedAt;
     const status = errors.length === 0 ? 'success' : 'partial_error';
 
-    const costOpenAiUsd =
-      (calcOpenAiCost(settings.ai_model, totalInputTokens, totalCachedInputTokens, totalOutputTokens) ?? 0) +
-      (calcOpenAiCost(settings.ai_model_hard, hardInputTokens, hardCachedInputTokens, hardOutputTokens) ?? 0);
-    const costApifyUsd = apifyRunCount > 0 ? totalApifyCostUsd : null;
-    totalRunCostOpenAiUsd += costOpenAiUsd;
-    if (costApifyUsd != null) totalRunCostApifyUsd += costApifyUsd;
+    accountProviderCost();
 
     db.prepare(`
       UPDATE search_runs SET
@@ -860,34 +930,59 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         globalSectionOffset += activeGroups.length * 2 + 1;
 
       } catch (err) {
+        // Bill what this provider spent before it died — on BOTH the error and the stop path.
+        accountProviderCost();
+
+        const stopped = err instanceof RunStoppedError;
         const durationMs = Date.now() - startedAt;
         const errorMsg = (err instanceof Error)
           ? (err.message || err.constructor.name || String(err))
           : String(err);
-        console.error(`[runner] Provider pipeline error (${scrapingProvider}):`, err);
+        if (stopped) console.log(`[runner] Stopped by user during provider ${scrapingProvider}.`);
+        else console.error(`[runner] Provider pipeline error (${scrapingProvider}):`, err);
 
         try {
           if (runId !== null) {
             db.prepare(
-              `UPDATE search_runs SET status = 'failed', error_log = ?, duration_ms = ? WHERE id = ?`
-            ).run(errorMsg, durationMs, runId);
+              `UPDATE search_runs SET status = ?, error_log = ?, duration_ms = ?,
+                 jobs_fetched = ?, jobs_scored = ?, jobs_strong_match = ?,
+                 jobs_weak_match = ?, jobs_no_match = ?, jobs_duplicate = ?,
+                 cost_openai_usd = ?, cost_apify_usd = ?
+               WHERE id = ?`
+            ).run(
+              stopped ? 'stopped' : 'failed', stopped ? null : errorMsg, durationMs,
+              jobsFetched, jobsScored, jobsStrongMatch, jobsWeakMatch, jobsNoMatch, jobsDuplicate,
+              costOpenAiUsd, costApifyUsd,
+              runId,
+            );
           } else {
             db.prepare(`
               INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
                 jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
-              VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?, ?)
-            `).run(profileId, ranAt, errorMsg, durationMs, trigger, sessionId);
+              VALUES (?, ?, 0, 0, 0, 0, 0, 0, ?, ?, ?, ?, ?)
+            `).run(profileId, ranAt, stopped ? 'stopped' : 'failed', stopped ? null : errorMsg, durationMs, trigger, sessionId);
           }
         } catch (_) { /* ignore DB logging failure */ }
 
-        globalSectionOffset += activeGroupsForProgress.length * 2 + 1;
         const result: PipelineResult = {
-          ranAt, durationMs, jobsFetched: 0, jobsScored: 0,
-          jobsStrongMatch: 0, jobsWeakMatch: 0, jobsNoMatch: 0, jobsDuplicate: 0,
-          status: 'failed', errorLog: errorMsg, trigger,
+          ranAt, durationMs,
+          jobsFetched: stopped ? jobsFetched : 0,
+          jobsScored: stopped ? jobsScored : 0,
+          jobsStrongMatch: stopped ? jobsStrongMatch : 0,
+          jobsWeakMatch: stopped ? jobsWeakMatch : 0,
+          jobsNoMatch: stopped ? jobsNoMatch : 0,
+          jobsDuplicate: stopped ? jobsDuplicate : 0,
+          status: stopped ? 'stopped' : 'failed',
+          errorLog: stopped ? null : errorMsg,
+          trigger,
         };
         lastResult = result;
         lastRunResultMap.set(profileId, result);
+
+        // A stop is not a provider failure: do not swallow it, do not run the next provider.
+        if (stopped) throw err;
+
+        globalSectionOffset += activeGroupsForProgress.length * 2 + 1;
       }
     } // end providers loop
 
@@ -932,28 +1027,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       console.log('[runner] Email sending is disabled in settings. Skipping email report.');
     }
 
-    // Deduct JH credits for all providers combined
-    if (useJhCredits) {
-      const totalCost = totalRunCostOpenAiUsd + totalRunCostApifyUsd;
-      if (totalCost > 0) {
-        const row = db.prepare('SELECT credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { credits_balance: number } | undefined;
-        const currentBalance = row?.credits_balance ?? 0;
-        const newBalance = Math.max(0, currentBalance - totalCost);
-        db.prepare('UPDATE settings SET credits_balance = ? WHERE profile_id = ?').run(newBalance, profileId);
-        console.log(`[runner] Deducted $${totalCost.toFixed(4)} from credits. New balance: $${newBalance.toFixed(4)}`);
-        if (newBalance < 0.5) {
-          // Cancel schedule — use dynamic import to avoid circular dep with scheduler
-          import('./scheduler').then(({ stopSchedule }) => stopSchedule(profileId)).catch(() => {});
-          const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
-          const recipientEmail = profileEmailRow?.email || '';
-          if (recipientEmail && resendApiKey && emailFrom) {
-            sendLowCreditsEmail(recipientEmail, newBalance, resendApiKey, emailFrom).catch((err) => {
-              console.warn('[runner] Failed to send low credits email:', (err as Error).message);
-            });
-          }
-        }
-      }
-    }
+    // Credits are deducted in the outer `finally` — see deductCredits().
 
     return lastResult ?? {
       ranAt: overallRanAt, durationMs: Date.now() - overallStart,
@@ -963,30 +1037,52 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
 
   } catch (err) {
     const durationMs = Date.now() - overallStart;
+    const stopped = err instanceof RunStoppedError;
     const errorMsg = (err instanceof Error)
       ? (err.message || err.constructor.name || String(err))
       : String(err);
-    console.error('[runner] Fatal pipeline error:', err);
+    if (stopped) console.log('[runner] Pipeline stopped by user.');
+    else console.error('[runner] Fatal pipeline error:', err);
 
     try {
       const db = getDb();
-      db.prepare(`
-        INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
-          jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
-        VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?, ?)
-      `).run(profileId, overallRanAt, errorMsg, durationMs, trigger, sessionId);
+      if (stopped) {
+        // The provider row was already marked 'stopped' by the provider catch. This covers a stop
+        // that landed outside a provider (e.g. while the run was still queued): mark anything left
+        // running, and make sure the session has at least one row so it shows up in the run log.
+        db.prepare(`UPDATE search_runs SET status = 'stopped', duration_ms = ? WHERE session_id = ? AND status = 'running'`)
+          .run(durationMs, sessionId);
+        const { n } = db.prepare('SELECT COUNT(*) AS n FROM search_runs WHERE session_id = ?').get(sessionId) as { n: number };
+        if (n === 0) {
+          db.prepare(`
+            INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
+              jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
+            VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'stopped', NULL, ?, ?, ?)
+          `).run(profileId, overallRanAt, durationMs, trigger, sessionId);
+        }
+      } else {
+        db.prepare(`
+          INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
+            jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
+          VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'failed', ?, ?, ?, ?)
+        `).run(profileId, overallRanAt, errorMsg, durationMs, trigger, sessionId);
+      }
     } catch (_) { /* ignore DB logging failure */ }
 
-    const result: PipelineResult = {
+    // On a stop, keep the partial result the provider catch recorded (job counts and all).
+    const result: PipelineResult = (stopped && lastResult) ? lastResult : {
       ranAt: overallRanAt, durationMs, jobsFetched: 0, jobsScored: 0,
       jobsStrongMatch: 0, jobsWeakMatch: 0, jobsNoMatch: 0, jobsDuplicate: 0,
-      status: 'failed', errorLog: errorMsg, trigger,
+      status: stopped ? 'stopped' : 'failed', errorLog: stopped ? null : errorMsg, trigger,
     };
     lastRunResultMap.set(profileId, result);
     return result;
 
   } finally {
+    // Every exit path pays for the work it did — clean finish, fatal error, or user stop.
+    deductCredits();
     isRunningMap.set(profileId, false);
+    stopRequestedSet.delete(profileId);   // a leaked flag would instantly stop the next run
     runStageMap.delete(profileId);
     invalidateJobsDatesCache(profileId);
   }

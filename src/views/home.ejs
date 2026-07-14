@@ -11,6 +11,7 @@ function formatDate(iso) {
 function statusColor(s) {
   if (s === 'success') return 'text-emerald-700 bg-emerald-50';
   if (s === 'partial_error') return 'text-yellow-700 bg-yellow-50';
+  if (s === 'stopped') return 'text-gray-600 bg-gray-100';
   return 'text-red-700 bg-red-50';
 }
 function verdictChip(verdict) {
@@ -205,6 +206,13 @@ function verdictChip(verdict) {
         <div id="home-run-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out" style="width:0%"></div>
       </div>
       <span id="home-run-pct" class="text-2xl font-bold text-gray-900 tabular-nums flex-shrink-0">0%</span>
+      <button id="home-run-stop-btn" onclick="stopRun()"
+              class="inline-flex items-center gap-1.5 flex-shrink-0 border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <rect x="6" y="6" width="12" height="12" rx="1.5" stroke-width="2"/>
+        </svg>
+        <span id="home-run-stop-label">Stop run</span>
+      </button>
     </div>
     <p id="home-run-status-text" class="text-sm text-gray-500">Starting…</p>
   </div>
@@ -298,6 +306,7 @@ function verdictChip(verdict) {
 
 <script>
 let homeRunPoller = null;
+let homeStopRequested = false;
 
 // ── Dismissible intro cards ──
 const HOME_CARDS = ['letter', 'hiw', 'modes'];
@@ -393,6 +402,35 @@ async function homeRun(btn) {
   openRunModal();
 }
 
+// ── Stop the run in progress ──
+// Cooperative: the server stops at its next checkpoint, so the in-flight call still finishes.
+function showStopping() {
+  homeStopRequested = true;
+  const stopBtn = document.getElementById('home-run-stop-btn');
+  if (stopBtn) {
+    stopBtn.disabled = true;
+    document.getElementById('home-run-stop-label').textContent = 'Stopping…';
+  }
+  document.getElementById('home-run-status-text').innerHTML =
+    'Stopping… will stop before the next API request.';
+}
+
+async function stopRun() {
+  showStopping();
+  try {
+    await fetch('/api/run/stop', { method: 'POST' });
+  } catch (_) { /* the poller will reflect the real state either way */ }
+}
+
+function resetStopBtn() {
+  homeStopRequested = false;
+  const stopBtn = document.getElementById('home-run-stop-btn');
+  if (!stopBtn) return;
+  stopBtn.disabled = false;
+  stopBtn.classList.remove('hidden');
+  document.getElementById('home-run-stop-label').textContent = 'Stop run';
+}
+
 function updateProgress(stage) {
   const bar = document.getElementById('home-run-bar');
   const pctEl = document.getElementById('home-run-pct');
@@ -400,6 +438,8 @@ function updateProgress(stage) {
   const pct = stage ? stage.pct : 0;
   bar.style.width = pct + '%';
   pctEl.textContent = pct + '%';
+  // A pending stop owns the status line — don't let stage updates overwrite it.
+  if (homeStopRequested) return;
   if (!stage) { statusText.innerHTML = 'Starting…'; return; }
   const s = stage;
   const spinner = `<svg class="inline-block w-3.5 h-3.5 animate-spin text-emerald-500 align-text-bottom" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>`;
@@ -418,19 +458,29 @@ function startPolling(btn) {
     try {
       const res = await fetch('/api/status');
       const data = await res.json();
+      if (data.stopRequested) showStopping();
       if (data.stage) updateProgress(data.stage);
       if (!data.isRunning && data.lastRun) {
         clearInterval(homeRunPoller);
+        homeStopRequested = false;
         updateProgress({ pct: 100 });
         const r = data.lastRun;
+        const stopped = r.status === 'stopped';
         const ok = r.status === 'success' || r.status === 'partial_error';
         const tookSec = r.duration_ms ? ` · ${(r.duration_ms / 1000).toFixed(0)}s` : '';
         const errLine = r.error_log ? r.error_log.split('\n')[0] : 'unknown error';
-        showRunResult(
-          ok ? `Done${tookSec} · <a href="/" class="underline font-medium">Refresh to see new jobs</a>`
-             : `Run failed${tookSec} · ${errLine} · <a href="/reports" class="underline font-medium">View log</a>`,
-          ok,
-        );
+        if (stopped) {
+          // lastRun is the in-memory PipelineResult (camelCase) for a just-finished run,
+          // or the aggregated DB row (snake_case) after a reload.
+          const kept = r.jobs_scored ?? r.jobsScored ?? 0;
+          showRunResult(`Run stopped${tookSec} · ${kept} job${kept === 1 ? '' : 's'} scored and kept · <a href="/" class="underline font-medium">Refresh to see them</a>`, 'neutral');
+        } else {
+          showRunResult(
+            ok ? `Done${tookSec} · <a href="/" class="underline font-medium">Refresh to see new jobs</a>`
+               : `Run failed${tookSec} · ${errLine} · <a href="/reports" class="underline font-medium">View log</a>`,
+            ok ? 'success' : 'error',
+          );
+        }
         resetRunBtn(btn, label, progress);
         if (ok) setTimeout(() => location.reload(), 3000);
       }
@@ -448,13 +498,15 @@ function startHomeProgress(btn) {
   label.textContent = 'Running…';
   progress.classList.remove('hidden');
   result.classList.add('hidden');
+  resetStopBtn();
   updateProgress(null);
   startPolling(btn);
 }
 
-function showRunResult(msg, success) {
+function showRunResult(msg, tone) {
+  const cls = tone === 'success' ? 'text-emerald-700' : tone === 'neutral' ? 'text-gray-600' : 'text-red-600';
   const el = document.getElementById('home-run-result');
-  el.innerHTML = `<span class="${success ? 'text-emerald-700' : 'text-red-600'}">${msg}</span>`;
+  el.innerHTML = `<span class="${cls}">${msg}</span>`;
   el.classList.remove('hidden');
 }
 
@@ -464,6 +516,7 @@ function resetRunBtn(btn, label, progress) {
     btn.classList.remove('opacity-60', 'cursor-not-allowed');
     label.textContent = 'Run Once';
     progress.classList.add('hidden');
+    resetStopBtn();
   }, 3000);
 }
 
@@ -529,7 +582,10 @@ function syncRunState(data) {
   btn.classList.add('opacity-60', 'cursor-not-allowed');
   document.getElementById('home-run-label').textContent = 'Running…';
   document.getElementById('home-run-progress').classList.remove('hidden');
+  resetStopBtn();
   if (data.stage) updateProgress(data.stage);
+  // A stop requested before this page load (or in another tab) must still show as Stopping…
+  if (data.stopRequested) showStopping();
   startPolling(btn);
 }
 fetch('/api/status').then(r => r.json()).then(syncRunState).catch(() => {});

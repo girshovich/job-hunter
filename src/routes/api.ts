@@ -3,7 +3,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { runPipeline, getIsRunning, getRunStatus, type RunOptions } from '../pipeline/runner';
+import { runPipeline, getIsRunning, getRunStatus, requestStop, isStopRequested, type RunOptions } from '../pipeline/runner';
 import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail, sendTopUpRequest } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
@@ -137,6 +137,16 @@ router.post('/run', async (req: Request, res: Response) => {
   });
 });
 
+// Stop the run in progress. Cooperative: the pipeline stops at its next checkpoint, so the
+// in-flight provider/LLM call still finishes. Never touches the schedule.
+router.post('/run/stop', (req: Request, res: Response) => {
+  if (!requestStop(req.profile.id)) {
+    res.status(409).json({ success: false, error: 'No run is in progress.' });
+    return;
+  }
+  res.json({ success: true });
+});
+
 // Pipeline status (used by Run Now polling)
 router.get('/status', (req: Request, res: Response) => {
   const profileId = req.profile.id;
@@ -157,6 +167,7 @@ router.get('/status', (req: Request, res: Response) => {
       CASE
         WHEN COUNT(*) = SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) THEN 'success'
         WHEN COUNT(*) = SUM(CASE WHEN status = 'failed'  THEN 1 ELSE 0 END) THEN 'failed'
+        WHEN SUM(CASE WHEN status = 'stopped' THEN 1 ELSE 0 END) > 0 THEN 'stopped'
         ELSE 'partial_error'
       END AS status,
       GROUP_CONCAT(error_log, '\n') AS error_log
@@ -172,6 +183,7 @@ router.get('/status', (req: Request, res: Response) => {
 
   res.json({
     isRunning,
+    stopRequested: isStopRequested(profileId),
     lastRun: lastRun || lastDbRun || null,
     stage: stage || null,
   });
@@ -449,6 +461,7 @@ router.get('/stats', (req: Request, res: Response) => {
       CASE
         WHEN COUNT(*) = SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) THEN 'success'
         WHEN COUNT(*) = SUM(CASE WHEN status = 'failed'  THEN 1 ELSE 0 END) THEN 'failed'
+        WHEN SUM(CASE WHEN status = 'stopped' THEN 1 ELSE 0 END) > 0 THEN 'stopped'
         ELSE 'partial_error'
       END AS status,
       GROUP_CONCAT(error_log, '\n') AS error_log

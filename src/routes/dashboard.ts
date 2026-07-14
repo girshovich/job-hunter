@@ -27,6 +27,7 @@ router.get('/', (req: Request, res: Response) => {
       CASE
         WHEN COUNT(*) = SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) THEN 'success'
         WHEN COUNT(*) = SUM(CASE WHEN status = 'failed'  THEN 1 ELSE 0 END) THEN 'failed'
+        WHEN SUM(CASE WHEN status = 'stopped' THEN 1 ELSE 0 END) > 0 THEN 'stopped'
         ELSE 'partial_error'
       END AS status,
       GROUP_CONCAT(error_log, '\n') AS error_log
