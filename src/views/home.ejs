@@ -171,7 +171,8 @@ function verdictChip(verdict) {
         </svg>
         <span data-schedule-label>Schedule</span>
       </button>
-      <button id="home-run-btn" onclick="homeRun(this)"
+      <!-- Morphs into a red "Stop run" button while a run is in progress — see setRunBtnMode(). -->
+      <button id="home-run-btn" data-mode="run" onclick="homeRunAction(this)"
               class="inline-flex items-center gap-2 jh-btn-success text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-sm">
         <svg id="home-run-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
@@ -186,7 +187,7 @@ function verdictChip(verdict) {
         </svg>
         <span data-schedule-label>Schedule</span>
       </button>
-      <button id="home-run-btn" onclick="showLockedMessage()"
+      <button id="home-run-btn" data-locked="1" onclick="showLockedMessage()"
               class="inline-flex items-center gap-2 bg-gray-100 text-gray-400 font-semibold px-5 py-2.5 rounded-xl text-sm shadow-sm cursor-not-allowed" disabled>
         <svg id="home-run-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
@@ -206,13 +207,6 @@ function verdictChip(verdict) {
         <div id="home-run-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out" style="width:0%"></div>
       </div>
       <span id="home-run-pct" class="text-2xl font-bold text-gray-900 tabular-nums flex-shrink-0">0%</span>
-      <button id="home-run-stop-btn" onclick="stopRun()"
-              class="inline-flex items-center gap-1.5 flex-shrink-0 border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <rect x="6" y="6" width="12" height="12" rx="1.5" stroke-width="2"/>
-        </svg>
-        <span id="home-run-stop-label">Stop run</span>
-      </button>
     </div>
     <p id="home-run-status-text" class="text-sm text-gray-500">Starting…</p>
   </div>
@@ -395,22 +389,40 @@ async function homeRun(btn) {
   }
 
   // Set callback that will be invoked by submitRun() after a successful API call
-  _runCallback = function() {
-    startHomeProgress(btn);
-  };
+  _runCallback = startHomeProgress;
 
   openRunModal();
 }
 
-// ── Stop the run in progress ──
-// Cooperative: the server stops at its next checkpoint, so the in-flight call still finishes.
+// ── Run / Stop: one button, three modes ──
+// While a run is in progress the Run Once button becomes Stop run, so the header never carries a
+// dead "Running…" control. Stopping is cooperative: the server stops at its next checkpoint.
+const RUN_BTN_SHAPE = 'inline-flex items-center gap-2 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-sm';
+const RUN_ICON_PLAY = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>';
+const RUN_ICON_STOP = '<rect x="6" y="6" width="12" height="12" rx="1.5" stroke-width="2"/>';
+
+/** mode: 'run' | 'stop' | 'stopping' */
+function setRunBtnMode(mode) {
+  const btn = document.getElementById('home-run-btn');
+  if (!btn || btn.dataset.locked === '1') return;   // no credits / no keys — button stays locked
+  btn.dataset.mode = mode;
+  btn.disabled = mode === 'stopping';
+  btn.className = RUN_BTN_SHAPE + (mode === 'run'
+    ? ' jh-btn-success'
+    : ' bg-red-600 hover:bg-red-700' + (mode === 'stopping' ? ' opacity-60 cursor-not-allowed' : ''));
+  document.getElementById('home-run-icon').innerHTML = mode === 'run' ? RUN_ICON_PLAY : RUN_ICON_STOP;
+  document.getElementById('home-run-label').textContent =
+    mode === 'run' ? 'Run Once' : mode === 'stop' ? 'Stop run' : 'Stopping…';
+}
+
+function homeRunAction(btn) {
+  if (btn.dataset.mode === 'stop') stopRun();
+  else homeRun(btn);
+}
+
 function showStopping() {
   homeStopRequested = true;
-  const stopBtn = document.getElementById('home-run-stop-btn');
-  if (stopBtn) {
-    stopBtn.disabled = true;
-    document.getElementById('home-run-stop-label').textContent = 'Stopping…';
-  }
+  setRunBtnMode('stopping');
   document.getElementById('home-run-status-text').innerHTML =
     'Stopping… will stop before the next API request.';
 }
@@ -420,15 +432,6 @@ async function stopRun() {
   try {
     await fetch('/api/run/stop', { method: 'POST' });
   } catch (_) { /* the poller will reflect the real state either way */ }
-}
-
-function resetStopBtn() {
-  homeStopRequested = false;
-  const stopBtn = document.getElementById('home-run-stop-btn');
-  if (!stopBtn) return;
-  stopBtn.disabled = false;
-  stopBtn.classList.remove('hidden');
-  document.getElementById('home-run-stop-label').textContent = 'Stop run';
 }
 
 function updateProgress(stage) {
@@ -450,8 +453,7 @@ function updateProgress(stage) {
   statusText.innerHTML = parts.length ? parts.join(' · ') : (s.text || 'Running…');
 }
 
-function startPolling(btn) {
-  const label = document.getElementById('home-run-label');
+function startPolling() {
   const progress = document.getElementById('home-run-progress');
   if (homeRunPoller) clearInterval(homeRunPoller);
   homeRunPoller = setInterval(async () => {
@@ -481,26 +483,20 @@ function startPolling(btn) {
             ok ? 'success' : 'error',
           );
         }
-        resetRunBtn(btn, label, progress);
+        resetRunBtn(progress);
         if (ok) setTimeout(() => location.reload(), 3000);
       }
     } catch (_) {}
   }, 2000);
 }
 
-function startHomeProgress(btn) {
-  const label = document.getElementById('home-run-label');
-  const progress = document.getElementById('home-run-progress');
-  const result = document.getElementById('home-run-result');
-
-  btn.disabled = true;
-  btn.classList.add('opacity-60', 'cursor-not-allowed');
-  label.textContent = 'Running…';
-  progress.classList.remove('hidden');
-  result.classList.add('hidden');
-  resetStopBtn();
+function startHomeProgress() {
+  homeStopRequested = false;
+  setRunBtnMode('stop');
+  document.getElementById('home-run-progress').classList.remove('hidden');
+  document.getElementById('home-run-result').classList.add('hidden');
   updateProgress(null);
-  startPolling(btn);
+  startPolling();
 }
 
 function showRunResult(msg, tone) {
@@ -510,13 +506,11 @@ function showRunResult(msg, tone) {
   el.classList.remove('hidden');
 }
 
-function resetRunBtn(btn, label, progress) {
+function resetRunBtn(progress) {
   setTimeout(() => {
-    btn.disabled = false;
-    btn.classList.remove('opacity-60', 'cursor-not-allowed');
-    label.textContent = 'Run Once';
+    homeStopRequested = false;
+    setRunBtnMode('run');
     progress.classList.add('hidden');
-    resetStopBtn();
   }, 3000);
 }
 
@@ -577,16 +571,13 @@ function escHtml(str) {
 
 function syncRunState(data) {
   if (!data.isRunning) return;
-  const btn = document.getElementById('home-run-btn');
-  btn.disabled = true;
-  btn.classList.add('opacity-60', 'cursor-not-allowed');
-  document.getElementById('home-run-label').textContent = 'Running…';
+  homeStopRequested = false;
+  setRunBtnMode('stop');
   document.getElementById('home-run-progress').classList.remove('hidden');
-  resetStopBtn();
   if (data.stage) updateProgress(data.stage);
   // A stop requested before this page load (or in another tab) must still show as Stopping…
   if (data.stopRequested) showStopping();
-  startPolling(btn);
+  startPolling();
 }
 fetch('/api/status').then(r => r.json()).then(syncRunState).catch(() => {});
 document.addEventListener('visibilitychange', () => {

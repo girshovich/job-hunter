@@ -1888,9 +1888,20 @@
         ));
 
         if (typeof _runCallback === 'function') {
+          // Started from the Start page's own button — it shows the progress itself.
           _runCallback();
           _runCallback = null;
+        } else if (window.location.pathname === '/') {
+          // Started from the sidebar while already on Start: show progress in place.
+          startHomeProgress();
+        } else {
+          // Started from the sidebar on another page: land on Start, where syncRunState()
+          // picks the run up from /api/status and paints the progress card.
+          window.location.href = '/';
+          return;
         }
+
+        if (window.jhSyncSidebarRunBtn) window.jhSyncSidebarRunBtn();   // grey out Run once now, not on next reload
       } catch (e) {
         closeRunModal();
         await showAlert('Network error. Could not reach the server.');
@@ -2177,6 +2188,7 @@
         if (isRunning && !poller) poller = setInterval(check, 3000);
         else if (!isRunning && poller) { clearInterval(poller); poller = null; }
       }
+      window.jhSyncSidebarRunBtn = check;   // submitRun() calls this the moment a run is accepted
 
       window.addEventListener('DOMContentLoaded', check);
       document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
