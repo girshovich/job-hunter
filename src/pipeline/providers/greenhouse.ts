@@ -30,6 +30,18 @@ interface GhJobRaw {
 
 interface GhApiResponse { jobs: GhJobRaw[] }
 
+// Greenhouse returns job content as HTML-escaped text ("&lt;p&gt;"), unlike the
+// other ATS providers which return real HTML. Decode once so downstream rendering
+// and AI scoring see actual markup. &amp; last, so "&amp;nbsp;" → "&nbsp;".
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
 async function hydrateDescriptions(rows: JobRow[]): Promise<JobRow[]> {
   const bySlug = new Map<string, JobRow[]>();
   for (const row of rows) {
@@ -54,7 +66,7 @@ async function hydrateDescriptions(rows: JobRow[]): Promise<JobRow[]> {
     try { data = await res.json() as GhApiResponse; } catch { return; }
 
     const descriptions = new Map(
-      (data.jobs ?? []).map((job) => [String(job.id), (job.content || '').substring(0, 20_000)]),
+      (data.jobs ?? []).map((job) => [String(job.id), decodeHtmlEntities(job.content || '').substring(0, 20_000)]),
     );
     for (const row of slugRows) {
       row.description = descriptions.get(row.linkedin_job_id) || row.description;

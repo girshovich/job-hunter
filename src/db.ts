@@ -1269,6 +1269,36 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_description_split failed (non-fatal):', (err as Error).message);
   }
 
+  // v_gh_unescape: Greenhouse descriptions were stored HTML-escaped ("&lt;p&gt;"),
+  // which rendered as literal tag text. Decode them in place ("&amp;" last).
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_gh_unescape'`).get();
+    if (!done) {
+      const decode = (col: string) => `
+        replace(replace(replace(replace(replace(${col},
+          '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&#39;', ''''), '&amp;', '&')
+      `;
+      db.transaction(() => {
+        db.exec(`
+          UPDATE job_descriptions
+          SET description_text = ${decode('description_text')}
+          WHERE description_text LIKE '%&lt;%'
+            AND job_id IN (SELECT id FROM jobs WHERE job_source = 'Greenhouse')
+        `);
+        db.exec(`
+          UPDATE jobs
+          SET description = ${decode('description')}
+          WHERE job_source = 'Greenhouse' AND description LIKE '%&lt;%'
+        `);
+        db.exec(`INSERT INTO _migrations VALUES ('v_gh_unescape')`);
+      });
+      console.log('[db] Migration v_gh_unescape: Greenhouse descriptions unescaped');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_gh_unescape failed (non-fatal):', (err as Error).message);
+  }
+
   // v_session_id: add session_id to search_runs to group provider runs from the same trigger
   try {
     const cols = db.prepare(`PRAGMA table_info(search_runs)`).all() as Array<{ name: string }>;
