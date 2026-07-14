@@ -3,89 +3,34 @@
 <form id="profile-form" method="post" action="/settings" class="space-y-6">
   <input type="hidden" name="tab" value="profile">
 
-  <!-- ACCOUNT -->
+  <!-- YOUR PROFILE -->
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <h2 class="text-base font-semibold text-gray-900 mb-1">Account</h2>
-    <p class="text-xs text-gray-500 mb-4">Your login email and notification preferences.</p>
+    <h2 class="text-base font-semibold text-gray-900 mb-5">Your profile</h2>
 
-    <!-- Login email -->
-    <div class="mb-4">
-      <label class="block text-xs font-medium text-gray-600 mb-1">Login email</label>
-      <input type="email" name="profile_email" value="<%= profileEmail %>"
-             class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-      <% if (pendingEmailChange) { %>
-      <div class="mt-2 flex items-start gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-        <svg class="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <span class="text-amber-800 flex-1">Confirmation sent to <strong><%= pendingEmailChange.new_email %></strong>. Click the link in the email to confirm.</span>
-        <button type="submit" form="cancel-email-change-form" class="text-amber-600 hover:text-red-600 font-medium underline whitespace-nowrap flex-shrink-0">Cancel</button>
-      </div>
-      <% } else { %>
-      <p class="text-xs text-gray-400 mt-1">A confirmation link will be sent to the new address before the change takes effect.</p>
-      <% } %>
-    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-    <!-- Email notifications toggle -->
-    <div class="flex items-center justify-between">
+      <!-- Login email -->
       <div>
-        <p class="text-sm font-medium text-gray-700">Email notifications</p>
-        <p class="text-xs text-gray-500">Receive job match reports by email</p>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Login email</label>
+        <input type="email" name="profile_email" value="<%= profileEmail %>"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        <% if (pendingEmailChange) { %>
+        <div class="mt-2 flex items-start gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <svg class="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="text-amber-800 flex-1">Confirmation sent to <strong><%= pendingEmailChange.new_email %></strong>. Click the link in the email to confirm.</span>
+          <button type="submit" form="cancel-email-change-form" class="text-amber-600 hover:text-red-600 font-medium underline whitespace-nowrap flex-shrink-0">Cancel</button>
+        </div>
+        <% } else { %>
+        <p class="text-xs text-gray-400 mt-1.5 leading-snug">Confirmation link is sent before the change takes effect.</p>
+        <% } %>
       </div>
-      <label class="flex items-center cursor-pointer">
-        <input type="checkbox" name="email_enabled" value="on"
-               onchange="document.getElementById('profile-save-btn').disabled = false"
-               class="sr-only peer"
-               <%= settings.email_enabled !== 0 ? 'checked' : '' %> />
-        <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-emerald-500 rounded-full transition-colors
-                    after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white
-                    after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
-      </label>
-    </div>
-  </div>
 
-  <!-- PROFILE DESCRIPTION -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <div class="mb-3">
-      <h2 class="text-base font-semibold text-gray-900">Profile Description</h2>
-      <p class="text-xs text-gray-500 mt-0.5">Your main profile for AI scoring. Roles can inherit this instead of having their own.</p>
-    </div>
-    <textarea name="profile_description" rows="7"
-              placeholder="A senior product professional with 6+ years of product management and leadership in customer support products in a large classifieds, and 3 years as head of sellers support operations (B2B) at a large marketplace. Overall 13 years in e-commerce and customer service industries. Built help center, multi-channel CRM, automated support, some AI features, and moderation tools. Made a strategy, got board-level funding, grew the teams from 0 to 9 PMs and 3 Group PMs, and got tangible business impact on cost savings."
-              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.profile_description || '' %></textarea>
-  </div>
-
-  <!-- LANGUAGES -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <div class="mb-3">
-      <h2 class="text-base font-semibold text-gray-900">Languages</h2>
-      <p class="text-xs text-gray-500 mt-0.5">Languages you know on a professional level</p>
-    </div>
-    <textarea name="languages" rows="2" placeholder="e.g. English, Russian, Armenian"
-              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.languages || '' %></textarea>
-  </div>
-
-  <!-- CURRENT LOCATION -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <div class="mb-3">
-      <h2 class="text-base font-semibold text-gray-900">Current location (country)</h2>
-    </div>
-    <select name="current_location" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-      <option value="">— not set —</option>
-      <% locationCountries.forEach(function(country) { %>
-        <option value="<%= country %>" <%= settings.current_location === country ? 'selected' : '' %>><%= country %></option>
-      <% }) %>
-      <% if (settings.current_location && !locationCountries.includes(settings.current_location)) { %>
-        <option value="<%= settings.current_location %>" selected><%= settings.current_location %> (custom)</option>
-      <% } %>
-    </select>
-  </div>
-
-  <!-- TIMEZONE -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <h2 class="text-base font-semibold text-gray-900 mb-1">Timezone</h2>
-    <p class="text-xs text-gray-500 mb-4">Used for all timestamps — logs, run times, and scheduled runs</p>
-    <select name="timezone" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+      <!-- Timezone -->
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Timezone</label>
+        <select name="timezone" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
       <option value="UTC"                               <%= settings.timezone === 'UTC'                               ? 'selected' : '' %>>GMT+0 (UTC)</option>
       <option value="Europe/London"                     <%= settings.timezone === 'Europe/London'                     ? 'selected' : '' %>>GMT+0 (London)</option>
       <option value="Africa/Lagos"                      <%= settings.timezone === 'Africa/Lagos'                      ? 'selected' : '' %>>GMT+1 (Lagos)</option>
@@ -121,8 +66,57 @@
       <option value="America/Los_Angeles"               <%= settings.timezone === 'America/Los_Angeles'               ? 'selected' : '' %>>GMT-8 (Los Angeles)</option>
       <option value="America/Anchorage"                 <%= settings.timezone === 'America/Anchorage'                 ? 'selected' : '' %>>GMT-9 (Anchorage)</option>
       <option value="Pacific/Honolulu"                  <%= settings.timezone === 'Pacific/Honolulu'                  ? 'selected' : '' %>>GMT-10 (Honolulu)</option>
-      <option value="Pacific/Pago_Pago"                 <%= settings.timezone === 'Pacific/Pago_Pago'                 ? 'selected' : '' %>>GMT-11 (Pago Pago)</option>
-    </select>
+        <option value="Pacific/Pago_Pago"                 <%= settings.timezone === 'Pacific/Pago_Pago'                 ? 'selected' : '' %>>GMT-11 (Pago Pago)</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-1.5 leading-snug">Used for logs, run times and schedules.</p>
+      </div>
+
+      <!-- Current country -->
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Current country</label>
+        <select name="current_location" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option value="">— not set —</option>
+          <% locationCountries.forEach(function(country) { %>
+            <option value="<%= country %>" <%= settings.current_location === country ? 'selected' : '' %>><%= country %></option>
+          <% }) %>
+          <% if (settings.current_location && !locationCountries.includes(settings.current_location)) { %>
+            <option value="<%= settings.current_location %>" selected><%= settings.current_location %> (custom)</option>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Languages -->
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Languages</label>
+        <input type="text" name="languages" value="<%= settings.languages || '' %>" placeholder="e.g. English, Russian, Armenian"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        <p class="text-xs text-gray-400 mt-1.5 leading-snug">Those you know on a professional level.</p>
+      </div>
+
+    </div>
+
+    <!-- Profile description -->
+    <div class="mt-6">
+      <label class="block text-xs font-medium text-gray-600 mb-1">Profile description to match with jobs</label>
+      <textarea name="profile_description" rows="7"
+                placeholder="A senior product professional with 6+ years of product management and leadership in customer support products in a large classifieds, and 3 years as head of sellers support operations (B2B) at a large marketplace. Overall 13 years in e-commerce and customer service industries. Built help center, multi-channel CRM, automated support, some AI features, and moderation tools. Made a strategy, got board-level funding, grew the teams from 0 to 9 PMs and 3 Group PMs, and got tangible business impact on cost savings."
+                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.profile_description || '' %></textarea>
+      <p class="text-xs text-gray-400 mt-1.5 leading-snug">Roles can inherit this instead of having their own.</p>
+    </div>
+
+    <!-- Email notifications toggle -->
+    <div class="flex items-center gap-3 mt-6">
+      <p class="text-sm font-medium text-gray-700">Get job reports by email</p>
+      <label class="flex items-center cursor-pointer">
+        <input type="checkbox" name="email_enabled" value="on"
+               onchange="document.getElementById('profile-save-btn').disabled = false"
+               class="sr-only peer"
+               <%= settings.email_enabled !== 0 ? 'checked' : '' %> />
+        <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-emerald-500 rounded-full transition-colors
+                    after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white
+                    after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
+      </label>
+    </div>
   </div>
 
   <!-- Profile save button -->
