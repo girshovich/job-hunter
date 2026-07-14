@@ -623,9 +623,15 @@ Description: {description — up to 1,500 chars each}
       }
     }
 
-    if (new URLSearchParams(window.location.search).get('topup') === '1') {
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('topup') !== '1') return;
+      // Drop the param so a refresh doesn't reopen the modal.
+      params.delete('topup');
+      const qs = params.toString();
+      history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
       window.addEventListener('DOMContentLoaded', openTopUp);
-    }
+    })();
     </script>
 
     <p id="ai-last-saved" class="text-xs text-gray-400">Last saved: <%= settings.ai_updated_at ? new Date(settings.ai_updated_at).toLocaleString('en-GB') : 'Never' %></p>

@@ -313,21 +313,6 @@
     .sb-onboard-chev { color: var(--jh-sb-muted); opacity: 0.6; width: 12px; height: 12px; }
     .sb-onboard-item:hover .sb-onboard-chev { opacity: 1; }
 
-    /* ── Throb (one-shot, applied via JS, removed after 2 s) ─────── */
-    @keyframes jh-throb {
-      0%,100% { transform: scale(1); }
-      50%      { transform: scale(1.02); }
-    }
-    @keyframes jh-throb-green {
-      0%,100% { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 0   rgba(30,158,90,0.55); }
-      50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 8px rgba(30,158,90,0);    }
-    }
-    @keyframes jh-throb-blue {
-      0%,100% { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 0   rgba(47,107,255,0.55); }
-      50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 0 0 8px rgba(47,107,255,0);    }
-    }
-    .jh-throb-run  { animation: jh-throb 1s ease-in-out infinite, jh-throb-green 1s ease-in-out infinite; }
-    .jh-throb-sched{ animation: jh-throb 1s ease-in-out infinite, jh-throb-blue  1s ease-in-out infinite; }
   </style>
   <script>
     window.JHUI_TOKENS = <%- JSON.stringify(getClientUiTokens()) %>;
@@ -403,8 +388,8 @@
                 { label: 'Set up your profile',          href: '/settings',          clickFn: null },
                 { label: 'Add target roles & criteria',  href: '/settings?tab=roles', clickFn: null },
                 { label: 'Buy credits or add API keys',  href: '/settings?tab=ai',   clickFn: null },
-                { label: 'Run your first search',        href: null,                  clickFn: 'jhThrobRun()' },
-                { label: 'Set a daily schedule',         href: null,                  clickFn: 'jhThrobSchedule()' },
+                { label: 'Run your first search',        href: null,                  clickFn: 'jhOnboardRun()' },
+                { label: 'Set a daily schedule',         href: null,                  clickFn: 'jhOnboardSchedule()' },
               ];
             %>
             <% obSteps.forEach(function(step, i) { %>
@@ -1850,6 +1835,7 @@
         id: parseInt(g.id, 10),
         is_active: !!g.is_active,
       }));
+      const groupIds = groupStates.filter(g => g.is_active).map(g => g.id);
 
       const dateRange = _runDateRange;
       const providers = _runProviders.filter(p => p.checked).map(p => p.value);
@@ -1863,13 +1849,36 @@
         return;
       }
 
+      if (groupIds.length === 0) {
+        msgEl.textContent = 'Select at least one role.';
+        msgEl.classList.remove('hidden');
+        return;
+      }
+
       submitBtn.disabled = true;
       submitBtn.dataset.originalHtml = submitBtn.innerHTML;
       submitBtn.textContent = 'Starting…';
       msgEl.classList.add('hidden');
 
       try {
-        // Save is_active states (syncs with settings page)
+        // Pass the selected roles explicitly, so the run uses them without depending on
+        // the is_active writes below having landed first.
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dateRange, providers, groupIds }),
+        });
+        const data = await res.json();
+
+        closeRunModal();
+
+        if (!data.success) {
+          await showAlert(data.error || 'Failed to start pipeline.');
+          return;
+        }
+
+        // Only once the run is accepted, persist is_active (syncs with settings page) —
+        // a rejected run (e.g. one already in progress in another tab) must not overwrite it.
         await Promise.all(groupStates.map(({ id, is_active }) =>
           fetch('/api/groups/' + id, {
             method: 'PATCH',
@@ -1878,22 +1887,9 @@
           })
         ));
 
-        const res = await fetch('/api/run', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dateRange, providers }),
-        });
-        const data = await res.json();
-
-        closeRunModal();
-
-        if (data.success) {
-          if (typeof _runCallback === 'function') {
-            _runCallback();
-            _runCallback = null;
-          }
-        } else {
-          await showAlert(data.error || 'Failed to start pipeline.');
+        if (typeof _runCallback === 'function') {
+          _runCallback();
+          _runCallback = null;
         }
       } catch (e) {
         closeRunModal();
@@ -2128,21 +2124,34 @@
       };
     })();
 
-    // ── Onboarding throb helpers ────────────────────────────────────
+    // ── Onboarding actions: land on Start, then open the modal ──────
     (function () {
-      function throb(el, cls) {
-        if (!el) return;
-        el.classList.add(cls);
-        setTimeout(function () { el.classList.remove(cls); }, 2000);
-      }
-      window.jhThrobRun = function () {
+      const onStart = window.location.pathname === '/';
+
+      window.jhOnboardRun = async function () {
+        if (!onStart) { window.location.href = '/?run=1'; return; }
+        // A run is already in progress: Start shows its live progress, so no modal.
+        try {
+          const data = await (await fetch('/api/status')).json();
+          if (data.isRunning) return;
+        } catch (e) { /* status unreachable — let the run modal handle it */ }
         openRunModal();
-        throb(document.getElementById('sidebar-run-btn'), 'jh-throb-run');
       };
-      window.jhThrobSchedule = function () {
-        openScheduleModal();
-        throb(document.querySelector('#schedule-inactive button'), 'jh-throb-sched');
+
+      window.jhOnboardSchedule = function () {
+        if (!onStart) { window.location.href = '/?schedule=1'; return; }
+        handleScheduleClick();
       };
+
+      const params = new URLSearchParams(window.location.search);
+      const wantsRun = params.get('run') === '1';
+      const wantsSchedule = params.get('schedule') === '1';
+      if (wantsRun || wantsSchedule) {
+        params.delete(wantsRun ? 'run' : 'schedule');
+        const qs = params.toString();
+        history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+        window.addEventListener('DOMContentLoaded', wantsRun ? jhOnboardRun : jhOnboardSchedule);
+      }
     })();
   </script>
 </body>
