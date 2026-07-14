@@ -1,6 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { config } from '../config';
 import { getDb, type SessionRow } from '../db';
+import { hashToken } from './auth';
 
 const PUBLIC_PAGE_META = {
   '/pricing': { view: 'public/pricing', standaloneView: 'public/standalone-pricing', title: 'Pricing' },
@@ -23,7 +24,7 @@ function hasValidSession(req: Request): boolean {
   if (!match) return false;
 
   const db = getDb();
-  const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(match[1]) as SessionRow | undefined;
+  const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(hashToken(match[1])) as SessionRow | undefined;
   if (!session || new Date(session.expires_at) < new Date()) {
     return false;
   }

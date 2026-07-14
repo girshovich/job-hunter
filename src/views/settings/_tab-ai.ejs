@@ -1,10 +1,11 @@
   <!-- ==================== AI TAB ==================== -->
   <div id="tab-pane-ai" class="<%= activeTab !== 'ai' ? 'hidden' : '' %>">
-  <form id="ai-form" method="post" action="/settings" class="space-y-6">
-    <input type="hidden" name="tab" value="ai">
+  <div class="space-y-6">
 
     <!-- API KEYS -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <form id="ai-keys-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+          class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <input type="hidden" name="tab" value="ai">
       <h2 class="text-base font-semibold text-gray-900 mb-1">API Keys</h2>
       <p class="text-xs text-gray-500 mb-5">Choose whether to use your own API keys or Job Hunter credits (uses the platform's shared keys).</p>
 
@@ -96,8 +97,31 @@
         </div>
       </div>
 
-      <!-- AI Models (always shown) -->
-      <div class="space-y-3 mt-5 pt-5 border-t border-gray-100">
+      <div class="flex items-center gap-3 mt-5 pt-5 border-t border-gray-100">
+        <button type="submit" id="ai-keys-save-btn" disabled
+                class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+          Save
+        </button>
+        <p class="text-xs hidden" data-save-status></p>
+      </div>
+    </form>
+
+    <!-- LLM MODELS -->
+    <form id="ai-models-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <input type="hidden" name="tab" value="ai">
+      <button type="button" onclick="togglePromptBlock('llm-models-body', 'llm-models-chevron')"
+              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
+        <div>
+          <h2 class="text-base font-semibold text-gray-900">LLM models</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Which model handles the easy and the hard AI tasks.</p>
+        </div>
+        <svg id="llm-models-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <div id="llm-models-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6 space-y-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Easy tasks model <span class="font-normal text-gray-400">— initial scoring, dedup pre-filter</span></label>
           <select name="ai_model" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
@@ -114,12 +138,21 @@
             <option value="gpt-5.4"      <%= settings.ai_model_hard === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
           </select>
         </div>
+        <div class="flex items-center gap-3 pt-2">
+          <button type="submit" id="ai-models-save-btn" disabled
+                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            Save
+          </button>
+          <p class="text-xs hidden" data-save-status></p>
+        </div>
       </div>
-
-    </div>
+    </form>
 
     <!-- SCORING & SUMMARY AI PROMPT -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <form id="ai-scoring-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <input type="hidden" name="tab" value="ai">
       <button type="button" onclick="togglePromptBlock('scoring-prompt-body', 'scoring-prompt-chevron')"
               class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
         <div>
@@ -251,10 +284,19 @@ For summary: if score is >70 —</pre>
 }</pre>
         </div>
 
-      </div>
-    </div>
+        <div class="flex items-center gap-3 pt-2">
+          <button type="submit" id="ai-scoring-save-btn" disabled
+                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            Save
+          </button>
+          <p class="text-xs hidden" data-save-status></p>
+        </div>
 
-    <!-- DEDUP PRE-ASSESSMENT -->
+      </div>
+    </form>
+
+    <!-- DEDUP PRE-ASSESSMENT (read-only — nothing to save) -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <button type="button" onclick="togglePromptBlock('dedup-preassess-body', 'dedup-preassess-chevron')"
               class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
@@ -279,7 +321,9 @@ For summary: if score is >70 —</pre>
     </div>
 
     <!-- DUPLICATE CHECK AI PROMPT -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <form id="ai-dedup-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <input type="hidden" name="tab" value="ai">
       <button type="button" onclick="togglePromptBlock('dedup-prompt-body', 'dedup-prompt-chevron')"
               class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
         <div>
@@ -338,11 +382,21 @@ Description: {description — up to 1,500 chars each}
 }</pre>
           </div>
         </div>
+        <div class="flex items-center gap-3 pt-2">
+          <button type="submit" id="ai-dedup-save-btn" disabled
+                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            Save
+          </button>
+          <p class="text-xs hidden" data-save-status></p>
+        </div>
       </div>
-    </div>
+    </form>
 
     <!-- CV COMPARISON AI PROMPT -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <form id="ai-cv-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <input type="hidden" name="tab" value="ai">
       <button type="button" onclick="togglePromptBlock('cv-prompt-body', 'cv-prompt-chevron')"
               class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
         <div>
@@ -360,8 +414,16 @@ Description: {description — up to 1,500 chars each}
         </div>
         <textarea name="cv_comparison_prompt" rows="7" required
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.cv_comparison_prompt %></textarea>
+        <div class="flex items-center gap-3 mt-3">
+          <button type="submit" id="ai-cv-save-btn" disabled
+                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            Save
+          </button>
+          <p class="text-xs hidden" data-save-status></p>
+        </div>
       </div>
-    </div>
+    </form>
 
     <script>
     (function() {
@@ -399,41 +461,16 @@ Description: {description — up to 1,500 chars each}
       window.setKeyMode = function(useJh) {
         applyKeyMode(useJh);
         // directly enable save — toggling the hidden input won't trigger input listeners
-        var btn = document.getElementById('ai-save-btn');
+        var btn = document.getElementById('ai-keys-save-btn');
         if (btn) btn.disabled = false;
       };
 
       // Init on page load
       applyKeyMode(<%= settings.use_jh_credits ? 'true' : 'false' %>);
-
-      // Validate prompt fields before submit (required attr ignored on display:none elements)
-      document.getElementById('ai-form').addEventListener('submit', function(e) {
-        var prompts = [
-          { name: 'summary_prompt',      label: 'Summary instructions (Scoring & Summary prompt)' },
-          { name: 'dedup_system_prompt', label: 'Dedup instructions (Duplicate Check prompt)' },
-          { name: 'cv_comparison_prompt',label: 'CV Comparison prompt' },
-        ];
-        var empty = prompts.filter(function(p) {
-          var el = document.querySelector('[name="' + p.name + '"]');
-          return !el || !el.value.trim();
-        });
-        if (empty.length > 0) {
-          e.preventDefault();
-          alert('Please fill in the following required fields before saving:\n\n' + empty.map(function(p) { return '• ' + p.label; }).join('\n'));
-        }
-      });
     })();
     </script>
 
-    <!-- AI save button -->
-    <div class="flex items-center gap-4 flex-wrap">
-      <button type="submit" id="ai-save-btn" disabled
-              class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-        Save Settings
-      </button>
-      <p class="text-xs text-gray-400">Last saved: <%= settings.ai_updated_at ? new Date(settings.ai_updated_at).toLocaleString('en-GB') : 'Never' %></p>
-    </div>
+    <p id="ai-last-saved" class="text-xs text-gray-400">Last saved: <%= settings.ai_updated_at ? new Date(settings.ai_updated_at).toLocaleString('en-GB') : 'Never' %></p>
 
-  </form>
+  </div>
   </div>

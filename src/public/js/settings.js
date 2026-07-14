@@ -781,26 +781,88 @@ let _activeTab = 'profile';
 let _formSnapshots = {};
 let _pendingTabSwitch = null;
 
+// The AI tab is a form per block, each with its own Save button.
+const AI_BLOCK_FORMS = ['ai-keys-form', 'ai-models-form', 'ai-scoring-form', 'ai-dedup-form', 'ai-cv-form'];
+
+function formIdsForTab(tabName) {
+  return tabName === 'ai' ? AI_BLOCK_FORMS : [tabName + '-form'];
+}
+
 function snapshotForm(tabName) {
-  const form = document.getElementById(tabName + '-form');
+  formIdsForTab(tabName).forEach(snapshotFormById);
+}
+
+function snapshotFormById(formId) {
+  const form = document.getElementById(formId);
   if (!form) return;
   const snap = {};
   for (const el of form.elements) {
     if (!el.name || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
     snap[el.name] = el.type === 'checkbox' ? el.checked : el.value;
   }
-  _formSnapshots[tabName] = snap;
+  _formSnapshots[formId] = snap;
 }
 
 function isFormDirty(tabName) {
-  const form = document.getElementById(tabName + '-form');
-  const snap = _formSnapshots[tabName];
+  return formIdsForTab(tabName).some(isFormIdDirty);
+}
+
+function isFormIdDirty(formId) {
+  const form = document.getElementById(formId);
+  const snap = _formSnapshots[formId];
   if (!form || !snap) return false;
   for (const el of form.elements) {
     if (!el.name || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
     const cur = el.type === 'checkbox' ? el.checked : el.value;
     if (String(cur) !== String(snap[el.name] ?? '')) return true;
   }
+  return false;
+}
+
+function showBlockStatus(el, msg, ok) {
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden', 'text-green-600', 'text-red-600');
+  el.classList.add(ok ? 'text-green-600' : 'text-red-600');
+  if (ok) setTimeout(() => el.classList.add('hidden'), 2000);
+}
+
+// Saves one AI block via fetch — no page reload, so open blocks and scroll position survive.
+async function submitAiBlock(form) {
+  const btn = form.querySelector('button[type="submit"]');
+  const status = form.querySelector('[data-save-status]');
+  // required is not enforced natively inside collapsed (display:none) blocks
+  const missing = Array.from(form.querySelectorAll('[required]')).filter(el => !el.value.trim());
+  if (missing.length > 0) {
+    showBlockStatus(status, 'Please fill in the required field before saving.', false);
+    return false;
+  }
+  btn.disabled = true;
+  try {
+    const res = await fetch('/settings', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'fetch' },
+      body: new URLSearchParams(new FormData(form)),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Save failed.');
+    snapshotFormById(form.id);
+    showBlockStatus(status, 'Saved ✓', true);
+    const lastSaved = document.getElementById('ai-last-saved');
+    if (lastSaved && data.saved_at) {
+      lastSaved.textContent = 'Last saved: ' + new Date(data.saved_at).toLocaleString('en-GB');
+    }
+    return true;
+  } catch (err) {
+    btn.disabled = false;
+    showBlockStatus(status, err.message, false);
+    return false;
+  }
+}
+
+function saveAiBlock(event, form) {
+  event.preventDefault();
+  submitAiBlock(form);
   return false;
 }
 
@@ -853,26 +915,37 @@ function updateTabBtnStyle(tabName, isActive) {
   }
 }
 
-function unsavedSave() {
+async function unsavedSave() {
   document.getElementById('unsaved-modal').classList.add('hidden');
+  if (_activeTab === 'ai') {
+    for (const formId of AI_BLOCK_FORMS.filter(isFormIdDirty)) {
+      const ok = await submitAiBlock(document.getElementById(formId));
+      if (!ok) return;  // stay on the tab so the user can fix the error
+    }
+    const target = _pendingTabSwitch;
+    _pendingTabSwitch = null;
+    if (target) activateTab(target);
+    return;
+  }
   document.getElementById(_activeTab + '-form').submit();
 }
 
 function unsavedDiscard() {
   document.getElementById('unsaved-modal').classList.add('hidden');
-  const form = document.getElementById(_activeTab + '-form');
-  const snap = _formSnapshots[_activeTab];
-  if (form && snap) {
+  formIdsForTab(_activeTab).forEach(formId => {
+    const form = document.getElementById(formId);
+    const snap = _formSnapshots[formId];
+    if (!form || !snap) return;
     for (const el of form.elements) {
       if (!el.name || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
       if (!(el.name in snap)) continue;
       if (el.type === 'checkbox') el.checked = snap[el.name];
       else el.value = snap[el.name];
     }
-    if (_activeTab === 'profile') toggleEmailSection();
-    const saveBtn = document.getElementById(_activeTab + '-save-btn');
+    const saveBtn = form.querySelector('button[type="submit"]');
     if (saveBtn) saveBtn.disabled = true;
-  }
+  });
+  if (_activeTab === 'profile') toggleEmailSection();
   const target = _pendingTabSwitch;
   _pendingTabSwitch = null;
   activateTab(target);
@@ -888,10 +961,11 @@ function unsavedCancel() {
 function initSettings(activeTab, initialGroups) {
   _activeTab = activeTab;
 
-  ['profile', 'ai'].forEach(function(tabName) {
-    const form = document.getElementById(tabName + '-form');
-    const saveBtn = document.getElementById(tabName + '-save-btn');
-    if (!form || !saveBtn) return;
+  ['profile-form'].concat(AI_BLOCK_FORMS).forEach(function(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const saveBtn = form.querySelector('button[type="submit"]');
+    if (!saveBtn) return;
     form.querySelectorAll('input, select, textarea').forEach(el => {
       el.addEventListener('input', function() { saveBtn.disabled = false; });
       el.addEventListener('change', function() { saveBtn.disabled = false; });

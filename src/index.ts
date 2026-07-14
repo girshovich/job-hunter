@@ -3,7 +3,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { config } from './config';
 import { getDb } from './db';
 import type { ProfileRow, SessionRow } from './db';
-import { authRouter, SESSION_COOKIE, SESSION_DAYS } from './routes/auth';
+import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
 import { settingsRouter } from './routes/settings';
 import { apiRouter } from './routes/api';
@@ -48,7 +48,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   const db = getDb();
   const token = match[1];
-  const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token) as SessionRow | undefined;
+  const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(hashToken(token)) as SessionRow | undefined;
 
   if (!session || new Date(session.expires_at) < new Date()) {
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly`);

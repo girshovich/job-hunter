@@ -11,6 +11,7 @@ import { Resend } from 'resend';
 import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { getAtsSchedules } from '../pipeline/atsScheduler';
+import { hashToken } from './auth';
 
 const router = Router();
 
@@ -41,6 +42,11 @@ function getPendingEmailChange(db: ReturnType<typeof getDb>, profileId: number):
   return (db.prepare(
     'SELECT * FROM email_change_requests WHERE profile_id = ? AND used = 0 AND expires_at > ? ORDER BY id DESC LIMIT 1'
   ).get(profileId, new Date().toISOString()) as EmailChangeRequestRow | undefined) ?? null;
+}
+
+// Per-block AI saves are submitted via fetch and expect JSON back, not a redirect/re-render.
+function isXhr(req: Request): boolean {
+  return req.get('X-Requested-With') === 'fetch';
 }
 
 function jsonForInlineScript(value: unknown): string {
@@ -389,13 +395,15 @@ router.post('/', async (req: Request, res: Response) => {
       const newCvPrompt = String(body.cv_comparison_prompt || '').trim();
       const newUserApify = String(body.user_apify_api_token || '').trim();
       const newUserOpenAi = String(body.user_openai_api_key || '').trim();
+      // Each AI block posts its own form, so only update the columns actually submitted —
+      // an absent field means "not edited", not "reset to default".
       const aiFields: Array<[string, unknown]> = [
-        ['ai_model', String(body.ai_model || 'gpt-5.4-mini')],
-        ['ai_model_hard', String(body.ai_model_hard || 'gpt-5.4')],
-        ['use_jh_credits', body.use_jh_credits === '0' ? 0 : 1],
         ['ai_updated_at', now],
         ['updated_at', now],
       ];
+      if ('ai_model' in body) aiFields.push(['ai_model', String(body.ai_model)]);
+      if ('ai_model_hard' in body) aiFields.push(['ai_model_hard', String(body.ai_model_hard)]);
+      if ('use_jh_credits' in body) aiFields.push(['use_jh_credits', body.use_jh_credits === '0' ? 0 : 1]);
       if (newDedup) aiFields.push(['dedup_system_prompt', newDedup]);
       if (newSummary) aiFields.push(['summary_prompt', newSummary]);
       if (newCvPrompt) aiFields.push(['cv_comparison_prompt', newCvPrompt]);
@@ -406,8 +414,16 @@ router.post('/', async (req: Request, res: Response) => {
       ).run(...aiFields.map(([, v]) => v), profileId);
     }
 
+    if (isXhr(req)) {
+      res.json({ success: true, saved_at: now });
+      return;
+    }
     res.redirect(`/settings?tab=${tab}&saved=1`);
   } catch (err) {
+    if (isXhr(req)) {
+      res.status(400).json({ success: false, error: (err as Error).message });
+      return;
+    }
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
     const tab = String((req.body as Record<string, string>).tab || 'profile');
     const allProfiles = req.profile.isAdmin
@@ -453,7 +469,7 @@ router.post('/profile-email', (req: Request, res: Response) => {
   // Invalidate all sessions except current
   const currentToken = (req.headers.cookie || '').match(/(?:^|;\s*)jh_session=([^;]+)/)?.[1];
   if (currentToken) {
-    db.prepare('DELETE FROM sessions WHERE profile_id = ? AND token != ?').run(req.profile.id, currentToken);
+    db.prepare('DELETE FROM sessions WHERE profile_id = ? AND token != ?').run(req.profile.id, hashToken(currentToken));
   }
 
   res.redirect('/settings?tab=profile&saved=1');

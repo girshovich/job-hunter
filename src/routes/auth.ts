@@ -16,13 +16,18 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// The cookie carries the raw token; only its hash is stored, so a leaked DB yields no usable sessions.
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 function createSession(db: ReturnType<typeof getDb>, profileId: number): string {
   const token = generateToken();
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
   db.prepare(
     'INSERT INTO sessions (token, profile_id, created_at, expires_at, last_active) VALUES (?, ?, ?, ?, ?)'
-  ).run(token, profileId, now, expiresAt, now);
+  ).run(hashToken(token), profileId, now, expiresAt, now);
   return token;
 }
 
@@ -93,7 +98,7 @@ router.get('/welcome', (req: Request, res: Response) => {
   const match = cookieHeader.match(/(?:^|;\s*)jh_session=([^;]+)/);
   if (match) {
     const db = getDb();
-    const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(match[1]) as SessionRow | undefined;
+    const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(hashToken(match[1])) as SessionRow | undefined;
     if (session && new Date(session.expires_at) >= new Date()) {
       return res.redirect('/');
     }
@@ -261,10 +266,10 @@ router.get('/settings/confirm-email', (req: Request, res: Response) => {
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(/(?:^|;\s*)jh_session=([^;]+)/);
   if (match) {
-    const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(match[1]) as SessionRow | undefined;
+    const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(hashToken(match[1])) as SessionRow | undefined;
     if (session && session.profile_id === changeReq.profile_id && new Date(session.expires_at) >= new Date()) {
       // Keep current session, invalidate all others
-      db.prepare('DELETE FROM sessions WHERE profile_id = ? AND token != ?').run(changeReq.profile_id, match[1]);
+      db.prepare('DELETE FROM sessions WHERE profile_id = ? AND token != ?').run(changeReq.profile_id, hashToken(match[1]));
       return res.redirect('/settings?tab=profile&message=email-changed');
     }
   }
@@ -280,7 +285,7 @@ router.post('/logout', (req: Request, res: Response) => {
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(/(?:^|;\s*)jh_session=([^;]+)/);
   if (match) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(match[1]);
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(hashToken(match[1]));
   }
   res.setHeader('Set-Cookie', 'jh_session=; Path=/; Max-Age=0; HttpOnly');
   res.redirect('/welcome');

@@ -955,6 +955,19 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_run_once_settings failed (non-fatal):', (err as Error).message);
   }
 
+  // v_hashed_sessions: session tokens are now stored as SHA-256 hashes. Existing rows hold raw
+  // tokens that can no longer be matched, so drop them — everyone signs in again once.
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_hashed_sessions'`).get();
+    if (!done) {
+      db.exec(`DELETE FROM sessions`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_hashed_sessions')`);
+      console.log('[db] Migration v_hashed_sessions: existing sessions cleared (tokens now hashed at rest)');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_hashed_sessions failed (non-fatal):', (err as Error).message);
+  }
+
   // vMT_repair: if job_profile_states is empty but jobs_backup_vMT has data, restore from backup
   try {
     const jpsCount = (db.prepare(`SELECT COUNT(*) AS c FROM job_profile_states`).get() as { c: number }).c;
