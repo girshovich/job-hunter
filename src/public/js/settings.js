@@ -796,7 +796,7 @@ function snapshotFormById(formId) {
   if (!form) return;
   const snap = {};
   for (const el of form.elements) {
-    if (!el.name || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
+    if (!el.name || el.type === 'submit' || el.type === 'button') continue;
     snap[el.name] = el.type === 'checkbox' ? el.checked : el.value;
   }
   _formSnapshots[formId] = snap;
@@ -811,7 +811,7 @@ function isFormIdDirty(formId) {
   const snap = _formSnapshots[formId];
   if (!form || !snap) return false;
   for (const el of form.elements) {
-    if (!el.name || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
+    if (!el.name || el.type === 'submit' || el.type === 'button') continue;
     const cur = el.type === 'checkbox' ? el.checked : el.value;
     if (String(cur) !== String(snap[el.name] ?? '')) return true;
   }
@@ -847,6 +847,8 @@ async function submitAiBlock(form) {
     if (!res.ok || !data.success) throw new Error(data.error || 'Save failed.');
     snapshotFormById(form.id);
     showBlockStatus(status, 'Saved ✓', true);
+    // The API Keys row hides itself once clean — wait for 'Saved ✓' to run its course first.
+    if (window.refreshKeysSave) setTimeout(window.refreshKeysSave, 2100);
     const lastSaved = document.getElementById('ai-last-saved');
     if (lastSaved && data.saved_at) {
       lastSaved.textContent = 'Last saved: ' + new Date(data.saved_at).toLocaleString('en-GB');
@@ -936,7 +938,7 @@ function unsavedDiscard() {
     const snap = _formSnapshots[formId];
     if (!form || !snap) return;
     for (const el of form.elements) {
-      if (!el.name || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
+      if (!el.name || el.type === 'submit' || el.type === 'button') continue;
       if (!(el.name in snap)) continue;
       if (el.type === 'checkbox') el.checked = snap[el.name];
       else el.value = snap[el.name];
@@ -945,6 +947,7 @@ function unsavedDiscard() {
     if (saveBtn) saveBtn.disabled = true;
   });
   if (_activeTab === 'profile') toggleEmailSection();
+  if (_activeTab === 'ai' && window.syncKeyMode) window.syncKeyMode();
   const target = _pendingTabSwitch;
   _pendingTabSwitch = null;
   activateTab(target);

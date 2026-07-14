@@ -5,7 +5,7 @@
 import { Router, type Request, type Response } from 'express';
 import { runPipeline, getIsRunning, getRunStatus, type RunOptions } from '../pipeline/runner';
 import type { DateRange } from '../pipeline/fetcher';
-import { sendTestEmail } from '../pipeline/emailReport';
+import { sendTestEmail, sendTopUpRequest } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
 import { runDiscovery } from '../pipeline/atsDiscovery';
@@ -191,6 +191,37 @@ router.post('/test-email', async (req: Request, res: Response) => {
     }
     await sendTestEmail(recipientEmail, resendApiKey, emailFrom, (settings.app_url || '').trim());
     res.json({ success: true, message: `Test email sent to ${recipientEmail}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+// Top-up request — user asks for credits; the message is emailed to the operator.
+router.post('/topup-request', async (req: Request, res: Response) => {
+  try {
+    const message = String(req.body.message || '').trim();
+    if (!message) {
+      return res.status(400).json({ success: false, error: 'Please write a message before sending.' });
+    }
+    const db = getDb();
+    const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(req.profile.id) as SettingsRow;
+    const resendApiKey = settings.resend_api_key || config.resendApiKey;
+    const emailFrom = settings.email_from || config.emailFrom;
+    const profileRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(req.profile.id) as { email: string } | undefined;
+    // Same operator lookup the rate-limit alert uses.
+    const adminEmail = (db.prepare('SELECT email FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { email?: string } | undefined)?.email;
+    if (!adminEmail) {
+      return res.status(500).json({ success: false, error: 'Could not send your request. Please use Telegram.' });
+    }
+    await sendTopUpRequest(
+      adminEmail,
+      profileRow?.email || '',
+      Number(settings.credits_balance || 0),
+      message.slice(0, 2000),
+      resendApiKey,
+      emailFrom,
+    );
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });
   }

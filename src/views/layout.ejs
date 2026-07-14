@@ -545,25 +545,19 @@
           <span class="sb-credits-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
           </span>
-          <span class="sb-credits-num">$<%= Number(locals.creditsBalance || 0).toFixed(2) %></span>
+          <span class="sb-credits-num">$<%= Number(locals.creditsBalance || 0).toFixed(1) %></span>
           <span class="sb-credits-sub">≈ <%= Math.floor(Math.round(Number(locals.creditsBalance || 0) / 0.2 * 100) / 100) %> runs</span>
           <button class="sb-credits-topup" type="button" onclick="jhTopUp()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             Top up
           </button>
         </div>
-        <div id="topup-msg" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:#1e2535;color:#a0aec0;font-size:11px;padding:6px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.35);pointer-events:none;opacity:0;transition:opacity 0.25s ease;">Coming soon!</div>
         <% } %>
         <script>
+          // Default: land on AI Setup, which opens the top-up form on arrival.
+          // The AI tab overrides this to open the form in place.
           function jhTopUp() {
-            var el = document.getElementById('topup-msg');
-            if (!el) {
-              alert('Top-up is coming soon!');
-              return;
-            }
-            el.style.opacity = '1';
-            clearTimeout(el._t);
-            el._t = setTimeout(function(){ el.style.opacity = '0'; }, 3000);
+            window.location.href = '/settings?tab=ai&topup=1';
           }
         </script>
 

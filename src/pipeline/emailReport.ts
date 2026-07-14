@@ -278,6 +278,50 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
   console.log(`[email] Test email sent to ${recipientEmail}`);
 }
 
+export async function sendTopUpRequest(
+  adminEmail: string,
+  userEmail: string,
+  balance: number,
+  message: string,
+  resendApiKey: string,
+  emailFrom: string,
+): Promise<void> {
+  const escaped = message
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Top-up request — Job Hunter</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+    <div style="background:linear-gradient(135deg,#4D87FF,#2F6BFF);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
+      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Hunter</h1>
+      <p style="margin:0;opacity:0.85;font-size:14px;">Top-up request</p>
+    </div>
+    <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px;">
+        <strong>${userEmail}</strong> · current balance $${balance.toFixed(2)}
+      </p>
+      <pre style="white-space:pre-wrap;font-family:inherit;color:#111827;font-size:14px;line-height:1.6;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin:0;">${escaped}</pre>
+    </div>
+    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Hunter</p>
+  </div>
+</body>
+</html>`;
+
+  const resend = new Resend(resendApiKey);
+  const { error } = await resend.emails.send({
+    from: emailFrom,
+    to: adminEmail,
+    reply_to: userEmail,
+    subject: `Job Hunter — top-up request from ${userEmail}`,
+    html,
+  });
+  if (error) throw new Error(error.message);
+  console.log(`[email] Top-up request from ${userEmail} sent to ${adminEmail}`);
+}
+
 export async function sendLowCreditsEmail(
   recipientEmail: string,
   balance: number,

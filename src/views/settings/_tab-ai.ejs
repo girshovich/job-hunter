@@ -7,32 +7,50 @@
           class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
       <input type="hidden" name="tab" value="ai">
       <h2 class="text-base font-semibold text-gray-900 mb-1">API Keys</h2>
-      <p class="text-xs text-gray-500 mb-5">Choose whether to use your own API keys or Job Hunter credits (uses the platform's shared keys).</p>
+      <p class="text-xs text-gray-500 mb-5">Choose whether to run on Job Hunter credits or on your own API keys.</p>
 
-      <!-- Toggle -->
-      <div class="flex items-center gap-3 mb-5 p-3 rounded-lg bg-gray-50 border border-gray-200">
-        <button type="button" id="jh-creds-btn"
-                onclick="setKeyMode(true)"
-                class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-center">
-          Use JH credits
-        </button>
-        <button type="button" id="own-keys-btn"
-                onclick="setKeyMode(false)"
-                class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-center">
-          Use my own API keys
-        </button>
+      <!-- Mode choice -->
+      <div class="rounded-xl border border-gray-300 bg-gray-50 p-3.5 mb-5">
+        <span class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2.5 ml-0.5">How do you want to pay for runs?</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button type="button" id="jh-creds-btn" class="jh-choice" aria-pressed="true" onclick="setKeyMode(true)">
+            <span class="jh-choice-check" aria-hidden="true">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>
+            </span>
+            <span class="jh-choice-icon" aria-hidden="true">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v5c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/><path d="M4 11v5c0 1.66 3.58 3 8 3s8-1.34 8-3v-5"/></svg>
+            </span>
+            <span>
+              <span class="block text-sm font-semibold text-gray-900 mb-0.5">Buy JH credits</span>
+              <span class="block text-xs text-gray-600 leading-snug">I run on my keys and deduct from your balance.</span>
+              <span class="jh-choice-badge">Easy setup</span>
+            </span>
+          </button>
+          <button type="button" id="own-keys-btn" class="jh-choice" aria-pressed="false" onclick="setKeyMode(false)">
+            <span class="jh-choice-check" aria-hidden="true">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>
+            </span>
+            <span class="jh-choice-icon" aria-hidden="true">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4"/><path d="M10.5 12.5 20 3"/><path d="m17 6 2.5 2.5"/><path d="M14.5 8.5 17 11"/></svg>
+            </span>
+            <span>
+              <span class="block text-sm font-semibold text-gray-900 mb-0.5">Use your own keys</span>
+              <span class="block text-xs text-gray-600 leading-snug">You pay Apify and OpenAI directly. Bring your own tokens.</span>
+            </span>
+          </button>
+        </div>
         <input type="hidden" name="use_jh_credits" id="use-jh-credits-input" value="<%= settings.use_jh_credits %>">
       </div>
 
       <!-- JH Credits view -->
-      <div id="jh-credits-view" class="space-y-4">
-        <div class="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+      <div id="jh-credits-view" class="space-y-3">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
           <div>
-            <p class="text-sm font-semibold text-gray-900">$<%= Number(settings.credits_balance || 0).toFixed(2) %> available</p>
+            <p class="text-lg font-bold text-gray-900 tabular-nums tracking-tight">$<%= Number(settings.credits_balance || 0).toFixed(1) %> available</p>
             <p class="text-xs text-gray-500 mt-0.5">Deducted per run based on token usage and Apify costs</p>
           </div>
-          <button type="button" onclick="jhTopUp()"
-                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+          <button type="button" onclick="openTopUp()"
+                  class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>
             Top up
           </button>
@@ -97,12 +115,13 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3 mt-5 pt-5 border-t border-gray-100">
-        <button type="submit" id="ai-keys-save-btn" disabled
+      <div id="ai-keys-actions" class="hidden items-center gap-3 mt-5 pt-5 border-t border-gray-100">
+        <button type="submit" id="ai-keys-save-btn"
                 class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-          Save
+          <span id="ai-keys-save-label">Save</span>
         </button>
+        <p id="ai-keys-save-hint" class="text-xs text-gray-500"></p>
         <p class="text-xs hidden" data-save-status></p>
       </div>
     </form>
@@ -425,49 +444,188 @@ Description: {description — up to 1,500 chars each}
       </div>
     </form>
 
+    <!-- TOP-UP REQUEST MODAL -->
+    <div id="topup-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeTopUp()"></div>
+      <div class="relative bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="flex items-start justify-between gap-3 px-6 pt-5">
+          <div>
+            <h3 class="text-base font-semibold text-gray-900">Top up credits</h3>
+            <p class="text-xs text-gray-500 mt-1">Let me know how much you need and where are you from, and I'll see what I can do.</p>
+          </div>
+          <button type="button" onclick="closeTopUp()" class="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Close">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div id="topup-body">
+          <div class="px-6 pt-4">
+            <textarea id="topup-message" rows="4"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+                      placeholder="Hi! I'd like to get X credits, I live in Country_Z"></textarea>
+            <p id="topup-error" class="text-xs text-red-600 mt-1.5 hidden"></p>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-6 py-4">
+            <a href="https://t.me/faranor" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.9 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.8-8c.4-.3-.1-.5-.6-.2L6.8 13.1l-4.7-1.5c-1-.3-1-1 .2-1.5l18.3-7c.9-.3 1.6.2 1.3 1.5Z"/></svg>
+              Telegram
+            </a>
+            <button type="button" id="topup-send-btn" onclick="sendTopUp()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
+              Send
+            </button>
+          </div>
+        </div>
+
+        <div id="topup-success" class="hidden mx-6 mb-5 mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-700">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          Sent. I'll get back to you by email.
+        </div>
+      </div>
+    </div>
+
+    <style>
+      .jh-choice {
+        position: relative; display: flex; gap: 0.75rem; align-items: flex-start; text-align: left;
+        background: #fff; border: 2px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem 0.875rem;
+        transition: border-color .15s, background-color .15s, box-shadow .15s;
+      }
+      .jh-choice:hover { border-color: #d1d5db; }
+      .jh-choice[aria-pressed="true"] {
+        border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+      }
+      .jh-choice-icon {
+        flex: none; display: grid; place-items: center; width: 2.5rem; height: 2.5rem;
+        border: 1px solid #e5e7eb; border-radius: 0.5rem; background: #f9fafb; color: #9ca3af;
+        transition: background-color .15s, color .15s, border-color .15s;
+      }
+      .jh-choice[aria-pressed="true"] .jh-choice-icon { background: #dbeafe; border-color: #bfdbfe; color: #2563eb; }
+      .jh-choice-check {
+        position: absolute; top: 0.625rem; right: 0.625rem; display: grid; place-items: center;
+        width: 1.125rem; height: 1.125rem; border-radius: 9999px; background: #2563eb; color: #fff;
+        opacity: 0; transition: opacity .15s;
+      }
+      .jh-choice[aria-pressed="true"] .jh-choice-check { opacity: 1; }
+      .jh-choice-badge {
+        display: inline-block; margin-top: 0.5rem; padding: 0.125rem 0.375rem; border-radius: 0.25rem;
+        font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+        background: #eff6ff; color: #2563eb;
+      }
+      .jh-choice[aria-pressed="true"] .jh-choice-badge { background: #2563eb; color: #fff; }
+    </style>
+
     <script>
     (function() {
+      var jhBtn    = document.getElementById('jh-creds-btn');
+      var ownBtn   = document.getElementById('own-keys-btn');
+      var jhView   = document.getElementById('jh-credits-view');
+      var ownView  = document.getElementById('own-keys-view');
+      var inp      = document.getElementById('use-jh-credits-input');
+      var apifyInp = document.getElementById('user-apify-token-input');
+      var openaiInp= document.getElementById('user-openai-key-input');
+      var actions  = document.getElementById('ai-keys-actions');
+      var saveBtn  = document.getElementById('ai-keys-save-btn');
+      var saveLabel= document.getElementById('ai-keys-save-label');
+      var saveHint = document.getElementById('ai-keys-save-hint');
+
       function applyKeyMode(useJh) {
-        var jhBtn    = document.getElementById('jh-creds-btn');
-        var ownBtn   = document.getElementById('own-keys-btn');
-        var jhView   = document.getElementById('jh-credits-view');
-        var ownView  = document.getElementById('own-keys-view');
-        var inp      = document.getElementById('use-jh-credits-input');
-        var apifyInp = document.getElementById('user-apify-token-input');
-        var openaiInp= document.getElementById('user-openai-key-input');
-        if (useJh) {
-          jhBtn.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
-          jhBtn.classList.remove('text-gray-500');
-          ownBtn.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
-          ownBtn.classList.add('text-gray-500');
-          jhView.classList.remove('hidden');
-          ownView.classList.add('hidden');
-          inp.value = '1';
-          if (apifyInp) apifyInp.required = false;
-          if (openaiInp) openaiInp.required = false;
-        } else {
-          ownBtn.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
-          ownBtn.classList.remove('text-gray-500');
-          jhBtn.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
-          jhBtn.classList.add('text-gray-500');
-          ownView.classList.remove('hidden');
-          jhView.classList.add('hidden');
-          inp.value = '0';
-          if (apifyInp) apifyInp.required = true;
-          if (openaiInp) openaiInp.required = true;
-        }
+        jhBtn.setAttribute('aria-pressed', String(useJh));
+        ownBtn.setAttribute('aria-pressed', String(!useJh));
+        jhView.classList.toggle('hidden', !useJh);
+        ownView.classList.toggle('hidden', useJh);
+        inp.value = useJh ? '1' : '0';
+        if (apifyInp) apifyInp.required = !useJh;
+        if (openaiInp) openaiInp.required = !useJh;
       }
+
+      // Save appears only when the block differs from what's saved.
+      function refreshKeysSave() {
+        var dirty = typeof isFormIdDirty === 'function' && isFormIdDirty('ai-keys-form');
+        actions.classList.toggle('hidden', !dirty);
+        actions.classList.toggle('flex', dirty);
+        if (!dirty) return;
+        saveBtn.disabled = false;
+        var useJh = inp.value === '1';
+        saveLabel.textContent = useJh ? 'Use JH credits' : 'Use my keys';
+        saveHint.textContent = useJh
+          ? 'Runs will be billed to your JH balance.'
+          : 'Runs will use your Apify and OpenAI keys.';
+      }
+      window.refreshKeysSave = refreshKeysSave;
+
+      // Called after Discard restores the hidden input from the snapshot.
+      window.syncKeyMode = function() {
+        applyKeyMode(inp.value === '1');
+        refreshKeysSave();
+      };
 
       window.setKeyMode = function(useJh) {
         applyKeyMode(useJh);
-        // directly enable save — toggling the hidden input won't trigger input listeners
-        var btn = document.getElementById('ai-keys-save-btn');
-        if (btn) btn.disabled = false;
+        refreshKeysSave();
       };
 
-      // Init on page load
+      [apifyInp, openaiInp].forEach(function(el) {
+        if (el) el.addEventListener('input', refreshKeysSave);
+      });
+
       applyKeyMode(<%= settings.use_jh_credits ? 'true' : 'false' %>);
     })();
+
+    // ---- Top-up request ----
+    function openTopUp() {
+      document.getElementById('topup-body').classList.remove('hidden');
+      document.getElementById('topup-success').classList.add('hidden');
+      document.getElementById('topup-error').classList.add('hidden');
+      document.getElementById('topup-modal').classList.remove('hidden');
+      document.getElementById('topup-message').focus();
+    }
+
+    function closeTopUp() {
+      document.getElementById('topup-modal').classList.add('hidden');
+    }
+
+    // Sidebar Top up: open the form in place when the AI tab is already showing,
+    // otherwise fall back to the layout's behaviour (navigate here, then open it).
+    window.jhTopUp = function() {
+      var pane = document.getElementById('tab-pane-ai');
+      if (pane && !pane.classList.contains('hidden')) openTopUp();
+      else window.location.href = '/settings?tab=ai&topup=1';
+    };
+
+    async function sendTopUp() {
+      var btn = document.getElementById('topup-send-btn');
+      var err = document.getElementById('topup-error');
+      var message = document.getElementById('topup-message').value.trim();
+      if (!message) {
+        err.textContent = 'Please write a message before sending.';
+        err.classList.remove('hidden');
+        return;
+      }
+      btn.disabled = true;
+      err.classList.add('hidden');
+      try {
+        const res = await fetch('/api/topup-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: message }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Could not send your request.');
+        document.getElementById('topup-body').classList.add('hidden');
+        document.getElementById('topup-success').classList.remove('hidden');
+      } catch (e) {
+        err.textContent = e.message;
+        err.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    if (new URLSearchParams(window.location.search).get('topup') === '1') {
+      window.addEventListener('DOMContentLoaded', openTopUp);
+    }
     </script>
 
     <p id="ai-last-saved" class="text-xs text-gray-400">Last saved: <%= settings.ai_updated_at ? new Date(settings.ai_updated_at).toLocaleString('en-GB') : 'Never' %></p>
