@@ -224,23 +224,22 @@ function renderGroups() {
     const locs = JSON.parse(g.locations);
     const kws = JSON.parse(g.keywords);
     const modes = JSON.parse(g.work_modes);
-    const jobTypeLabel = { fullTime: 'Full-time', partTime: 'Part-time', contract: 'Contract', '': 'Any type' }[g.job_type] || g.job_type;
     const modesLabel = modes.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(', ');
     const isActive = g.is_active === 1 || g.is_active === true;
+    const kwsLabel = kws.slice(0, 2).map(escHtml).join(', ') + (kws.length > 2 ? ` +${kws.length - 2}` : '');
 
     return `
       <div class="group flex items-start justify-between gap-4 py-4 border-b border-gray-50 last:border-0 ${isActive ? '' : 'opacity-50'}">
         <div class="min-w-0 flex-1">
           ${g.group_name ? `<p class="text-xs font-semibold text-gray-600 mb-1.5">${escHtml(g.group_name)}</p>` : ''}
-          <div class="flex flex-wrap gap-1.5 mb-2">
-            ${locs.map(l => `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">${escHtml(l)}</span>`).join('')}
-          </div>
-          <p class="text-xs text-gray-400">
-            <span class="font-medium text-gray-500">${kws.length} keyword${kws.length !== 1 ? 's' : ''}</span>
-            · ${escHtml(jobTypeLabel)}
+          <p class="text-xs text-gray-400 mb-2" title="${escHtml(kws.join(', '))}">
+            <span class="font-semibold">Keywords:</span> ${kwsLabel}
             · ${escHtml(modesLabel)}
-            ${g.title_filter && g.title_filter.trim() ? '· <span class="text-gray-500">filter on</span>' : ''}
           </p>
+          <div class="flex flex-wrap gap-1.5">
+            ${locs.slice(0, 4).map(l => `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">${escHtml(l)}</span>`).join('')}
+            ${locs.length > 4 ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100" title="${escHtml(locs.slice(4).join(', '))}">+${locs.length - 4}</span>` : ''}
+          </div>
         </div>
         <div class="flex items-center gap-3 flex-shrink-0">
           <label class="flex items-center gap-1.5 cursor-pointer" title="${isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}">
