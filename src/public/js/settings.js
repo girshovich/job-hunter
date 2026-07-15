@@ -92,32 +92,6 @@ async function testApiKey(service, inputId, statusId) {
   }
 }
 
-async function sendTestEmail(btn) {
-  const status = document.getElementById('test-email-status');
-  btn.disabled = true;
-  btn.textContent = 'Sending…';
-  status.className = 'text-xs mt-2';
-  status.textContent = '';
-  status.classList.remove('hidden');
-  try {
-    const res = await fetch('/api/test-email', { method: 'POST' });
-    const data = await res.json();
-    status.textContent = data.success ? '✓ ' + data.message : '✗ ' + data.error;
-    status.classList.add(data.success ? 'text-emerald-600' : 'text-red-600');
-  } catch (e) {
-    status.textContent = '✗ Network error';
-    status.classList.add('text-red-600');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>Test Email';
-  }
-}
-
-function toggleEmailSection() {
-  const enabled = document.getElementById('email-enabled-toggle').checked;
-  document.getElementById('email-body').classList.toggle('hidden', !enabled);
-}
-
 function toggleCollapsible(bodyId, chevronId) {
   const body = document.getElementById(bodyId);
   const chevron = document.getElementById(chevronId);
@@ -779,6 +753,12 @@ async function deleteCV(cvId, btn) {
 let _activeTab = 'profile';
 let _formSnapshots = {};
 let _pendingTabSwitch = null;
+let _pendingNav = null;  // destination URL for a sidebar/nav click deferred by the unsaved guard
+
+function promptUnsaved() {
+  document.getElementById('unsaved-tab-name').textContent = _activeTab === 'profile' ? 'Profile' : 'AI Setup';
+  document.getElementById('unsaved-modal').classList.remove('hidden');
+}
 
 // The AI tab is a form per block, each with its own Save button.
 const AI_BLOCK_FORMS = ['ai-keys-form', 'ai-models-form', 'ai-scoring-form', 'ai-dedup-form', 'ai-cv-form'];
@@ -871,9 +851,7 @@ function switchTab(targetTab) {
   if (targetTab === _activeTab) return;
   if ((_activeTab === 'profile' || _activeTab === 'ai') && isFormDirty(_activeTab)) {
     _pendingTabSwitch = targetTab;
-    const label = _activeTab === 'profile' ? 'Profile' : 'AI Setup';
-    document.getElementById('unsaved-tab-name').textContent = label;
-    document.getElementById('unsaved-modal').classList.remove('hidden');
+    promptUnsaved();
     return;
   }
   activateTab(targetTab);
@@ -885,12 +863,17 @@ function activateTab(tabName) {
   url.searchParams.set('tab', tabName);
   history.replaceState(null, '', url);
   const tabs = ['profile', 'roles', 'ai'];
-  if (window._isAdmin) tabs.push('admin');
   tabs.forEach(t => {
     const pane = document.getElementById('tab-pane-' + t);
     if (pane) pane.classList.toggle('hidden', t !== tabName);
     updateTabBtnStyle(t, t === tabName);
   });
+  // Keep the sidebar sub-nav highlight in sync (Profile has no ?tab= in its href).
+  const sub = document.getElementById('sb-settings-sub');
+  if (sub) {
+    const expected = tabName === 'profile' ? '/settings' : '/settings?tab=' + tabName;
+    sub.querySelectorAll('a.sb-subitem').forEach(a => a.classList.toggle('active', a.getAttribute('href') === expected));
+  }
   maybeLoadAdminTab(tabName);
 }
 
@@ -923,6 +906,7 @@ async function unsavedSave() {
       const ok = await submitAiBlock(document.getElementById(formId));
       if (!ok) return;  // stay on the tab so the user can fix the error
     }
+    if (_pendingNav) { const url = _pendingNav; _pendingNav = null; window.location.href = url; return; }
     const target = _pendingTabSwitch;
     _pendingTabSwitch = null;
     if (target) activateTab(target);
@@ -946,8 +930,8 @@ function unsavedDiscard() {
     const saveBtn = form.querySelector('button[type="submit"]');
     if (saveBtn) saveBtn.disabled = true;
   });
-  if (_activeTab === 'profile') toggleEmailSection();
   if (_activeTab === 'ai' && window.syncKeyMode) window.syncKeyMode();
+  if (_pendingNav) { const url = _pendingNav; _pendingNav = null; window.location.href = url; return; }
   const target = _pendingTabSwitch;
   _pendingTabSwitch = null;
   activateTab(target);
@@ -956,6 +940,7 @@ function unsavedDiscard() {
 function unsavedCancel() {
   document.getElementById('unsaved-modal').classList.add('hidden');
   _pendingTabSwitch = null;
+  _pendingNav = null;
 }
 
 // ---- Initialisation (called from settings.ejs with the server-side activeTab value) ----
@@ -984,75 +969,17 @@ function initSettings(activeTab, initialGroups) {
   snapshotForm('profile');
   snapshotForm('ai');
   maybeLoadAdminTab(activeTab);
-}
 
-// ── Admin: Profile CRUD ──
-
-async function createProfile() {
-  const input = document.getElementById('new-profile-email');
-  const msgEl = document.getElementById('profiles-msg');
-  const email = input.value.trim();
-  if (!email) return;
-
-  msgEl.classList.add('hidden');
-  try {
-    const res = await fetch('/api/profiles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+  // Guard sidebar / bottom-nav navigations the same way as tab switches: a dirty
+  // Profile or AI Setup form routes the click through the unsaved-changes dialog.
+  document.querySelectorAll('.app-sidebar a[href], .mobile-bottom-nav a[href]').forEach(a => {
+    a.addEventListener('click', function(e) {
+      if ((_activeTab === 'profile' || _activeTab === 'ai') && isFormDirty(_activeTab)) {
+        e.preventDefault();
+        _pendingNav = a.href;
+        promptUnsaved();
+      }
     });
-    const data = await res.json();
-    if (!data.success) {
-      msgEl.textContent = data.error || 'Failed to create profile.';
-      msgEl.className = 'text-xs mt-2 text-red-600';
-      msgEl.classList.remove('hidden');
-      return;
-    }
-    const list = document.getElementById('profiles-list');
-    const initial = email.charAt(0).toUpperCase();
-    const handle = email.split('@')[0];
-    const div = document.createElement('div');
-    div.id = 'profile-row-' + data.profile.id;
-    div.className = 'flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200';
-    div.innerHTML = `
-      <div class="flex items-center gap-2 min-w-0">
-        <div class="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${escHtml(initial)}</div>
-        <div class="min-w-0">
-          <p class="text-sm text-gray-900 font-medium truncate">${escHtml(handle)}</p>
-          <p class="text-xs text-gray-400 truncate">${escHtml(email)}</p>
-        </div>
-      </div>
-      <button type="button" onclick="deleteProfile(${data.profile.id}, '${escHtml(email)}')"
-              class="text-xs text-red-500 hover:text-red-700 hover:underline flex-shrink-0">Delete</button>`;
-    list.appendChild(div);
-    input.value = '';
-    msgEl.textContent = 'Profile created. They can now log in with their email.';
-    msgEl.className = 'text-xs mt-2 text-emerald-600';
-    msgEl.classList.remove('hidden');
-    setTimeout(() => msgEl.classList.add('hidden'), 4000);
-  } catch (e) {
-    msgEl.textContent = 'Network error.';
-    msgEl.className = 'text-xs mt-2 text-red-600';
-    msgEl.classList.remove('hidden');
-  }
+  });
 }
 
-async function deleteProfile(id, email) {
-  if (!confirm(`Delete profile "${email}"? Their data will not be erased but they will lose access.`)) return;
-  const msgEl = document.getElementById('profiles-msg');
-  try {
-    const res = await fetch(`/api/profiles/${id}/delete`, { method: 'POST' });
-    const data = await res.json();
-    if (!data.success) {
-      msgEl.textContent = data.error || 'Failed to delete profile.';
-      msgEl.className = 'text-xs mt-2 text-red-600';
-      msgEl.classList.remove('hidden');
-      return;
-    }
-    document.getElementById('profile-row-' + id)?.remove();
-  } catch (e) {
-    msgEl.textContent = 'Network error.';
-    msgEl.className = 'text-xs mt-2 text-red-600';
-    msgEl.classList.remove('hidden');
-  }
-}

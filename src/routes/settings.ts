@@ -10,7 +10,6 @@ import multer from 'multer';
 import { Resend } from 'resend';
 import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
-import { getAtsSchedules } from '../pipeline/atsScheduler';
 import { hashToken } from './auth';
 
 const router = Router();
@@ -69,7 +68,7 @@ router.get('/', (req: Request, res: Response) => {
   const groups = getGroups(db, profileId);
   const cvs = getCvs(db, profileId);
   const saved = req.query.saved === '1';
-  const validTabs = req.profile.isAdmin ? ['profile', 'roles', 'ai', 'admin'] : ['profile', 'roles', 'ai'];
+  const validTabs = ['profile', 'roles', 'ai'];
   const activeTab = validTabs.includes(String(req.query.tab)) ? String(req.query.tab) : 'profile';
 
   const latestGroup    = db.prepare('SELECT MAX(updated_at) as t FROM search_groups WHERE profile_id = ?').get(profileId) as { t: string | null };
@@ -77,16 +76,6 @@ router.get('/', (req: Request, res: Response) => {
   const latestBlacklist = db.prepare('SELECT MAX(created_at) as t FROM blacklisted_companies WHERE profile_id = ?').get(profileId) as { t: string | null };
   const rolesTimestamps = [latestGroup.t, latestCv.t, latestBlacklist.t].filter(Boolean) as string[];
   const rolesLastSaved  = rolesTimestamps.length > 0 ? rolesTimestamps.sort().at(-1)! : null;
-
-  const allProfiles = req.profile.isAdmin
-    ? (db.prepare(`
-        SELECT p.id, p.email, p.is_admin, p.created_at,
-               COALESCE(s.credits_balance, 0) AS credits_balance
-        FROM profiles p
-        LEFT JOIN settings s ON s.profile_id = p.id
-        ORDER BY p.id ASC
-      `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; credits_balance: number }>)
-    : [];
 
   const locationCountries = getCanonicalCountries();
 
@@ -109,147 +98,11 @@ router.get('/', (req: Request, res: Response) => {
     notice,
     activeTab,
     rolesLastSaved,
-    allProfiles,
     isAdmin: req.profile.isAdmin,
     profileEmail: req.profile.email,
     pendingEmailChange: getPendingEmailChange(db, profileId),
     locationCountries,
-    atsSchedules: getAtsSchedules(),
     pageMaxWidth: '48rem',
-  });
-});
-
-router.get('/unresolved-locations', (req: Request, res: Response) => {
-  if (!req.profile.isAdmin) {
-    res.status(403).send('Forbidden');
-    return;
-  }
-
-  const db = getDb();
-  const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-  const perPage = 50;
-  const q = String(req.query.q || '').trim();
-  const offset = (page - 1) * perPage;
-  const whereSearch = q ? `AND LOWER(j.location) LIKE ?` : '';
-  const params = q ? [`%${q.toLowerCase()}%`] : [];
-
-  const total = (db.prepare(`
-    SELECT COUNT(*) AS c FROM (
-      SELECT j.location
-      FROM jobs j
-      JOIN location_country lc ON lc.location = j.location AND lc.country = ''
-      WHERE j.job_source IN ('Greenhouse', 'Ashby')
-        AND j.location IS NOT NULL
-        AND j.country IS NULL
-        ${whereSearch}
-      GROUP BY j.location
-    )
-  `).get(...params) as { c: number }).c;
-
-  const rows = db.prepare(`
-    SELECT j.location,
-           COUNT(*) AS job_count,
-           GROUP_CONCAT(DISTINCT j.job_source) AS providers,
-           MAX(lc.created_at) AS last_checked
-    FROM jobs j
-    JOIN location_country lc ON lc.location = j.location AND lc.country = ''
-    WHERE j.job_source IN ('Greenhouse', 'Ashby')
-      AND j.location IS NOT NULL
-      AND j.country IS NULL
-      ${whereSearch}
-    GROUP BY j.location
-    ORDER BY job_count DESC, j.location ASC
-    LIMIT ? OFFSET ?
-  `).all(...params, perPage, offset) as Array<{
-    location: string;
-    job_count: number;
-    providers: string;
-    last_checked: string;
-  }>;
-
-  const exampleStmt = db.prepare(`
-    SELECT company, title, job_source
-    FROM jobs
-    WHERE job_source IN ('Greenhouse', 'Ashby')
-      AND location = ?
-      AND country IS NULL
-    ORDER BY fetched_at DESC
-    LIMIT 3
-  `);
-  const locations = rows.map((row) => ({
-    ...row,
-    examples: exampleStmt.all(row.location) as Array<{ company: string; title: string; job_source: string }>,
-  }));
-
-  res.render('unresolved-locations', {
-    title: 'Unresolved Locations',
-    locations,
-    total,
-    page,
-    perPage,
-    q,
-    pageCount: Math.max(1, Math.ceil(total / perPage)),
-  });
-});
-
-// Telegram posts ingested in the last run, grouped by channel, with the jobs scraped from each
-router.get('/telegram-posts', (req: Request, res: Response) => {
-  if (!req.profile.isAdmin) {
-    res.status(403).send('Forbidden');
-    return;
-  }
-
-  const db = getDb();
-  const adminTimezone = (db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(req.profile.id) as { timezone?: string } | undefined)?.timezone || 'UTC';
-  const lastRun = db.prepare(
-    `SELECT started_at FROM telegram_ingest_runs ORDER BY id DESC LIMIT 1`,
-  ).get() as { started_at: string } | undefined;
-
-  type PostRow = {
-    channel_username: string;
-    post_url: string;
-    published_at: string | null;
-    text: string | null;
-  };
-  const posts: PostRow[] = lastRun
-    ? db.prepare(`
-        SELECT channel_username, post_url, published_at, text
-        FROM telegram_posts
-        WHERE is_repost_of IS NULL
-          AND (first_seen_at >= ? OR edited_at >= ?)
-        ORDER BY channel_username ASC, published_at DESC, id DESC
-      `).all(lastRun.started_at, lastRun.started_at) as PostRow[]
-    : [];
-
-  const jobStmt = db.prepare(`
-    SELECT company, title, location
-    FROM jobs
-    WHERE job_source = 'Telegram' AND url = ?
-    ORDER BY id ASC
-  `);
-
-  const repostCount = lastRun
-    ? (db.prepare(`
-        SELECT COUNT(*) AS c FROM telegram_posts
-        WHERE is_repost_of IS NOT NULL AND (first_seen_at >= ? OR edited_at >= ?)
-      `).get(lastRun.started_at, lastRun.started_at) as { c: number }).c
-    : 0;
-
-  const byChannel = new Map<string, Array<PostRow & { jobs: Array<{ company: string; title: string; location: string | null }> }>>();
-  for (const p of posts) {
-    const jobs = jobStmt.all(p.post_url) as Array<{ company: string; title: string; location: string | null }>;
-    if (!byChannel.has(p.channel_username)) byChannel.set(p.channel_username, []);
-    byChannel.get(p.channel_username)!.push({ ...p, jobs });
-  }
-  const channels = [...byChannel.entries()].map(([channel, channelPosts]) => ({ channel, posts: channelPosts }));
-
-  res.render('telegram-posts', {
-    title: 'Telegram — Last Ingest',
-    channels,
-    postCount: posts.length,
-    repostCount,
-    lastRunAt: lastRun?.started_at ?? null,
-    timezone: adminTimezone,
   });
 });
 
@@ -288,7 +141,7 @@ router.post('/', async (req: Request, res: Response) => {
           `UPDATE settings SET ${emailFields.map(([c]) => `${c} = ?`).join(', ')} WHERE profile_id = ?`
         ).run(...emailFields.map(([, v]) => v), profileId);
       }
-      res.redirect('/settings?tab=admin&saved=1');
+      res.redirect('/admin?tab=general&saved=1');
       return;
     }
 
@@ -426,9 +279,6 @@ router.post('/', async (req: Request, res: Response) => {
     }
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
     const tab = String((req.body as Record<string, string>).tab || 'profile');
-    const allProfiles = req.profile.isAdmin
-      ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
-      : [];
     const locationCountries = getCanonicalCountries();
     res.status(400).render('settings', {
       settings,
@@ -440,7 +290,6 @@ router.post('/', async (req: Request, res: Response) => {
       notice: null,
       activeTab: tab,
       rolesLastSaved: null,
-      allProfiles,
       locationCountries,
       pageMaxWidth: '48rem',
       isAdmin: req.profile.isAdmin,
@@ -497,9 +346,6 @@ router.post('/cvs/upload', upload.single('cv_file'), (req: Request, res: Respons
 
   if (!req.file) {
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
-    const allProfiles = req.profile.isAdmin
-      ? (db.prepare('SELECT id, email, is_admin, created_at FROM profiles ORDER BY id ASC').all() as Array<{ id: number; email: string; is_admin: number; created_at: string }>)
-      : [];
     const locationCountries = getCanonicalCountries();
     res.status(400).render('settings', {
       settings,
@@ -511,7 +357,6 @@ router.post('/cvs/upload', upload.single('cv_file'), (req: Request, res: Respons
       notice: null,
       activeTab: 'roles',
       rolesLastSaved: null,
-      allProfiles,
       locationCountries,
       isAdmin: req.profile.isAdmin,
       profileEmail: req.profile.email,

@@ -1,11 +1,42 @@
-<!-- ==================== ADMIN TAB ==================== -->
-<div id="tab-pane-admin" class="<%= activeTab !== 'admin' ? 'hidden' : '' %> space-y-4">
+<!-- ==================== ADMIN PAGE ==================== -->
+<div class="max-w-3xl">
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Admin</h1>
+  </div>
+
+  <% if (saved) { %>
+  <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm mb-6">
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+    Settings saved successfully.
+  </div>
+  <% } %>
+
+  <!-- Tab bar -->
+  <div class="border-b border-gray-200 mb-8">
+    <nav class="flex -mb-px">
+      <button id="admin-tab-btn-general" onclick="switchAdminTab('general')"
+              class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= adminTab === 'general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
+        General
+      </button>
+      <button id="admin-tab-btn-sources" onclick="switchAdminTab('sources')"
+              class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= adminTab === 'sources' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
+        Sources
+      </button>
+      <button id="admin-tab-btn-locations" onclick="switchAdminTab('locations')"
+              class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= adminTab === 'locations' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
+        Locations
+      </button>
+    </nav>
+  </div>
+
+  <div id="admin-pane-general" class="space-y-4 <%= adminTab === 'general' ? '' : 'hidden' %>">
 
   <!-- Global API Keys -->
   <form id="admin-keys-form" method="post" action="/settings" class="">
     <input type="hidden" name="tab" value="admin">
     <input type="hidden" name="section" value="keys">
-    <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 sm:p-6">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-1">Global API Keys</h2>
       <p class="text-xs text-gray-500 mb-4">Used by all users who are on "Use JH credits" mode. Only visible to admin.</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -69,7 +100,7 @@
   <form id="admin-email-form" method="post" action="/settings" class="">
     <input type="hidden" name="tab" value="admin">
     <input type="hidden" name="section" value="email">
-    <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 sm:p-6">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-1">Email Delivery</h2>
       <p class="text-xs text-gray-500 mb-4">Used to send login codes and job reports to all users.</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -126,7 +157,7 @@
   </form>
 
   <!-- Profiles -->
-  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 sm:p-6">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-base font-semibold text-gray-900">Profiles</h2>
@@ -179,8 +210,12 @@
     <p id="profiles-msg" class="text-xs mt-2 hidden"></p>
   </div>
 
+  </div><!-- end admin-pane-general -->
+
+  <div id="admin-pane-sources" class="space-y-4 <%= adminTab === 'sources' ? '' : 'hidden' %>">
+
   <!-- ATS Board Discovery -->
-  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 sm:p-6">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">ATS Board Discovery</h2>
     <p class="text-xs text-gray-500 mb-4">
       Discovers Greenhouse and Ashby boards via Common Crawl, and Lever companies via HuggingFace.
@@ -289,7 +324,7 @@
   </div><!-- end ATS card -->
 
   <!-- ATS Job Pool Fill -->
-  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 sm:p-6">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">ATS Job Pool Fill</h2>
     <p class="text-xs text-gray-500 mb-4 leading-relaxed">
       Greenhouse, Ashby and Lever public APIs have no search filters — they return all open jobs for each company.
@@ -460,7 +495,7 @@
   </div><!-- end pool card -->
 
   <!-- Telegram Job Source -->
-  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-4 sm:p-6">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">Telegram Channels</h2>
     <p class="text-xs text-gray-500 mb-4 leading-relaxed">
       Scrapes public Telegram channels daily at 05:30 (first page, ~20 most recent posts per channel). Each post is
@@ -541,6 +576,17 @@
     </details>
   </div><!-- end telegram card -->
 
+  </div><!-- end admin-pane-sources -->
+
+  <div id="admin-pane-locations" class="space-y-4 <%= adminTab === 'locations' ? '' : 'hidden' %>">
+
+  <!-- Country Recognition -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Country Recognition</h2>
+    <p class="text-xs text-gray-500 mb-4">Manage the lowercase synonyms used to recognize each country in scraped job locations (e.g. <span class="font-mono">uk → United Kingdom</span>, or fold <span class="font-mono">guam → United States</span>).</p>
+    <button onclick="openSynonymsModal()" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Manage country synonyms</button>
+  </div>
+
   <!-- Region Definitions -->
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">Region Definitions</h2>
@@ -569,13 +615,6 @@
     <p class="mt-3 text-xs text-gray-400">Region names are permanent — they can't be renamed. To use another name for the same countries, add it as an alias. To change the canonical name you must delete and recreate the region.</p>
   </div><!-- end regions card -->
 
-  <!-- Country Recognition -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
-    <h2 class="text-base font-semibold text-gray-900 mb-1">Country Recognition</h2>
-    <p class="text-xs text-gray-500 mb-4">Manage the lowercase synonyms used to recognize each country in scraped job locations (e.g. <span class="font-mono">uk → United Kingdom</span>, or fold <span class="font-mono">guam → United States</span>).</p>
-    <button onclick="openSynonymsModal()" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Manage country synonyms</button>
-  </div>
-
   <!-- Country synonyms modal -->
   <div id="synonyms-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closeSynonymsModal()">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
@@ -600,7 +639,9 @@
 
   <script>window.__CANON_COUNTRIES = <%- JSON.stringify(locationCountries) %>;</script>
 
-</div><!-- end tab-pane-admin -->
+  </div><!-- end admin-pane-locations -->
+
+</div><!-- end admin page -->
 
 <script>
 let _atsStatsLoaded = false;
@@ -914,7 +955,7 @@ function _renderPoolCounts(ghCount, ashbyCount, leverCount, resolvedLocations = 
   const el = document.getElementById('pool-counts');
   if (!el) return;
   const unknownHtml = unknownLocations > 0
-    ? `<a href="/settings/unresolved-locations" class="whitespace-nowrap font-medium text-gray-700 underline decoration-dotted underline-offset-2 hover:text-sky-700">Unknown ${unknownLocations.toLocaleString()}</a>`
+    ? `<a href="/admin/unresolved-locations" class="whitespace-nowrap font-medium text-gray-700 underline decoration-dotted underline-offset-2 hover:text-sky-700">Unknown ${unknownLocations.toLocaleString()}</a>`
     : `<span class="whitespace-nowrap font-medium text-gray-500">Unknown ${unknownLocations.toLocaleString()}</span>`;
   el.innerHTML = `
     <div class="flex items-start sm:items-center gap-3 sm:gap-4 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs">
@@ -1010,7 +1051,7 @@ async function loadTelegramState() {
              <span class="w-20 sm:w-28 flex-shrink-0 font-medium text-gray-500">Last ingest</span>
              <div class="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4">
                <span class="whitespace-nowrap font-mono text-gray-700 font-medium">${lastRun.jobs_created.toLocaleString()} jobs</span>
-               <a href="/settings/telegram-posts" class="whitespace-nowrap font-mono text-sky-600 hover:text-sky-800 underline">${(lastRun.inserted + lastRun.edited).toLocaleString()} posts</a>
+               <a href="/admin/telegram-posts" class="whitespace-nowrap font-mono text-sky-600 hover:text-sky-800 underline">${(lastRun.inserted + lastRun.edited).toLocaleString()} posts</a>
                <span class="whitespace-nowrap font-mono text-gray-400">${fmtAdminTs(lastRun.started_at)}</span>
              </div>
            </div>`
@@ -1124,16 +1165,158 @@ async function telegramSavePrompt() {
   }
 }
 
-// Load Telegram state when admin tab activates
+// Standalone admin page: panes all live in the DOM (just hidden), so load every section on load.
 document.addEventListener('DOMContentLoaded', () => {
-  const adminTab = document.querySelector('[data-tab="admin"]') || document.querySelector('[href="#admin"]');
-  if (adminTab) {
-    adminTab.addEventListener('click', () => { loadTelegramState(); reattachActiveRuns(); });
-  }
-  // Also load if admin tab is already active on page load
-  const pane = document.getElementById('tab-pane-admin');
-  if (pane && !pane.classList.contains('hidden')) { loadTelegramState(); reattachActiveRuns(); }
+  ensureAdminStatsLoaded();
+  loadTelegramState();
+  reattachActiveRuns();
 });
+
+function switchAdminTab(tab) {
+  ['general', 'sources', 'locations'].forEach(t => {
+    const pane = document.getElementById('admin-pane-' + t);
+    if (pane) pane.classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById('admin-tab-btn-' + t);
+    if (btn) {
+      const on = t === tab;
+      btn.classList.toggle('border-blue-600', on);
+      btn.classList.toggle('text-blue-600', on);
+      btn.classList.toggle('border-transparent', !on);
+      btn.classList.toggle('text-gray-500', !on);
+    }
+  });
+  const url = new URL(window.location);
+  url.searchParams.set('tab', tab);
+  history.replaceState(null, '', url);
+  // Keep the sidebar Admin sub-nav highlight (and its red active dot) in sync.
+  const sub = document.getElementById('sb-admin-sub');
+  if (sub) {
+    const expected = '/admin?tab=' + tab;
+    sub.querySelectorAll('a.sb-subitem').forEach(a => a.classList.toggle('active', a.getAttribute('href') === expected));
+  }
+}
+
+// ── Key/email helpers (shared shape with settings.js; the Keys & Email cards live here now) ──
+function toggleEye(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const isPassword = input.type === 'password';
+  input.type = isPassword ? 'text' : 'password';
+  btn.innerHTML = isPassword
+    ? '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>'
+    : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>';
+}
+
+async function testApiKey(service, inputId, statusId) {
+  const token = document.getElementById(inputId).value.trim();
+  const statusEl = document.getElementById(statusId);
+  statusEl.textContent = 'Testing…';
+  statusEl.className = 'text-xs mt-1.5 text-gray-500';
+  statusEl.classList.remove('hidden');
+  try {
+    const res = await fetch('/api/test/' + service, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    statusEl.textContent = data.success ? '✓ ' + data.message : '✗ ' + data.error;
+    statusEl.className = 'text-xs mt-1.5 ' + (data.success ? 'text-emerald-600' : 'text-red-600');
+  } catch (e) {
+    statusEl.textContent = '✗ Network error';
+    statusEl.className = 'text-xs mt-1.5 text-red-600';
+  }
+}
+
+async function sendTestEmail(btn) {
+  const status = document.getElementById('test-email-status');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  status.className = 'text-xs mt-2';
+  status.textContent = '';
+  status.classList.remove('hidden');
+  try {
+    const res = await fetch('/api/test-email', { method: 'POST' });
+    const data = await res.json();
+    status.textContent = data.success ? '✓ ' + data.message : '✗ ' + data.error;
+    status.classList.add(data.success ? 'text-emerald-600' : 'text-red-600');
+  } catch (e) {
+    status.textContent = '✗ Network error';
+    status.classList.add('text-red-600');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>Test Email';
+  }
+}
+
+// ── Admin: Profile CRUD (moved from settings.js when Admin became its own page) ──
+async function createProfile() {
+  const input = document.getElementById('new-profile-email');
+  const msgEl = document.getElementById('profiles-msg');
+  const email = input.value.trim();
+  if (!email) return;
+
+  msgEl.classList.add('hidden');
+  try {
+    const res = await fetch('/api/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      msgEl.textContent = data.error || 'Failed to create profile.';
+      msgEl.className = 'text-xs mt-2 text-red-600';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+    const list = document.getElementById('profiles-list');
+    const initial = email.charAt(0).toUpperCase();
+    const handle = email.split('@')[0];
+    const div = document.createElement('div');
+    div.id = 'profile-row-' + data.profile.id;
+    div.className = 'flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200';
+    div.innerHTML = `
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${escHtml(initial)}</div>
+        <div class="min-w-0">
+          <p class="text-sm text-gray-900 font-medium truncate">${escHtml(handle)}</p>
+          <p class="text-xs text-gray-400 truncate">${escHtml(email)}</p>
+        </div>
+      </div>
+      <button type="button" onclick="deleteProfile(${data.profile.id}, '${escHtml(email)}')"
+              class="text-xs text-red-500 hover:text-red-700 hover:underline flex-shrink-0">Delete</button>`;
+    list.appendChild(div);
+    input.value = '';
+    msgEl.textContent = 'Profile created. They can now log in with their email.';
+    msgEl.className = 'text-xs mt-2 text-emerald-600';
+    msgEl.classList.remove('hidden');
+    setTimeout(() => msgEl.classList.add('hidden'), 4000);
+  } catch (e) {
+    msgEl.textContent = 'Network error.';
+    msgEl.className = 'text-xs mt-2 text-red-600';
+    msgEl.classList.remove('hidden');
+  }
+}
+
+async function deleteProfile(id, email) {
+  if (!confirm(`Delete profile "${email}"? Their data will not be erased but they will lose access.`)) return;
+  const msgEl = document.getElementById('profiles-msg');
+  try {
+    const res = await fetch(`/api/profiles/${id}/delete`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) {
+      msgEl.textContent = data.error || 'Failed to delete profile.';
+      msgEl.className = 'text-xs mt-2 text-red-600';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+    document.getElementById('profile-row-' + id)?.remove();
+  } catch (e) {
+    msgEl.textContent = 'Network error.';
+    msgEl.className = 'text-xs mt-2 text-red-600';
+    msgEl.classList.remove('hidden');
+  }
+}
 
 async function setUserCredits(profileId, btn) {
   const input = document.getElementById('credits-input-' + profileId);

@@ -41,19 +41,12 @@
               class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= activeTab === 'ai' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
         AI Setup
       </button>
-      <% if (isAdmin) { %>
-      <button id="tab-btn-admin" onclick="switchTab('admin')"
-              class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= activeTab === 'admin' ? 'border-red-600 text-red-600' : 'border-transparent text-red-400 hover:text-red-600 hover:border-red-300' %>">
-        Admin
-      </button>
-      <% } %>
     </nav>
   </div>
 
   <%- include('settings/_tab-profile') %>
   <%- include('settings/_tab-roles') %>
   <%- include('settings/_tab-ai') %>
-  <% if (isAdmin) { %><%- include('settings/_tab-admin') %><% } %>
 
 </div>
 

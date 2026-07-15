@@ -6,6 +6,7 @@ import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
 import { settingsRouter } from './routes/settings';
+import { adminRouter } from './routes/admin';
 import { apiRouter } from './routes/api';
 import { reportsRouter } from './routes/reports';
 import { jobsRouter } from './routes/jobs';
@@ -136,6 +137,7 @@ app.use((req, res, next) => {
 app.use('/', publicAuthedRouter);
 app.use('/', dashboardRouter);
 app.use('/settings', settingsRouter);
+app.use('/admin', adminRouter);
 app.use('/api', (req: Request, res: Response, next: NextFunction) => {
   delete req.headers['if-none-match'];
   delete req.headers['if-modified-since'];
