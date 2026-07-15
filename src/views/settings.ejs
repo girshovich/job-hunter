@@ -78,21 +78,25 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">Locations <span class="text-gray-400 font-normal">(comma-separated)</span></label>
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <label class="block text-sm font-medium text-gray-700">Locations <span class="text-gray-400 font-normal">(comma-separated)</span></label>
+          <div id="location-help-wrap" class="relative inline-flex">
+            <button type="button" onclick="toggleLocationHelp()" aria-label="How locations are used"
+                    class="w-4 h-4 rounded-full border border-gray-300 bg-white text-gray-500 text-[11px] font-semibold leading-none flex items-center justify-center hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">?</button>
+            <div id="location-help-body" class="hidden absolute top-6 left-0 z-20 w-80 max-w-[78vw] rounded-lg border border-gray-200 bg-white shadow-2xl px-3.5 py-3">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">How locations are used</p>
+              <div class="space-y-2 text-xs text-gray-500">
+                <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-28">LinkedIn</span><span>searches your exact areas, unchanged.</span></div>
+                <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-28">Indeed &middot; Greenhouse &middot; Ashby &middot; Lever</span><span>searched by country.</span></div>
+                <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-28">Telegram</span><span>keeps jobs in your target countries plus jobs with no stated location; the AI judges the rest.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
         <textarea id="modal-locations" rows="2"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="London, Spain"></textarea>
-        <div id="location-warning" class="hidden mt-1.5 text-xs text-amber-600 leading-relaxed"></div>
-        <button type="button" onclick="toggleLocationHint()"
-                class="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800">
-          <svg id="location-hint-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-          How locations are used
-        </button>
-        <div id="location-hint-body" class="hidden mt-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 space-y-2">
-          <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-40">LinkedIn</span><span>searches your exact areas, unchanged.</span></div>
-          <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-40">Indeed &middot; Greenhouse &middot; Ashby &middot; Lever</span><span>searched by country.</span></div>
-          <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-40">Telegram</span><span>keeps jobs in your target countries plus jobs with no stated location; the AI judges the rest.</span></div>
-        </div>
+        <div id="location-warning" class="hidden mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed"></div>
       </div>
 
       <div>
@@ -100,21 +104,15 @@
         <textarea id="modal-keywords" rows="2"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="Product Manager, Head of Product"></textarea>
-        <p class="text-xs text-gray-400 mt-1.5">💡 Use broad terms (e.g. "Product Manager", not "Senior Product Manager") to get more results.</p>
+        <p class="text-xs text-gray-400 mt-1.5">Use broad terms (e.g. "Product Manager", not "Senior Product Manager") to get more results.</p>
       </div>
 
       <div>
-        <button type="button" onclick="toggleCollapsible('modal-title-filter-body', 'title-filter-chevron')"
-                class="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 w-full text-left mb-0">
-          <svg id="title-filter-chevron" class="w-3.5 h-3.5 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-          Job Title Filter <span class="text-gray-400 font-normal text-xs ml-1">(optional — comma-separated rules)</span>
-        </button>
-        <div id="modal-title-filter-body" class="hidden mt-1.5">
-          <textarea id="modal-title-filter" rows="2"
-                    class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    placeholder="senior product manager, principal product manager, staff product manager"></textarea>
-          <p class="text-xs text-gray-500 mt-1.5">A job passes if its title has ALL the words from any one rule. Narrows down search before AI scoring to save credits.</p>
-        </div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Job Title Filter <span class="text-gray-400 font-normal">(optional — comma-separated rules)</span></label>
+        <textarea id="modal-title-filter" rows="2"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  placeholder="senior product manager, principal product manager, staff product manager"></textarea>
+        <p class="text-xs text-gray-500 mt-1.5">A job passes if title has all the words from any one filter. Saves credits by narrowing search.</p>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -147,53 +145,15 @@
       </div>
 
       <div>
-        <button type="button" onclick="toggleCollapsible('modal-score-thresholds-body', 'score-thresholds-chevron')"
-                class="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 w-full text-left">
-          <svg id="score-thresholds-chevron" class="w-3.5 h-3.5 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-          Score Thresholds
-        </button>
-        <div id="modal-score-thresholds-body" class="hidden mt-2">
-          <p class="text-xs text-gray-500 mb-2.5">Verdicts assigned based on the AI's 0–100 score for jobs in these locations.</p>
-          <div class="grid grid-cols-3 gap-3">
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">
-                <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-1"></span><%= formatVerdictLabel('NO_MATCH') %> max
-              </label>
-              <input id="modal-no-match-max" type="number" min="0" max="99" value="50"
-                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
-              <p class="text-xs text-gray-400 mt-0.5">0–this → discarded</p>
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">
-                <span class="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1"></span><%= formatVerdictLabel('WEAK_MATCH') %> max
-              </label>
-              <input id="modal-weak-match-max" type="number" min="1" max="99" value="70"
-                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
-              <p class="text-xs text-gray-400 mt-0.5">stats only</p>
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">
-                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span><%= formatVerdictLabel('STRONG_MATCH') %> min
-              </label>
-              <input id="modal-strong-match-min" type="number" min="1" max="100" value="71"
-                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
-              <p class="text-xs text-gray-400 mt-0.5">this+ → stored</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <p class="text-sm font-medium text-gray-700 mb-3">Scoring Prompt</p>
         <div class="space-y-4">
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-medium text-gray-600">Profile Description</label>
+              <label class="block text-sm font-medium text-gray-700">Profile Description</label>
               <label class="flex items-center gap-2 cursor-pointer select-none">
                 <span class="text-xs text-gray-500">Use main profile</span>
                 <div class="relative">
                   <input type="checkbox" id="modal-use-main-profile" class="sr-only peer" onchange="toggleMainProfileDesc()" />
-                  <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-blue-500 rounded-full transition-colors
+                  <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-emerald-500 rounded-full transition-colors
                               after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white
                               after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
                 </div>
@@ -208,40 +168,6 @@
               <div id="modal-main-profile-preview"
                    class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-mono text-gray-600 whitespace-pre-wrap min-h-[10rem]"></div>
               <p class="text-xs text-gray-400 mt-1">From Settings → Profile — edit there to change it</p>
-            </div>
-          </div>
-          <div>
-            <button type="button" onclick="toggleCollapsible('modal-industries-body', 'industries-chevron')"
-                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
-              <svg id="industries-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Preferred Industries <span class="text-gray-400 font-normal ml-1">(optional)</span>
-            </button>
-            <div id="modal-industries-body" class="hidden mt-1.5">
-              <textarea id="modal-industries" rows="2"
-                        placeholder="ride-hailing, food-tech, marketplaces, travel"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
-            </div>
-          </div>
-          <div>
-            <button type="button" onclick="toggleCollapsible('modal-other-expectations-body', 'other-expectations-chevron')"
-                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
-              <svg id="other-expectations-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Other Expectations <span class="text-gray-400 font-normal ml-1">(optional)</span>
-            </button>
-            <div id="modal-other-expectations-body" class="hidden mt-1.5">
-              <textarea id="modal-other-expectations" rows="2"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
-            </div>
-          </div>
-          <div>
-            <button type="button" onclick="toggleCollapsible('modal-scoring-criteria-body', 'scoring-criteria-chevron')"
-                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
-              <svg id="scoring-criteria-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Role Scoring Guide (0-100)
-            </button>
-            <div id="modal-scoring-criteria-body" class="hidden mt-1.5">
-              <textarea id="modal-scoring-criteria" rows="7"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
             </div>
           </div>
           <div>
@@ -289,6 +215,76 @@
                 </label>
                 <input type="text" id="disq-other-disqualifiers"
                        class="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
+              </div>
+            </div>
+          </div>
+          <div>
+            <button type="button" onclick="toggleCollapsible('modal-industries-body', 'industries-chevron')"
+                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
+              <svg id="industries-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              Preferred Industries <span class="text-gray-400 font-normal ml-1">(optional)</span>
+            </button>
+            <div id="modal-industries-body" class="hidden mt-1.5">
+              <textarea id="modal-industries" rows="2"
+                        placeholder="ride-hailing, food-tech, marketplaces, travel"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
+            </div>
+          </div>
+          <div>
+            <button type="button" onclick="toggleCollapsible('modal-other-expectations-body', 'other-expectations-chevron')"
+                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
+              <svg id="other-expectations-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              Other Expectations <span class="text-gray-400 font-normal ml-1">(optional)</span>
+            </button>
+            <div id="modal-other-expectations-body" class="hidden mt-1.5">
+              <textarea id="modal-other-expectations" rows="2"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
+            </div>
+          </div>
+          <div>
+            <button type="button" onclick="toggleCollapsible('modal-scoring-criteria-body', 'scoring-criteria-chevron')"
+                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
+              <svg id="scoring-criteria-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              Role Scoring Guide (0-100)
+            </button>
+            <div id="modal-scoring-criteria-body" class="hidden mt-1.5">
+              <textarea id="modal-scoring-criteria" rows="7"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
+            </div>
+          </div>
+          <div>
+            <button type="button" onclick="toggleCollapsible('modal-score-thresholds-body', 'score-thresholds-chevron')"
+                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
+              <svg id="score-thresholds-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              Score Thresholds
+            </button>
+            <div id="modal-score-thresholds-body" class="hidden mt-1.5">
+              <p class="text-xs text-gray-500 mb-2.5">Verdicts assigned based on the AI's 0–100 score for jobs in these locations.</p>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-1"></span><%= formatVerdictLabel('NO_MATCH') %> max
+                  </label>
+                  <input id="modal-no-match-max" type="number" min="0" max="99" value="50"
+                         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
+                  <p class="text-xs text-gray-400 mt-0.5">0–this → discarded</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    <span class="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1"></span><%= formatVerdictLabel('WEAK_MATCH') %> max
+                  </label>
+                  <input id="modal-weak-match-max" type="number" min="1" max="99" value="70"
+                         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
+                  <p class="text-xs text-gray-400 mt-0.5">stats only</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span><%= formatVerdictLabel('STRONG_MATCH') %> min
+                  </label>
+                  <input id="modal-strong-match-min" type="number" min="1" max="100" value="71"
+                         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
+                  <p class="text-xs text-gray-400 mt-0.5">this+ → stored</p>
+                </div>
               </div>
             </div>
           </div>

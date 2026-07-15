@@ -389,12 +389,13 @@ function openGroupModal(id) {
     document.querySelectorAll('.modal-work-mode').forEach(cb => { cb.checked = modes.includes(cb.value); });
   }
 
-  ['modal-title-filter-body', 'modal-score-thresholds-body', 'modal-industries-body', 'modal-other-expectations-body', 'modal-scoring-criteria-body'].forEach(bId => {
+  ['modal-score-thresholds-body', 'modal-industries-body', 'modal-other-expectations-body', 'modal-scoring-criteria-body'].forEach(bId => {
     document.getElementById(bId).classList.add('hidden');
   });
-  ['title-filter-chevron', 'score-thresholds-chevron', 'industries-chevron', 'other-expectations-chevron', 'scoring-criteria-chevron'].forEach(cId => {
+  ['score-thresholds-chevron', 'industries-chevron', 'other-expectations-chevron', 'scoring-criteria-chevron'].forEach(cId => {
     document.getElementById(cId).style.transform = '';
   });
+  document.getElementById('location-help-body').classList.add('hidden');
 
   _modalSnapshot = getModalValues();
   document.getElementById('modal-save-btn').disabled = true;
@@ -448,12 +449,14 @@ async function fetchLocationHints(locationsStr) {
   }
 }
 
-function toggleLocationHint() {
-  const body = document.getElementById('location-hint-body');
-  const chevron = document.getElementById('location-hint-chevron');
-  const hidden = body.classList.toggle('hidden');
-  chevron.style.transform = hidden ? '' : 'rotate(90deg)';
+function toggleLocationHelp() {
+  document.getElementById('location-help-body').classList.toggle('hidden');
 }
+document.addEventListener('click', (e) => {
+  const body = document.getElementById('location-help-body');
+  if (!body || body.classList.contains('hidden')) return;
+  if (!e.target.closest('#location-help-wrap')) body.classList.add('hidden');
+});
 
 function closeGroupModal() {
   document.getElementById('group-modal').classList.add('hidden');
@@ -466,8 +469,7 @@ function closeGroupModal() {
   modalBody.removeEventListener('change', updateModalSaveBtn);
   document.getElementById('modal-locations').removeEventListener('input', scheduleLocationHints);
   document.getElementById('location-warning').classList.add('hidden');
-  document.getElementById('location-hint-body').classList.add('hidden');
-  document.getElementById('location-hint-chevron').style.transform = '';
+  document.getElementById('location-help-body').classList.add('hidden');
 }
 
 function togglePromptPreview() {
