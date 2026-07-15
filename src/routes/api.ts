@@ -574,6 +574,10 @@ interface GroupBody {
   other_expectations: string;
   scoring_criteria: string;
   no_match_criteria: string;
+  disqualifiers: string;
+  hate_industries: string;
+  salary_expectation: string;
+  other_disqualifiers: string;
   title_filter: string;
   score_no_match_max: number;
   score_weak_match_max: number;
@@ -625,6 +629,10 @@ function parseGroupBody(body: unknown): GroupBody {
     other_expectations: String(b.other_expectations || ''),
     scoring_criteria: String(b.scoring_criteria || ''),
     no_match_criteria: String(b.no_match_criteria || ''),
+    disqualifiers: String(b.disqualifiers || ''),
+    hate_industries: String(b.hate_industries || ''),
+    salary_expectation: String(b.salary_expectation || ''),
+    other_disqualifiers: String(b.other_disqualifiers || ''),
     title_filter: String(b.title_filter || '').trim(),
     score_no_match_max: noMatchMax,
     score_weak_match_max: weakMatchMax,
@@ -672,8 +680,8 @@ router.post('/groups', (req: Request, res: Response) => {
     const now = new Date().toISOString();
 
     const result = db.prepare(`
-      INSERT INTO search_groups (profile_id, group_name, locations, keywords, job_type, work_modes, ai_system_prompt, profile_description, use_main_profile_description, industries_list, other_expectations, scoring_criteria, no_match_criteria, title_filter, score_no_match_max, score_weak_match_max, score_strong_match_min, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO search_groups (profile_id, group_name, locations, keywords, job_type, work_modes, ai_system_prompt, profile_description, use_main_profile_description, industries_list, other_expectations, scoring_criteria, no_match_criteria, disqualifiers, hate_industries, salary_expectation, other_disqualifiers, title_filter, score_no_match_max, score_weak_match_max, score_strong_match_min, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       profileId,
       body.group_name,
@@ -687,6 +695,10 @@ router.post('/groups', (req: Request, res: Response) => {
       body.other_expectations,
       body.scoring_criteria,
       body.no_match_criteria,
+      body.disqualifiers,
+      body.hate_industries,
+      body.salary_expectation,
+      body.other_disqualifiers,
       body.title_filter,
       body.score_no_match_max,
       body.score_weak_match_max,
@@ -727,6 +739,7 @@ router.put('/groups/:id', (req: Request, res: Response) => {
       SET group_name = ?, locations = ?, keywords = ?, job_type = ?, work_modes = ?,
           profile_description = ?, use_main_profile_description = ?, industries_list = ?, other_expectations = ?,
           scoring_criteria = ?, no_match_criteria = ?,
+          disqualifiers = ?, hate_industries = ?, salary_expectation = ?, other_disqualifiers = ?,
           title_filter = ?, score_no_match_max = ?, score_weak_match_max = ?, score_strong_match_min = ?, updated_at = ?
       WHERE id = ?
     `).run(
@@ -741,6 +754,10 @@ router.put('/groups/:id', (req: Request, res: Response) => {
       body.other_expectations,
       body.scoring_criteria,
       body.no_match_criteria,
+      body.disqualifiers,
+      body.hate_industries,
+      body.salary_expectation,
+      body.other_disqualifiers,
       body.title_filter,
       body.score_no_match_max,
       body.score_weak_match_max,

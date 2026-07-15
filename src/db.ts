@@ -1970,6 +1970,41 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_seed_macro_regions failed (non-fatal):', (err as Error).message);
   }
+
+  // v_disqualifier_checkboxes: structured disqualifier fields on search_groups + one-time backfill.
+  // Existing roles are reset to the standard checkbox set (Industry = "gambling, betting",
+  // Salary = "70k euro", Other off), and their no_match_criteria is regenerated to match.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(search_groups)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'disqualifiers')) {
+      db.exec(`ALTER TABLE search_groups ADD COLUMN disqualifiers TEXT NOT NULL DEFAULT ''`);
+      db.exec(`ALTER TABLE search_groups ADD COLUMN hate_industries TEXT NOT NULL DEFAULT ''`);
+      db.exec(`ALTER TABLE search_groups ADD COLUMN salary_expectation TEXT NOT NULL DEFAULT ''`);
+      db.exec(`ALTER TABLE search_groups ADD COLUMN other_disqualifiers TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_disqualifier_checkboxes: columns added');
+    }
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_disqualifier_checkboxes'`).get();
+    if (!done) {
+      const seededNoMatch = [
+        "job location isn't in one of the Preferred locations countries",
+        'job posting mostly written in any language besides the Preferred languages, or knowledge of any language besides the Preferred languages is stated as mandatory',
+        "current location isn't in one of the Preferred locations countries, and the job description explicitly says no visa or relocation help provided, and no remote work allowed",
+        'job is in one of these industries: gambling, betting',
+        "salary figures are stated and they are lower than 70k euro annually or the equivalent in another currency (if salary not mentioned, that's not a blocker)",
+        'job is a fixed-term contract',
+      ].join('\n');
+      const seededStates = '{"language":true,"relocation":true,"industry":true,"salary":true,"contract":true,"other":false}';
+      db.prepare(`
+        UPDATE search_groups
+        SET disqualifiers = ?, hate_industries = 'gambling, betting', salary_expectation = '70k euro',
+            other_disqualifiers = '', no_match_criteria = ?
+      `).run(seededStates, seededNoMatch);
+      db.exec(`INSERT INTO _migrations VALUES ('v_disqualifier_checkboxes')`);
+      console.log('[db] Migration v_disqualifier_checkboxes: existing roles backfilled');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_disqualifier_checkboxes failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -2561,6 +2596,10 @@ export interface SearchGroupRow {
   scoring_criteria: string;
   scoring_guide: string;
   no_match_criteria: string;
+  disqualifiers: string;     // JSON of toggleable checkbox states
+  hate_industries: string;
+  salary_expectation: string;
+  other_disqualifiers: string;
   is_active: number;         // 1 = active, 0 = inactive
   created_at: string;
   updated_at: string;

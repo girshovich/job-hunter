@@ -160,7 +160,7 @@ export function buildScoringSystemPrompt(group: SearchGroupRow, settings?: Setti
     group.scoring_criteria,
     '',
     'Absolute disqualifiers:',
-    group.no_match_criteria,
+    group.no_match_criteria.split('\n').map((line) => `- ${line}`).join('\n'),
     '',
     DEFAULT_TAIL_BLOCK,
   );
