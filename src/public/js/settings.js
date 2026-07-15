@@ -406,10 +406,10 @@ function openGroupModal(id) {
   modal.classList.remove('hidden');
   document.getElementById('modal-locations').focus();
 
-  // Lazily resolve locations → Indeed countries
+  // Lazily resolve locations to flag provider coverage gaps
   const locVal = document.getElementById('modal-locations').value.trim();
   if (locVal) fetchLocationHints(locVal);
-  else document.getElementById('indeed-location-hints').classList.add('hidden');
+  else document.getElementById('location-warning').classList.add('hidden');
 }
 
 let _locationHintTimer = null;
@@ -417,17 +417,14 @@ function scheduleLocationHints() {
   clearTimeout(_locationHintTimer);
   _locationHintTimer = setTimeout(() => {
     const val = document.getElementById('modal-locations').value.trim();
-    if (val) fetchLocationHints(val); else document.getElementById('indeed-location-hints').classList.add('hidden');
+    if (val) fetchLocationHints(val); else document.getElementById('location-warning').classList.add('hidden');
   }, 600);
 }
 
 async function fetchLocationHints(locationsStr) {
-  const hintsEl = document.getElementById('indeed-location-hints');
+  const warnEl = document.getElementById('location-warning');
   const locations = locationsStr.split(',').map(s => s.trim()).filter(Boolean);
-  if (!locations.length) { hintsEl.classList.add('hidden'); return; }
-
-  hintsEl.textContent = 'Resolving countries…';
-  hintsEl.classList.remove('hidden');
+  if (!locations.length) { warnEl.classList.add('hidden'); return; }
 
   try {
     const res = await fetch('/api/resolve-locations', {
@@ -437,29 +434,25 @@ async function fetchLocationHints(locationsStr) {
     });
     const data = await res.json();
 
-    // Indeed row
-    const indeedParts = locations.map(loc => {
-      const r = data[loc];
-      if (!r) return `<span class="text-gray-400">${loc} → ?</span>`;
-      if (r.code) return `<span class="text-gray-500">${loc} → <span class="font-medium text-gray-700">${r.countryName} (${r.code})</span></span>`;
-      return `<span class="text-amber-600">${loc} → not supported by Indeed</span>`;
-    });
+    // Warn only where a location resolves to a real country that Indeed doesn't cover.
+    const skipped = locations.filter(loc => { const r = data[loc]; return r && r.atsSupported && !r.code; });
+    if (!skipped.length) { warnEl.classList.add('hidden'); return; }
 
-    // Greenhouse / Ashby / Lever row (country-level keyword match)
-    const atsParts = locations.map(loc => {
-      const r = data[loc];
-      if (!r) return `<span class="text-gray-400">${loc} → ?</span>`;
-      if (r.atsSupported) return `<span class="text-gray-500">${loc} → <span class="font-medium text-gray-700">${r.countryName}</span></span>`;
-      return `<span class="text-amber-600">${loc} → country not resolved</span>`;
-    });
-
-    hintsEl.innerHTML =
-      '<div><span class="text-gray-400">Indeed: </span>' + indeedParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
-      '<div class="mt-0.5"><span class="text-gray-400">Greenhouse / Ashby / Lever: </span>' + atsParts.join('<span class="text-gray-300 mx-1">·</span>') + '</div>' +
-      '<div class="mt-0.5"><span class="text-gray-400">Telegram: </span><span class="text-amber-600">keeps target-country &amp; unknown-location jobs; drops known off-target (AI judges the rest)</span></div>';
+    const names = skipped.map(loc => `<strong>${loc}</strong>`).join(', ');
+    const verb = skipped.length === 1 ? "isn't" : "aren't";
+    const pron = skipped.length === 1 ? 'it' : 'they';
+    warnEl.innerHTML = `&#9888; ${names} ${verb} searched on Indeed &mdash; ${pron}'ll be skipped there.`;
+    warnEl.classList.remove('hidden');
   } catch (_) {
-    hintsEl.classList.add('hidden');
+    warnEl.classList.add('hidden');
   }
+}
+
+function toggleLocationHint() {
+  const body = document.getElementById('location-hint-body');
+  const chevron = document.getElementById('location-hint-chevron');
+  const hidden = body.classList.toggle('hidden');
+  chevron.style.transform = hidden ? '' : 'rotate(90deg)';
 }
 
 function closeGroupModal() {
@@ -472,7 +465,9 @@ function closeGroupModal() {
   modalBody.removeEventListener('input', updateModalSaveBtn);
   modalBody.removeEventListener('change', updateModalSaveBtn);
   document.getElementById('modal-locations').removeEventListener('input', scheduleLocationHints);
-  document.getElementById('indeed-location-hints').classList.add('hidden');
+  document.getElementById('location-warning').classList.add('hidden');
+  document.getElementById('location-hint-body').classList.add('hidden');
+  document.getElementById('location-hint-chevron').style.transform = '';
 }
 
 function togglePromptPreview() {

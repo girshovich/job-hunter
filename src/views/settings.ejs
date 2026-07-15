@@ -82,7 +82,17 @@
         <textarea id="modal-locations" rows="2"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="London, Spain"></textarea>
-        <div id="indeed-location-hints" class="hidden mt-1.5 text-xs text-gray-400 leading-relaxed"></div>
+        <div id="location-warning" class="hidden mt-1.5 text-xs text-amber-600 leading-relaxed"></div>
+        <button type="button" onclick="toggleLocationHint()"
+                class="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800">
+          <svg id="location-hint-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          How locations are used
+        </button>
+        <div id="location-hint-body" class="hidden mt-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 space-y-2">
+          <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-40">LinkedIn</span><span>searches your exact areas, unchanged.</span></div>
+          <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-40">Indeed &middot; Greenhouse &middot; Ashby &middot; Lever</span><span>searched by country.</span></div>
+          <div class="flex gap-2.5"><span class="font-medium text-gray-700 flex-none w-40">Telegram</span><span>keeps jobs in your target countries plus jobs with no stated location; the AI judges the rest.</span></div>
+        </div>
       </div>
 
       <div>
