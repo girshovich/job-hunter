@@ -28,13 +28,20 @@
     </div>
 
     <!-- CVs -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-      <div class="flex items-center justify-between mb-4">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+      <button type="button" onclick="togglePromptBlock('cvs-body', 'cvs-chevron')"
+              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
         <div>
-          <h2 class="text-base font-semibold text-gray-900">CVs</h2>
+          <h2 class="text-base font-semibold text-gray-900">CVs
+            <span class="ml-2 text-xs font-normal text-gray-400"><%= cvs ? cvs.length : 0 %></span>
+          </h2>
           <p class="text-xs text-gray-500 mt-0.5">Upload your CVs to use for job comparison. PDF, TXT, and MD files supported.</p>
         </div>
-      </div>
+        <svg id="cvs-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <div id="cvs-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6">
       <% if (cvs && cvs.length > 0) { %>
       <div class="space-y-2 mb-4">
         <% cvs.forEach(function(cv) { %>
@@ -50,9 +57,9 @@
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
             <a href="/settings/cvs/<%= cv.id %>/view" target="_blank"
-               class="text-xs text-blue-600 hover:text-blue-800 hover:underline">Open</a>
+               class="inline-flex items-center text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors">Open</a>
             <button type="button" onclick="deleteCV(<%= cv.id %>, this)"
-                    class="text-xs text-red-500 hover:text-red-700 hover:underline">Delete</button>
+                    class="inline-flex items-center text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-lg transition-colors">Delete</button>
           </div>
         </div>
         <% }); %>
@@ -69,6 +76,7 @@
           Upload
         </button>
       </form>
+      </div>
     </div>
 
     <!-- BLACKLISTED COMPANIES -->
