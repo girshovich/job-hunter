@@ -188,7 +188,7 @@ function runProviderName(run) {
                 <%- renderDateTimeCell(job.logged_at, timezone || 'UTC') %>
               </td>
               <td class="<%= getJobTableCellClass('source') %>">
-                <%- renderSourceLinkCell(job.url, job.job_source || 'LinkedIn') %>
+                <%- renderSourceLinkCell(job.apply_url || job.url, job.job_source || 'LinkedIn', 'Apply') %>
               </td>
             </tr>
             <% }); %>
@@ -225,7 +225,7 @@ function runProviderName(run) {
             </div>
             <div class="mt-2 flex items-start justify-between gap-3">
               <div class="min-w-0"><%- renderLocationCell(job.location) %></div>
-              <%- renderSourceLinkCell(job.url, job.job_source || 'LinkedIn') %>
+              <%- renderSourceLinkCell(job.apply_url || job.url, job.job_source || 'LinkedIn', 'Apply') %>
             </div>
           </div>
           <% }); %>
@@ -280,9 +280,9 @@ function logVerdictChip(verdict, rejectionCategory, editable) {
   return '<span class="' + base + ' ' + window.JHUI.getVerdictTone(verdict) + '">' + label + '</span>';
 }
 
-function sourceLinkHTML(url, source) {
+function sourceLinkHTML(url) {
   return url
-    ? '<a href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open ' + escHtml(source || 'Source') + '" aria-label="Open ' + escHtml(source || 'Source') + '" class="source-link-cell inline-flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M9 7h8v8"/></svg></a>'
+    ? '<a href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Apply" aria-label="Apply" class="source-link-cell inline-flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M9 7h8v8"/></svg></a>'
     : '<span class="text-gray-300 text-xs">\u2014</span>';
 }
 
@@ -319,7 +319,7 @@ function buildJobsHTML(jobs) {
           : logVerdictChip(job.ai_verdict, job.rejection_category, false))
       + '</td>'
       + '<td class="job-table-cell job-table-fixed"><span class="text-xs text-gray-500 whitespace-nowrap">' + escHtml(formatDateTimeToMinutes(job.logged_at)) + '</span></td>'
-      + '<td class="job-table-cell job-table-fixed">' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</td>'
+      + '<td class="job-table-cell job-table-fixed">' + sourceLinkHTML(job.apply_url || job.url) + '</td>'
       + '</tr>';
 
     mobileRows += '<div class="job-mobile-row job-mobile-card' + (target ? ' cursor-pointer' : '') + '"'
@@ -338,7 +338,7 @@ function buildJobsHTML(jobs) {
           ? '<button class="verdict-btn cursor-pointer" data-job-id="' + job.internal_job_id + '" data-log-id="' + job.id + '" data-verdict="' + job.ai_verdict + '" data-chip-style="compact">' + logVerdictChip(job.ai_verdict, job.rejection_category) + '</button>'
           : logVerdictChip(job.ai_verdict, job.rejection_category, false))
       + '</div></div>'
-      + '<div class="mt-2 flex items-start justify-between gap-3"><div class="min-w-0">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</div>' + sourceLinkHTML(job.url, job.job_source || 'LinkedIn') + '</div>'
+      + '<div class="mt-2 flex items-start justify-between gap-3"><div class="min-w-0">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</div>' + sourceLinkHTML(job.apply_url || job.url) + '</div>'
       + '</div>';
   });
 

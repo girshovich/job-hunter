@@ -279,10 +279,10 @@ export function renderDateTimeCell(value: unknown, timezone = 'UTC'): string {
   return `<span class="text-xs text-gray-500 whitespace-nowrap">${escapeHtml(formatDateTimeToMinutes(value, timezone))}</span>`;
 }
 
-export function renderSourceLinkCell(url: unknown, source: unknown = 'Source'): string {
+export function renderSourceLinkCell(url: unknown, source: unknown = 'Source', tooltip?: string): string {
   if (url == null || url === '') return '<span class="text-xs text-gray-300">—</span>';
-  const label = formatSourceLabel(source);
-  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open ${escapeHtml(label)}" aria-label="Open ${escapeHtml(label)}" class="source-link-cell inline-flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M9 7h8v8"/></svg></a>`;
+  const title = tooltip ?? `Open ${formatSourceLabel(source)}`;
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" class="source-link-cell inline-flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M9 7h8v8"/></svg></a>`;
 }
 
 export function renderJobListContainer(innerHtml: string): string {

@@ -45,6 +45,7 @@ interface JobLogWithInternalId extends RunJobLogRow {
   internal_job_id: number | null;
   job_source: string;
   resolved_country?: string | null;
+  apply_url?: string | null;
 }
 
 export interface FormattedJob {
@@ -57,6 +58,7 @@ export interface FormattedJob {
   country: string;
   flag: string;
   url: string | null;
+  apply_url: string | null;
   job_source: string;
   ai_score: number | null;
   ai_verdict: string;
@@ -90,6 +92,7 @@ function processJobs(logs: JobLogWithInternalId[], timezone: string): FormattedJ
       country: log.resolved_country || extractCountry(log.location),
       flag: countryToFlag(log.resolved_country || extractCountry(log.location) || null),
       url: log.url,
+      apply_url: log.apply_url ?? null,
       job_source: log.job_source || 'LinkedIn',
       ai_score: log.ai_score,
       ai_verdict: log.ai_verdict,
@@ -149,7 +152,7 @@ router.get('/', (req: Request, res: Response) => {
         // internal_job_id is ownership-based (job_profile_states): set only when THIS
         // profile owns the job, so detail links never 404. The jobs join is kept solely
         // for resolved_country (global pool data, available regardless of ownership).
-        `SELECT rjl.*, jps.job_id AS internal_job_id, j.country AS resolved_country
+        `SELECT rjl.*, jps.job_id AS internal_job_id, j.country AS resolved_country, j.apply_url AS apply_url
          FROM run_job_logs rjl
          LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
          LEFT JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?

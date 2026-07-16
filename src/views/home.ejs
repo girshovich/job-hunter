@@ -285,7 +285,7 @@ function verdictChip(verdict) {
             <div class="hidden md:flex items-center gap-2 flex-shrink-0">
               <button class="verdict-btn" data-job-id="<%= job.id %>" data-verdict="<%= job.is_duplicate ? 'DUPLICATE' : job.ai_verdict %>" data-chip-style="compact"><%- verdictChip(job.is_duplicate ? 'DUPLICATE' : job.ai_verdict) %></button>
               <%- renderScoreCell(job.ai_score) %>
-              <%- renderSourceLinkCell(job.url, job.job_source || 'LinkedIn') %>
+              <%- renderSourceLinkCell(job.apply_url || job.url, job.job_source || 'LinkedIn', 'Apply') %>
             </div>
             <div class="md:hidden flex-shrink-0"><%- renderScoreCell(job.ai_score) %></div>
           </div>

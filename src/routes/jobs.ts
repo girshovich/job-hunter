@@ -71,7 +71,7 @@ router.get('/', (req: Request, res: Response) => {
   `).get(profileId, profileId) as { c: number }).c;
 
   // Only the columns the jobs.ejs template actually reads
-  const COLS = `j.id, j.title, j.company, j.location, j.country, j.url, j.job_source,
+  const COLS = `j.id, j.title, j.company, j.location, j.country, j.url, j.apply_url, j.job_source,
                 jps.ai_score, jps.ai_verdict, jps.is_duplicate, jps.ai_summary,
                 jps.fetched_at, jps.applied, jps.user_notes,
                 c.logo_url`;
