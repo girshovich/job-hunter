@@ -506,7 +506,10 @@ function updatePromptPreview() {
     `Desired roles: ${desiredRoles}.`,
   ];
   if (industries) parts.push('', 'Preferred industries:', '', industries);
-  if (locations.length > 0) parts.push('', 'Preferred locations:', '', locations.join(', '));
+  if (locations.length > 0) {
+    parts.push('', 'Preferred locations:', '', locations.join(', '));
+    parts.push('', 'Preferred countries:', '', '{resolved from your locations at scoring time}');
+  }
   if (other) parts.push('', other);
   parts.push(
     '',

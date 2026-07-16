@@ -352,6 +352,35 @@ export function resolveCountriesFromCache(
 }
 
 /**
+ * Instant-only (no HTTP) resolution of preferred-location strings to display labels for
+ * the scoring prompt. Each input maps to its canonical country name, its canonical region
+ * label (regions are NOT expanded to members), or — when nothing recognizes it locally or in
+ * the location_country cache — the raw string unchanged. The result is de-duped
+ * (case-insensitive), preserving first-seen order. Never calls Nominatim.
+ */
+export function resolvePreferredLabels(locations: string[]): string[] {
+  ensureLocationData();
+  const db = getDb();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const loc of locations) {
+    const trimmed = loc.trim();
+    if (!trimmed) continue;
+    let label = lookupCountry(trimmed) ?? canonicalRegion(trimmed) ?? resolveLabelLocal(trimmed);
+    if (!label) {
+      const row = db.prepare<{ country: string }>(
+        `SELECT country FROM location_country WHERE location = ?`,
+      ).get(trimmed);
+      if (row?.country) label = row.country;
+    }
+    const final = label ?? trimmed;
+    const key = final.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); out.push(final); }
+  }
+  return out;
+}
+
+/**
  * A profile's preferred locations for display: the union of all its roles' search
  * locations resolved to a lowercased country set, plus its current_location. Used to
  * pick which of a multi-country job's labels leads the card + flag (§ display primary).

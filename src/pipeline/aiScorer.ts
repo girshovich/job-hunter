@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import pLimit from 'p-limit';
 import type { JobPosting } from './fetcher';
 import type { SettingsRow, SearchGroupRow } from '../db';
+import { resolvePreferredLabels } from './locationNormalizer';
 
 const SCORING_CONCURRENCY = Number(process.env.SCORING_CONCURRENCY) || 5;
 
@@ -141,6 +142,10 @@ export function buildScoringSystemPrompt(group: SearchGroupRow, settings?: Setti
   const locationList = JSON.parse(group.locations) as string[];
   if (locationList.length > 0) {
     parts.push('', 'Preferred locations:', '', locationList.join(', '));
+    const preferredCountries = resolvePreferredLabels(locationList);
+    if (preferredCountries.length > 0) {
+      parts.push('', 'Preferred countries:', '', preferredCountries.join(', '));
+    }
   }
 
   if (settings?.languages?.trim()) {
