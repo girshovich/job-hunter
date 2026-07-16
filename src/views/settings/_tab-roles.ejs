@@ -6,10 +6,9 @@
       <div class="flex items-center justify-between mb-4">
         <div>
           <h2 class="text-base font-semibold text-gray-900">
-            Roles
+            Roles you seek
             <span id="groups-count" class="ml-2 text-xs font-normal text-gray-400"><%= groups.length %> / 15</span>
           </h2>
-          <p class="text-xs text-gray-500 mt-0.5">Each role runs independently with its own keywords, filters, and AI prompt.</p>
         </div>
         <button id="add-group-btn" onclick="openGroupModal(null)"
                 <%= groups.length >= 15 ? 'disabled title="Maximum of 15 roles reached"' : '' %>

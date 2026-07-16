@@ -234,6 +234,7 @@ function updateGroupsHeader() {
 }
 
 function renderGroups() {
+  _pendingDeleteId = null;   // a rebuild disarms any half-confirmed delete
   updateGroupsHeader();
   const container = document.getElementById('groups-list');
   if (_groups.length === 0) {
@@ -253,60 +254,71 @@ function renderGroups() {
     return;
   }
 
-  container.innerHTML = _groups.map(g => {
+  container.innerHTML = _groups.map((g, i) => {
     const locs = JSON.parse(g.locations);
     const kws = JSON.parse(g.keywords);
     const modes = JSON.parse(g.work_modes);
-    const modesLabel = modes.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(', ');
     const isActive = g.is_active === 1 || g.is_active === true;
-    const kwsLabel = kws.slice(0, 2).map(escHtml).join(', ') + (kws.length > 2 ? ` +${kws.length - 2}` : '');
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    // Work mode only surfaces when it's a subset — all three modes is the common default.
+    const modeLabel = (modes.length && modes.length < 3)
+      ? ` <span class="font-normal text-gray-500">(${modes.map(cap).join(' · ')})</span>`
+      : '';
+    const nameCls = isActive ? 'text-gray-900' : 'text-gray-700';
+    const metaCls = isActive ? 'text-gray-600' : 'text-gray-400';
+    const badge = isActive
+      ? '<span class="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Active</span>'
+      : '<span class="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-100 text-gray-500"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Paused</span>';
+    const editBtn = `<button onclick="openGroupModal(${g.id})" class="text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors">Edit</button>`;
+    const deleteBtn = `<button data-del-id="${g.id}" onclick="confirmDelete(${g.id})" class="text-sm font-medium text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">Delete</button>`;
+    const kwText = kws.slice(0, 4).map(escHtml).join(', ') + (kws.length > 4 ? ` <span class="text-gray-400">+${kws.length - 4}</span>` : '');
+    const locText = locs.slice(0, 5).map(escHtml).join(', ') + (locs.length > 5 ? ` <span class="text-gray-400">+${locs.length - 5}</span>` : '');
+    const meta = [];
+    if (kws.length) meta.push(`<span title="${escHtml(kws.join(', '))}"><span class="uppercase text-xs font-semibold tracking-wide text-gray-400 mr-1.5">Keywords</span>${kwText}</span>`);
+    if (locs.length) meta.push(`<span class="basis-full" title="${escHtml(locs.join(', '))}"><span class="uppercase text-xs font-semibold tracking-wide text-gray-400 mr-1.5">Locations</span>${locText}</span>`);
 
     return `
-      <div class="group flex items-start justify-between gap-4 py-4 border-b border-gray-50 last:border-0 ${isActive ? '' : 'opacity-50'}">
-        <div class="min-w-0 flex-1">
-          ${g.group_name ? `<p class="text-xs font-semibold text-gray-600 mb-1.5">${escHtml(g.group_name)}</p>` : ''}
-          <p class="text-xs text-gray-400 mb-2" title="${escHtml(kws.join(', '))}">
-            <span class="font-semibold">Keywords:</span> ${kwsLabel}
-            · ${escHtml(modesLabel)}
-          </p>
-          <div class="flex flex-wrap gap-1.5">
-            ${locs.slice(0, 4).map(l => `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">${escHtml(l)}</span>`).join('')}
-            ${locs.length > 4 ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100" title="${escHtml(locs.slice(4).join(', '))}">+${locs.length - 4}</span>` : ''}
+      <div class="py-4 border-b border-gray-50 last:border-0">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="text-sm font-medium text-gray-400 tabular-nums">${i + 1}</span>
+            ${g.group_name ? `<span class="text-sm font-semibold ${nameCls}">${escHtml(g.group_name)}${modeLabel}</span>` : ''}
+            ${badge}
+          </div>
+          <div class="flex items-center gap-3 flex-shrink-0">
+            <label class="flex items-center cursor-pointer" title="${isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}">
+              <input type="checkbox" class="group-active-toggle sr-only" data-id="${g.id}" ${isActive ? 'checked' : ''}
+                     onchange="toggleGroupActive(${g.id}, this.checked, this)" />
+              <div class="relative w-10 h-5 rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-gray-300'}">
+                <div class="absolute top-0.5 ${isActive ? 'left-5' : 'left-0.5'} w-4 h-4 bg-white rounded-full shadow transition-all"></div>
+              </div>
+            </label>
+            <div class="hidden sm:flex items-center gap-2">${editBtn}${deleteBtn}</div>
           </div>
         </div>
-        <div class="flex items-center gap-3 flex-shrink-0">
-          <label class="flex items-center gap-1.5 cursor-pointer" title="${isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}">
-            <input type="checkbox" class="group-active-toggle sr-only" data-id="${g.id}" ${isActive ? 'checked' : ''}
-                   onchange="toggleGroupActive(${g.id}, this.checked, this)" />
-            <div class="relative w-8 h-4 rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-gray-300'}">
-              <div class="absolute top-0.5 ${isActive ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
-            </div>
-          </label>
-          <button onclick="openGroupModal(${g.id})"
-                  class="text-xs font-medium text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-3 py-1.5 rounded-lg transition-colors">
-            Edit
-          </button>
-          <button id="del-btn-${g.id}" onclick="confirmDelete(${g.id})"
-                  class="text-xs font-medium text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors">
-            Delete
-          </button>
-        </div>
+        <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs ${metaCls}">${meta.join('')}</div>
+        <div class="flex sm:hidden justify-end gap-2 mt-2.5">${editBtn}${deleteBtn}</div>
       </div>`;
   }).join('');
 }
 
+function setDeleteArmed(id, armed) {
+  document.querySelectorAll('[data-del-id="' + id + '"]').forEach(btn => {
+    btn.textContent = armed ? 'Confirm?' : 'Delete';
+    btn.classList.toggle('bg-red-50', armed);
+  });
+}
+
 function confirmDelete(id) {
   if (_pendingDeleteId !== null && _pendingDeleteId !== id) {
-    const prev = document.getElementById('del-btn-' + _pendingDeleteId);
-    if (prev) { prev.textContent = 'Delete'; prev.classList.remove('text-red-600', 'bg-red-50', 'border-red-200'); prev.classList.add('text-gray-400', 'bg-gray-50', 'border-gray-200'); }
+    setDeleteArmed(_pendingDeleteId, false);
   }
   if (_pendingDeleteId === id) {
     deleteGroup(id);
     _pendingDeleteId = null;
   } else {
     _pendingDeleteId = id;
-    const btn = document.getElementById('del-btn-' + id);
-    if (btn) { btn.textContent = 'Confirm?'; btn.classList.remove('text-gray-400', 'bg-gray-50', 'border-gray-200'); btn.classList.add('text-red-600', 'bg-red-50', 'border-red-200'); }
+    setDeleteArmed(id, true);
   }
 }
 
