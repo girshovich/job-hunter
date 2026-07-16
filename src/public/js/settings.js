@@ -818,6 +818,7 @@ let _activeTab = 'profile';
 let _formSnapshots = {};
 let _pendingTabSwitch = null;
 let _pendingNav = null;  // destination URL for a sidebar/nav click deferred by the unsaved guard
+let _pendingClose = null;  // set when the AI-prompts modal is closed while a prompt is dirty
 
 function promptUnsaved() {
   document.getElementById('unsaved-tab-name').textContent = _activeTab === 'profile' ? 'Profile' : 'AI Setup';
@@ -970,6 +971,7 @@ async function unsavedSave() {
       const ok = await submitAiBlock(document.getElementById(formId));
       if (!ok) return;  // stay on the tab so the user can fix the error
     }
+    if (_pendingClose) { _pendingClose = null; closePromptsModal(); return; }
     if (_pendingNav) { const url = _pendingNav; _pendingNav = null; window.location.href = url; return; }
     const target = _pendingTabSwitch;
     _pendingTabSwitch = null;
@@ -995,6 +997,7 @@ function unsavedDiscard() {
     if (saveBtn) saveBtn.disabled = true;
   });
   if (_activeTab === 'ai' && window.syncKeyMode) window.syncKeyMode();
+  if (_pendingClose) { _pendingClose = null; closePromptsModal(); return; }
   if (_pendingNav) { const url = _pendingNav; _pendingNav = null; window.location.href = url; return; }
   const target = _pendingTabSwitch;
   _pendingTabSwitch = null;
@@ -1005,6 +1008,40 @@ function unsavedCancel() {
   document.getElementById('unsaved-modal').classList.add('hidden');
   _pendingTabSwitch = null;
   _pendingNav = null;
+  _pendingClose = null;
+}
+
+// ---- AI Prompts modal (master-detail; panels reuse the AI-block forms, save + dirty tracking) ----
+const PROMPT_FORMS = ['ai-scoring-form', 'ai-dedup-form', 'ai-cv-form'];
+
+function selectPrompt(i, drill) {
+  document.querySelectorAll('#prompts-modal .pm-item').forEach(el =>
+    el.classList.toggle('pm-item-active', Number(el.dataset.pi) === i));
+  document.querySelectorAll('#prompts-modal .pm-panel').forEach(el =>
+    el.classList.toggle('pm-show', Number(el.dataset.pi) === i));
+  if (drill) document.getElementById('prompts-modal').classList.add('pm-detail');
+}
+
+function pickPrompt(i) { selectPrompt(i, true); }
+function backPrompts() { document.getElementById('prompts-modal').classList.remove('pm-detail'); }
+
+function openPromptsModal() {
+  const m = document.getElementById('prompts-modal');
+  m.classList.remove('pm-detail');   // start on the list (mobile); desktop shows both
+  selectPrompt(0, false);
+  m.classList.remove('hidden');
+}
+
+function closePromptsModal() {
+  const m = document.getElementById('prompts-modal');
+  m.classList.add('hidden');
+  m.classList.remove('pm-detail');
+}
+
+// Closing with unsaved prompt edits routes through the same unsaved-changes dialog as a tab switch.
+function tryClosePromptsModal() {
+  if (PROMPT_FORMS.some(isFormIdDirty)) { _pendingClose = true; promptUnsaved(); }
+  else closePromptsModal();
 }
 
 // ---- Initialisation (called from settings.ejs with the server-side activeTab value) ----

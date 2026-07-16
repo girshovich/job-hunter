@@ -168,21 +168,84 @@
       </div>
     </form>
 
-    <!-- SCORING & SUMMARY AI PROMPT -->
-    <form id="ai-scoring-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
-          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <input type="hidden" name="tab" value="ai">
-      <button type="button" onclick="togglePromptBlock('scoring-prompt-body', 'scoring-prompt-chevron')"
-              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
-        <div>
-          <h2 class="text-base font-semibold text-gray-900">Scoring &amp; Summary AI Prompt</h2>
-          <p class="text-xs text-gray-500 mt-0.5">One call per new job — rates it 0–100, assigns a verdict + rationale, and generates a summary for Strong Matches.</p>
+    <!-- CUSTOMIZE AI PROMPTS -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div class="flex items-center gap-4 px-6 py-4">
+        <div class="flex-1 min-w-0">
+          <h2 class="text-base font-semibold text-gray-900">Customize AI prompts</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Scoring, duplicate checks, CV comparison — 4 advanced prompts.</p>
         </div>
-        <svg id="scoring-prompt-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
-      <div id="scoring-prompt-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6 space-y-3">
+        <button type="button" onclick="openPromptsModal()"
+                class="inline-flex items-center justify-center gap-1.5 min-w-[5.5rem] text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9h18"/></svg>
+          Open
+        </button>
+      </div>
+    </div>
+
+    <style>
+      #prompts-modal .pm-panel { display: none; }
+      #prompts-modal .pm-panel.pm-show { display: flex; }
+      #prompts-modal .pm-item.pm-item-active { background: #fff; border-color: #e5e7eb; box-shadow: 0 1px 2px rgba(17,24,39,.05); }
+      #prompts-modal .pm-item.pm-item-active .pm-item-title { color: #2563eb; }
+      #prompts-modal .pm-back { display: none; }
+      @media (max-width: 639px) {
+        #prompts-modal.pm-detail .pm-list { display: none; }
+        #prompts-modal:not(.pm-detail) .pm-editor { display: none; }
+        #prompts-modal .pm-back { display: inline-flex; }
+      }
+    </style>
+
+    <!-- ==================== AI PROMPTS MODAL ==================== -->
+    <div id="prompts-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="tryClosePromptsModal()"></div>
+      <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[90vh] flex flex-col overflow-hidden">
+
+        <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <h2 class="font-semibold text-gray-900 text-base">Customize AI prompts</h2>
+          <button type="button" onclick="tryClosePromptsModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Close">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="flex-1 min-h-0 flex">
+          <!-- list -->
+          <div class="pm-list w-full sm:w-52 flex-none sm:border-r border-gray-100 bg-gray-50 p-2 overflow-y-auto flex flex-col gap-1">
+            <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="0" onclick="pickPrompt(0)">
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+              <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Scoring &amp; Summary</span><span class="block text-[11px] text-gray-500 mt-0.5">Rates new jobs 0-100</span></span>
+            </button>
+            <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="1" onclick="pickPrompt(1)">
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+              <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">De-dup Candidates</span><span class="block text-[11px] text-gray-500 mt-0.5">Titles-only pre-filter</span></span>
+            </button>
+            <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="2" onclick="pickPrompt(2)">
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+              <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Duplicate Check</span><span class="block text-[11px] text-gray-500 mt-0.5">Detects reposts</span></span>
+            </button>
+            <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="3" onclick="pickPrompt(3)">
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">4</span>
+              <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">CV Comparison</span><span class="block text-[11px] text-gray-500 mt-0.5">CV vs. job description</span></span>
+            </button>
+          </div>
+
+          <!-- editor -->
+          <div class="pm-editor flex-1 min-w-0 flex flex-col">
+
+            <!-- SCORING & SUMMARY PANEL -->
+            <form id="ai-scoring-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+                  class="pm-panel pm-show flex-col h-full" data-pi="0">
+              <input type="hidden" name="tab" value="ai">
+              <div class="pm-head flex items-start gap-2 px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+                <button type="button" class="pm-back items-center text-blue-600 mt-0.5" onclick="backPrompts()" aria-label="Back">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-900">Scoring &amp; Summary</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">One call per new job — rates it 0–100, assigns a verdict + rationale, and generates a summary for Strong Matches.</p>
+                </div>
+              </div>
+              <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
 
         <div>
           <div class="flex items-center gap-2 mb-1.5">
@@ -303,57 +366,52 @@ For summary: if score is >70 —</pre>
 }</pre>
         </div>
 
-        <div class="flex items-center gap-3 pt-2">
-          <button type="submit" id="ai-scoring-save-btn" disabled
-                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            Save
-          </button>
-          <p class="text-xs hidden" data-save-status></p>
-        </div>
+              </div>
+              <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
+                <p class="text-xs hidden" data-save-status></p>
+                <button type="submit" id="ai-scoring-save-btn" disabled
+                        class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                  Save
+                </button>
+              </div>
+            </form>
 
-      </div>
-    </form>
+            <!-- DE-DUP CANDIDATES PANEL (read-only) -->
+            <div class="pm-panel flex-col h-full" data-pi="1">
+              <div class="pm-head flex items-start gap-2 px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+                <button type="button" class="pm-back items-center text-blue-600 mt-0.5" onclick="backPrompts()" aria-label="Back">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-900">De-dup Candidates</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">Titles-only pass — narrows duplicate candidates before the full dedup check. Uses the easy tasks model.</p>
+                </div>
+              </div>
+              <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
+                <div class="flex items-center gap-2 mb-1">
+                  <p class="text-xs font-medium text-gray-600">System prompt</p>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Easy model</span>
+                </div>
+                <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed">You are a job deduplication pre-filter. Given a new job title and a list of existing job titles from the same company, return the IDs of any existing jobs that could plausibly be the same role — same seniority, same domain, same scope. Be liberal: include anything that might be a duplicate. Return only the IDs.</pre>
+              </div>
+            </div>
 
-    <!-- DEDUP PRE-ASSESSMENT (read-only — nothing to save) -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <button type="button" onclick="togglePromptBlock('dedup-preassess-body', 'dedup-preassess-chevron')"
-              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
-        <div class="flex items-center gap-3">
-          <div>
-            <h2 class="text-base font-semibold text-gray-900">Dedup Pre-Assessment</h2>
-            <p class="text-xs text-gray-500 mt-0.5">Titles-only pass — narrows duplicate candidates before the full dedup check. Uses the easy tasks model.</p>
-          </div>
-        </div>
-        <svg id="dedup-preassess-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
-      <div id="dedup-preassess-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6 space-y-3">
-        <div class="flex items-center gap-2 mb-1">
-          <p class="text-xs font-medium text-gray-600">System prompt</p>
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Easy model</span>
-        </div>
-        <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed">You are a job deduplication pre-filter. Given a new job title and a list of existing job titles from the same company, return the IDs of any existing jobs that could plausibly be the same role — same seniority, same domain, same scope. Be liberal: include anything that might be a duplicate. Return only the IDs.</pre>
-      </div>
-    </div>
-
-    <!-- DUPLICATE CHECK AI PROMPT -->
-    <form id="ai-dedup-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
-          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <input type="hidden" name="tab" value="ai">
-      <button type="button" onclick="togglePromptBlock('dedup-prompt-body', 'dedup-prompt-chevron')"
-              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
-        <div>
-          <h2 class="text-base font-semibold text-gray-900">Duplicate Check AI Prompt</h2>
-          <p class="text-xs text-gray-500 mt-0.5">Only runs for Strong Matches when the same company + title already exists in the DB — detects if the job is a repost. Uses the hard tasks model.</p>
-        </div>
-        <svg id="dedup-prompt-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
-      <div id="dedup-prompt-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6 space-y-3">
+            <!-- DUPLICATE CHECK PANEL -->
+            <form id="ai-dedup-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+                  class="pm-panel flex-col h-full" data-pi="2">
+              <input type="hidden" name="tab" value="ai">
+              <div class="pm-head flex items-start gap-2 px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+                <button type="button" class="pm-back items-center text-blue-600 mt-0.5" onclick="backPrompts()" aria-label="Back">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-900">Duplicate Check</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">Only runs for Strong Matches when the same company + title already exists in the DB — detects if the job is a repost. Uses the hard tasks model.</p>
+                </div>
+              </div>
+              <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
         <p class="text-xs font-medium text-gray-600 mb-2">System prompt <span class="text-gray-400 font-normal">— parts assembled in order:</span></p>
         <div class="space-y-1.5">
           <div>
@@ -401,48 +459,52 @@ Description: {description — up to 1,500 chars each}
 }</pre>
           </div>
         </div>
-        <div class="flex items-center gap-3 pt-2">
-          <button type="submit" id="ai-dedup-save-btn" disabled
-                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            Save
-          </button>
-          <p class="text-xs hidden" data-save-status></p>
-        </div>
-      </div>
-    </form>
+              </div>
+              <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
+                <p class="text-xs hidden" data-save-status></p>
+                <button type="submit" id="ai-dedup-save-btn" disabled
+                        class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                  Save
+                </button>
+              </div>
+            </form>
 
-    <!-- CV COMPARISON AI PROMPT -->
-    <form id="ai-cv-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
-          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <input type="hidden" name="tab" value="ai">
-      <button type="button" onclick="togglePromptBlock('cv-prompt-body', 'cv-prompt-chevron')"
-              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
-        <div>
-          <h2 class="text-base font-semibold text-gray-900">CV Comparison AI Prompt</h2>
-          <p class="text-xs text-gray-500 mt-0.5">On-demand — triggered manually from a job detail page. Compares your CV against the job description and answers your questions.</p>
-        </div>
-        <svg id="cv-prompt-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
-      <div id="cv-prompt-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6">
+            <!-- CV COMPARISON PANEL -->
+            <form id="ai-cv-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
+                  class="pm-panel flex-col h-full" data-pi="3">
+              <input type="hidden" name="tab" value="ai">
+              <div class="pm-head flex items-start gap-2 px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+                <button type="button" class="pm-back items-center text-blue-600 mt-0.5" onclick="backPrompts()" aria-label="Back">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-900">CV Comparison</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">On-demand — triggered manually from a job detail page. Compares your CV against the job description and answers your questions.</p>
+                </div>
+              </div>
+              <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4">
         <div class="flex items-center gap-2 mb-1.5">
           <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Editable</span>
           <span class="text-xs text-gray-500">Prompt sent along with your CV and the job description</span>
         </div>
         <textarea name="cv_comparison_prompt" rows="7" required
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.cv_comparison_prompt %></textarea>
-        <div class="flex items-center gap-3 mt-3">
-          <button type="submit" id="ai-cv-save-btn" disabled
-                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            Save
-          </button>
-          <p class="text-xs hidden" data-save-status></p>
-        </div>
-      </div>
-    </form>
+              </div>
+              <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
+                <p class="text-xs hidden" data-save-status></p>
+                <button type="submit" id="ai-cv-save-btn" disabled
+                        class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                  Save
+                </button>
+              </div>
+            </form>
+
+          </div><!-- /pm-editor -->
+        </div><!-- /master-detail body -->
+      </div><!-- /modal card -->
+    </div><!-- /prompts-modal -->
 
     <!-- TOP-UP REQUEST MODAL -->
     <div id="topup-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
