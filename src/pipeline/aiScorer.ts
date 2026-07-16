@@ -80,13 +80,21 @@ const BOILERPLATE_PATTERNS: RegExp[] = [
   /(?:^|\n)about (us|the company)\s*[:\n]/im,
 ];
 
+const BOILERPLATE_LEADING_WINDOW = 600;
+
 function trimBoilerplate(text: string): string {
   let cutAt = text.length;
   for (const pattern of BOILERPLATE_PATTERNS) {
     const match = pattern.exec(text);
-    if (match && match.index < cutAt) {
+    // Ignore matches inside the leading window — the opening "About us" blurb
+    // and early headers are content (company/industry signal), not trailing boilerplate.
+    if (match && match.index >= BOILERPLATE_LEADING_WINDOW && match.index < cutAt) {
       cutAt = match.index;
     }
+  }
+  // Safety floor: if trimming would leave too little, keep the full text.
+  if (cutAt < 300 || cutAt < text.length * 0.3) {
+    return text.trimEnd();
   }
   return text.substring(0, cutAt).trimEnd();
 }
