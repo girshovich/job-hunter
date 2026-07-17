@@ -14,7 +14,9 @@ function cleanCompanyName(value: string | null | undefined): string | null {
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned) return null;
-  return cleaned.replace(/\s+Jobs$/i, '').trim() || null;
+  const name = cleaned.replace(/\s+Jobs$/i, '').trim();
+  if (!name || /^jobs$/i.test(name)) return null;
+  return name;
 }
 
 function decodedSlugFallback(slug: string): string | null {
