@@ -11,8 +11,8 @@
 
       <!-- Login email -->
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Login email</label>
-        <input type="email" name="profile_email" value="<%= profileEmail %>"
+        <label class="block text-xs font-medium text-gray-600 mb-1">Login email <span class="text-red-500">*</span></label>
+        <input type="email" name="profile_email" value="<%= profileEmail %>" required
                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
         <% if (pendingEmailChange) { %>
         <div class="mt-2 flex items-start gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -97,8 +97,8 @@
 
     <!-- Profile description -->
     <div class="mt-6">
-      <label class="block text-xs font-medium text-gray-600 mb-1">Profile description to match with jobs</label>
-      <textarea name="profile_description" rows="7"
+      <label class="block text-xs font-medium text-gray-600 mb-1">Profile description to match with jobs <span class="text-red-500">*</span></label>
+      <textarea name="profile_description" rows="7" required
                 placeholder="A senior product professional with 6+ years of product management and leadership in customer support products in a large classifieds, and 3 years as head of sellers support operations (B2B) at a large marketplace. Overall 13 years in e-commerce and customer service industries. Built help center, multi-channel CRM, automated support, some AI features, and moderation tools. Made a strategy, got board-level funding, grew the teams from 0 to 9 PMs and 3 Group PMs, and got tangible business impact on cost savings."
                 class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.profile_description || '' %></textarea>
       <p class="text-xs text-gray-400 mt-1.5 leading-snug">Roles can inherit this instead of having their own.</p>

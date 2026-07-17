@@ -338,7 +338,7 @@ For summary: if score is >70 —</pre>
             <div>
               <div class="flex items-center gap-2 mb-1.5">
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Editable</span>
-                <span class="text-xs text-gray-500">Your summary instructions (injected for Strong Matches)</span>
+                <span class="text-xs text-gray-500">Your summary instructions (injected for Strong Matches) <span class="text-red-500">*</span></span>
               </div>
               <textarea name="summary_prompt" rows="2" required
                         class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.summary_prompt %></textarea>
@@ -417,7 +417,7 @@ For summary: if score is >70 —</pre>
           <div>
             <div class="flex items-center gap-2 mb-1.5">
               <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Editable</span>
-              <span class="text-xs text-gray-500">Your dedup instructions</span>
+              <span class="text-xs text-gray-500">Your dedup instructions <span class="text-red-500">*</span></span>
             </div>
             <textarea name="dedup_system_prompt" rows="4" required
                       class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.dedup_system_prompt %></textarea>
@@ -486,7 +486,7 @@ Description: {description — up to 1,500 chars each}
               <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4">
         <div class="flex items-center gap-2 mb-1.5">
           <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Editable</span>
-          <span class="text-xs text-gray-500">Prompt sent along with your CV and the job description</span>
+          <span class="text-xs text-gray-500">Prompt sent along with your CV and the job description <span class="text-red-500">*</span></span>
         </div>
         <textarea name="cv_comparison_prompt" rows="7" required
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.cv_comparison_prompt %></textarea>

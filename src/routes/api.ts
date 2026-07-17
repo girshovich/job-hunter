@@ -599,13 +599,17 @@ function parseGroupBody(body: unknown): GroupBody {
     .map((w: unknown) => String(w).trim())
     .filter(Boolean);
 
-  const noMatchMax   = parseInt(String(b.score_no_match_max   ?? 50), 10);
-  const weakMatchMax = parseInt(String(b.score_weak_match_max ?? 70), 10);
-  const strongMin    = parseInt(String(b.score_strong_match_min ?? 71), 10);
+  const noMatchMax   = parseInt(String(b.score_no_match_max), 10);
+  const weakMatchMax = parseInt(String(b.score_weak_match_max), 10);
+  const strongMin    = parseInt(String(b.score_strong_match_min), 10);
+
+  const useMainProfile = (b.use_main_profile_description === 1 || b.use_main_profile_description === true || b.use_main_profile_description === '1') ? 1 : 0;
 
   if (locations.length === 0) throw new Error('At least one location is required.');
   if (keywords.length === 0)  throw new Error('At least one keyword is required.');
-  if (workModes.length === 0) throw new Error('At least one work mode is required.');
+  if (!useMainProfile && !String(b.profile_description || '').trim()) throw new Error('A profile description is required.');
+  if (!String(b.scoring_criteria || '').trim()) throw new Error('A role scoring guide is required.');
+  if (!String(b.no_match_criteria || '').trim()) throw new Error('At least one rejection rule is required.');
   if (
     isNaN(noMatchMax) || isNaN(weakMatchMax) || isNaN(strongMin) ||
     noMatchMax < 0 || noMatchMax > 99 ||
@@ -624,7 +628,7 @@ function parseGroupBody(body: unknown): GroupBody {
     job_type: String(b.job_type || 'fullTime'),
     work_modes: workModes,
     profile_description: String(b.profile_description || ''),
-    use_main_profile_description: (b.use_main_profile_description === 1 || b.use_main_profile_description === true || b.use_main_profile_description === '1') ? 1 : 0,
+    use_main_profile_description: useMainProfile,
     industries_list: String(b.industries_list || ''),
     other_expectations: String(b.other_expectations || ''),
     scoring_criteria: String(b.scoring_criteria || ''),

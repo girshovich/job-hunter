@@ -54,7 +54,16 @@ function applyDisqualifiers(states, hate, salary, other) {
   document.getElementById('disq-hate-industries').value = hate || '';
   document.getElementById('disq-salary-expectation').value = salary || '';
   document.getElementById('disq-other-disqualifiers').value = other || '';
+  document.getElementById('disq-dependency-msg').classList.add('hidden');
   syncDisqualifierFields();
+}
+
+// New roles shouldn't default a dependent rule to ON when its Profile field is missing, or it
+// starts in an unsaveable state. Existing roles keep their saved state (guarded at save time instead).
+function untickMissingDependencies() {
+  for (const id of ['disq-relocation', 'disq-language']) {
+    if (disqDependencyError(id)) document.getElementById(id).checked = false;
+  }
 }
 
 // Each field is disabled until its checkbox is on.
@@ -364,6 +373,7 @@ function openGroupModal(id) {
     document.getElementById('modal-scoring-criteria').value = tpl ? (tpl.scoring_criteria || _DEFAULT_SCORING_CRITERIA) : _DEFAULT_SCORING_CRITERIA;
     if (tpl) applyDisqualifiers(parseDisqualifierStates(tpl.disqualifiers), tpl.hate_industries, tpl.salary_expectation, tpl.other_disqualifiers);
     else applyDisqualifiers(_DEFAULT_DISQUALIFIER_STATES, '', '', '');
+    untickMissingDependencies();
     document.getElementById('modal-no-match-max').value = '50';
     document.getElementById('modal-weak-match-max').value = '70';
     document.getElementById('modal-strong-match-min').value = '71';
@@ -541,6 +551,70 @@ function updatePromptPreview() {
   document.getElementById('prompt-preview').textContent = parts.join('\n');
 }
 
+// Some rejection rules depend on a Profile field being set. Returns an error message
+// when the given disqualifier can't work with the current profile, or '' when it's fine.
+function disqDependencyError(id) {
+  if (id === 'disq-relocation' && !(window._currentLocation || '').trim())
+    return 'Set your current country on the Profile page to use "No visa or remote".';
+  if (id === 'disq-language' && !(window._languages || '').trim())
+    return 'Set your languages on the Profile page to use "Wrong language".';
+  return '';
+}
+
+// Block ticking a dependent rejection rule when its Profile field is missing.
+function checkDisqDependency(cb) {
+  const msgEl = document.getElementById('disq-dependency-msg');
+  if (!cb.checked) { msgEl.classList.add('hidden'); return; }
+  const msg = disqDependencyError(cb.id);
+  if (msg) {
+    cb.checked = false;
+    msgEl.textContent = msg;
+    msgEl.classList.remove('hidden');
+  } else {
+    msgEl.classList.add('hidden');
+  }
+}
+
+// Client-side required-field checks, mirroring the server guards in parseGroupBody.
+// Returns the first problem (top-to-bottom) or null when everything is valid.
+function firstModalProblem(v) {
+  if (v.locations.length === 0)
+    return { message: 'Add at least one location.', focus: 'modal-locations' };
+  if (v.keywords.length === 0)
+    return { message: 'Add at least one search keyword.', focus: 'modal-keywords' };
+
+  const mainProfile = (window._mainProfileDescription || '').trim();
+  const effectiveProfile = (v.useMainProfile && mainProfile) ? mainProfile : v.profileDescription;
+  if (!effectiveProfile)
+    return v.useMainProfile
+      ? { message: 'Set a profile description in Settings → Profile, or turn off "Use main profile" and add one here.', focus: 'modal-use-main-profile' }
+      : { message: 'Add a profile description.', focus: 'modal-profile-description' };
+
+  if (!v.scoringCriteria)
+    return { message: 'Add a role scoring guide.', focus: 'modal-scoring-criteria', expand: ['modal-scoring-criteria-body', 'scoring-criteria-chevron'] };
+
+  if (
+    !Number.isInteger(v.noMatchMax) || !Number.isInteger(v.weakMatchMax) || !Number.isInteger(v.strongMatchMin) ||
+    v.noMatchMax < 0 || v.noMatchMax > 99 ||
+    v.weakMatchMax <= v.noMatchMax || v.weakMatchMax > 99 ||
+    v.strongMatchMin !== v.weakMatchMax + 1
+  )
+    return { message: 'Score thresholds must be whole numbers (0–100): no-match < weak-match ≤ 99, and strong-match = weak-match + 1.', focus: 'modal-no-match-max', expand: ['modal-score-thresholds-body', 'score-thresholds-chevron'] };
+
+  if (!v.noMatchCriteria.trim())
+    return { message: 'Enable at least one rejection rule.', focus: 'disq-language' };
+
+  for (const id of ['disq-relocation', 'disq-language']) {
+    const cb = document.getElementById(id);
+    if (cb && cb.checked) {
+      const msg = disqDependencyError(id);
+      if (msg) return { message: msg, focus: id };
+    }
+  }
+
+  return null;
+}
+
 async function saveGroup() {
   const saveBtn = document.getElementById('modal-save-btn');
   const saveLabel = document.getElementById('modal-save-label');
@@ -562,6 +636,23 @@ async function saveGroup() {
   const noMatchMax    = parseInt(document.getElementById('modal-no-match-max').value, 10);
   const weakMatchMax  = parseInt(document.getElementById('modal-weak-match-max').value, 10);
   const strongMatchMin = parseInt(document.getElementById('modal-strong-match-min').value, 10);
+
+  const problem = firstModalProblem({
+    locations, keywords, useMainProfile, profileDescription,
+    scoringCriteria, noMatchCriteria, noMatchMax, weakMatchMax, strongMatchMin,
+  });
+  if (problem) {
+    if (problem.expand) {
+      const [bodyId, chevronId] = problem.expand;
+      if (document.getElementById(bodyId).classList.contains('hidden')) toggleCollapsible(bodyId, chevronId);
+    }
+    errEl.textContent = problem.message;
+    errEl.classList.remove('hidden');
+    const el = document.getElementById(problem.focus);
+    if (el) el.focus({ preventScroll: true });
+    errEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return;
+  }
 
   const body = {
     group_name: groupName, locations, keywords, title_filter: titleFilter,
