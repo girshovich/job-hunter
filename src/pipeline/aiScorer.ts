@@ -169,7 +169,13 @@ export function buildScoringSystemPrompt(group: SearchGroupRow, settings?: Setti
     group.scoring_criteria,
     '',
     'Absolute disqualifiers:',
-    group.no_match_criteria.split('\n').map((line) => `- ${line}`).join('\n'),
+    [
+      ...group.no_match_criteria.split('\n'),
+      // The language rule is derived from the profile: reject whenever languages are set.
+      ...(settings?.languages?.trim()
+        ? ['job posting mostly written in any language besides the Preferred languages, or knowledge of any language besides the Preferred languages is stated as mandatory']
+        : []),
+    ].map((line) => `- ${line}`).join('\n'),
     '',
     DEFAULT_TAIL_BLOCK,
   );

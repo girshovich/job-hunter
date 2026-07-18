@@ -9,11 +9,13 @@ const _DEFAULT_SCORING_CRITERIA = [
 
 // ---- Absolute disqualifiers ----
 
-const _DISQUALIFIER_KEYS = ['language', 'relocation', 'industry', 'salary', 'contract', 'other'];
-const _DEFAULT_DISQUALIFIER_STATES = { language: true, relocation: true, industry: false, salary: false, contract: true, other: false };
+const _DISQUALIFIER_KEYS = ['relocation', 'salary', 'other'];
+const _DEFAULT_DISQUALIFIER_STATES = { relocation: true, salary: false, other: false };
 
 // Full prompt sentence per checkbox. Text-bearing ones return '' when their field is empty,
-// so they're skipped even while checked. 'country' is always on.
+// so they're skipped even while checked. 'country' is always on. 'language' is derived from the
+// Profile languages field (injected scorer-side; shown in the preview only), 'industry' from the
+// Unwanted-industries field being non-empty, 'contract' from the Job Type selection.
 function disqualifierFragments() {
   const hate = document.getElementById('disq-hate-industries').value.trim();
   const salary = document.getElementById('disq-salary-expectation').value.trim();
@@ -24,9 +26,18 @@ function disqualifierFragments() {
     relocation: "current location isn't in one of the Preferred locations countries, and the job description explicitly says no visa or relocation help provided, and no remote work allowed",
     industry: hate ? ('job is in one of these industries: ' + hate) : '',
     salary: salary ? ('salary figures are stated and they are lower than ' + salary + " annually or the equivalent in another currency (if salary not mentioned, that's not a blocker)") : '',
-    contract: 'job is a fixed-term contract',
     other: other,
   };
+}
+
+// The Fixed-term rule is derived from the Job Type multi-select: none or all types selected
+// means no restriction (no line); otherwise reject jobs clearly stated as a non-selected type.
+function jobTypeDisqualifier() {
+  const selected = [...document.querySelectorAll('.modal-job-type:checked')].map(cb => cb.value);
+  if (selected.length === 0 || selected.length === 3) return '';
+  const labels = { fulltime: 'full-time', parttime: 'part-time', fixedterm: 'fixed-term' };
+  const notSelected = ['fulltime', 'parttime', 'fixedterm'].filter(t => !selected.includes(t)).map(t => labels[t]);
+  return 'job is clearly stated as ' + notSelected.join(' or ');
 }
 
 function renderDisqualifierText() {
@@ -35,6 +46,9 @@ function renderDisqualifierText() {
   for (const key of _DISQUALIFIER_KEYS) {
     if (document.getElementById('disq-' + key).checked && frags[key]) lines.push(frags[key]);
   }
+  if (frags.industry) lines.push(frags.industry);
+  const contract = jobTypeDisqualifier();
+  if (contract) lines.push(contract);
   return lines.join('\n');
 }
 
@@ -61,7 +75,7 @@ function applyDisqualifiers(states, hate, salary, other) {
 // New roles shouldn't default a dependent rule to ON when its Profile field is missing, or it
 // starts in an unsaveable state. Existing roles keep their saved state (guarded at save time instead).
 function untickMissingDependencies() {
-  for (const id of ['disq-relocation', 'disq-language']) {
+  for (const id of ['disq-relocation']) {
     if (disqDependencyError(id)) document.getElementById(id).checked = false;
   }
 }
@@ -572,7 +586,9 @@ function updatePromptPreview() {
   const locations = document.getElementById('modal-locations').value
     .split(',').map(s => s.trim()).filter(Boolean);
   const criteria = document.getElementById('modal-scoring-criteria').value.trim();
-  const noMatch = renderDisqualifierText();
+  let noMatch = renderDisqualifierText();
+  // Language rule is injected scorer-side when Profile languages is set; show it here to match.
+  if ((window._languages || '').trim()) noMatch += '\n' + disqualifierFragments().language;
 
   const parts = [
     'You are assessing if the job posting match the user profile.',
@@ -611,8 +627,6 @@ function updatePromptPreview() {
 function disqDependencyError(id) {
   if (id === 'disq-relocation' && !(window._currentLocation || '').trim())
     return 'Set your current country on the Profile page to use "No visa or remote".';
-  if (id === 'disq-language' && !(window._languages || '').trim())
-    return 'Set your languages on the Profile page to use "Wrong language".';
   return '';
 }
 
@@ -657,9 +671,9 @@ function firstModalProblem(v) {
     return { message: 'Score thresholds must be whole numbers (0–100): no-match < weak-match ≤ 99, and strong-match = weak-match + 1.', focus: 'modal-no-match-max', expand: ['modal-scoring-criteria-body', 'scoring-criteria-chevron'] };
 
   if (!v.noMatchCriteria.trim())
-    return { message: 'Enable at least one rejection rule.', focus: 'disq-language' };
+    return { message: 'Enable at least one rejection rule.', focus: 'disq-relocation' };
 
-  for (const id of ['disq-relocation', 'disq-language']) {
+  for (const id of ['disq-relocation']) {
     const cb = document.getElementById(id);
     if (cb && cb.checked) {
       const msg = disqDependencyError(id);
