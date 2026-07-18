@@ -60,10 +60,11 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Actor's `remote` filter codes: 1 = On-site, 2 = Remote, 3 = Hybrid
 const WORK_MODE_MAP: Record<string, string> = {
   onsite: '1',
-  hybrid: '2',
-  remote: '3',
+  remote: '2',
+  hybrid: '3',
 };
 
 function mapWorkModes(workModes: string[]): string[] {

@@ -35,6 +35,12 @@ export async function fetchWithTelegram(
   const keywordClauses = filters.keywords.map(() => `(LOWER(j.title) LIKE ? OR LOWER(j.description) LIKE ?)`).join(' OR ');
   const keywordParams  = filters.keywords.flatMap((k) => [`%${k.toLowerCase()}%`, `%${k.toLowerCase()}%`]);
 
+  // Work mode filter — mirrors Ashby/Lever. Empty (none selected) → no clause → all modes.
+  const workModes = filters.workModes.map((m) => m.toLowerCase()).filter(Boolean);
+  const workModeClause = workModes.length > 0
+    ? `AND LOWER(COALESCE(j.work_mode, 'onsite')) IN (${workModes.map(() => '?').join(', ')})`
+    : '';
+
   // Location filter for Telegram — mirrors the Ashby/Greenhouse pool filters so the
   // full resolved country set is checked (not just the first). Keep a job if any of:
   //   • a target country is in its job_countries (region members already expanded), or
@@ -66,10 +72,11 @@ export async function fetchWithTelegram(
     WHERE j.job_source = 'Telegram'
       AND (j.posted_date IS NULL OR j.posted_date >= ?)
       AND (${keywordClauses || '1=1'})
+      ${workModeClause}
       ${locationClause}
   `;
 
-  const rows = db.prepare(sql).all(cutoffISO, ...keywordParams, ...locationParams) as JobRow[];
+  const rows = db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[];
 
   const jobs: JobPosting[] = rows.map((row) => ({
     jobId:                row.linkedin_job_id,

@@ -480,6 +480,15 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('#location-help-wrap')) body.classList.add('hidden');
 });
 
+function toggleWorkModeHelp() {
+  document.getElementById('workmode-help-body').classList.toggle('hidden');
+}
+document.addEventListener('click', (e) => {
+  const body = document.getElementById('workmode-help-body');
+  if (!body || body.classList.contains('hidden')) return;
+  if (!e.target.closest('#workmode-help-wrap')) body.classList.add('hidden');
+});
+
 function closeGroupModal() {
   document.getElementById('group-modal').classList.add('hidden');
   document.getElementById('prompt-preview-container').classList.add('hidden');

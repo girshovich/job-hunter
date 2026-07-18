@@ -127,7 +127,7 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
   const upsert = db.prepare(`
     INSERT INTO jobs (linkedin_job_id, job_source, provider, ats_slug, title, company, location, country, work_mode,
                       description, url, apply_url, posted_date, fetched_at)
-    VALUES (?, 'Greenhouse', 'greenhouse', ?, ?, ?, ?, NULL, 'onsite', '', ?, ?, ?, ?)
+    VALUES (?, 'Greenhouse', 'greenhouse', ?, ?, ?, ?, NULL, '', '', ?, ?, ?, ?)
     ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
       fetched_at = excluded.fetched_at,
       company    = excluded.company,

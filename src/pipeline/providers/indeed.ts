@@ -98,14 +98,6 @@ interface IndeedJob {
   logoUrl?: string;
 }
 
-function mapWorkMode(attrs: Record<string, string> | undefined): string {
-  if (!attrs) return 'onsite';
-  const vals = Object.values(attrs).map((v) => v.toLowerCase());
-  if (vals.some((v) => v.includes('remote'))) return 'remote';
-  if (vals.some((v) => v.includes('hybrid'))) return 'hybrid';
-  return 'onsite';
-}
-
 function toIndeedLocation(location: string): string {
   return location
     .replace(/\bgreater\b/gi, '')
@@ -134,7 +126,8 @@ function mapToJobPosting(item: IndeedJob): JobPosting | null {
     title: item.title || 'Unknown Title',
     company: item.employer?.name || 'Unknown Company',
     location: buildLocation(item.location),
-    workMode: mapWorkMode(item.attributes),
+    workMode: '', // Indeed exposes no reliable work-mode signal — leave unknown
+
     url,
     applyUrl,
     postedDate: item.datePublished ? item.datePublished.split('T')[0] : null,

@@ -82,7 +82,8 @@ function rowToPosting(row: JobRow): JobPosting {
     title:                row.title,
     company:              row.company,
     location:             row.location || '',
-    workMode:             row.work_mode || 'onsite',
+    workMode:             row.work_mode || '', // Greenhouse API has no work-mode field — leave unknown
+
     url:                  row.url || '',
     applyUrl:             row.apply_url || null,
     postedDate:           row.posted_date || null,
