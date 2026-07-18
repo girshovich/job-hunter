@@ -126,12 +126,20 @@ export async function fetchGreenhousePool(db: Database, runId?: string): Promise
   const now = new Date().toISOString();
   const upsert = db.prepare(`
     INSERT INTO jobs (linkedin_job_id, job_source, provider, ats_slug, title, company, location, country, work_mode,
-                      description, url, apply_url, posted_date, fetched_at)
-    VALUES (?, 'Greenhouse', 'greenhouse', ?, ?, ?, ?, NULL, '', '', ?, ?, ?, ?)
+                      employment_type, description, url, apply_url, posted_date, fetched_at)
+    VALUES (?, 'Greenhouse', 'greenhouse', ?, ?, ?, ?, NULL, '', NULL, '', ?, ?, ?, ?)
     ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
-      fetched_at = excluded.fetched_at,
-      company    = excluded.company,
-      ats_slug   = excluded.ats_slug
+      fetched_at      = excluded.fetched_at,
+      ats_slug        = excluded.ats_slug,
+      title           = excluded.title,
+      company         = excluded.company,
+      location        = excluded.location,
+      country         = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
+      work_mode       = excluded.work_mode,
+      employment_type = excluded.employment_type,
+      url             = excluded.url,
+      apply_url       = COALESCE(excluded.apply_url, jobs.apply_url),
+      posted_date     = excluded.posted_date
   `);
 
   let fetched = 0;
@@ -186,6 +194,7 @@ interface AshbyJobRaw {
   publishedAt: string | null;
   isRemote: boolean | null;
   workplaceType?: string | null;
+  employmentType?: string | null;
 }
 
 interface AshbyApiResponse {
@@ -199,6 +208,7 @@ interface AshbyJobToInsert {
   company: string;
   location: string | null;
   work_mode: string;
+  employment_type: string | null;
   url: string;
   apply_url: string | null;
   posted_date: string | null;
@@ -215,6 +225,14 @@ function mapAshbyWorkMode(job: AshbyJobRaw): string {
   if (workplaceType.includes('hybrid')) return 'hybrid';
   if (workplaceType.includes('remote') || job.isRemote) return 'remote';
   return 'onsite';
+}
+
+// Normalize Ashby's raw employmentType (FullTime/PartTime/Contract/Intern/Temporary) to a
+// lowercase token stored in jobs.employment_type; null when the API omits it. The runtime
+// filter maps our canonical job-type buckets onto these values.
+function mapAshbyEmploymentType(job: AshbyJobRaw): string | null {
+  const raw = (job.employmentType || '').toLowerCase().replace(/[^a-z]/g, '');
+  return raw || null;
 }
 
 async function fetchAshbyBoard(slug: string, storedName: string | null): Promise<AshbyBoardFetchResult | null> {
@@ -239,6 +257,7 @@ async function fetchAshbyBoard(slug: string, storedName: string | null): Promise
       company:         companyName,
       location:        allLocs.join('; ') || null,
       work_mode:       mapAshbyWorkMode(job),
+      employment_type: mapAshbyEmploymentType(job),
       url:             job.jobUrl || '',
       apply_url:       job.applyUrl || null,
       posted_date:     postedDate,
@@ -259,18 +278,20 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
   const now = new Date().toISOString();
   const upsert = db.prepare(`
     INSERT INTO jobs (linkedin_job_id, job_source, provider, ats_slug, title, company, location, country, work_mode,
-                      description, url, apply_url, posted_date, fetched_at)
-    VALUES (?, 'Ashby', 'ashby', ?, ?, ?, ?, NULL, ?, '', ?, ?, ?, ?)
+                      employment_type, description, url, apply_url, posted_date, fetched_at)
+    VALUES (?, 'Ashby', 'ashby', ?, ?, ?, ?, NULL, ?, ?, '', ?, ?, ?, ?)
     ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
-      fetched_at  = excluded.fetched_at,
-      ats_slug     = excluded.ats_slug,
-      title       = excluded.title,
-      company     = excluded.company,
-      location    = excluded.location,
-      country     = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
-      url         = excluded.url,
-      apply_url   = COALESCE(excluded.apply_url, jobs.apply_url),
-      posted_date = excluded.posted_date
+      fetched_at      = excluded.fetched_at,
+      ats_slug        = excluded.ats_slug,
+      title           = excluded.title,
+      company         = excluded.company,
+      location        = excluded.location,
+      country         = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
+      work_mode       = excluded.work_mode,
+      employment_type = excluded.employment_type,
+      url             = excluded.url,
+      apply_url       = COALESCE(excluded.apply_url, jobs.apply_url),
+      posted_date     = excluded.posted_date
   `);
   const updateBoardName = db.prepare(`
     UPDATE ats_boards SET company_name = ?
@@ -287,7 +308,7 @@ export async function fetchAshbyPool(db: Database, runId?: string): Promise<Pool
       db.transaction(() => {
         updateBoardName.run(result.companyName, slug, result.companyName);
         for (const j of result.jobs) {
-          upsert.run(j.linkedin_job_id, j.ats_slug, j.title, j.company, j.location, j.work_mode, j.url, j.apply_url, j.posted_date, now);
+          upsert.run(j.linkedin_job_id, j.ats_slug, j.title, j.company, j.location, j.work_mode, j.employment_type, j.url, j.apply_url, j.posted_date, now);
           fetched++;
         }
       });
@@ -402,23 +423,24 @@ export async function fetchLeverPool(db: Database, runId?: string): Promise<Pool
   const now = new Date().toISOString();
   const upsert = db.prepare(`
     INSERT INTO jobs (linkedin_job_id, job_source, provider, ats_slug, title, company, location, country, work_mode,
-                      description, url, apply_url, posted_date, fetched_at)
-    VALUES (?, 'Lever', 'lever', ?, ?, ?, ?, NULL, ?, '', ?, ?, ?, ?)
+                      employment_type, description, url, apply_url, posted_date, fetched_at)
+    VALUES (?, 'Lever', 'lever', ?, ?, ?, ?, NULL, ?, NULL, '', ?, ?, ?, ?)
     ON CONFLICT(linkedin_job_id, job_source) DO UPDATE SET
-      fetched_at  = excluded.fetched_at,
-      ats_slug    = excluded.ats_slug,
-      title       = excluded.title,
-      company     = excluded.company,
-      location    = excluded.location,
+      fetched_at      = excluded.fetched_at,
+      ats_slug        = excluded.ats_slug,
+      title           = excluded.title,
+      company         = excluded.company,
+      location        = excluded.location,
       -- Q1: reset country when the location set changes so it is re-resolved (matches Ashby's
       -- upsert). Single-location jobs are re-set from the ISO code below; multi-location jobs
       -- fall to populateCountriesFromCache/resolvePoolCountries. Without this, a job whose
       -- location changed (esp. single→multi) would keep a stale country + job_countries forever.
-      country     = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
-      work_mode   = excluded.work_mode,
-      url         = excluded.url,
-      apply_url   = COALESCE(excluded.apply_url, jobs.apply_url),
-      posted_date = excluded.posted_date
+      country         = CASE WHEN jobs.location IS NOT excluded.location THEN NULL ELSE jobs.country END,
+      work_mode       = excluded.work_mode,
+      employment_type = excluded.employment_type,
+      url             = excluded.url,
+      apply_url       = COALESCE(excluded.apply_url, jobs.apply_url),
+      posted_date     = excluded.posted_date
     RETURNING id
   `);
   // Inline country-from-code assembly (mirrors populateCountriesFromCache output).

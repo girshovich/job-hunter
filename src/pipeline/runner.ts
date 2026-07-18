@@ -10,7 +10,7 @@ import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRo
 import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
-import { providerToSource } from './types';
+import { providerToSource, parseJobTypes } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { resolveLocationString, lookupCountry, expandRegionToCountries } from './locationNormalizer';
@@ -450,7 +450,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           keywords,
           locations,
           workModes,
-          jobType: group.job_type,
+          jobType: parseJobTypes(group.job_type),
         }, apifyToken, dateRange, scrapingProvider);
         allFetched = fetchResult.jobs;
         if (fetchResult.apifyCostUsd != null) {

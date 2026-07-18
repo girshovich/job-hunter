@@ -7,6 +7,7 @@ import { runPipeline, getIsRunning, getRunStatus, requestStop, isStopRequested, 
 import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail, sendTopUpRequest } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
+import { parseJobTypes, JOB_TYPES } from '../pipeline/types';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
 import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
@@ -424,7 +425,7 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
         const locations: string[] = JSON.parse(group.locations);
         const workModes: string[] = JSON.parse(group.work_modes);
 
-        const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: group.job_type }, apifyToken, '24h', scrapingProvider);
+        const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: parseJobTypes(group.job_type) }, apifyToken, '24h', scrapingProvider);
         for (const j of jobs) {
           allJobs.push({ title: j.title, company: j.company, url: j.url });
         }
@@ -599,6 +600,12 @@ function parseGroupBody(body: unknown): GroupBody {
     .map((w: unknown) => String(w).trim())
     .filter(Boolean);
 
+  // Job types: canonical tokens; empty array = no filter (all types). Kept empty when
+  // the user clears every checkbox — the "default to full-time" is a UI/new-role default only.
+  const jobTypes = (Array.isArray(b.job_type) ? b.job_type : [])
+    .map((t: unknown) => String(t).toLowerCase().trim())
+    .filter((t) => (JOB_TYPES as readonly string[]).includes(t));
+
   const noMatchMax   = parseInt(String(b.score_no_match_max), 10);
   const weakMatchMax = parseInt(String(b.score_weak_match_max), 10);
   const strongMin    = parseInt(String(b.score_strong_match_min), 10);
@@ -625,7 +632,7 @@ function parseGroupBody(body: unknown): GroupBody {
     group_name: String(b.group_name || '').trim().slice(0, 50),
     locations,
     keywords,
-    job_type: String(b.job_type || 'fullTime'),
+    job_type: JSON.stringify(jobTypes),
     work_modes: workModes,
     profile_description: String(b.profile_description || ''),
     use_main_profile_description: useMainProfile,

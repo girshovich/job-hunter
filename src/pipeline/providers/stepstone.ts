@@ -117,7 +117,12 @@ export async function fetchWithStepStone(
     };
     if (ag)  input.ag  = ag;
     if (wfh) input.wfh = wfh;
-    if (filters.jobType?.toLowerCase().includes('full')) input.wt = '80001';
+    // StepStone only knows full-time (80001) and part-time (80002). Send wt only for a
+    // single-sided selection; both/neither/fixed-term-only → omit (return all types).
+    const hasFull = filters.jobType.includes('fulltime');
+    const hasPart = filters.jobType.includes('parttime');
+    if (hasFull && !hasPart) input.wt = '80001';
+    else if (hasPart && !hasFull) input.wt = '80002';
 
     const run = await client.actor(ACTOR_ID).call(input, { waitSecs: 900 });
     const { items } = await client.dataset(run.defaultDatasetId).listItems();

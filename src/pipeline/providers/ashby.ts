@@ -124,6 +124,16 @@ export async function fetchWithAshby(
     ? `AND LOWER(COALESCE(j.work_mode, 'onsite')) IN (${workModes.map(() => '?').join(', ')})`
     : '';
 
+  // Job-type filter: map canonical buckets onto Ashby's employmentType values. Rows with a
+  // NULL employment_type (un-backfilled or untagged) pass so nothing is wrongly dropped.
+  const ASHBY_EMPLOYMENT_MAP: Record<string, string[]> = {
+    fulltime: ['fulltime'], parttime: ['parttime'], fixedterm: ['contract', 'temporary'],
+  };
+  const jobTypeValues = [...new Set(filters.jobType.flatMap((t) => ASHBY_EMPLOYMENT_MAP[t] || []))];
+  const jobTypeClause = jobTypeValues.length > 0
+    ? `AND (j.employment_type IS NULL OR LOWER(j.employment_type) IN (${jobTypeValues.map(() => '?').join(', ')}))`
+    : '';
+
   // Primary: match via job_countries (expanded region members included).
   // Fallback: LIKE on raw location text for any target country — also covers
   // partially-resolved jobs whose searched country isn't in job_countries yet.
@@ -152,11 +162,12 @@ export async function fetchWithAshby(
       AND (j.posted_date IS NULL OR j.posted_date >= ?)
       AND (${keywordClauses || '1=1'})
       ${workModeClause}
+      ${jobTypeClause}
       ${locationClause}
   `;
 
   const rows = await hydrateDescriptions(
-    db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[],
+    db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...jobTypeValues, ...locationParams) as JobRow[],
   );
   const jobs = rows.map(rowToPosting);
 

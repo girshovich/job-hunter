@@ -71,12 +71,25 @@ function mapWorkModes(workModes: string[]): string[] {
   return workModes.map((m) => WORK_MODE_MAP[m]).filter(Boolean);
 }
 
+// Actor `contractType` codes (verified schema enum): F=Full-time, P=Part-time, C=Contract,
+// T=Temporary, I=Internship, O=Other. Our "fixedterm" bucket = contract + temporary.
+const CONTRACT_TYPE_MAP: Record<string, string[]> = {
+  fulltime: ['F'],
+  parttime: ['P'],
+  fixedterm: ['C', 'T'],
+};
+
+function mapContractTypes(jobTypes: string[]): string[] {
+  return [...new Set(jobTypes.flatMap((t) => CONTRACT_TYPE_MAP[t] || []))];
+}
+
 async function runSingleCall(
   client: ApifyClient,
   keyword: string,
   location: string,
   datePosted: string,
   remote: string[],
+  contractType: string[],
 ): Promise<{ items: ValigJob[]; costUsd: number | null }> {
   const actorInput: Record<string, unknown> = {
     title: `"${keyword}"`,
@@ -85,6 +98,7 @@ async function runSingleCall(
     limit: LIMIT_PER_CALL,
   };
   if (remote.length > 0) actorInput.remote = remote;
+  if (contractType.length > 0) actorInput.contractType = contractType;
 
   let lastErr: unknown;
   for (let attempt = 1; attempt <= FETCH_MAX_ATTEMPTS; attempt++) {
@@ -116,6 +130,7 @@ export async function fetchWithValig(
   const client = new ApifyClient({ token: apifyToken });
   const datePosted = getDatePosted(dateRange);
   const remote = mapWorkModes(filters.workModes);
+  const contractType = mapContractTypes(filters.jobType);
 
   const calls: Array<{ keyword: string; location: string }> = [];
   for (const keyword of filters.keywords) {
@@ -127,7 +142,7 @@ export async function fetchWithValig(
   console.log(`[valig] ${calls.length} actor call(s) — ${filters.keywords.length} keywords × ${filters.locations.length} locations`);
 
   const results = await Promise.all(
-    calls.map(({ keyword, location }) => runSingleCall(client, keyword, location, datePosted, remote)),
+    calls.map(({ keyword, location }) => runSingleCall(client, keyword, location, datePosted, remote, contractType)),
   );
 
   let totalCost = 0;

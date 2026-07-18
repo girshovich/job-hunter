@@ -185,7 +185,7 @@ function getModalValues() {
     locations: document.getElementById('modal-locations').value,
     keywords: document.getElementById('modal-keywords').value,
     titleFilter: document.getElementById('modal-title-filter').value,
-    jobType: document.getElementById('modal-job-type').value,
+    jobType: [...document.querySelectorAll('.modal-job-type')].map(cb => cb.checked),
     workModes: [...document.querySelectorAll('.modal-work-mode')].map(cb => cb.checked),
     noMatchMax: document.getElementById('modal-no-match-max').value,
     weakMatchMax: document.getElementById('modal-weak-match-max').value,
@@ -361,7 +361,7 @@ function openGroupModal(id) {
     document.getElementById('modal-locations').value = '';
     document.getElementById('modal-keywords').value = '';
     document.getElementById('modal-title-filter').value = '';
-    document.getElementById('modal-job-type').value = 'fullTime';
+    document.querySelectorAll('.modal-job-type').forEach(cb => { cb.checked = cb.value === 'fulltime'; });
     const tpl = _groups.length > 0 ? _groups[0] : null;
     document.getElementById('modal-use-main-profile').checked = true;
     document.getElementById('modal-profile-desc-own').classList.add('hidden');
@@ -391,7 +391,8 @@ function openGroupModal(id) {
     document.getElementById('modal-locations').value = JSON.parse(g.locations).join(', ');
     document.getElementById('modal-keywords').value = JSON.parse(g.keywords).join(', ');
     document.getElementById('modal-title-filter').value = g.title_filter || '';
-    document.getElementById('modal-job-type').value = g.job_type;
+    const jobTypes = parseJobTypesJS(g.job_type);
+    document.querySelectorAll('.modal-job-type').forEach(cb => { cb.checked = jobTypes.includes(cb.value); });
     const useMain = !!g.use_main_profile_description;
     document.getElementById('modal-use-main-profile').checked = useMain;
     document.getElementById('modal-profile-desc-own').classList.toggle('hidden', useMain);
@@ -488,6 +489,27 @@ document.addEventListener('click', (e) => {
   if (!body || body.classList.contains('hidden')) return;
   if (!e.target.closest('#workmode-help-wrap')) body.classList.add('hidden');
 });
+
+function toggleJobTypeHelp() {
+  document.getElementById('jobtype-help-body').classList.toggle('hidden');
+}
+document.addEventListener('click', (e) => {
+  const body = document.getElementById('jobtype-help-body');
+  if (!body || body.classList.contains('hidden')) return;
+  if (!e.target.closest('#jobtype-help-wrap')) body.classList.add('hidden');
+});
+
+// Parse stored job_type (JSON array of canonical tokens; tolerates legacy single strings).
+function parseJobTypesJS(raw) {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return arr;
+  } catch (_) { /* legacy single value below */ }
+  const legacy = { fulltime: 'fulltime', parttime: 'parttime', contract: 'fixedterm' };
+  const v = legacy[String(raw).toLowerCase()];
+  return v ? [v] : [];
+}
 
 function closeGroupModal() {
   document.getElementById('group-modal').classList.add('hidden');
@@ -634,7 +656,7 @@ async function saveGroup() {
   const locations = document.getElementById('modal-locations').value.split(',').map(s => s.trim()).filter(Boolean);
   const keywords = document.getElementById('modal-keywords').value.split(',').map(s => s.trim()).filter(Boolean);
   const titleFilter = document.getElementById('modal-title-filter').value.trim();
-  const jobType = document.getElementById('modal-job-type').value;
+  const jobType = [...document.querySelectorAll('.modal-job-type:checked')].map(cb => cb.value);
   const workModes = [...document.querySelectorAll('.modal-work-mode:checked')].map(cb => cb.value);
   const useMainProfile = document.getElementById('modal-use-main-profile').checked ? 1 : 0;
   const profileDescription = document.getElementById('modal-profile-description').value.trim();

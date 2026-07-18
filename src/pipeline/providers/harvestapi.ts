@@ -89,6 +89,18 @@ function mapWorkModes(workModes: string[]): string[] {
   return workModes.map((m) => WORK_MODE_MAP[m]).filter(Boolean);
 }
 
+// Actor `employmentType` accepts lowercase values (verified): full-time, part-time,
+// contract, internship, temporary. Our "fixedterm" bucket = contract + temporary.
+const EMPLOYMENT_TYPE_MAP: Record<string, string[]> = {
+  fulltime: ['full-time'],
+  parttime: ['part-time'],
+  fixedterm: ['contract', 'temporary'],
+};
+
+function mapEmploymentTypes(jobTypes: string[]): string[] {
+  return [...new Set(jobTypes.flatMap((t) => EMPLOYMENT_TYPE_MAP[t] || []))];
+}
+
 function getPostedLimit(dateRange: DateRange): string {
   if (dateRange === '24h') return '24h';
   if (dateRange === '7d') return 'week';
@@ -110,6 +122,7 @@ export async function fetchWithHarvestApi(
   const client = new ApifyClient({ token: apifyToken });
 
   const workplaceType = mapWorkModes(filters.workModes);
+  const employmentType = mapEmploymentTypes(filters.jobType);
 
   const actorInput: Record<string, unknown> = {
     jobTitles: filters.keywords,
@@ -118,6 +131,7 @@ export async function fetchWithHarvestApi(
     sortBy: 'date',
     maxItems: 1000,
     ...(workplaceType.length > 0 && { workplaceType }),
+    ...(employmentType.length > 0 && { employmentType }),
   };
 
   const keywordsStr = filters.keywords.map((k) => `"${k}"`).join(', ');

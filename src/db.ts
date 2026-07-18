@@ -1440,6 +1440,25 @@ The full post text is stored as the job description — do not repeat or summari
     console.warn('[db] Migration v_telegram_workmode_fix failed (non-fatal):', (err as Error).message);
   }
 
+  // v_job_type_multi: Job Type becomes a multi-select. Add jobs.employment_type (Ashby-only,
+  // nullable) and convert legacy single-string search_groups.job_type into a JSON-array form.
+  try {
+    const jobCols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    if (!jobCols.some((c) => c.name === 'employment_type')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN employment_type TEXT`);
+      console.log('[db] Migration v_job_type_multi: jobs.employment_type added');
+    }
+    // Convert legacy single values → JSON arrays (idempotent: skip rows already in array form).
+    db.prepare(`UPDATE search_groups SET job_type = '["fulltime"]'  WHERE job_type = 'fullTime'`).run();
+    db.prepare(`UPDATE search_groups SET job_type = '["parttime"]'  WHERE job_type = 'partTime'`).run();
+    db.prepare(`UPDATE search_groups SET job_type = '["fixedterm"]' WHERE job_type = 'contract'`).run();
+    db.prepare(`UPDATE search_groups SET job_type = '[]'            WHERE COALESCE(job_type, '') = ''`).run();
+    db.prepare(`UPDATE search_groups SET job_type = '["fulltime"]'  WHERE job_type NOT LIKE '[%'`).run();
+    console.log('[db] Migration v_job_type_multi: search_groups.job_type converted to JSON array');
+  } catch (err) {
+    console.warn('[db] Migration v_job_type_multi failed (non-fatal):', (err as Error).message);
+  }
+
   // v_telegram_runs: persist per-ingest run stats for the admin "last ingest" display
   try {
     db.exec(`
@@ -2014,7 +2033,7 @@ function initSchema(db: Database): void {
       profile_id              INTEGER NOT NULL DEFAULT 1,
       locations               TEXT    NOT NULL,
       keywords                TEXT    NOT NULL,
-      job_type                TEXT    NOT NULL DEFAULT 'fullTime',
+      job_type                TEXT    NOT NULL DEFAULT '["fulltime"]',
       work_modes              TEXT    NOT NULL,
       ai_system_prompt        TEXT    NOT NULL,
       score_no_match_max      INTEGER NOT NULL DEFAULT 50,
