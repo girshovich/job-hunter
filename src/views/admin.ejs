@@ -1029,6 +1029,7 @@ async function loadTelegramState() {
 
     const prompt = settings.extract_prompt || '';
     document.getElementById('tg-prompt-textarea').value = prompt;
+    autoGrowTgPrompt();
     document.getElementById('tg-prompt-fixed').textContent = settings.fixed_schema || '';
 
     const tz = statsData?.settings?.timezone || 'UTC';
@@ -1166,6 +1167,28 @@ async function telegramSavePrompt() {
 }
 
 // Standalone admin page: panes all live in the DOM (just hidden), so load every section on load.
+// Vertical auto-grow for the Telegram extraction prompt (capped at 15 text lines).
+function autoGrowTgPrompt() {
+  const el = document.getElementById('tg-prompt-textarea');
+  if (!el) return;
+  const cs = getComputedStyle(el);
+  const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  let lh = parseFloat(cs.lineHeight);
+  if (Number.isNaN(lh)) lh = parseFloat(cs.fontSize) * 1.25;
+  const rows = el.rows > 0 ? el.rows : 2;
+  const minH = rows * lh + pad + border;
+  const maxH = 15 * lh + pad + border;
+  el.style.resize = 'none';
+  el.style.height = 'auto';
+  const contentH = el.scrollHeight + border;
+  el.style.height = Math.min(Math.max(contentH, minH), maxH) + 'px';
+  el.style.overflowY = contentH > maxH ? 'auto' : 'hidden';
+}
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'tg-prompt-textarea') autoGrowTgPrompt();
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   ensureAdminStatsLoaded();
   loadTelegramState();
@@ -1185,6 +1208,7 @@ function switchAdminTab(tab) {
       btn.classList.toggle('text-gray-500', !on);
     }
   });
+  autoGrowTgPrompt();
   const url = new URL(window.location);
   url.searchParams.set('tab', tab);
   history.replaceState(null, '', url);

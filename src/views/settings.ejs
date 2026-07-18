@@ -68,14 +68,13 @@
 
       <div>
         <div class="flex items-baseline justify-between mb-1.5">
-          <label class="block text-sm font-medium text-gray-700">Role Name</label>
+          <label class="block text-sm font-medium text-gray-700">Role Display Name</label>
           <span id="group-name-counter" class="text-xs text-gray-400 hidden">0 / 50</span>
         </div>
         <input id="modal-group-name" type="text" maxlength="50"
                oninput="const c=document.getElementById('group-name-counter');c.textContent=this.value.length+' / 50';c.classList.toggle('hidden',this.value.length===0);"
                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                placeholder="e.g. UK Remote Senior" />
-        <p class="text-xs text-gray-400 mt-1">Just a label for the list — has no effect on the search.</p>
       </div>
 
       <div>
@@ -94,26 +93,30 @@
             </div>
           </div>
         </div>
-        <textarea id="modal-locations" rows="2"
+        <textarea id="modal-locations" rows="1"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="London, Spain"></textarea>
         <div id="location-warning" class="hidden mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed"></div>
       </div>
 
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">Search Keywords <span class="text-red-500 ml-0.5">*</span></label>
-        <textarea id="modal-keywords" rows="2"
-                  class="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  placeholder="Product Manager, Head of Product"></textarea>
-        <p class="text-xs text-gray-400 mt-1">It's what you ask job boards to show. Broader terms = more jobs found at higher API costs.</p>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">Desired Job Titles</label>
-        <textarea id="modal-title-filter" rows="2"
-                  class="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  placeholder="senior product manager, principal product manager, staff product manager"></textarea>
-        <p class="text-xs text-gray-400 mt-1">Anything not matching these will be filtered to save on AI scoring.</p>
+      <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-4">
+        <h3 class="text-sm font-semibold text-gray-800">Job Title</h3>
+        <div class="space-y-2 text-xs text-gray-500 leading-relaxed">
+          <p>Search Keywords are sent to job boards. Broader keywords = more jobs at higher API cost.</p>
+          <p>Job-board filters often miss relevant roles. Searching for “Senior Product Manager” may miss some jobs with that exact title. It’s safer to search for “Product Manager,” then use Desired Titles to filter.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Search Keywords <span class="text-red-500 ml-0.5">*</span></label>
+          <textarea id="modal-keywords" rows="1"
+                    class="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    placeholder="Product Manager, Head of Product"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Desired Titles</label>
+          <textarea id="modal-title-filter" rows="2"
+                    class="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    placeholder="senior product manager, principal product manager, staff product manager"></textarea>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -175,6 +178,20 @@
 
       <div>
         <div class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="modal-industries" class="block text-sm font-medium text-gray-700 mb-1.5">Priority industries</label>
+              <textarea id="modal-industries" rows="2"
+                        placeholder="ride-hailing, food-tech, marketplaces, travel"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
+            </div>
+            <div>
+              <label for="disq-hate-industries" class="block text-sm font-medium text-gray-700 mb-1.5">Unwanted industries</label>
+              <textarea id="disq-hate-industries" rows="2"
+                        placeholder="gambling, betting"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
+            </div>
+          </div>
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <label class="block text-sm font-medium text-gray-700">Profile Description <span class="text-red-500 ml-0.5">*</span></label>
@@ -189,7 +206,7 @@
               </label>
             </div>
             <div id="modal-profile-desc-own">
-              <textarea id="modal-profile-description" rows="7"
+              <textarea id="modal-profile-description" rows="8"
                         placeholder="Senior PM with 13 years in e-commerce and customer service, including 6+ years leading support products at a large classifieds and 3 years heading B2B seller support at a major marketplace. Built help center, CRM, automation, AI, and moderation tools. Set strategy, secured board funding, scaled the team to 9 PMs and 3 Group PMs, and delivered measurable cost savings."
                         class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
             </div>
@@ -221,21 +238,17 @@
                   Fixed-term
                 </label>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-2.5">
                 <label class="flex items-center gap-2 w-32 flex-none text-sm text-gray-700 cursor-pointer">
                   <input type="checkbox" id="disq-salary" data-field="disq-salary-expectation" class="disq-field-cb rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                   Annual salary &lt;
                 </label>
                 <input type="text" id="disq-salary-expectation" placeholder="70k euro"
-                       class="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
-              </div>
-              <div class="flex items-center gap-3">
-                <label class="flex items-center gap-2 w-32 flex-none text-sm text-gray-700 cursor-pointer">
-                  <input type="checkbox" id="disq-industry" data-field="disq-hate-industries" class="disq-field-cb rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                  Bad industry
+                       class="w-28 flex-none min-w-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
+                <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input type="checkbox" id="disq-industry" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                  Unwanted industry
                 </label>
-                <input type="text" id="disq-hate-industries" placeholder="gambling, betting"
-                       class="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
               </div>
               <div class="flex items-center gap-3">
                 <label class="flex items-center gap-2 w-32 flex-none text-sm text-gray-700 cursor-pointer">
@@ -249,47 +262,14 @@
             </div>
           </div>
           <div>
-            <button type="button" onclick="toggleCollapsible('modal-industries-body', 'industries-chevron')"
-                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
-              <svg id="industries-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Preferred Industries
-            </button>
-            <div id="modal-industries-body" class="hidden mt-1.5">
-              <textarea id="modal-industries" rows="2"
-                        placeholder="ride-hailing, food-tech, marketplaces, travel"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
-            </div>
-          </div>
-          <div>
-            <button type="button" onclick="toggleCollapsible('modal-other-expectations-body', 'other-expectations-chevron')"
-                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
-              <svg id="other-expectations-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Other Expectations
-            </button>
-            <div id="modal-other-expectations-body" class="hidden mt-1.5">
-              <textarea id="modal-other-expectations" rows="2"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
-            </div>
-          </div>
-          <div>
             <button type="button" onclick="toggleCollapsible('modal-scoring-criteria-body', 'scoring-criteria-chevron')"
                     class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
               <svg id="scoring-criteria-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Role Scoring Guide (0-100) <span class="text-red-500 ml-0.5">*</span>
+              Role Scoring Rules (0-100) <span class="text-red-500 ml-0.5">*</span>
             </button>
-            <div id="modal-scoring-criteria-body" class="hidden mt-1.5">
-              <textarea id="modal-scoring-criteria" rows="7"
+            <div id="modal-scoring-criteria-body" class="hidden mt-1.5 space-y-3">
+              <textarea id="modal-scoring-criteria" rows="6"
                         class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"></textarea>
-            </div>
-          </div>
-          <div>
-            <button type="button" onclick="toggleCollapsible('modal-score-thresholds-body', 'score-thresholds-chevron')"
-                    class="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 w-full text-left">
-              <svg id="score-thresholds-chevron" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              Score Thresholds <span class="text-red-500 ml-0.5">*</span>
-            </button>
-            <div id="modal-score-thresholds-body" class="hidden mt-1.5">
-              <p class="text-xs text-gray-500 mb-2.5">Verdicts assigned based on the AI's 0–100 score for jobs in these locations.</p>
               <div class="grid grid-cols-3 gap-3">
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">

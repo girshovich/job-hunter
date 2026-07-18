@@ -162,6 +162,7 @@ function toggleCollapsible(bodyId, chevronId) {
   const chevron = document.getElementById(chevronId);
   const nowHidden = body.classList.toggle('hidden');
   chevron.style.transform = nowHidden ? '' : 'rotate(90deg)';
+  if (!nowHidden) autoGrowIn(body);
 }
 
 function togglePromptBlock(bodyId, chevronId) {
@@ -171,6 +172,33 @@ function togglePromptBlock(bodyId, chevronId) {
   body.classList.toggle('hidden', !isHidden);
   chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
 }
+
+// ---- Textarea vertical auto-grow (grows with content, capped at 15 lines) ----
+
+function autoGrowField(el) {
+  if (!el || el.tagName !== 'TEXTAREA') return;
+  const cs = getComputedStyle(el);
+  const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  let lh = parseFloat(cs.lineHeight);
+  if (Number.isNaN(lh)) lh = parseFloat(cs.fontSize) * 1.25;
+  const rows = el.rows > 0 ? el.rows : 2;
+  const minH = rows * lh + pad + border;      // never below the field's default rows
+  const maxH = 15 * lh + pad + border;         // cap at 15 text lines, then scroll
+  el.style.resize = 'none';
+  el.style.height = 'auto';
+  const contentH = el.scrollHeight + border;
+  el.style.height = Math.min(Math.max(contentH, minH), maxH) + 'px';
+  el.style.overflowY = contentH > maxH ? 'auto' : 'hidden';
+}
+
+function autoGrowIn(root) {
+  if (root) root.querySelectorAll('textarea').forEach(autoGrowField);
+}
+
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.tagName === 'TEXTAREA') autoGrowField(e.target);
+});
 
 // ---- Groups state ----
 
@@ -193,7 +221,6 @@ function getModalValues() {
     useMainProfile: document.getElementById('modal-use-main-profile').checked,
     profileDesc: document.getElementById('modal-profile-description').value,
     industries: document.getElementById('modal-industries').value,
-    otherExp: document.getElementById('modal-other-expectations').value,
     scoringCriteria: document.getElementById('modal-scoring-criteria').value,
     disqualifiers: JSON.stringify(readDisqualifierStates()),
     hateIndustries: document.getElementById('disq-hate-industries').value,
@@ -306,7 +333,7 @@ function renderGroups() {
           </div>
         </div>
         <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs ${metaCls}">${meta.join('')}</div>
-        <div class="flex sm:hidden justify-end gap-2 mt-2.5">${editBtn}${deleteBtn}</div>
+        <div class="flex sm:hidden justify-start gap-2 mt-2.5">${deleteBtn}${editBtn}</div>
       </div>`;
   }).join('');
 }
@@ -369,7 +396,6 @@ function openGroupModal(id) {
     document.getElementById('modal-main-profile-preview').textContent = window._mainProfileDescription || '(empty — fill in Settings → Profile)';
     document.getElementById('modal-profile-description').value = '';
     document.getElementById('modal-industries').value = tpl ? (tpl.industries_list || '') : '';
-    document.getElementById('modal-other-expectations').value = tpl ? (tpl.other_expectations || '') : '';
     document.getElementById('modal-scoring-criteria').value = tpl ? (tpl.scoring_criteria || _DEFAULT_SCORING_CRITERIA) : _DEFAULT_SCORING_CRITERIA;
     if (tpl) applyDisqualifiers(parseDisqualifierStates(tpl.disqualifiers), tpl.hate_industries, tpl.salary_expectation, tpl.other_disqualifiers);
     else applyDisqualifiers(_DEFAULT_DISQUALIFIER_STATES, '', '', '');
@@ -402,7 +428,6 @@ function openGroupModal(id) {
     }
     document.getElementById('modal-profile-description').value = g.profile_description || '';
     document.getElementById('modal-industries').value = g.industries_list || '';
-    document.getElementById('modal-other-expectations').value = g.other_expectations || '';
     document.getElementById('modal-scoring-criteria').value = g.scoring_criteria || _DEFAULT_SCORING_CRITERIA;
     applyDisqualifiers(parseDisqualifierStates(g.disqualifiers), g.hate_industries, g.salary_expectation, g.other_disqualifiers);
     document.getElementById('modal-no-match-max').value = g.score_no_match_max;
@@ -412,10 +437,10 @@ function openGroupModal(id) {
     document.querySelectorAll('.modal-work-mode').forEach(cb => { cb.checked = modes.includes(cb.value); });
   }
 
-  ['modal-score-thresholds-body', 'modal-industries-body', 'modal-other-expectations-body', 'modal-scoring-criteria-body'].forEach(bId => {
+  ['modal-scoring-criteria-body'].forEach(bId => {
     document.getElementById(bId).classList.add('hidden');
   });
-  ['score-thresholds-chevron', 'industries-chevron', 'other-expectations-chevron', 'scoring-criteria-chevron'].forEach(cId => {
+  ['scoring-criteria-chevron'].forEach(cId => {
     document.getElementById(cId).style.transform = '';
   });
   document.getElementById('location-help-body').classList.add('hidden');
@@ -428,6 +453,7 @@ function openGroupModal(id) {
   document.getElementById('modal-locations').addEventListener('input', scheduleLocationHints);
 
   modal.classList.remove('hidden');
+  autoGrowIn(modal);
   document.getElementById('modal-locations').focus();
 
   // Lazily resolve locations to flag provider coverage gaps
@@ -545,7 +571,6 @@ function updatePromptPreview() {
   const industries = document.getElementById('modal-industries').value.trim();
   const locations = document.getElementById('modal-locations').value
     .split(',').map(s => s.trim()).filter(Boolean);
-  const other = document.getElementById('modal-other-expectations').value.trim();
   const criteria = document.getElementById('modal-scoring-criteria').value.trim();
   const noMatch = renderDisqualifierText();
 
@@ -563,7 +588,6 @@ function updatePromptPreview() {
     parts.push('', 'Preferred locations:', '', locations.join(', '));
     parts.push('', 'Preferred countries:', '', '{resolved from your locations at scoring time}');
   }
-  if (other) parts.push('', other);
   parts.push(
     '',
     'Assess how well the job matches the profile and expectations.',
@@ -630,7 +654,7 @@ function firstModalProblem(v) {
     v.weakMatchMax <= v.noMatchMax || v.weakMatchMax > 99 ||
     v.strongMatchMin !== v.weakMatchMax + 1
   )
-    return { message: 'Score thresholds must be whole numbers (0–100): no-match < weak-match ≤ 99, and strong-match = weak-match + 1.', focus: 'modal-no-match-max', expand: ['modal-score-thresholds-body', 'score-thresholds-chevron'] };
+    return { message: 'Score thresholds must be whole numbers (0–100): no-match < weak-match ≤ 99, and strong-match = weak-match + 1.', focus: 'modal-no-match-max', expand: ['modal-scoring-criteria-body', 'scoring-criteria-chevron'] };
 
   if (!v.noMatchCriteria.trim())
     return { message: 'Enable at least one rejection rule.', focus: 'disq-language' };
@@ -661,7 +685,6 @@ async function saveGroup() {
   const useMainProfile = document.getElementById('modal-use-main-profile').checked ? 1 : 0;
   const profileDescription = document.getElementById('modal-profile-description').value.trim();
   const industriesList = document.getElementById('modal-industries').value.trim();
-  const otherExpectations = document.getElementById('modal-other-expectations').value.trim();
   const scoringCriteria = document.getElementById('modal-scoring-criteria').value.trim();
   const noMatchCriteria = renderDisqualifierText();
   const noMatchMax    = parseInt(document.getElementById('modal-no-match-max').value, 10);
@@ -690,7 +713,7 @@ async function saveGroup() {
     job_type: jobType, work_modes: workModes,
     use_main_profile_description: useMainProfile,
     profile_description: profileDescription,
-    industries_list: industriesList, other_expectations: otherExpectations,
+    industries_list: industriesList,
     scoring_criteria: scoringCriteria, no_match_criteria: noMatchCriteria,
     disqualifiers: JSON.stringify(readDisqualifierStates()),
     hate_industries: document.getElementById('disq-hate-industries').value.trim(),
@@ -819,7 +842,9 @@ function openBlacklistMgmtModal() {
   cancelBlacklistEdit();
   showBlacklistMgmtError('');
   renderBlacklistMgmt();
-  document.getElementById('blacklist-mgmt-modal').classList.remove('hidden');
+  const blModal = document.getElementById('blacklist-mgmt-modal');
+  blModal.classList.remove('hidden');
+  autoGrowIn(blModal);
 }
 
 function closeBlacklistMgmtModal() {
@@ -838,6 +863,7 @@ function startEditBlacklist(id) {
   document.getElementById('bl-form-save-label').textContent = 'Save Changes';
   document.getElementById('bl-form-name').value = entry.company_name;
   document.getElementById('bl-form-notes').value = entry.notes || '';
+  autoGrowField(document.getElementById('bl-form-notes'));
   document.getElementById('bl-form-cancel-btn').classList.remove('hidden');
   document.getElementById('bl-form-name').focus();
 }
@@ -848,6 +874,7 @@ function cancelBlacklistEdit() {
   document.getElementById('bl-form-save-label').textContent = 'Add to Blacklist';
   document.getElementById('bl-form-name').value = '';
   document.getElementById('bl-form-notes').value = '';
+  autoGrowField(document.getElementById('bl-form-notes'));
   document.getElementById('bl-form-cancel-btn').classList.add('hidden');
   showBlacklistMgmtError('');
 }
@@ -1067,6 +1094,7 @@ function activateTab(tabName) {
     if (pane) pane.classList.toggle('hidden', t !== tabName);
     updateTabBtnStyle(t, t === tabName);
   });
+  autoGrowIn(document.getElementById('tab-pane-' + tabName));
   // Keep the sidebar sub-nav highlight in sync (Profile has no ?tab= in its href).
   const sub = document.getElementById('sb-settings-sub');
   if (sub) {
@@ -1154,6 +1182,7 @@ function selectPrompt(i, drill) {
   document.querySelectorAll('#prompts-modal .pm-panel').forEach(el =>
     el.classList.toggle('pm-show', Number(el.dataset.pi) === i));
   if (drill) document.getElementById('prompts-modal').classList.add('pm-detail');
+  autoGrowIn(document.querySelector('#prompts-modal .pm-panel.pm-show'));
 }
 
 function pickPrompt(i) { selectPrompt(i, true); }
@@ -1164,6 +1193,7 @@ function openPromptsModal() {
   m.classList.remove('pm-detail');   // start on the list (mobile); desktop shows both
   selectPrompt(0, false);
   m.classList.remove('hidden');
+  autoGrowIn(m);
 }
 
 function closePromptsModal() {
@@ -1203,6 +1233,7 @@ function initSettings(activeTab, initialGroups) {
   loadBlacklist();
   snapshotForm('profile');
   snapshotForm('ai');
+  autoGrowIn(document);
   maybeLoadAdminTab(activeTab);
 
   // Guard sidebar / bottom-nav navigations the same way as tab switches: a dirty

@@ -160,10 +160,6 @@ export function buildScoringSystemPrompt(group: SearchGroupRow, settings?: Setti
     parts.push('', 'Preferred languages:', '', settings.languages.trim());
   }
 
-  if (group.other_expectations?.trim()) {
-    parts.push('', group.other_expectations);
-  }
-
   parts.push(
     '',
     'Assess how well the job matches the profile and expectations.',

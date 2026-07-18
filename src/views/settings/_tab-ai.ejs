@@ -277,8 +277,6 @@ Preferred languages:
 
 <span class="text-purple-500">{languages}</span>
 
-<span class="text-purple-500">{other_expectations}</span>
-
 Assess how well the job matches the profile and expectations.
 
 ROLE SCORING GUIDE (0-100):
@@ -641,6 +639,7 @@ Description: {description — up to 1,500 chars each}
       document.getElementById('topup-success').classList.add('hidden');
       document.getElementById('topup-error').classList.add('hidden');
       document.getElementById('topup-modal').classList.remove('hidden');
+      if (window.autoGrowField) autoGrowField(document.getElementById('topup-message'));
       document.getElementById('topup-message').focus();
     }
 
