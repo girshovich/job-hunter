@@ -10,6 +10,10 @@
   .jh-btn-primary:hover { @apply bg-blue-700; }
   .jh-btn-primary:disabled { @apply cursor-not-allowed opacity-40 pointer-events-none; }
 
+  /* Soft-blue secondary action. Look only — size (px/py/text) stays a utility per site. */
+  .jh-btn-secondary { @apply border border-blue-200 bg-blue-50 text-blue-600 transition-colors; }
+  .jh-btn-secondary:hover { @apply bg-blue-100; }
+
   /* Standard card surface. Padding stays a utility on the element (p-6 / p-5 / p-4 sm:p-6). */
   .jh-card { @apply rounded-xl border border-gray-200 bg-white shadow-sm; }
 }

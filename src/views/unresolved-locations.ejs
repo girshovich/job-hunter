@@ -17,7 +17,7 @@
       <input type="text" name="q" value="<%= q %>" placeholder="Filter locations"
              class="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
       <button type="submit"
-              class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+              class="px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors">
         Filter
       </button>
       <% if (q) { %>
@@ -30,9 +30,7 @@
   </div>
 
   <% if (locations.length === 0) { %>
-    <div class="p-12 text-center">
-      <p class="text-sm text-gray-500">No cached unknown locations found.</p>
-    </div>
+    <%- renderEmptyState('No cached unknown locations found.') %>
   <% } else { %>
     <table class="w-full text-left">
       <thead class="bg-gray-50 border-b border-gray-100">

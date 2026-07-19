@@ -18,9 +18,7 @@
 </div>
 
 <% if (channels.length === 0) { %>
-  <div class="jh-card p-12 text-center">
-    <p class="text-sm text-gray-500">No posts were ingested in the last run.</p>
-  </div>
+  <%- renderEmptyState('No posts were ingested in the last run.') %>
 <% } else { %>
   <div class="space-y-8">
     <% channels.forEach(group => { %>

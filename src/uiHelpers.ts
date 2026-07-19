@@ -238,6 +238,13 @@ export function renderPageHeader(title: unknown, subtitle?: unknown, actionsHtml
   return `<div class="flex items-center justify-between gap-4 mb-6"><div><h1 class="text-2xl font-bold text-gray-900">${escapeHtml(title)}</h1>${subtitleHtml}</div>${actions}</div>`;
 }
 
+export function renderEmptyState(message: unknown, iconPath?: string): string {
+  const icon = iconPath
+    ? `<svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="${iconPath}"/></svg>`
+    : '';
+  return `<div class="jh-card p-12 text-center">${icon}<p class="text-sm text-gray-500">${escapeHtml(message)}</p></div>`;
+}
+
 export function renderActionButton(label: unknown, actionMeaning: unknown, attrs: HtmlAttrs = {}): string {
   const className = `${getButtonClass(actionMeaning)} px-4 py-2 ${attrs.class ?? ''}`.trim();
   const htmlAttrs = attrsToHtml({ ...attrs, class: className });
@@ -532,6 +539,7 @@ export const uiHelpers = {
   getButtonVariant,
   getButtonClass,
   renderPageHeader,
+  renderEmptyState,
   renderActionButton,
   renderTextActionLink,
   renderDottedPopupLink,

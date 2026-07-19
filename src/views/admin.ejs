@@ -79,11 +79,11 @@
       </div>
       <div class="flex items-center gap-2">
         <button type="button" onclick="testApiKey('apify', 'global-apify-token-input', 'global-apify-test-status')"
-                class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+                class="px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors">
           Test Apify
         </button>
         <button type="button" onclick="testApiKey('openai', 'global-openai-key-input', 'global-openai-test-status')"
-                class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+                class="px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors">
           Test OpenAI
         </button>
         <button type="submit"
@@ -138,11 +138,11 @@
       </div>
       <div class="flex items-center gap-2 flex-wrap mt-3">
         <button type="button" onclick="testApiKey('resend', 'resend-key-input', 'resend-test-status')"
-                class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+                class="px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors">
           Test key
         </button>
         <button type="button" id="test-email-btn" onclick="sendTestEmail(this)"
-                class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+                class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
           Test Email
         </button>
@@ -188,7 +188,7 @@
                  class="w-20 rounded border border-gray-300 px-2 py-1 text-xs font-mono text-right focus:ring-1 focus:ring-blue-500"
                  id="credits-input-<%= p.id %>" />
           <button type="button" onclick="setUserCredits(<%= p.id %>, this)"
-                  class="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition-colors">Set</button>
+                  class="px-2 py-1 text-xs font-medium jh-btn-secondary rounded transition-colors">Set</button>
         </div>
         <% if (!p.is_admin) { %>
         <button type="button" onclick="deleteProfile(<%= p.id %>, '<%= p.email %>')"
@@ -202,7 +202,7 @@
       <input type="email" id="new-profile-email" placeholder="newuser@example.com"
              class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
       <button type="button" onclick="createProfile()"
-              class="flex-shrink-0 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-2 rounded-lg transition-colors">
+              class="flex-shrink-0 inline-flex items-center gap-1.5 text-sm font-medium jh-btn-secondary px-3 py-2 rounded-lg transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         Add
       </button>
@@ -262,7 +262,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="ats-discover-btn" type="button" onclick="atsRunDiscovery()"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Start Now
           </button>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -286,7 +286,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="ats-lever-discover-btn" type="button" onclick="atsRunLeverDiscovery()"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Start Now
           </button>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -310,7 +310,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="ats-validate-btn" type="button" onclick="atsRunValidation()"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Start Now
           </button>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -391,7 +391,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="pool-gh-fetch-btn" type="button" onclick="poolFetch('greenhouse')"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Fetch now
           </button>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -415,7 +415,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="pool-ashby-fetch-btn" type="button" onclick="poolFetch('ashby')"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Fetch now
           </button>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -439,7 +439,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="pool-lever-fetch-btn" type="button" onclick="poolFetch('lever')"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Fetch now
           </button>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -463,7 +463,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="pool-resolve-btn" type="button" onclick="poolResolveCountries()"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Resolve now
           </button>
           <span class="w-9 flex-shrink-0" aria-hidden="true"></span>
@@ -484,7 +484,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="pool-recheck-btn" type="button" onclick="poolRecheckUnknownCountries()"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Re-check
           </button>
           <span class="w-9 flex-shrink-0" aria-hidden="true"></span>
@@ -523,7 +523,7 @@
         </div>
         <div class="flex items-center justify-between gap-3 sm:justify-end sm:ml-4 flex-shrink-0">
           <button id="tg-fetch-btn" type="button" onclick="telegramFetchNow()"
-                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-40">
+                  class="w-28 whitespace-nowrap px-3 py-1.5 text-xs font-medium jh-btn-secondary rounded-lg transition-colors disabled:opacity-40">
             Fetch now
           </button>
           <label class="relative inline-flex items-center cursor-pointer">
