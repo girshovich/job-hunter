@@ -18,7 +18,7 @@
 </div>
 
 <% if (channels.length === 0) { %>
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
+  <div class="jh-card p-12 text-center">
     <p class="text-sm text-gray-500">No posts were ingested in the last run.</p>
   </div>
 <% } else { %>
@@ -31,7 +31,7 @@
         </h2>
         <div class="space-y-4">
           <% group.posts.forEach(post => { %>
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="jh-card overflow-hidden">
               <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
                 <a href="<%= post.post_url %>" target="_blank" rel="noopener"
                    class="text-xs font-medium text-sky-600 hover:text-sky-800 underline break-all">

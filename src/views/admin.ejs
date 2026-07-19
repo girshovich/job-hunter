@@ -36,7 +36,7 @@
   <form id="admin-keys-form" method="post" action="/settings" class="">
     <input type="hidden" name="tab" value="admin">
     <input type="hidden" name="section" value="keys">
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+    <div class="jh-card p-4 sm:p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-1">Global API Keys</h2>
       <p class="text-xs text-gray-500 mb-4">Used by all users who are on "Use JH credits" mode. Only visible to admin.</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -87,7 +87,7 @@
           Test OpenAI
         </button>
         <button type="submit"
-                class="px-4 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                class="jh-btn-primary">
           Save
         </button>
       </div>
@@ -100,7 +100,7 @@
   <form id="admin-email-form" method="post" action="/settings" class="">
     <input type="hidden" name="tab" value="admin">
     <input type="hidden" name="section" value="email">
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+    <div class="jh-card p-4 sm:p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-1">Email Delivery</h2>
       <p class="text-xs text-gray-500 mb-4">Used to send login codes and job reports to all users.</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -147,7 +147,7 @@
           Test Email
         </button>
         <button type="submit"
-                class="px-4 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                class="jh-btn-primary">
           Save
         </button>
       </div>
@@ -157,7 +157,7 @@
   </form>
 
   <!-- Profiles -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+  <div class="jh-card p-4 sm:p-6">
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-base font-semibold text-gray-900">Profiles</h2>
@@ -215,7 +215,7 @@
   <div id="admin-pane-sources" class="space-y-4 <%= adminTab === 'sources' ? '' : 'hidden' %>">
 
   <!-- ATS Board Discovery -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+  <div class="jh-card p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">ATS Board Discovery</h2>
     <p class="text-xs text-gray-500 mb-4">
       Discovers Greenhouse and Ashby boards via Common Crawl, and Lever companies via HuggingFace.
@@ -324,7 +324,7 @@
   </div><!-- end ATS card -->
 
   <!-- ATS Job Pool Fill -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+  <div class="jh-card p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">ATS Job Pool Fill</h2>
     <p class="text-xs text-gray-500 mb-4 leading-relaxed">
       Greenhouse, Ashby and Lever public APIs have no search filters — they return all open jobs for each company.
@@ -495,7 +495,7 @@
   </div><!-- end pool card -->
 
   <!-- Telegram Job Source -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+  <div class="jh-card p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">Telegram Channels</h2>
     <p class="text-xs text-gray-500 mb-4 leading-relaxed">
       Scrapes public Telegram channels daily at 05:30 (first page, ~20 most recent posts per channel). Each post is
@@ -581,14 +581,14 @@
   <div id="admin-pane-locations" class="space-y-4 <%= adminTab === 'locations' ? '' : 'hidden' %>">
 
   <!-- Country Recognition -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+  <div class="jh-card p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">Country Recognition</h2>
     <p class="text-xs text-gray-500 mb-4">Manage the lowercase synonyms used to recognize each country in scraped job locations (e.g. <span class="font-mono">uk → United Kingdom</span>, or fold <span class="font-mono">guam → United States</span>).</p>
     <button onclick="openSynonymsModal()" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Manage country synonyms</button>
   </div>
 
   <!-- Region Definitions -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+  <div class="jh-card p-4 sm:p-6">
     <h2 class="text-base font-semibold text-gray-900 mb-1">Region Definitions</h2>
     <p class="text-xs text-gray-500 mb-4">Define which countries belong to each region label (e.g. DACH, EMEA). Add aliases so several spellings (EU / European Union) share one member list. Editing members or aliases re-derives affected jobs automatically.</p>
     <div id="regions-list" class="space-y-4">

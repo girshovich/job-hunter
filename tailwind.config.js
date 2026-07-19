@@ -14,6 +14,11 @@ module.exports = {
           600: '#2563EB',
           700: '#1D4ED8',
         },
+        // Action-success green (Run / Apply / Applied). Matches --jh-sb-green used by .jh-btn-success.
+        success: {
+          600: '#1E9E5A',
+          700: '#178049',
+        },
       },
     },
   },

@@ -8,17 +8,17 @@
 
 <!-- ── Overall numbers ── -->
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 text-center">
+  <div class="jh-card p-5 text-center">
     <div class="text-3xl font-black text-blue-600"><%= totals.applied %></div>
     <div class="text-xs text-gray-500 mt-1 font-medium">Applied</div>
     <div class="text-xs text-gray-400 mt-0.5"><%= totals.strong > 0 ? Math.round(totals.applied / totals.strong * 100) : 0 %>% of strong matches</div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 text-center">
+  <div class="jh-card p-5 text-center">
     <div class="text-3xl font-black text-gray-800"><%= totals.strong %></div>
     <div class="text-xs text-gray-500 mt-1 font-medium">Strong Matches</div>
     <div class="text-xs text-gray-400 mt-0.5">total found</div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 text-center">
+  <div class="jh-card p-5 text-center">
     <div class="text-3xl font-black text-gray-400"><%= totals.total %></div>
     <div class="text-xs text-gray-500 mt-1 font-medium">Total Jobs Saved</div>
     <div class="text-xs text-gray-400 mt-0.5">all verdicts (deduplicated)</div>
@@ -43,7 +43,7 @@
   statusBreakdown.forEach(s => { if (!STATUS_ORDER.includes(s.status) && s.count > 0) orderedBreakdown.push(s); });
   const totalCount = orderedBreakdown.reduce((a, s) => a + s.count, 0) || 1;
 %>
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+<div class="jh-card p-6 mb-6">
   <h2 class="font-semibold text-gray-900 text-sm mb-4">All Results by Status</h2>
   <!-- Stacked proportional bar -->
   <div class="flex rounded-lg overflow-hidden h-9 mb-4 gap-px">
@@ -78,7 +78,7 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
   <!-- By Role -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+  <div class="jh-card overflow-hidden">
     <div class="px-6 py-4 border-b border-gray-100">
       <h2 class="font-semibold text-gray-900 text-sm">By Role</h2>
       <p class="text-xs text-gray-400 mt-0.5">Strong matches found and applied per role</p>
@@ -124,7 +124,7 @@
   </div>
 
   <!-- By Country -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+  <div class="jh-card overflow-hidden">
     <div class="px-6 py-4 border-b border-gray-100">
       <h2 class="font-semibold text-gray-900 text-sm">By Country</h2>
       <p class="text-xs text-gray-400 mt-0.5">Where strong matches are located</p>
@@ -167,7 +167,7 @@
 </div>
 
 <!-- ── Daily Strong Matches — last 14 days ── -->
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+<div class="jh-card p-6 mb-6">
   <div class="mb-4">
     <h2 class="font-semibold text-gray-900 text-sm">Daily Strong Matches — last 14 days</h2>
     <p class="text-xs text-gray-400 mt-0.5">AI strong matches kept vs. promoted/demoted by you</p>
@@ -179,7 +179,7 @@
 </div>
 
 <!-- ── Monthly Strong Matches — last 12 months ── -->
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+<div class="jh-card p-6">
   <div class="mb-4">
     <h2 class="font-semibold text-gray-900 text-sm">Monthly Strong Matches — last 12 months</h2>
     <p class="text-xs text-gray-400 mt-0.5">AI strong matches kept vs. promoted/demoted by you</p>

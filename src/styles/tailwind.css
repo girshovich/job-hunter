@@ -1,3 +1,15 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  /* Page-level primary action (Save / confirm). Single source for the app's solid-blue button. */
+  .jh-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors;
+  }
+  .jh-btn-primary:hover { @apply bg-blue-700; }
+  .jh-btn-primary:disabled { @apply cursor-not-allowed opacity-40 pointer-events-none; }
+
+  /* Standard card surface. Padding stays a utility on the element (p-6 / p-5 / p-4 sm:p-6). */
+  .jh-card { @apply rounded-xl border border-gray-200 bg-white shadow-sm; }
+}

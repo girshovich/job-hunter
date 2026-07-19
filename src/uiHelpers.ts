@@ -152,9 +152,27 @@ export function formatAppliedLabel(value: unknown): string {
 
 export function getAppliedTone(value: unknown): string {
   const n = Number(value);
-  if (n === 1) return 'bg-emerald-600 text-white';
+  if (n === 1) return 'bg-success-600 text-white';
   if (n === 2) return 'bg-red-600 text-white';
   return 'border border-gray-200 bg-gray-50 text-gray-300';
+}
+
+const RUN_STATUS_TONES: Record<string, string> = {
+  success: 'bg-emerald-50 text-emerald-700',
+  partial_error: 'bg-yellow-50 text-yellow-700',
+  running: 'bg-blue-50 text-blue-700',
+  stopped: 'bg-gray-100 text-gray-600',
+  error: 'bg-red-50 text-red-600',
+};
+
+export function getRunStatusTone(value: unknown): string {
+  const key = String(value ?? '').trim().toLowerCase();
+  return RUN_STATUS_TONES[key] ?? RUN_STATUS_TONES.error;
+}
+
+export function formatRunStatusLabel(value: unknown): string {
+  const key = String(value ?? '').trim().toLowerCase();
+  return key === 'partial_error' ? 'partial error' : key;
 }
 
 export function formatDateTimeToMinutes(value: unknown, timezone = 'UTC'): string {
@@ -203,7 +221,7 @@ export function getButtonVariant(actionMeaning: unknown): string {
 export function getButtonClass(actionMeaning: unknown): string {
   const variant = getButtonVariant(actionMeaning);
   const base = 'inline-flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition-colors';
-  if (variant === 'primary-green') return `${base} bg-emerald-600 hover:bg-emerald-700 text-white`;
+  if (variant === 'primary-green') return `${base} bg-success-600 hover:bg-success-700 text-white`;
   if (variant === 'primary-blue') return `${base} bg-blue-600 hover:bg-blue-700 text-white`;
   if (variant === 'danger-red') return `${base} bg-red-600 hover:bg-red-700 text-white`;
   if (variant === 'text-link') return 'inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline';
@@ -506,6 +524,8 @@ export const uiHelpers = {
   formatScore,
   formatAppliedLabel,
   getAppliedTone,
+  getRunStatusTone,
+  formatRunStatusLabel,
   formatDateTimeToMinutes,
   formatSourceLabel,
   formatSourceName,

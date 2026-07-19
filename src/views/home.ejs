@@ -8,12 +8,6 @@ const tz = timezone || 'UTC';
 function formatDate(iso) {
   return formatDateTimeToMinutes(iso, tz);
 }
-function statusColor(s) {
-  if (s === 'success') return 'text-emerald-700 bg-emerald-50';
-  if (s === 'partial_error') return 'text-yellow-700 bg-yellow-50';
-  if (s === 'stopped') return 'text-gray-600 bg-gray-100';
-  return 'text-red-700 bg-red-50';
-}
 function verdictChip(verdict) {
   return renderVerdictChip(verdict, { editable: isVerdictEditable(verdict) });
 }
@@ -31,7 +25,7 @@ function verdictChip(verdict) {
 <div id="home-cards-row" class="flex flex-col md:flex-row md:items-stretch gap-4 mb-6">
 
   <!-- Letter card -->
-  <div id="home-card-letter" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex-1 min-w-0 flex flex-col">
+  <div id="home-card-letter" class="jh-card p-6 flex-1 min-w-0 flex flex-col">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-gray-900">Hi, glad you made it!</h2>
       <button onclick="dismissHomeCard('letter')" class="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0 ml-2">
@@ -48,7 +42,7 @@ function verdictChip(verdict) {
   </div>
 
   <!-- How it works (compact) -->
-  <div id="home-card-hiw" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex-1 min-w-0">
+  <div id="home-card-hiw" class="jh-card p-5 flex-1 min-w-0">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-gray-900">How it works</h2>
       <button onclick="dismissHomeCard('hiw')" class="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0 ml-2">
@@ -111,7 +105,7 @@ function verdictChip(verdict) {
   </div>
 
   <!-- Usage modes -->
-  <div id="home-card-modes" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex-1 min-w-0">
+  <div id="home-card-modes" class="jh-card p-5 flex-1 min-w-0">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-gray-900">Three ways to run it</h2>
       <button onclick="dismissHomeCard('modes')" class="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0 ml-2">
@@ -156,7 +150,7 @@ function verdictChip(verdict) {
 </div>
 
 <!-- ── Search for Jobs ── -->
-<div id="run-card" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+<div id="run-card" class="jh-card p-6 mb-6">
   <div class="flex items-center justify-between flex-wrap gap-4">
     <div>
       <h2 class="font-semibold text-gray-900">Search for Jobs</h2>
@@ -219,11 +213,11 @@ function verdictChip(verdict) {
   <!-- Last run stats (compact) -->
   <div>
     <% if (lastRun) { %>
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+    <div class="jh-card p-5">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold text-gray-700">Last Session</h2>
-        <span class="text-xs px-2 py-0.5 rounded-full font-medium <%= statusColor(lastRun.status) %>">
-          <%= lastRun.status.replace('_', ' ') %>
+        <span class="text-xs px-2 py-0.5 rounded-full font-medium <%= getRunStatusTone(lastRun.status) %>">
+          <%= formatRunStatusLabel(lastRun.status) %>
         </span>
       </div>
       <div class="grid grid-cols-3 gap-2 text-center">
@@ -249,7 +243,7 @@ function verdictChip(verdict) {
       <% } %>
     </div>
     <% } else { %>
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 text-center text-sm text-gray-400">
+    <div class="jh-card p-5 text-center text-sm text-gray-400">
       No runs yet. Hit <strong>Run Once</strong> to start.
     </div>
     <% } %>
@@ -257,7 +251,7 @@ function verdictChip(verdict) {
 
   <!-- Last job matches -->
   <div class="lg:col-span-2">
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="jh-card overflow-hidden">
       <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
         <h2 class="font-semibold text-gray-900 text-sm">Last Session — Strong Matches</h2>
         <div class="flex items-center gap-3">

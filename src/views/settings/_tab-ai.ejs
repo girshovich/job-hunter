@@ -4,7 +4,7 @@
 
     <!-- API KEYS -->
     <form id="ai-keys-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
-          class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          class="jh-card p-6">
       <input type="hidden" name="tab" value="ai">
       <h2 class="text-base font-semibold text-gray-900 mb-1">API Keys</h2>
       <p class="text-xs text-gray-500 mb-5">Choose whether to run on Job Hunter credits or on your own API keys.</p>
@@ -117,7 +117,7 @@
 
       <div id="ai-keys-actions" class="hidden items-center gap-3 mt-5 pt-5 border-t border-gray-100">
         <button type="submit" id="ai-keys-save-btn"
-                class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                class="jh-btn-primary">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
           <span id="ai-keys-save-label">Save</span>
         </button>
@@ -128,7 +128,7 @@
 
     <!-- LLM MODELS -->
     <form id="ai-models-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
-          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          class="jh-card overflow-hidden">
       <input type="hidden" name="tab" value="ai">
       <button type="button" onclick="togglePromptBlock('llm-models-body', 'llm-models-chevron')"
               class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
@@ -159,7 +159,7 @@
         </div>
         <div class="flex items-center gap-3 pt-2">
           <button type="submit" id="ai-models-save-btn" disabled
-                  class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  class="jh-btn-primary">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             Save
           </button>
@@ -169,7 +169,7 @@
     </form>
 
     <!-- CUSTOMIZE AI PROMPTS -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="jh-card">
       <div class="flex items-center gap-4 px-6 py-4">
         <div class="flex-1 min-w-0">
           <h2 class="text-base font-semibold text-gray-900">Customize AI prompts</h2>
@@ -368,7 +368,7 @@ For summary: if score is >70 —</pre>
               <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
                 <p class="text-xs hidden" data-save-status></p>
                 <button type="submit" id="ai-scoring-save-btn" disabled
-                        class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                        class="jh-btn-primary">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                   Save
                 </button>
@@ -461,7 +461,7 @@ Description: {description — up to 1,500 chars each}
               <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
                 <p class="text-xs hidden" data-save-status></p>
                 <button type="submit" id="ai-dedup-save-btn" disabled
-                        class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                        class="jh-btn-primary">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                   Save
                 </button>
@@ -492,7 +492,7 @@ Description: {description — up to 1,500 chars each}
               <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
                 <p class="text-xs hidden" data-save-status></p>
                 <button type="submit" id="ai-cv-save-btn" disabled
-                        class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                        class="jh-btn-primary">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                   Save
                 </button>
