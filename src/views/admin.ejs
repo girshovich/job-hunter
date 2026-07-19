@@ -616,12 +616,12 @@
   </div><!-- end regions card -->
 
   <!-- Country synonyms modal -->
-  <div id="synonyms-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closeSynonymsModal()">
+  <div id="synonyms-modal" class="hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target===this)closeSynonymsModal()">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
       <div class="p-5 border-b border-gray-100">
         <div class="flex items-start justify-between gap-3">
           <h3 class="text-base font-semibold text-gray-900">Country synonyms</h3>
-          <button onclick="closeSynonymsModal()" aria-label="Close" class="shrink-0 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+          <button onclick="closeSynonymsModal()" aria-label="Close" class="shrink-0 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
         </div>
         <p class="text-xs text-gray-500 mt-1">Add a lowercase alias under a country to recognize it in scraped locations (e.g. <span class="font-mono">uk → United Kingdom</span>). A synonym can't be a country or region name. Each add or remove <strong>saves and re-derives immediately</strong>.</p>
       </div>
