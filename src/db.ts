@@ -63,6 +63,8 @@ function wrapDatabase(raw: NodeSQLiteDatabase): Database {
 
 export const DEFAULT_DEDUP_SYSTEM_PROMPT = `You are a job posting deduplication engine. Your task is to determine whether a NEW job posting is effectively the same position as any of the EXISTING postings from the same company. Two postings are duplicates if they describe the same role even if the text has been slightly reworded, reformatted, or reposted with a new ID.`;
 
+export const DEFAULT_SUMMARY_PROMPT = `Analyze the job description and write a summary of what product this role owns. No more than 15 words, be very concise.`;
+
 export const DEFAULT_CV_COMPARISON_PROMPT = `analyze and answer these questions in a very brief manner so i can read it in 1 min:
 - what's the area or product this role owns?
 - does it openly say about supporting or not supporting with visa / relocation / remote work from everywhere?
@@ -2191,6 +2193,7 @@ function initSchema(db: Database): void {
       email_recipient        TEXT    NOT NULL DEFAULT '',
       email_send_time        TEXT    NOT NULL DEFAULT '07:00',
       summary_prompt         TEXT    NOT NULL DEFAULT '',
+      cv_comparison_prompt   TEXT    NOT NULL DEFAULT '',
       apify_api_token        TEXT    NOT NULL DEFAULT '',
       openai_api_key         TEXT    NOT NULL DEFAULT '',
       resend_api_key         TEXT    NOT NULL DEFAULT '',
@@ -2332,13 +2335,13 @@ function seedSettings(db: Database): void {
       INSERT INTO settings (
         profile_id, search_keywords, search_locations, search_work_modes,
         search_job_type, cron_schedule, ai_system_prompt, ai_model,
-        dedup_system_prompt,
+        dedup_system_prompt, summary_prompt, cv_comparison_prompt,
         score_no_match_max, score_weak_match_max, score_strong_match_min,
         email_recipient, email_send_time, updated_at
       ) VALUES (
         1, ?, ?, ?,
         'fullTime', '0 7 * * *', ?, 'gpt-5.4',
-        ?,
+        ?, ?, ?,
         50, 70, 71,
         '', '07:00', ?
       )
@@ -2348,6 +2351,8 @@ function seedSettings(db: Database): void {
       JSON.stringify(['remote', 'hybrid', 'onsite']),
       DEFAULT_AI_SYSTEM_PROMPT,
       DEFAULT_DEDUP_SYSTEM_PROMPT,
+      DEFAULT_SUMMARY_PROMPT,
+      DEFAULT_CV_COMPARISON_PROMPT,
       now,
     );
     console.log('[db] Settings seeded for Mikhail (profile_id=1).');
@@ -2360,13 +2365,13 @@ function seedSettings(db: Database): void {
       INSERT INTO settings (
         profile_id, search_keywords, search_locations, search_work_modes,
         search_job_type, cron_schedule, ai_system_prompt, ai_model,
-        dedup_system_prompt,
+        dedup_system_prompt, summary_prompt, cv_comparison_prompt,
         score_no_match_max, score_weak_match_max, score_strong_match_min,
         email_recipient, email_send_time, updated_at
       ) VALUES (
         2, ?, ?, ?,
         'fullTime', '0 7 * * *', ?, 'gpt-5.4',
-        ?,
+        ?, ?, ?,
         50, 70, 71,
         '', '07:00', ?
       )
@@ -2376,6 +2381,8 @@ function seedSettings(db: Database): void {
       JSON.stringify(['remote', 'hybrid', 'onsite']),
       DEFAULT_AI_SYSTEM_PROMPT,
       DEFAULT_DEDUP_SYSTEM_PROMPT,
+      DEFAULT_SUMMARY_PROMPT,
+      DEFAULT_CV_COMPARISON_PROMPT,
       now,
     );
     console.log('[db] Settings seeded for Arina (profile_id=2).');

@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import pLimit from 'p-limit';
 import type { JobPosting } from './fetcher';
 import type { SettingsRow, SearchGroupRow } from '../db';
+import { DEFAULT_SUMMARY_PROMPT } from '../db';
 import { resolvePreferredLabels } from './locationNormalizer';
 
 const SCORING_CONCURRENCY = Number(process.env.SCORING_CONCURRENCY) || 5;
@@ -193,6 +194,7 @@ interface ScoringLlmOutput {
 }
 
 function buildScoringUserMessage(job: JobPosting, summaryPrompt: string, sparse = false): string {
+  const summaryInstruction = summaryPrompt?.trim() || DEFAULT_SUMMARY_PROMPT;
   return `<JOB_POSTING>
 Title: ${job.title}
 Company: ${job.company}
@@ -211,7 +213,7 @@ For rejection_category use:
 - PROFILE_MISMATCH if the role doesn't match the candidate profile;
 - OTHER for any other reason;
 - NONE when score >50.
-For summary: if score is >70 — ${summaryPrompt} Otherwise set summary=null.`;
+For summary: if score is >70 — ${summaryInstruction} Otherwise set summary=null.`;
 }
 
 async function callScoringLlm(
