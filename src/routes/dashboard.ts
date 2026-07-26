@@ -3,10 +3,11 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type JobWithState, type SearchRunRow, type SearchGroupRow, type SettingsRow } from '../db';
+import { getDb, type JobWithState, type SearchRunRow, type SettingsRow } from '../db';
 import { getScheduleStatus } from '../pipeline/scheduler';
-import { lookupCountry, getPreferredCountries } from '../pipeline/locationNormalizer';
+import { getPreferredCountries } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
+import { renderJobList } from './jobs';
 
 const router = Router();
 
@@ -148,125 +149,19 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 // Job History — paginated, filterable — queries jobs table (one row per unique linkedin_job_id)
-router.get('/history', (req: Request, res: Response) => {
-  const db = getDb();
-  const profileId = req.profile.id;
-  const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
-  const limit = 25;
-  const offset = (page - 1) * limit;
-
-  // Filters
-  const verdict = String(req.query.verdict || '');
-  const company = String(req.query.company || '');
-  const country = String(req.query.country || '');
-  const scoreMin = req.query.score_min !== undefined && req.query.score_min !== ''
-    ? parseInt(String(req.query.score_min), 10) : null;
-  const scoreMax = req.query.score_max !== undefined && req.query.score_max !== ''
-    ? parseInt(String(req.query.score_max), 10) : null;
-  const dateFrom = String(req.query.date_from || '');
-  const dateTo   = String(req.query.date_to   || '');
-  // group: undefined = all, 'null' = ungrouped jobs, number = specific group
-  const groupParam = req.query.group;
-  const groupId: number | null | undefined =
-    groupParam === undefined || groupParam === ''
-      ? undefined
-      : groupParam === 'null'
-        ? null
-        : parseInt(String(groupParam), 10);
-
-  const conditions: string[] = ['jps.profile_id = ?'];
-  const params: (string | number)[] = [profileId];
-
-  // DUPLICATE filter maps to is_duplicate=1; other verdicts filter by ai_verdict
-  if (verdict === 'DUPLICATE') {
-    conditions.push('jps.is_duplicate = 1');
-  } else if (verdict && ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH'].includes(verdict)) {
-    conditions.push('jps.ai_verdict = ?');
-    params.push(verdict);
-  }
-  if (company) {
-    conditions.push('j.company LIKE ?');
-    params.push(`%${company}%`);
-  }
-  if (country) {
-    conditions.push('EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id AND jc.country = LOWER(?))');
-    params.push(country);
-  }
-  if (scoreMin !== null) { conditions.push('jps.ai_score >= ?'); params.push(scoreMin); }
-  if (scoreMax !== null) { conditions.push('jps.ai_score <= ?'); params.push(scoreMax); }
-  if (dateFrom) { conditions.push('jps.fetched_at >= ?'); params.push(dateFrom); }
-  if (dateTo)   { conditions.push('jps.fetched_at <= ?'); params.push(dateTo + 'T23:59:59Z'); }
-  if (groupId === null) {
-    conditions.push('jps.group_id IS NULL');
-  } else if (groupId !== undefined && !isNaN(groupId)) {
-    conditions.push('jps.group_id = ?');
-    params.push(groupId);
-  }
-
-  const where = `WHERE ${conditions.join(' AND ')}`;
-  const fromClause = `FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id`;
-
-  const total = (
-    db.prepare(`SELECT COUNT(*) as c ${fromClause} ${where}`).get(...params) as { c: number }
-  ).c;
-
-  const jobs = db
-    .prepare(`
-      SELECT j.*, jps.*, c.logo_url ${fromClause}
-      LEFT JOIN companies c ON c.company = j.company
-      ${where}
-      ORDER BY jps.fetched_at DESC
-      LIMIT ? OFFSET ?
-    `)
-    .all(...params, limit, offset) as JobWithState[];
-
-  // Attach job_locations labels to each job for the primary + N badge (same as Matches/Start)
-  if (jobs.length > 0) {
-    const ids = jobs.map((j) => j.id);
-    const ph = ids.map(() => '?').join(',');
-    const locRows = db.prepare(`SELECT job_id, label FROM job_locations WHERE job_id IN (${ph}) ORDER BY rowid ASC`).all(...ids) as Array<{ job_id: number; label: string }>;
-    const labelsMap = new Map<number, string[]>();
-    for (const { job_id, label } of locRows) {
-      if (!labelsMap.has(job_id)) labelsMap.set(job_id, []);
-      labelsMap.get(job_id)!.push(label);
-    }
-    for (const job of jobs) {
-      (job as JobWithState & { locationLabels: string[] }).locationLabels = labelsMap.get(job.id) ?? [];
-    }
-  }
-
-  const totalPages = Math.ceil(total / limit);
-  const groups = db.prepare('SELECT id, group_name FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as Pick<SearchGroupRow, 'id' | 'group_name'>[];
-  const histSettings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
-
-  // Distinct countries for dropdown — from job_countries child table
-  const countryRows = db.prepare(`
-    SELECT DISTINCT jc.country FROM job_countries jc
-    JOIN job_profile_states jps ON jps.job_id = jc.job_id
-    WHERE jps.profile_id = ?
-    ORDER BY jc.country ASC
-  `).all(profileId) as Array<{ country: string }>;
-  // Stored values are lowercase; display capitalized. Fall back to title-case for
-  // values not in the recognition map (e.g. Nominatim spellings like "czech republic").
-  const titleCase = (s: string) => s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
-  const countries = countryRows.map(r => ({
-    value: r.country,
-    label: lookupCountry(r.country) ?? titleCase(r.country),
-  }));
-
-  res.render('history', {
-    jobs,
-    page,
-    totalPages,
-    total,
-    groups,
-    countries,
-    filters: { verdict, company, country, scoreMin, scoreMax, dateFrom, dateTo, groupId },
-    timezone: histSettings?.timezone || 'UTC',
+// All Jobs — shares the Matches list+pane implementation (renderJobList), differing only by the
+// default Verdict (all/Q11) and the within-day sort (newest-first/Q8). Score min–max (Q9) and the
+// "Ungrouped" option (now "Other"/Q10) fall away by using the shared handler.
+router.get('/history', (req: Request, res: Response) =>
+  renderJobList(req, res, {
+    defaultVerdict: 'all',
+    withinDaySort: 'jps.fetched_at DESC',
     title: 'All Jobs',
-    locPref: getPreferredCountries(profileId),
-  });
-});
+    basePath: '/history',
+    fromKey: 'history',
+    showSubtitle: false,
+  }),
+);
 
 // Job Detail
 router.get('/job/:id', (req: Request, res: Response) => {

@@ -8,6 +8,9 @@ const rolesActive = (f.roleIds.length > 0) || f.roleOther;
 const verdictActive = f.verdict !== 'all';
 const countryActive = f.countries.length > 0;
 const dateActive = !!(f.df || f.dt);
+// value(lowercase) → display label, for the single-selected Country trigger label
+const countryLabelMap = {};
+countryOptions.forEach(c => { countryLabelMap[c.value] = c.label; });
 %>
 
 <%
@@ -55,7 +58,7 @@ function renderFilterBar(){
 
   // Country (multi)
   const countryIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
-  const countryLabel = !countryActive ? 'Country' : (f.countries.length === 1 ? f.countries[0] : f.countries.length + ' countries');
+  const countryLabel = !countryActive ? 'Country' : (f.countries.length === 1 ? (countryLabelMap[f.countries[0]] || f.countries[0]) : f.countries.length + ' countries');
 
   // Status (single)
   const statusIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>';
@@ -105,7 +108,7 @@ function card(job, mobile){
   const borderColor = selected ? 'var(--accent)' : '#e6e8ee';
   const shadow = selected ? '0 0 0 3px var(--accent-soft),0 1px 2px rgba(16,24,40,.06)' : '0 1px 2px rgba(16,24,40,.05)';
   const opacity = (!selected && applied !== 0) ? '.85' : '1';
-  const onSelect = mobile ? ("location.href='/job/"+job.id+"?from=jobs'") : ('JH.select('+job.id+')');
+  const onSelect = mobile ? ("location.href='/job/"+job.id+"?from="+fromKey+"'") : ('JH.select('+job.id+')');
   const summary = job.ai_summary ? esc(stripMd(job.ai_summary)) : '';
   const applyUrl = job.apply_url || job.url;
   let html = '<div class="jobcard" data-id="'+job.id+'" onclick="if(!JH.isControl(event)){'+onSelect+'}" style="display:flex;flex-direction:column;gap:9px;padding:14px 15px;border-radius:14px;cursor:pointer;background:'+cardBg+';border:1px solid '+borderColor+';box-shadow:'+shadow+';opacity:'+opacity+';transition:box-shadow .12s,border-color .12s,opacity .12s">';
@@ -150,8 +153,8 @@ function renderList(mobile){
   <section style="width:456px;flex:none;border-left:1px solid #e6e8ee;border-right:1px solid #dfe2e9;box-shadow:var(--shadow-list-edge);z-index:1;display:flex;flex-direction:column;min-height:0;background:var(--panel)">
     <div style="padding:20px 22px 12px;flex:none">
       <div style="display:flex;align-items:baseline;gap:10px">
-        <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)">Matches</h1>
-        <span style="font-size:13px;color:var(--faint);font-weight:600"><%= newCount %> new</span>
+        <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)"><%= title %></h1>
+        <% if (showSubtitle) { %><span style="font-size:13px;color:var(--faint);font-weight:600"><%= newCount %> new</span><% } %>
       </div>
       <%- renderFilterBar() %>
     </div>
@@ -205,8 +208,8 @@ function renderList(mobile){
 <!-- ============ MOBILE (list → tap → /job/:id) ============ -->
 <div class="md:hidden" style="padding:20px 16px 84px">
   <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px">
-    <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)">Matches</h1>
-    <span style="font-size:13px;color:var(--faint);font-weight:600"><%= newCount %> new</span>
+    <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)"><%= title %></h1>
+    <% if (showSubtitle) { %><span style="font-size:13px;color:var(--faint);font-weight:600"><%= newCount %> new</span><% } %>
   </div>
   <%- renderFilterBar() %>
   <div style="margin-top:12px">
@@ -240,7 +243,7 @@ window.__dateFilter = { df: '<%= f.df %>', dt: '<%= f.dt %>' };
 window.__selectedJobId = <%= selectedJobId || 'null' %>;
 window.__filterOpts = {
   roles: <%- JSON.stringify(roleOptions.map(r => ({ v: String(r.id), label: r.group_name || ('Role ' + r.id), count: r.cnt })).concat(orphanCount > 0 ? [{ v: 'other', label: 'Other', count: orphanCount }] : [])) %>,
-  country: <%- JSON.stringify(countryOptions.map(c => ({ v: c.country, label: c.country, count: c.cnt }))) %>
+  country: <%- JSON.stringify(countryOptions.map(c => ({ v: c.value, label: c.label, count: c.cnt }))) %>
 };
 // When applied status changes via the shared dropdown, the card must drop/gain the New tint + dim.
 window.onAppliedChanged = function(jobId, state){
@@ -322,7 +325,7 @@ window.JH = (function(){
       const active = sel.length > 0;
       let label;
       if (kind === 'roles') label = sel.length === 0 ? 'Role' : (sel.length === 1 ? ((window.__filterOpts.roles.find(o => String(o.v) === String(sel[0])) || {}).label || sel[0]) : sel.length + ' roles');
-      else label = sel.length === 0 ? 'Country' : (sel.length === 1 ? sel[0] : sel.length + ' countries');
+      else label = sel.length === 0 ? 'Country' : (sel.length === 1 ? ((window.__filterOpts.country.find(o => String(o.v) === String(sel[0])) || {}).label || sel[0]) : sel.length + ' countries');
       document.querySelectorAll('[data-filter="' + kind + '"]').forEach(function(btn){
         const lbl = btn.querySelector('.fb-label'); if (lbl) lbl.textContent = label;
         if (active) { btn.style.color = 'var(--accent)'; btn.style.background = 'var(--accent-soft)'; btn.style.border = '1px solid var(--accent-border)'; }
@@ -386,7 +389,7 @@ window.JH = (function(){
         + '</div>';
       document.querySelectorAll('.date-cal').forEach(c => c.innerHTML = html);
     },
-    clearAll(){ window.location.href = '/jobs'; },
+    clearAll(){ window.location.href = '<%= basePath %>'; },
     gotoPage(p){ nav({ page: p }, { resetPage: false, keepSelected: true }); },
     select(id){ nav({ selected: id }, { resetPage: false, keepSelected: true }); },
     toggleGroup(gi){

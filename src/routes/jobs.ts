@@ -6,11 +6,21 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type JobWithState, type SettingsRow } from '../db';
-import { getPreferredCountries } from '../pipeline/locationNormalizer';
+import { getPreferredCountries, lookupCountry } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
 
 const router = Router();
 const PAGE_DATES = 10; // number of distinct run-dates shown per page
+
+// Config that differs between the two list pages that share this handler (Matches / All Jobs).
+export interface JobListOpts {
+  defaultVerdict: 'STRONG_MATCH' | 'all'; // default Verdict filter when ?verdict is absent
+  withinDaySort: string;                  // ORDER BY fragment applied within each fetched day
+  title: string;                          // page + list-header title
+  basePath: string;                       // where "Clear all filters" navigates (route mount path)
+  fromKey: string;                        // ?from= value used by the mobile card → /job/:id link
+  showSubtitle: boolean;                  // show the "N new" list-header subtitle
+}
 
 // Per-(profile+filter) cache of distinct fetch dates — only changes after a pipeline run.
 // Invalidated by invalidateJobsDatesCache(), called from runner.ts on run completion.
@@ -28,14 +38,14 @@ interface DateGroup {
 
 const STATUS_MAP: Record<string, number> = { new: 0, applied: 1, wont: 2 };
 
-router.get('/', (req: Request, res: Response) => {
+export function renderJobList(req: Request, res: Response, opts: JobListOpts): void {
   const db = getDb();
   const profileId = req.profile.id;
   const q = req.query;
 
   // ── Parse filters ──
-  // Verdict: default Strong (Q6), clearable via ?verdict=all
-  const verdictParam = q.verdict === undefined ? 'STRONG_MATCH' : String(q.verdict);
+  // Verdict: default per page (Matches → Strong/Q6, All Jobs → all/Q11), clearable via ?verdict=all
+  const verdictParam = q.verdict === undefined ? opts.defaultVerdict : String(q.verdict);
   const verdict = verdictParam === 'all' ? null : verdictParam;
   // Roles (multi): comma list of search_group ids and/or 'other' (deleted-role jobs)
   const rolesParam = q.roles ? String(q.roles).split(',').filter(Boolean) : [];
@@ -72,7 +82,12 @@ router.get('/', (req: Request, res: Response) => {
     where.push('(' + parts.join(' OR ') + ')');
   }
   if (company) { where.push('j.company LIKE ?'); params.push('%' + company + '%'); }
-  if (countries.length) { where.push(`j.country IN (${countries.map(() => '?').join(',')})`); params.push(...countries); }
+  // Country: match against the multi-country list (job_countries) so a job open in several
+  // countries is found under any of them; values are stored lowercase.
+  if (countries.length) {
+    where.push(`EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id AND jc.country IN (${countries.map(() => '?').join(',')}))`);
+    params.push(...countries.map((c) => c.toLowerCase()));
+  }
   if (status !== null) { where.push('jps.applied = ?'); params.push(status); }
   if (dateFrom) { where.push('DATE(jps.fetched_at) >= ?'); params.push(dateFrom); }
   if (dateTo) { where.push('DATE(jps.fetched_at) <= ?'); params.push(dateTo); }
@@ -109,7 +124,7 @@ router.get('/', (req: Request, res: Response) => {
       FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
       LEFT JOIN companies c ON c.company = j.company
       WHERE ${whereSql} AND DATE(jps.fetched_at) IN (${ph})
-      ORDER BY DATE(jps.fetched_at) DESC, jps.ai_score DESC, j.id DESC
+      ORDER BY DATE(jps.fetched_at) DESC, ${opts.withinDaySort}, j.id DESC
     `).all(...params, ...pageDates) as JobWithState[];
   }
 
@@ -157,12 +172,19 @@ router.get('/', (req: Request, res: Response) => {
     WHERE jps.profile_id = ? AND ${NOT_BL}
       AND (jps.group_id IS NULL OR jps.group_id NOT IN (SELECT id FROM search_groups WHERE profile_id = ?))
   `).get(profileId, profileId) as { c: number }).c;
-  const countryOptions = db.prepare(`
-    SELECT j.country, COUNT(*) as cnt
-    FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
-    WHERE jps.profile_id = ? AND ${NOT_BL} AND j.country IS NOT NULL AND j.country <> ''
-    GROUP BY j.country ORDER BY cnt DESC
-  `).all(profileId) as Array<{ country: string; cnt: number }>;
+  // Country options come from the multi-country list (job_countries, lowercase); display a
+  // capitalized label (recognition map, else title-case) matching the EXISTS filter above.
+  const titleCase = (s: string) => s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+  const countryOptions = (db.prepare(`
+    SELECT jc.country as value, COUNT(*) as cnt
+    FROM job_countries jc JOIN job_profile_states jps ON jps.job_id = jc.job_id
+    WHERE jps.profile_id = ? AND ${NOT_BL} AND jc.country IS NOT NULL AND jc.country <> ''
+    GROUP BY jc.country ORDER BY cnt DESC
+  `).all(profileId) as Array<{ value: string; cnt: number }>).map((c) => ({
+    value: c.value,
+    label: lookupCountry(c.value) ?? titleCase(c.value),
+    cnt: c.cnt,
+  }));
   const statusRows = db.prepare(`
     SELECT applied, COUNT(*) as cnt FROM job_profile_states jps WHERE jps.profile_id = ? AND ${NOT_BL} GROUP BY applied
   `).all(profileId) as Array<{ applied: number; cnt: number }>;
@@ -190,7 +212,10 @@ router.get('/', (req: Request, res: Response) => {
   const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
 
   res.render('jobs', {
-    title: 'Matches',
+    title: opts.title,
+    basePath: opts.basePath,
+    fromKey: opts.fromKey,
+    showSubtitle: opts.showSubtitle,
     fullBleed: true,
     dateGroups,
     filters: { verdict: verdictParam, roleIds, roleOther, company, countries, status: statusParam, df: dateFrom, dt: dateTo },
@@ -201,6 +226,18 @@ router.get('/', (req: Request, res: Response) => {
     timezone: settings?.timezone || 'UTC',
     locPref: getPreferredCountries(profileId),
   });
-});
+}
+
+// Matches: default Strong (Q6), score-desc within a day (Q8).
+router.get('/', (req: Request, res: Response) =>
+  renderJobList(req, res, {
+    defaultVerdict: 'STRONG_MATCH',
+    withinDaySort: 'jps.ai_score DESC',
+    title: 'Matches',
+    basePath: '/jobs',
+    fromKey: 'jobs',
+    showSubtitle: true,
+  }),
+);
 
 export { router as jobsRouter };
