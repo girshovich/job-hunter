@@ -86,6 +86,11 @@
   --shadow-list-edge: 7px 0 18px -11px rgba(16, 24, 40, .16);
 }
 
+/* Design System v2 — base line-height matches the design files' default ("normal", ~1.26),
+   overriding Tailwind preflight's 1.5. Multi-line prose (JD 1.7, analysis 1.65, summaries 1.5)
+   and Tailwind's .text-* utilities set their own line-heights, so they are unaffected. */
+html { line-height: 1.25; }
+
 /* Design System v2 §1.5 — thin scrollbar */
 .jh-scroll {
   scrollbar-width: thin;

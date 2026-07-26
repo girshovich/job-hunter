@@ -180,19 +180,6 @@ export function getAppliedTone(value: unknown): string {
   return 'border border-gray-200 bg-gray-50 text-gray-300';
 }
 
-const RUN_STATUS_TONES: Record<string, string> = {
-  success: 'bg-emerald-50 text-emerald-700',
-  partial_error: 'bg-yellow-50 text-yellow-700',
-  running: 'bg-blue-50 text-blue-700',
-  stopped: 'bg-gray-100 text-gray-600',
-  error: 'bg-red-50 text-red-600',
-};
-
-export function getRunStatusTone(value: unknown): string {
-  const key = String(value ?? '').trim().toLowerCase();
-  return RUN_STATUS_TONES[key] ?? RUN_STATUS_TONES.error;
-}
-
 export function formatRunStatusLabel(value: unknown): string {
   const key = String(value ?? '').trim().toLowerCase();
   return key === 'partial_error' ? 'partial error' : key;
@@ -253,12 +240,12 @@ export function getButtonClass(actionMeaning: unknown): string {
 
 export function renderPageHeader(title: unknown, subtitle?: unknown, actionsHtml = ''): string {
   const subtitleHtml = subtitle
-    ? `<p class="text-sm text-gray-500 mt-1">${escapeHtml(subtitle)}</p>`
+    ? `<p style="font-size:13px;color:var(--muted);margin-top:3px">${escapeHtml(subtitle)}</p>`
     : '';
   const actions = actionsHtml
     ? `<div class="flex items-center gap-2 flex-shrink-0">${actionsHtml}</div>`
     : '';
-  return `<div class="flex items-center justify-between gap-4 mb-6"><div><h1 class="text-2xl font-bold text-gray-900">${escapeHtml(title)}</h1>${subtitleHtml}</div>${actions}</div>`;
+  return `<div class="flex items-end justify-between gap-4" style="margin-bottom:22px"><div><h1 style="font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)">${escapeHtml(title)}</h1>${subtitleHtml}</div>${actions}</div>`;
 }
 
 export function renderEmptyState(message: unknown, iconPath?: string): string {
@@ -317,10 +304,15 @@ export function renderAppliedSelector(value: unknown, attrs: HtmlAttrs = {}): st
   return `<button ${htmlAttrs}>${renderAppliedChip(value, { editable: true, full })}</button>`;
 }
 
-export function renderScoreCell(value: unknown): string {
+export function renderScoreCell(value: unknown, verdict?: unknown): string {
+  // DS §5.1: the score badge takes the verdict tone when a verdict is known (list cards,
+  // Run Diff, Run Logs). Callers without a verdict (e.g. Start's Last Session) fall back to
+  // the score-threshold tone so their look is unchanged until their own phase reskins them.
   const num = Number(value);
-  const tone = Number.isFinite(num) && num >= 71 ? 'text-white score-badge-match' : 'text-gray-500 bg-gray-100';
-  return `<span class="inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-semibold score-badge ${tone}">${formatScore(value)}</span>`;
+  const tone = verdict != null && verdict !== ''
+    ? getVerdictChipStyle(verdict)
+    : (Number.isFinite(num) && num >= 71 ? 'background:#ecfdf3;color:#067647' : 'background:#f2f4f7;color:#5b6472');
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:23px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;${tone}">${formatScore(value)}</span>`;
 }
 
 export function renderDateTimeCell(value: unknown, timezone = 'UTC'): string {
@@ -567,7 +559,6 @@ export const uiHelpers = {
   formatScore,
   formatAppliedLabel,
   getAppliedTone,
-  getRunStatusTone,
   formatRunStatusLabel,
   formatDateTimeToMinutes,
   formatSourceLabel,

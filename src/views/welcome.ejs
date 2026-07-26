@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,478 +7,292 @@
   <link rel="icon" href="/icon.ico">
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
-    html, body { overflow: hidden; }
-    .app-shell { height: 100dvh; background: #f9fafb; overflow: hidden; }
-    .app-sidebar { width: 264px; height: 100dvh; overflow: hidden; }
-    .app-main { min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden; }
-    .app-content { width: 100%; max-width: 72rem; min-height: 100%; display: flex; flex-direction: column; }
-    .app-page { flex: 1 0 auto; padding: 2rem 1.5rem 2rem; }
+    /* ── Welcome (standalone, DS v2 light) ── */
+    html,body{margin:0;height:100%;overflow:hidden}
+    body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+    input::placeholder{color:#9aa1ad}
+    .shell{display:flex;height:100dvh;width:100%;overflow:hidden}
 
-    :root {
-      --jh-sb-bg:     #0C0E12;
-      --jh-sb-border: #1F242C;
-      --jh-sb-ink:    #E9ECF1;
-      --jh-sb-muted:  #8A91A0;
-      --jh-sb-hover:  #1A1E26;
-      --jh-sb-active: #232936;
-      --jh-sb-blue:   #2F6BFF;
-      --jh-sb-green:  #1E9E5A;
-    }
+    /* ---- Sidebar (locked preview) ---- */
+    .sb{width:236px;flex:none;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;height:100%;position:relative}
+    .sb-brand{display:flex;align-items:center;gap:9px;padding:18px 18px 6px}
+    .sb-nav{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+    .sb-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:var(--muted);font-size:13.5px;font-weight:600;background:transparent;border:0;width:100%;text-align:left}
+    .sb-item svg{stroke:var(--fainter)}
+    .sb-item.active{background:var(--accent-soft);color:var(--accent);font-weight:700}
+    .sb-item.active svg{stroke:var(--accent)}
+    .sb-chev{margin-left:auto}
+    .ob{background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:11px;padding:11px 11px 8px;margin-bottom:12px;display:flex;flex-direction:column;gap:7px}
+    .ob-head{display:flex;align-items:center;justify-content:space-between}
+    .ob-title{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+    .ob-meta{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--faint);font-weight:700}
+    .ob-bar{flex:1;height:3px;background:#e2e6ee;border-radius:999px;overflow:hidden}
+    .ob-bar > span{display:block;height:100%;background:var(--accent);border-radius:999px}
+    .ob-list{display:flex;flex-direction:column}
+    .ob-step{display:grid;grid-template-columns:16px 1fr;align-items:center;gap:8px;padding:4px;border-radius:6px;font-size:12px;line-height:1.2;color:var(--fainter)}
+    .ob-check{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:700;background:#fff;border:1px solid #d6dae2;color:var(--faint)}
+    .sb-foot{padding:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+    .sb-run{display:flex;align-items:center;gap:9px;padding:10px 13px;border-radius:10px;font-size:13.5px;font-weight:700;width:100%;justify-content:flex-start;color:#fff}
+    .sb-run-green{background:var(--green)}
+    .sb-run-blue{background:var(--accent)}
+    .sb-profile{display:flex;align-items:center;gap:10px;padding:8px 6px;margin-top:2px}
+    .sb-avatar{width:32px;height:32px;border-radius:50%;background:#eef1f6;display:grid;place-items:center;color:var(--fainter);flex:none}
+    .sb-lock{position:absolute;inset:0;background:rgba(255,255,255,.5);backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);z-index:10;display:flex;align-items:center;justify-content:center}
+    .lock-pill{background:#fff;border:1px solid var(--line2);border-radius:10px;padding:9px 15px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 20px -8px rgba(16,24,40,.25);font-size:12px;color:var(--muted);font-weight:600}
 
-    .sb-item {
-      display: flex; align-items: center; gap: 11px;
-      padding: 9px 10px; border-radius: 8px;
-      color: var(--jh-sb-ink); font-size: 13.5px; font-weight: 500;
-      width: 100%; text-decoration: none; cursor: default;
-    }
-    .sb-item .ico { color: var(--jh-sb-muted); display: inline-flex; }
-    .sb-item.active { background: var(--jh-sb-active); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
-    .sb-item.active .ico { color: var(--jh-sb-ink); }
-    .sb-chev { display: inline-flex; align-items: center; margin-left: auto; color: var(--jh-sb-muted); }
+    /* ---- Main ---- */
+    .main{flex:1;min-width:0;height:100%;overflow-y:auto}
+    .page{max-width:1120px;padding:26px 16px 44px;display:flex;flex-direction:column;gap:16px}
+    .w-h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+    .w-crumb{font-size:13px;color:var(--faint);margin-top:3px;font-weight:600}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-card)}
 
-    .sb-nav-scroll {
-      flex: 1; overflow-y: auto; min-height: 0;
-      padding: 12px 10px; display: flex; flex-direction: column; gap: 2px;
-    }
-    .sb-nav-scroll::-webkit-scrollbar { width: 0; }
+    .field{display:block;width:100%;padding:12px 14px;font-size:13.5px;color:var(--ink);border:1px solid var(--line2);border-radius:11px;background:#fff;outline:none}
+    .field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+    .btn-accent{width:100%;background:var(--accent);color:#fff;font-size:13.5px;font-weight:700;border:0;padding:12px;border-radius:11px;cursor:pointer}
+    .btn-accent:hover{background:var(--accent-hover)}
+    .link-ghost{color:var(--accent);font-weight:600}
 
-    .sb-footer { padding: 12px; border-top: 1px solid var(--jh-sb-border); display: flex; flex-direction: column; gap: 10px; }
-    .sb-run-group { display: flex; flex-direction: column; gap: 6px; }
-    .sb-run {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px; border-radius: 9px;
-      font-size: 13.5px; font-weight: 600; font-family: inherit;
-      width: 100%; white-space: nowrap; color: white; cursor: default;
-    }
-    .sb-run-green { background: var(--jh-sb-green); }
-    .sb-run-blue  { background: var(--jh-sb-blue); }
+    .steps{display:flex;flex-direction:column;gap:14px}
+    @media(min-width:760px){ .steps{flex-direction:row;align-items:flex-start;gap:0} }
+    .step{display:flex;align-items:flex-start;gap:12px;flex:1}
+    @media(min-width:760px){ .step{flex-direction:column;align-items:center;text-align:center} }
+    .step-ico{border-radius:16px;padding:13px;flex:none;display:grid;place-items:center}
+    .step-arrow{display:none;color:#d4d7de;margin-top:16px;padding:0 4px}
+    @media(min-width:760px){ .step-arrow{display:flex} }
 
-    .sb-profile { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; }
-    .sb-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: var(--jh-sb-hover);
-      display: grid; place-items: center;
-      color: var(--jh-sb-muted); flex-shrink: 0;
-    }
+    .hero{display:flex;flex-direction:column;gap:16px}
+    @media(min-width:900px){ .hero{flex-direction:row;align-items:stretch} }
+    .hero-right{display:flex;flex-direction:column;gap:16px;width:100%}
+    @media(min-width:900px){ .hero-right{width:384px;flex:none} }
 
-    .sb-onboard {
-      background: linear-gradient(180deg, rgba(47,107,255,0.10) 0%, rgba(47,107,255,0.04) 100%);
-      border: 1px solid rgba(77,135,255,0.18);
-      border-radius: 10px; padding: 10px 10px 6px; margin-bottom: 8px;
-      display: flex; flex-direction: column; gap: 6px;
-    }
-    .sb-onboard-title {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
-      text-transform: uppercase; color: #B6CDFF;
-    }
-    .sb-onboard-meta { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--jh-sb-muted); }
-    .sb-onboard-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden; }
-    .sb-onboard-bar-fill { display: block; height: 100%; background: linear-gradient(90deg, #4D87FF, #2F6BFF); border-radius: 999px; }
-    .sb-onboard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-    .sb-onboard-item {
-      width: 100%; display: grid; grid-template-columns: 16px 1fr; align-items: center; gap: 8px;
-      padding: 4px; border-radius: 6px;
-      color: var(--jh-sb-ink); font-size: 12px; line-height: 1.2; cursor: default;
-    }
-    .sb-onboard-item.todo { color: var(--jh-sb-muted); }
-    .sb-onboard-check {
-      width: 16px; height: 16px; border-radius: 50%;
-      display: grid; place-items: center;
-      border: 1px solid rgba(255,255,255,0.18);
-      color: var(--jh-sb-muted); font-size: 9.5px; font-weight: 600;
-      background: rgba(255,255,255,0.02); flex-shrink: 0;
-    }
+    .preview-wrap{display:none}
+    @media(min-width:900px){ .preview-wrap{display:block} }
+    .prev-lock{position:absolute;inset:0;background:rgba(243,244,247,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:16px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+
+    @media(max-width:899px){ .sb{display:none} }
   </style>
 </head>
-<body class="h-full font-sans antialiased text-gray-900">
-<div class="app-shell flex">
+<body class="h-full font-sans antialiased">
+<div class="shell">
 
-  <!-- Sidebar preview (desktop only) -->
-  <aside class="app-sidebar hidden md:flex flex-shrink-0 flex-col relative"
-         style="background:var(--jh-sb-bg);color:var(--jh-sb-ink);">
-
-    <!-- Brand -->
-    <div style="display:flex;align-items:center;gap:10px;padding:18px 16px 16px;border-bottom:1px solid var(--jh-sb-border);flex-shrink:0;">
-      <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#4D87FF,#2F6BFF);display:grid;place-items:center;color:white;font-weight:700;font-size:12px;flex-shrink:0;">JH</div>
-      <div>
-        <div style="font-weight:600;font-size:15px;color:var(--jh-sb-ink);">Job Hunter</div>
-        <div style="font-size:11px;color:var(--jh-sb-muted);margin-top:1px;">Find a matching job</div>
-      </div>
+  <!-- ============ SIDEBAR (locked preview) ============ -->
+  <aside class="sb">
+    <div class="sb-brand">
+      <img src="/logo.PNG" alt="Job Hunter" style="width:100%;max-width:200px;height:auto;display:block;" />
     </div>
-
-    <!-- Nav -->
-    <div class="sb-nav-scroll">
-      <!-- Onboarding widget preview -->
-      <div class="sb-onboard">
-        <div class="sb-onboard-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
-          Onboarding
+    <nav class="sb-nav">
+      <div class="ob">
+        <div class="ob-head">
+          <div class="ob-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>Onboarding</div>
         </div>
-        <div class="sb-onboard-meta">
-          0 of 5 done
-          <span class="sb-onboard-bar"><span class="sb-onboard-bar-fill" style="width:0%"></span></span>
+        <div class="ob-meta">0 of 5 done<span class="ob-bar"><span style="width:0%"></span></span></div>
+        <div class="ob-list">
+          <div class="ob-step"><span class="ob-check">1</span><span>Set up your profile</span></div>
+          <div class="ob-step"><span class="ob-check">2</span><span>Add target roles</span></div>
+          <div class="ob-step"><span class="ob-check">3</span><span>Add or buy API keys</span></div>
+          <div class="ob-step"><span class="ob-check">4</span><span>Run your first search</span></div>
+          <div class="ob-step"><span class="ob-check">5</span><span>Set a daily schedule</span></div>
         </div>
-        <ul class="sb-onboard-list">
-          <% [
-            'Set up your profile',
-            'Add target roles & criteria',
-            'Buy credits or add API keys',
-            'Run your first search',
-            'Set a daily schedule'
-          ].forEach(function(label, i) { %>
-          <li>
-            <span class="sb-onboard-item <%= i === 0 ? '' : 'todo' %>">
-              <span class="sb-onboard-check"><%= i + 1 %></span>
-              <span><%= label %></span>
-            </span>
-          </li>
-          <% }); %>
-        </ul>
       </div>
-
-      <!-- Nav items (inert spans — nothing to enable in the console) -->
-      <span class="sb-item active">
-        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg></span>
-        Start
-      </span>
-      <span class="sb-item">
-        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg></span>
-        Matches
-      </span>
-      <span class="sb-item">
-        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg></span>
-        All Jobs
-      </span>
-      <span class="sb-item">
-        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-8"/><path d="M22 20H2"/></svg></span>
-        Stats
-      </span>
-      <span class="sb-item">
-        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
-        Run Logs
-      </span>
-      <span class="sb-item">
-        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.3 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.3l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></span>
-        Settings
-        <span class="sb-chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></span>
-      </span>
-    </div>
-
-    <!-- Footer -->
-    <div class="sb-footer">
-      <div class="sb-run-group">
-        <span class="sb-run sb-run-green" style="opacity:0.5;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>
-          Run once
-        </span>
-        <span class="sb-run sb-run-blue" style="opacity:0.5;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
-          Schedule
-        </span>
-      </div>
+      <span class="sb-item active"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>Start</span>
+      <span class="sb-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>Matches</span>
+      <span class="sb-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>All Jobs</span>
+      <span class="sb-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Stats</span>
+      <span class="sb-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Run Logs</span>
+      <span class="sb-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.3 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.3l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>Settings<span class="sb-chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aeb4bf" stroke-width="1.9" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></span></span>
+    </nav>
+    <div class="sb-foot">
+      <span class="sb-run sb-run-green" style="opacity:.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>Run once</span>
+      <span class="sb-run sb-run-blue" style="opacity:.5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Schedule</span>
       <div class="sb-profile">
-        <div class="sb-avatar">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </div>
-        <div style="display:flex;flex-direction:column;flex:1;min-width:0;">
-          <span style="font-size:13.5px;font-weight:600;color:var(--jh-sb-muted);line-height:1.2;">Your account</span>
-          <span style="font-size:11.5px;color:var(--jh-sb-muted);">Sign in to continue</span>
-        </div>
+        <div class="sb-avatar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:var(--muted);line-height:1.2">Your account</div><div style="font-size:11.5px;color:var(--faint)">Sign in to continue</div></div>
       </div>
     </div>
-
-    <!-- Frosted lock overlay — covers the entire sidebar, pointer-events block clicks through -->
-    <div style="position:absolute;inset:0;background:rgba(12,14,18,0.48);backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);z-index:10;display:flex;align-items:center;justify-content:center;pointer-events:all;">
-      <div style="background:rgba(14,17,22,0.88);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:8px;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A91A0" stroke-width="1.75" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <span style="font-size:12px;color:#8A91A0;font-weight:500;">Sign in to unlock</span>
-      </div>
+    <!-- frosted lock over the whole sidebar -->
+    <div class="sb-lock">
+      <div class="lock-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a91a0" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Sign in to unlock</div>
     </div>
-
   </aside>
 
-  <!-- Main -->
-  <main class="app-main flex-1">
-    <div class="app-content">
-      <div class="app-page">
+  <!-- ============ MAIN ============ -->
+  <main class="main jh-scroll">
+    <div class="page">
 
-        <!-- Page header -->
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h1 class="text-2xl font-bold text-gray-900">Welcome</h1>
-            <p class="text-sm text-gray-500 mt-1"><%= new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></p>
-          </div>
-        </div>
-
-        <% if (typeof error !== 'undefined' && error) { %>
-        <div class="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700"><%= error %></div>
-        <% } %>
-        <% if (typeof message !== 'undefined' && message) { %>
-        <div class="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700"><%= message %></div>
-        <% } %>
-
-        <!-- Hero + sign-in -->
-        <div class="flex flex-col md:flex-row md:items-stretch gap-4 mb-6">
-
-          <!-- Letter card -->
-          <div class="jh-card p-6 flex-1 min-w-0">
-            <h2 class="text-3xl font-bold text-gray-900 leading-snug mb-5">Save 30 minutes a day on your job hunt.</h2>
-            <div class="flex gap-4">
-              <img src="/misha.jpg" alt="Misha" class="w-16 h-16 rounded-full object-cover flex-shrink-0 mt-0.5">
-              <div class="flex-1 min-w-0">
-                <!-- Mobile: shortened text -->
-                <p class="md:hidden text-sm text-gray-700 leading-relaxed mb-4 text-justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free. Fork it, or run it with your own API keys for free, or ask me if you could use mine with some sort of compensation. Welcome aboard!</p>
-                <!-- Desktop: full text -->
-                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-3 text-justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free.</p>
-                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-3 text-justify">If you're hunting jobs across countries, scrolling hundreds of reposts from companies you don't even like - virtual hug. Job Hunter knows what you want. It scans same sites you do, kills reposts, and scores the rest against your criteria - showing only jobs you'd actually pick. It won't apply for you (I believe final call should be human), but it gets you there and writes a cover letter.</p>
-                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-0 text-justify">Fork it, or run it with your own API keys for free, or ask me if you could use mine with some sort of compensation.</p>
-                <p class="hidden md:block text-sm text-gray-700 leading-relaxed mb-4 text-justify">Welcome aboard!</p>
-                <p class="text-sm text-gray-500 text-right">Cheers, Misha</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right column: sign-in + github -->
-          <div class="flex flex-col gap-4 w-full md:w-96 flex-shrink-0">
-
-            <!-- Sign-in card -->
-            <div class="jh-card p-6 flex-1">
-
-              <!-- Step 1: email -->
-              <div id="step-email">
-                <p class="text-xl font-bold text-gray-900 mb-5">Sign in</p>
-                <input id="signin-email" type="email" placeholder="you@work.com"
-                       autocomplete="email" autocapitalize="off" inputmode="email"
-                       class="block w-full px-4 py-3 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3">
-                <div id="email-error" class="hidden text-xs text-red-600 mb-2 px-0.5"></div>
-                <button id="email-btn" onclick="requestCode()"
-                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors mb-4">
-                  Email me a code
-                </button>
-                <p class="text-xs text-gray-400">No password, enter with a 6-digit code. By signing in you agree to the <a href="/terms" class="underline hover:text-gray-600 transition-colors">Terms</a> and <a href="/privacy" class="underline hover:text-gray-600 transition-colors">Privacy Policy</a>.</p>
-              </div>
-
-              <!-- Step 2: verify (hidden initially) -->
-              <div id="step-verify" class="hidden">
-                <p class="text-xl font-bold text-gray-900 mb-1">Check your inbox</p>
-                <p id="verify-hint" class="text-xs text-gray-500 mb-5"></p>
-                <input id="signin-code" type="text" inputmode="numeric" maxlength="6"
-                       placeholder="6-digit code" autocomplete="one-time-code"
-                       class="block w-full px-4 py-3 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3 tracking-widest text-center font-mono">
-                <div id="verify-msg" class="hidden text-xs mb-2 px-0.5"></div>
-                <button id="verify-btn" onclick="verifyCode()"
-                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors mb-2">
-                  Verify
-                </button>
-                <button id="resend-btn" onclick="resendCode()"
-                        class="w-full text-blue-600 hover:text-blue-700 font-medium px-5 py-2 rounded-lg text-sm transition-colors">
-                  Resend code
-                </button>
-                <p class="text-xs text-gray-400 mt-2 text-center">
-                  <button onclick="backToEmail()" class="underline hover:text-gray-600 transition-colors">Change email</button>
-                </p>
-              </div>
-
-            </div>
-
-            <!-- GitHub card -->
-            <div class="jh-card p-5">
-              <p class="text-sm font-semibold text-gray-700 mb-3">You're welcome to self-host</p>
-              <a href="https://github.com/girshovich/job-hunter" target="_blank" rel="noopener"
-                 class="flex items-center gap-2 w-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="flex-shrink-0"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
-                github.com/girshovich/job-hunter
-              </a>
-            </div>
-
-          </div>
-
-        </div>
-
-        <!-- How it works -->
-        <div class="jh-card p-6">
-          <h2 class="text-base font-semibold text-gray-900 mb-5">How it works</h2>
-          <div class="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-0">
-
-            <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-              <div class="bg-violet-50 rounded-2xl p-3.5 flex-shrink-0">
-                <svg class="w-7 h-7 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              </div>
-              <div class="sm:text-center">
-                <p class="text-sm font-semibold text-gray-900">Describe yourself</p>
-                <p class="text-xs text-gray-500 mt-0.5 leading-snug">You, roles, locations and what you care about.</p>
-              </div>
-            </div>
-
-            <div class="hidden sm:flex items-center justify-center text-gray-300 mt-5 px-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </div>
-
-            <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-              <div class="bg-sky-50 rounded-2xl p-3.5 flex-shrink-0">
-                <svg class="w-7 h-7 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1.001.43-1.563A6 6 0 1121.75 8.25z"/></svg>
-              </div>
-              <div class="sm:text-center">
-                <p class="text-sm font-semibold text-gray-900">Set API keys</p>
-                <p class="text-xs text-gray-500 mt-0.5 leading-snug">Add your Apify and LLM keys, or use mine.</p>
-              </div>
-            </div>
-
-            <div class="hidden sm:flex items-center justify-center text-gray-300 mt-5 px-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </div>
-
-            <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-              <div class="bg-amber-50 rounded-2xl p-3.5 flex-shrink-0">
-                <svg class="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 8.5l5.5 3.5L10 15.5v-7z"/></svg>
-              </div>
-              <div class="sm:text-center">
-                <p class="text-sm font-semibold text-gray-900">Schedule job search</p>
-                <p class="text-xs text-gray-500 mt-0.5 leading-snug">Get the latest jobs from top job platforms.</p>
-              </div>
-            </div>
-
-            <div class="hidden sm:flex items-center justify-center text-gray-300 mt-5 px-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </div>
-
-            <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-              <div class="bg-purple-50 rounded-2xl p-3.5 flex-shrink-0">
-                <svg class="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg>
-              </div>
-              <div class="sm:text-center">
-                <p class="text-sm font-semibold text-gray-900">Wait for AI scoring</p>
-                <p class="text-xs text-gray-500 mt-0.5 leading-snug">Each job scored vs your profile. No duplicates.</p>
-              </div>
-            </div>
-
-            <div class="hidden sm:flex items-center justify-center text-gray-300 mt-5 px-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </div>
-
-            <div class="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-3 flex-1">
-              <div class="bg-emerald-50 rounded-2xl p-3.5 flex-shrink-0">
-                <svg class="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-              </div>
-              <div class="sm:text-center">
-                <p class="text-sm font-semibold text-gray-900">Get job matches</p>
-                <p class="text-xs text-gray-500 mt-0.5 leading-snug">Email digest with the gems. Open. Apply. Done.</p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- Product preview mock -->
-        <div class="hidden md:block mt-6 rounded-2xl border border-gray-200 shadow-sm" style="background:#f3f4f6;">
-
-          <!-- Content behind frosted overlay — relative container -->
-          <div style="position:relative;">
-
-            <!-- Actual cards (muted underneath) -->
-            <div style="padding:1.25rem 1.25rem 1rem;">
-
-              <!-- Search for Jobs bar -->
-              <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;">
-                <div>
-                  <div style="font-size:16px;font-weight:700;color:#111827;">Search for Jobs</div>
-                  <div style="font-size:12.5px;color:#6b7280;margin-top:2px;">Fetch jobs from your sources, score with AI, send the email digest.</div>
-                </div>
-                <div style="display:flex;gap:8px;flex-shrink:0;">
-                  <span style="display:inline-flex;align-items:center;gap:6px;background:#2563eb;color:white;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
-                    Schedule
-                  </span>
-                  <span style="display:inline-flex;align-items:center;gap:6px;background:#16a34a;color:white;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>
-                    Run Once
-                  </span>
-                </div>
-              </div>
-
-              <!-- Two-column cards -->
-              <div style="display:grid;grid-template-columns:220px 1fr;gap:1rem;align-items:start;">
-
-            <!-- Last Run -->
-            <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;padding:1rem;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
-                <span style="font-size:14px;font-weight:700;color:#111827;">Last Session</span>
-                <span style="background:#dcfce7;color:#16a34a;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;">success</span>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:0.75rem;">
-                <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 6px;text-align:center;">
-                  <div style="font-size:22px;font-weight:800;color:#111827;line-height:1;">88</div>
-                  <div style="font-size:10.5px;color:#9ca3af;margin-top:2px;">Fetched</div>
-                </div>
-                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 6px;text-align:center;">
-                  <div style="font-size:22px;font-weight:800;color:#16a34a;line-height:1;">6</div>
-                  <div style="font-size:10.5px;color:#9ca3af;margin-top:2px;">Strong</div>
-                </div>
-                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 6px;text-align:center;">
-                  <div style="font-size:22px;font-weight:800;color:#d97706;line-height:1;">8</div>
-                  <div style="font-size:10.5px;color:#9ca3af;margin-top:2px;">Weak</div>
-                </div>
-              </div>
-              <div style="font-size:11px;color:#9ca3af;">15 May 2026 14:59 · 193s</div>
-            </div>
-
-            <!-- Strong Matches -->
-            <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;padding:1rem;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
-                <span style="font-size:14px;font-weight:700;color:#111827;">Last Session — Strong Matches</span>
-                <span style="font-size:12.5px;color:#2563eb;font-weight:500;display:inline-flex;align-items:center;gap:4px;">6 View all →</span>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:0;">
-                <%
-                  var mockJobs = [
-                    { initials:'R', bg:'#dc2626', title:'Senior Product Manager, B2B Marketplace (m/f/d)', company:'Redcare Pharmacy', flag:'🇩🇪', loc:'Berlin, Berlin, Germany', score:88 },
-                    { initials:'DH', bg:'#ef4444', title:'Group Product Manager — Logistics, Routing &amp; Disp…', company:'Delivery Hero', flag:'🇩🇪', loc:'Berlin, Berlin, Germany', score:88 },
-                    { initials:'P', bg:'#2563eb', title:'Senior Product Manager, Flights', company:'Priceline', flag:'🇩🇪', loc:'Berlin, Berlin, Germany', score:84 }
-                  ];
-                  mockJobs.forEach(function(j, idx) {
-                %>
-                <div style="display:flex;align-items:center;gap:10px;padding:9px 0;<%= idx < mockJobs.length-1 ? 'border-bottom:1px solid rgba(0,0,0,0.06);' : '' %>">
-                  <div style="width:32px;height:32px;border-radius:8px;background:<%= j.bg %>;display:grid;place-items:center;color:white;font-weight:700;font-size:11px;flex-shrink:0;"><%= j.initials %></div>
-                  <div style="flex:1;min-width:0;">
-                    <div style="font-size:12.5px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><%- j.title %></div>
-                    <div style="font-size:11px;color:#9ca3af;margin-top:1px;"><%= j.company %> · <%= j.flag %> <%= j.loc %></div>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                    <span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:3px;">Strong <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
-                    <span style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;"><%= j.score %></span>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M7 7h10v10"/></svg>
-                  </div>
-                </div>
-                <% }); %>
-              </div>
-            </div>
-
-            </div><!-- /two-col -->
-            </div><!-- /inner padding -->
-
-            <!-- Frosted lock overlay -->
-            <div style="position:absolute;inset:0;background:rgba(243,244,246,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:16px;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-              <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:10px 18px;display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <span style="font-size:12px;color:#6b7280;font-weight:500;">Sign in to unlock</span>
-              </div>
-            </div>
-
-          </div><!-- /relative -->
-
-        </div>
-
-        <!-- Footer legal links -->
-        <div class="mt-4">
-          <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
-            <a href="/pricing" class="text-gray-500 hover:text-gray-700 transition-colors">Pricing</a>
-            <a href="/terms" class="text-gray-500 hover:text-gray-700 transition-colors">Terms</a>
-            <a href="/privacy" class="text-gray-500 hover:text-gray-700 transition-colors">Privacy</a>
-          </div>
-        </div>
-
+      <!-- header -->
+      <div>
+        <h1 class="w-h1">Welcome</h1>
+        <p class="w-crumb"><%= new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></p>
       </div>
+
+      <% if (typeof error !== 'undefined' && error) { %>
+      <div style="padding:12px 14px;border-radius:11px;background:var(--red-soft);border:1px solid var(--red-border);font-size:13px;color:var(--red-ink)"><%= error %></div>
+      <% } %>
+      <% if (typeof message !== 'undefined' && message) { %>
+      <div style="padding:12px 14px;border-radius:11px;background:var(--green-soft);border:1px solid var(--green-border);font-size:13px;color:var(--green2)"><%= message %></div>
+      <% } %>
+
+      <!-- hero: letter + sign-in + github -->
+      <div class="hero">
+
+        <!-- Letter -->
+        <div class="card" style="padding:26px;flex:1;min-width:0">
+          <h2 style="margin:0 0 20px;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.25;color:var(--ink)">Save 30 minutes a day on your job hunt.</h2>
+          <div style="display:flex;gap:16px">
+            <img src="/misha.jpg" alt="Misha" style="width:64px;height:64px;border-radius:50%;object-fit:cover;flex:none;margin-top:2px">
+            <div style="flex:1;min-width:0">
+              <!-- Mobile: shortened text -->
+              <p class="md:hidden" style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free. Fork it, or run it with your own API keys for free, or ask me if you could use mine with some sort of compensation. Welcome aboard!</p>
+              <!-- Desktop: full text -->
+              <p class="hidden md:block" style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Hi, I'm Misha, a product guy. I built Job Hunter to save myself time searching jobs. Turned out useful, so I'm sharing it for free.</p>
+              <p class="hidden md:block" style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">If you're hunting jobs across countries, scrolling hundreds of reposts from companies you don't even like - virtual hug. Job Hunter knows what you want. It scans same sites you do, kills reposts, and scores the rest against your criteria - showing only jobs you'd actually pick. It won't apply for you (I believe final call should be human), but it gets you there and writes a cover letter.</p>
+              <p class="hidden md:block" style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Fork it, or run it with your own API keys for free, or ask me if you could use mine with some sort of compensation.</p>
+              <p class="hidden md:block" style="margin:0 0 16px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Welcome aboard!</p>
+              <p style="margin:0;font-size:13px;color:var(--faint);text-align:right">Cheers, Misha</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div class="hero-right">
+
+          <!-- Sign-in -->
+          <div class="card" style="padding:24px;flex:1">
+            <div id="step-email">
+              <p style="margin:0 0 18px;font-size:19px;font-weight:800;letter-spacing:-.02em;color:var(--ink)">Sign in</p>
+              <input id="signin-email" type="email" placeholder="you@work.com"
+                     autocomplete="email" autocapitalize="off" inputmode="email"
+                     class="field" style="margin-bottom:12px">
+              <div id="email-error" class="hidden" style="font-size:12px;margin-bottom:8px"></div>
+              <button id="email-btn" onclick="requestCode()" class="btn-accent" style="margin-bottom:14px">Email me a code</button>
+              <p style="margin:0;font-size:12px;color:var(--faint);line-height:1.5">No password, enter with a 6-digit code. By signing in you agree to the <a href="/terms" class="link-ghost">Terms</a> and <a href="/privacy" class="link-ghost">Privacy Policy</a>.</p>
+            </div>
+            <div id="step-verify" class="hidden">
+              <p style="margin:0 0 4px;font-size:19px;font-weight:800;letter-spacing:-.02em;color:var(--ink)">Check your inbox</p>
+              <p id="verify-hint" style="margin:0 0 18px;font-size:12px;color:var(--faint)"></p>
+              <input id="signin-code" type="text" inputmode="numeric" maxlength="6"
+                     placeholder="6-digit code" autocomplete="one-time-code"
+                     class="field" style="margin-bottom:12px;text-align:center;letter-spacing:.3em;font-weight:700">
+              <div id="verify-msg" class="hidden" style="font-size:12px;margin-bottom:8px"></div>
+              <button id="verify-btn" onclick="verifyCode()" class="btn-accent" style="margin-bottom:8px">Verify</button>
+              <button id="resend-btn" onclick="resendCode()" style="width:100%;background:transparent;border:0;color:var(--accent);font-weight:600;font-size:13.5px;padding:8px;cursor:pointer">Resend code</button>
+              <p style="margin:8px 0 0;text-align:center;font-size:12px;color:var(--faint)"><button onclick="backToEmail()" style="background:none;border:0;color:var(--faint);text-decoration:underline;font-size:12px;cursor:pointer">Change email</button></p>
+            </div>
+          </div>
+
+          <!-- GitHub -->
+          <div class="card" style="padding:20px">
+            <p style="margin:0 0 12px;font-size:13.5px;font-weight:700;color:var(--ink2)">You're welcome to self-host</p>
+            <a href="https://github.com/girshovich/job-hunter" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:9px;width:100%;border:1px solid var(--line2);border-radius:11px;padding:11px 14px;font-size:13px;font-weight:600;color:var(--ink2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex:none"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+              github.com/girshovich/job-hunter
+            </a>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="card" style="padding:24px">
+        <h2 style="margin:0 0 20px;font-size:16px;font-weight:800;letter-spacing:-.01em;color:var(--ink)">How it works</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-ico" style="background:#f3f0ff"><svg width="26" height="26" fill="none" stroke="#6d5efc" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
+            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Describe yourself</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">You, roles, locations and what you care about.</p></div>
+          </div>
+          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
+          <div class="step">
+            <div class="step-ico" style="background:#eaf5ff"><svg width="26" height="26" fill="none" stroke="#2e86de" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1.001.43-1.563A6 6 0 1121.75 8.25z"/></svg></div>
+            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Set API keys</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Add your Apify and LLM keys, or use mine.</p></div>
+          </div>
+          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
+          <div class="step">
+            <div class="step-ico" style="background:#fff6e5"><svg width="26" height="26" fill="none" stroke="#e79a1a" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 8.5l5.5 3.5L10 15.5v-7z"/></svg></div>
+            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Schedule job search</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Get the latest jobs from top job platforms.</p></div>
+          </div>
+          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
+          <div class="step">
+            <div class="step-ico" style="background:#f4f0ff"><svg width="26" height="26" fill="none" stroke="#7c5cf0" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg></div>
+            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Wait for AI scoring</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Each job scored vs your profile. No duplicates.</p></div>
+          </div>
+          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
+          <div class="step">
+            <div class="step-ico" style="background:#eafaf1"><svg width="26" height="26" fill="none" stroke="#1e9e5a" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
+            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Get job matches</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Email digest with the gems. Open. Apply. Done.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product preview (frosted) -->
+      <div class="preview-wrap">
+        <div style="position:relative;background:var(--bg);border:1px solid var(--line);border-radius:16px">
+          <div style="padding:20px">
+            <!-- Search for Jobs bar -->
+            <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px">
+              <div>
+                <div style="font-size:16px;font-weight:800;color:var(--ink)">Search for Jobs</div>
+                <div style="font-size:12.5px;color:var(--muted2);margin-top:2px">Fetch jobs from your sources, score with AI, send the email digest.</div>
+              </div>
+              <div style="display:flex;gap:8px;flex:none">
+                <span style="display:inline-flex;align-items:center;gap:6px;background:#eef1f6;color:#3a4250;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Schedule</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>Run Once</span>
+              </div>
+            </div>
+            <!-- two-col -->
+            <div style="display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start">
+              <!-- Last Session -->
+              <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                  <span style="font-size:14px;font-weight:800;color:var(--ink)">Last Session</span>
+                  <span style="background:#ecfdf3;color:#067647;font-size:11px;font-weight:700;padding:2px 9px;border-radius:7px">success</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:12px">
+                  <div style="background:#f6f7f9;border:1px solid var(--line);border-radius:9px;padding:9px 6px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--ink);line-height:1" class="tnum">88</div><div style="font-size:10.5px;color:var(--fainter);margin-top:2px">Fetched</div></div>
+                  <div style="background:#ecfdf3;border:1px solid #c7ecd4;border-radius:9px;padding:9px 6px;text-align:center"><div style="font-size:22px;font-weight:800;color:#067647;line-height:1" class="tnum">6</div><div style="font-size:10.5px;color:var(--fainter);margin-top:2px">Strong</div></div>
+                  <div style="background:#fffaeb;border:1px solid #fdecc8;border-radius:9px;padding:9px 6px;text-align:center"><div style="font-size:22px;font-weight:800;color:#b54708;line-height:1" class="tnum">8</div><div style="font-size:10.5px;color:var(--fainter);margin-top:2px">Weak</div></div>
+                </div>
+                <div style="font-size:11px;color:var(--fainter)">15 May 2026 14:59 · 193s</div>
+              </div>
+              <!-- Strong matches -->
+              <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                  <span style="font-size:14px;font-weight:800;color:var(--ink)">Last Session — Strong Matches</span>
+                  <span style="font-size:12.5px;color:var(--accent);font-weight:600;display:inline-flex;align-items:center;gap:4px">6 View all →</span>
+                </div>
+                <div>
+                  <% [
+                    { i:'R',  bg:'#dc2626', title:'Senior Product Manager, B2B Marketplace (m/f/d)', company:'Redcare Pharmacy', flag:'🇩🇪', loc:'Berlin, Germany', score:88 },
+                    { i:'DH', bg:'#ef4444', title:'Group Product Manager — Logistics, Routing & Disp…', company:'Delivery Hero', flag:'🇩🇪', loc:'Berlin, Germany', score:88 },
+                    { i:'P',  bg:'#2f6bff', title:'Senior Product Manager, Flights', company:'Priceline', flag:'🇩🇪', loc:'Berlin, Germany', score:84 }
+                  ].forEach(function(j, idx, arr){ %>
+                  <div style="display:flex;align-items:center;gap:10px;padding:9px 0;<%= idx < arr.length-1 ? 'border-bottom:1px solid rgba(16,24,40,.06);' : '' %>">
+                    <div style="width:32px;height:32px;border-radius:8px;background:<%= j.bg %>;display:grid;place-items:center;color:#fff;font-weight:800;font-size:11px;flex:none"><%= j.i %></div>
+                    <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#131722;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= j.title %></div>
+                    <div style="font-size:11px;color:#9aa1ad;margin-top:1px"><%= j.company %> · <%= j.flag %> <%= j.loc %></div></div>
+                    <div style="display:flex;align-items:center;gap:6px;flex:none">
+                      <span style="background:#ecfdf3;color:#067647;font-size:11px;font-weight:700;padding:3px 8px;border-radius:7px;display:inline-flex;align-items:center;gap:3px">Strong<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+                      <span style="background:#1e9e5a;color:#fff;font-size:12px;font-weight:800;padding:3px 8px;border-radius:7px" class="tnum"><%= j.score %></span>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2f6bff" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M7 7h10v10"/></svg>
+                    </div>
+                  </div>
+                  <% }); %>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- frosted lock -->
+          <div class="prev-lock"><div class="lock-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Sign in to unlock</div></div>
+        </div>
+      </div>
+
+      <!-- Footer legal links -->
+      <div class="card" style="padding:10px 24px;display:flex;align-items:center;justify-content:flex-end;gap:14px;font-size:12px">
+        <a href="/pricing" style="color:var(--faint);font-weight:600">Pricing</a>
+        <a href="/terms" style="color:var(--faint);font-weight:600">Terms</a>
+        <a href="/privacy" style="color:var(--faint);font-weight:600">Privacy</a>
+      </div>
+
     </div>
   </main>
 </div>

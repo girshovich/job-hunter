@@ -11,77 +11,50 @@ function verdictChip(verdict) {
 <%- renderPageHeader('Run Diff', 'Comparing the last 2 pipeline runs') %>
 
 <% if (error) { %>
-<div class="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700"><%= error %></div>
+<div style="background:var(--red-soft);border:1px solid var(--red-border);border-radius:14px;padding:16px 20px;font-size:13.5px;color:var(--red-ink)"><%= error %></div>
 <% } else { %>
 
 <!-- Run summary -->
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-  <div class="bg-white border border-gray-200 rounded-xl px-5 py-4">
-    <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Newer run #<%= runNewer.id %></p>
-    <p class="text-sm font-semibold text-gray-900"><%= fmtDate(runNewer.ran_at) %></p>
-    <% if (runNewer.scraping_provider) { %><p class="text-xs text-gray-400 mt-0.5"><%= runNewer.scraping_provider %></p><% } %>
-    <p class="text-xs text-gray-500 mt-1"><%= onlyInNewer.length + inBoth.length %> unique jobs logged</p>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 20px;box-shadow:var(--shadow-card)">
+    <p style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Newer run #<%= runNewer.id %></p>
+    <p style="font-size:13.5px;font-weight:700;color:var(--ink)"><%= fmtDate(runNewer.ran_at) %></p>
+    <% if (runNewer.scraping_provider) { %><p style="font-size:12px;color:var(--muted);margin-top:2px"><%= runNewer.scraping_provider %></p><% } %>
+    <p style="font-size:12px;color:var(--faint);margin-top:4px"><%= onlyInNewer.length + inBoth.length %> unique jobs logged</p>
   </div>
-  <div class="bg-white border border-gray-200 rounded-xl px-5 py-4">
-    <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Older run #<%= runOlder.id %></p>
-    <p class="text-sm font-semibold text-gray-900"><%= fmtDate(runOlder.ran_at) %></p>
-    <% if (runOlder.scraping_provider) { %><p class="text-xs text-gray-400 mt-0.5"><%= runOlder.scraping_provider %></p><% } %>
-    <p class="text-xs text-gray-500 mt-1"><%= onlyInOlder.length + inBoth.length %> unique jobs logged</p>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 20px;box-shadow:var(--shadow-card)">
+    <p style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Older run #<%= runOlder.id %></p>
+    <p style="font-size:13.5px;font-weight:700;color:var(--ink)"><%= fmtDate(runOlder.ran_at) %></p>
+    <% if (runOlder.scraping_provider) { %><p style="font-size:12px;color:var(--muted);margin-top:2px"><%= runOlder.scraping_provider %></p><% } %>
+    <p style="font-size:12px;color:var(--faint);margin-top:4px"><%= onlyInOlder.length + inBoth.length %> unique jobs logged</p>
   </div>
 </div>
 
 <div class="space-y-3">
 
+<%
+function diffSection(title, count, note, pillStyle, jobsHtml) {
+  return `<details class="group" style="background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-card);overflow:hidden">
+    <summary class="flex items-center justify-between cursor-pointer select-none list-none" style="padding:16px 20px">
+      <div class="flex items-center gap-3">
+        <svg class="transition-transform group-open:rotate-90" style="width:15px;height:15px;color:var(--fainter);flex-shrink:0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span style="font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap">${title}</span>
+        <span style="font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;${pillStyle}">${count}</span>
+      </div>
+      <span style="font-size:11.5px;color:var(--faint);white-space:nowrap">${note}</span>
+    </summary>
+    <div style="border-top:1px solid var(--line)">${jobsHtml}</div>
+  </details>`;
+}
+%>
 <!-- New this run -->
-<details class="group bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
-  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-blue-50/50 transition-colors">
-    <div class="flex items-center gap-3">
-      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
-      <span class="font-semibold text-gray-900 text-sm">Only in new run</span>
-      <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInNewer.length %></span>
-    </div>
-    <span class="text-xs text-gray-400 whitespace-nowrap">run #<%= runNewer.id %></span>
-  </summary>
-  <div class="border-t border-gray-100">
-    <%- jobTable(onlyInNewer) %>
-  </div>
-</details>
+<%- diffSection('Only in new run', onlyInNewer.length, 'run #' + runNewer.id, 'background:var(--accent-soft);color:var(--accent)', jobTable(onlyInNewer)) %>
 
 <!-- Seen in both -->
-<details class="group jh-card overflow-hidden">
-  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 transition-colors">
-    <div class="flex items-center gap-3">
-      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
-      <span class="font-semibold text-gray-900 text-sm whitespace-nowrap">Seen in both</span>
-      <span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium"><%= inBoth.length %></span>
-    </div>
-    <span class="text-xs text-gray-400 whitespace-nowrap">verdict from run #<%= runOlder.id %></span>
-  </summary>
-  <div class="border-t border-gray-100">
-    <%- jobTable(inBoth) %>
-  </div>
-</details>
+<%- diffSection('Seen in both', inBoth.length, 'verdict from run #' + runOlder.id, 'background:#eef1f6;color:var(--ink2)', jobTable(inBoth)) %>
 
 <!-- Only in previous run -->
-<details class="group bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden">
-  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-orange-50/50 transition-colors">
-    <div class="flex items-center gap-3">
-      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
-      <span class="font-semibold text-gray-900 text-sm">Only in previous run</span>
-      <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInOlder.length %></span>
-    </div>
-    <span class="text-xs text-gray-400 whitespace-nowrap">run #<%= runOlder.id %></span>
-  </summary>
-  <div class="border-t border-gray-100">
-    <%- jobTable(onlyInOlder) %>
-  </div>
-</details>
+<%- diffSection('Only in previous run', onlyInOlder.length, 'run #' + runOlder.id, 'background:var(--amber-soft);color:var(--amber-ink)', jobTable(onlyInOlder)) %>
 
 </div>
 <% } %>
@@ -98,7 +71,7 @@ function jobTable(jobs) {
     return `<tr class="${getJobTableRowClass()}">
       <td class="${getJobTableCellClass()} pl-5">${renderJobPositionCompanyCell(job.title, job.company, href, job.logo_url)}</td>
       <td class="${getJobTableCellClass()}">${renderLocationCell(job.location, job.country)}</td>
-      <td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score)}</td>
+      <td class="${getJobTableCellClass('score')}">${renderScoreCell(job.ai_score, job.ai_verdict)}</td>
       <td class="${getJobTableCellClass('verdict')}">${chip}</td>
       <td class="${getJobTableCellClass('date')}">${renderDateTimeCell(job.logged_at, typeof timezone !== 'undefined' ? timezone : 'UTC')}</td>
       <td class="${getJobTableCellClass('source')}">${renderSourceLinkCell(job.url, job.job_source || 'LinkedIn')}</td>
@@ -114,7 +87,7 @@ function jobTable(jobs) {
         <div class="min-w-0 flex-1">
           <span class="job-identity-title text-sm font-semibold text-gray-900">${escapeHtml(job.title || 'Untitled role')}</span>
         </div>
-        <div class="flex-shrink-0">${renderScoreCell(job.ai_score)}</div>
+        <div class="flex-shrink-0">${renderScoreCell(job.ai_score, job.ai_verdict)}</div>
       </div>
       <div class="mt-1 flex items-start justify-between gap-3">
         <span class="job-identity-meta text-xs text-gray-500">${renderCompanyLogo(job.company, job.logo_url)} ${escapeHtml(job.company || 'Unknown company')}</span>
@@ -138,14 +111,13 @@ function jobTable(jobs) {
 %>
 
 <!-- Job context menu -->
-<div id="job-menu" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 text-xs min-w-[160px]">
-  <a id="job-menu-view" href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">View details</a>
-  <a id="job-menu-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">Open on LinkedIn</a>
-  <div class="mt-1 pt-1 border-t border-gray-100">
-    <p class="px-3 py-1 text-xs font-medium text-gray-400">Change verdict</p>
-    <button onclick="menuSetVerdict('STRONG_MATCH')" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-emerald-50 text-emerald-700 w-full text-left transition-colors">Strong</button>
-    <button onclick="menuSetVerdict('WEAK_MATCH')"   class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-yellow-50 text-yellow-700 w-full text-left transition-colors">Weak</button>
-    <button onclick="menuSetVerdict('NO_MATCH')"     class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600 w-full text-left transition-colors">No match</button>
+<div id="job-menu" class="hidden fixed" style="z-index:50;background:#fff;border:1px solid #e4e6ec;border-radius:12px;box-shadow:0 12px 32px -8px rgba(16,24,40,.28);padding:6px;min-width:170px">
+  <a id="job-menu-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2" style="padding:8px 9px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--ink2)" onmouseover="this.style.background='#f5f6f8'" onmouseout="this.style.background='transparent'">Open on LinkedIn</a>
+  <div style="margin-top:4px;padding-top:5px;border-top:1px solid var(--line)">
+    <p style="padding:4px 9px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)">Change verdict</p>
+    <button onclick="menuSetVerdict('STRONG_MATCH')" class="w-full text-left flex items-center gap-2" style="padding:8px 9px;border-radius:8px;font-size:12.5px;font-weight:600;color:#067647" onmouseover="this.style.background='#ecfdf3'" onmouseout="this.style.background='transparent'">Strong</button>
+    <button onclick="menuSetVerdict('WEAK_MATCH')" class="w-full text-left flex items-center gap-2" style="padding:8px 9px;border-radius:8px;font-size:12.5px;font-weight:600;color:#b54708" onmouseover="this.style.background='#fffaeb'" onmouseout="this.style.background='transparent'">Weak</button>
+    <button onclick="menuSetVerdict('NO_MATCH')" class="w-full text-left flex items-center gap-2" style="padding:8px 9px;border-radius:8px;font-size:12.5px;font-weight:600;color:#b42318" onmouseover="this.style.background='#fef3f2'" onmouseout="this.style.background='transparent'">No match</button>
   </div>
 </div>
 
@@ -155,18 +127,10 @@ let _menuTargetEl = null;
 function showJobMenu(event, el) {
   event.stopPropagation();
   _menuTargetEl = el;
-  const internalId = el.dataset.internalId;
   const url = el.dataset.url;
   const menu = document.getElementById('job-menu');
-  const viewLink = document.getElementById('job-menu-view');
   const extLink = document.getElementById('job-menu-link');
 
-  if (internalId) {
-    viewLink.href = '/job/' + internalId;
-    viewLink.classList.remove('hidden');
-  } else {
-    viewLink.classList.add('hidden');
-  }
   if (url) {
     extLink.href = url;
     extLink.classList.remove('hidden');
@@ -212,7 +176,6 @@ async function menuSetVerdict(newVerdict) {
       el.dataset.verdict = newVerdict;
       if (data.internal_job_id && !internalId) {
         el.dataset.internalId = String(data.internal_job_id);
-        document.getElementById('job-menu-view').href = '/job/' + data.internal_job_id;
       }
       el.innerHTML = verdictChipStatic(newVerdict);
     } else {

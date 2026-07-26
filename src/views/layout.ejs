@@ -8,11 +8,9 @@
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     [x-cloak] { display: none !important; }
-    :root { --page-max-w: <%= locals.pageMaxWidth || '72rem' %>; }
-    .score-badge { font-variant-numeric: tabular-nums; }
-    .score-badge-match { background: var(--green); }
+    :root { --page-max-w: <%= locals.pageMaxWidth || '1120px' %>; }
     html, body { overflow: hidden; }
-    .app-shell { height: 100dvh; min-height: 100%; background: #f9fafb; overflow: hidden; }
+    .app-shell { height: 100dvh; min-height: 100%; background: #fcfcfb; overflow: hidden; }
     .app-sidebar { width: 14rem; height: 100dvh; overflow: hidden; overscroll-behavior: contain; }
     .app-sidebar nav { overflow-y: visible; }
     .app-main { min-width: 0; height: 100dvh; overflow-y: auto; overflow-x: hidden; }
@@ -41,11 +39,11 @@
       border-collapse: collapse;
     }
     .job-table-row {
-      border-top: 1px solid #f3f4f6;
+      border-top: 1px solid var(--line);
       cursor: pointer;
       transition: background-color 0.15s ease;
     }
-    .job-table-row:hover { background: rgba(239, 246, 255, 0.45); }
+    .job-table-row:hover { background: var(--accent-tint); }
     .job-table-cell { padding: 0.875rem 0.75rem; vertical-align: top; min-width: 0; }
     .job-table-fixed { white-space: nowrap; text-align: center; }
     .job-table-cell.job-table-fixed:last-child { padding-left: 0.25rem; padding-right: 0.5rem; }
@@ -53,14 +51,14 @@
     .job-mobile-list { display: block; }
     .job-mobile-card {
       background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 0.75rem;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      border: 1px solid var(--line3);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
       padding: 1rem;
       cursor: pointer;
       transition: box-shadow 0.15s ease;
     }
-    .job-mobile-card:hover { box-shadow: inset 3px 0 0 var(--green), 0 1px 2px rgba(15, 23, 42, 0.04); }
+    .job-mobile-card:hover { box-shadow: inset 3px 0 0 var(--accent), 0 1px 2px rgba(15, 23, 42, 0.04); }
     .job-identity-title { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .job-table .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
     .job-mobile-card .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
@@ -92,16 +90,18 @@
     .sb-item {
       display: flex; align-items: center; gap: 11px;
       padding: 9px 11px; border-radius: 9px;
-      color: var(--muted); font-size: 13.5px; font-weight: 600;
+      color: var(--muted); font-size: 13.5px; font-weight: 600; line-height: 1.2;
       background: transparent; border: 0; width: 100%;
       text-align: left; cursor: pointer; text-decoration: none;
     }
     .sb-item .ico { color: var(--fainter); display: inline-flex; }
+    .sb-item .ico svg { stroke-width: 1.8; }
     .sb-item:hover { background: #f5f6f8; color: var(--ink2); }
     .sb-item.active {
       background: var(--accent-soft); color: var(--accent); font-weight: 700;
     }
     .sb-item.active .ico { color: var(--accent); }
+    .sb-item.active .ico svg { stroke-width: 1.9; }
     .sb-count {
       margin-left: auto; font-size: 11px; font-weight: 700;
       color: #fff;
@@ -124,7 +124,7 @@
       border-left: 1px solid var(--line);
     }
     .sb-subitem {
-      padding: 7px 10px; font-size: 13px; font-weight: 600;
+      padding: 7px 10px; font-size: 13px; font-weight: 600; line-height: 1.2;
       color: var(--muted); gap: 10px;
     }
     .sb-subitem:hover { color: var(--ink2); background: #f5f6f8; }
@@ -420,32 +420,32 @@
         <!-- Nav items -->
         <a href="/" class="sb-item <%= title === 'Start' ? 'active' : '' %>">
           <span class="ico">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>
           </span>
           Start
         </a>
         <a href="/jobs" class="sb-item <%= title === 'Matches' ? 'active' : '' %>">
           <span class="ico">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
           </span>
           Matches
           <% if (typeof matchesCount !== 'undefined' && matchesCount > 0) { %><span class="sb-count"><%= matchesCount %></span><% } %>
         </a>
         <a href="/history" class="sb-item <%= title === 'All Jobs' ? 'active' : '' %>">
           <span class="ico">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>
           </span>
           All Jobs
         </a>
         <a href="/analytics" class="sb-item <%= title === 'Stats' ? 'active' : '' %>">
           <span class="ico">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-8"/><path d="M22 20H2"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-8"/><path d="M22 20H2"/></svg>
           </span>
           Stats
         </a>
         <a href="/reports" class="sb-item <%= title === 'Run Logs' ? 'active' : '' %>">
           <span class="ico">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
           </span>
           Run Logs
         </a>
@@ -457,7 +457,7 @@
         %>
         <button type="button" class="sb-item" id="sb-settings-btn" onclick="jhToggleSettings()">
           <span class="ico">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.3 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.3l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.3 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.3l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
           </span>
           Settings
           <span class="sb-chev" id="sb-settings-chev">
@@ -485,7 +485,7 @@
         %>
         <button type="button" class="sb-item" id="sb-admin-btn" onclick="jhToggleAdmin()">
           <span class="ico">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg>
           </span>
           Admin
           <span class="sb-chev" id="sb-admin-chev">
@@ -547,7 +547,7 @@
         <% if (locals.useJhCredits) { %>
         <div class="sb-credits">
           <span class="sb-credits-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
           </span>
           <div class="sb-credits-vals">
             <span class="sb-credits-num">$<%= Number(locals.creditsBalance || 0).toFixed(1) %></span>
@@ -2047,12 +2047,21 @@
           if (data.internal_job_id && !btn.dataset.jobId) {
             btn.dataset.jobId = String(data.internal_job_id);
           }
-          if (btn.dataset.chipStyle === 'detail') {
+          const jid = btn.dataset.jobId;
+          // If this job is open in the detail pane, its verdict-toned blocks (score chip, General
+          // AI analysis box, applied-selector visibility) must re-render too — reload so both panes
+          // stay consistent. This covers changing the verdict from the detail OR from the open
+          // job's list card.
+          if (jid && document.querySelector('.verdict-btn[data-job-id="' + jid + '"][data-chip-style="detail"]')) {
             location.reload();
-          } else {
-            btn.innerHTML = verdictChipHTML(newVerdict, btn.dataset.chipStyle || 'compact');
-            btn.dataset.verdict = newVerdict;
+            return;
           }
+          // Otherwise repaint the verdict chip everywhere this job appears (the list card, etc.).
+          const targets = jid ? document.querySelectorAll('.verdict-btn[data-job-id="' + jid + '"]') : [btn];
+          targets.forEach(b => {
+            b.dataset.verdict = newVerdict;
+            b.innerHTML = verdictChipHTML(newVerdict, b.dataset.chipStyle || 'compact');
+          });
         } else {
           await showAlert(data.error || 'Failed to update status');
         }
@@ -2113,8 +2122,12 @@
         });
         const data = await res.json();
         if (data.success) {
-          btn.dataset.applied = String(newState);
-          btn.innerHTML = appliedChipHTML(newState, btn.dataset.chipStyle === 'detail');
+          // Sync the chip on EVERY place this job appears (list card + detail pane share the same
+          // data-job-id), so changing status in one updates the other without a reload.
+          document.querySelectorAll('.applied-btn[data-job-id="' + jobId + '"]').forEach(b => {
+            b.dataset.applied = String(newState);
+            b.innerHTML = appliedChipHTML(newState, b.dataset.chipStyle === 'detail');
+          });
           if (window.onAppliedChanged) { try { window.onAppliedChanged(jobId, newState); } catch (e) {} }
         } else {
           await showAlert(data.error || 'Failed to update applied status');
