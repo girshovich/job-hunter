@@ -4,7 +4,8 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type SearchRunRow, type RunJobLogRow, type SettingsRow } from '../db';
-import { countryToFlag } from '../uiHelpers';
+import { countryToFlag, uiHelpers } from '../uiHelpers';
+import { loadJobDetail } from './jobDetail';
 
 const router = Router();
 
@@ -120,6 +121,26 @@ function getTimezone(profileId: number): string {
   return row?.timezone || 'UTC';
 }
 
+// Row-level filters (Verdict-in-log / Company) applied to run_job_logs, shared by the
+// main preload query and the lazy-load endpoint so both stay consistent.
+const VALID_LOG_VERDICTS = new Set([
+  'STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH', 'DUPLICATE', 'FILTERED', 'BLACKLISTED',
+]);
+
+function buildRowFilter(verdict: string, company: string): { clause: string; params: string[] } {
+  const clauses: string[] = [];
+  const params: string[] = [];
+  if (verdict && VALID_LOG_VERDICTS.has(verdict)) {
+    clauses.push('rjl.ai_verdict = ?');
+    params.push(verdict);
+  }
+  if (company) {
+    clauses.push('rjl.company LIKE ?');
+    params.push(`%${company}%`);
+  }
+  return { clause: clauses.length ? ` AND ${clauses.join(' AND ')}` : '', params };
+}
+
 // ---- Routes ----
 
 // GET /reports — main page; preloads last 2 runs, stubs the rest for lazy-load
@@ -128,20 +149,53 @@ router.get('/', (req: Request, res: Response) => {
   const profileId = req.profile.id;
   const timezone = getTimezone(profileId);
 
-  // Single query: run summaries + aggregate verdict counts (no N+1)
-  const runs = db
-    .prepare<SearchRunRow & { filtered_count: number; blacklisted_count: number }>(
-      `SELECT sr.*,
-         (SELECT COUNT(*) FROM run_job_logs WHERE run_id = sr.id AND ai_verdict = 'FILTERED')   AS filtered_count,
-         (SELECT COUNT(*) FROM run_job_logs WHERE run_id = sr.id AND ai_verdict = 'BLACKLISTED') AS blacklisted_count
-       FROM search_runs sr
-       WHERE sr.profile_id = ?
-       ORDER BY sr.ran_at DESC
-       LIMIT 30`,
-    )
-    .all(profileId);
+  // Filters (server-rendered, query-string): Source is run-level; Verdict-in-log & Company
+  // are row-level. When a row-level filter is set, runs with no matching row are hidden.
+  const source = String(req.query.source ?? '').trim();
+  const verdict = String(req.query.verdict ?? '').trim().toUpperCase();
+  const company = String(req.query.company ?? '').trim();
+  const rowFilter = buildRowFilter(verdict, company);
+  const rowFilterActive = rowFilter.params.length > 0;
 
-  // Batch-load logs for the first 2 runs in one query
+  // Source filter options: distinct scraping providers across this profile's runs.
+  const sourceOptions = (db
+    .prepare(
+      `SELECT DISTINCT scraping_provider FROM search_runs
+       WHERE profile_id = ? AND scraping_provider IS NOT NULL AND scraping_provider != ''
+       ORDER BY scraping_provider`,
+    )
+    .all(profileId) as Array<{ scraping_provider: string }>)
+    .map((r) => ({ value: r.scraping_provider, label: uiHelpers.formatSourceName(r.scraping_provider) }));
+
+  // Single query: run summaries + aggregate verdict counts (no N+1)
+  const runsSql =
+    `SELECT sr.*,
+       (SELECT COUNT(*) FROM run_job_logs WHERE run_id = sr.id AND ai_verdict = 'FILTERED')   AS filtered_count,
+       (SELECT COUNT(*) FROM run_job_logs WHERE run_id = sr.id AND ai_verdict = 'BLACKLISTED') AS blacklisted_count
+     FROM search_runs sr
+     WHERE sr.profile_id = ?${source ? ' AND sr.scraping_provider = ?' : ''}
+     ORDER BY sr.ran_at DESC
+     LIMIT 30`;
+  let runs = db
+    .prepare<SearchRunRow & { filtered_count: number; blacklisted_count: number }>(runsSql)
+    .all(...(source ? [profileId, source] : [profileId]));
+
+  // Row-level filter: keep only runs that contain ≥1 matching log row.
+  if (rowFilterActive && runs.length > 0) {
+    const ph = runs.map(() => '?').join(', ');
+    const matchingIds = new Set(
+      (db
+        .prepare(
+          `SELECT DISTINCT rjl.run_id FROM run_job_logs rjl
+           WHERE rjl.run_id IN (${ph})${rowFilter.clause}`,
+        )
+        .all(...runs.map((r) => r.id), ...rowFilter.params) as Array<{ run_id: number }>)
+        .map((r) => r.run_id),
+    );
+    runs = runs.filter((r) => matchingIds.has(r.id));
+  }
+
+  // Batch-load logs for the first 2 runs in one query (row filter applied)
   const preloadIds = runs.slice(0, 2).map((r) => r.id);
   const preloadedMap = new Map<number, FormattedJob[]>();
 
@@ -156,9 +210,9 @@ router.get('/', (req: Request, res: Response) => {
          FROM run_job_logs rjl
          LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
          LEFT JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
-         WHERE rjl.run_id IN (${placeholders})`,
+         WHERE rjl.run_id IN (${placeholders})${rowFilter.clause}`,
       )
-      .all(profileId, ...preloadIds);
+      .all(profileId, ...preloadIds, ...rowFilter.params);
 
     // Group by run_id in one pass, then process+sort each group
     const byRunId = new Map<number, JobLogWithInternalId[]>();
@@ -183,7 +237,15 @@ router.get('/', (req: Request, res: Response) => {
     };
   });
 
-  res.render('reports', { runs: runSummaries, title: 'Run Logs', timezone });
+  res.render('reports', {
+    runs: runSummaries,
+    title: 'Run Logs',
+    timezone,
+    sourceOptions,
+    filterSource: source,
+    filterVerdict: verdict,
+    filterCompany: company,
+  });
 });
 
 // GET /reports/runs/:id/logs — JSON fragment for lazy-load
@@ -201,6 +263,11 @@ router.get('/runs/:id/logs', (req: Request, res: Response) => {
 
   const timezone = getTimezone(profileId);
 
+  // Same row-level filter as the main page, so lazy-expanded runs match the filtered view.
+  const verdict = String(req.query.verdict ?? '').trim().toUpperCase();
+  const company = String(req.query.company ?? '').trim();
+  const rowFilter = buildRowFilter(verdict, company);
+
   const logs = db
     .prepare<JobLogWithInternalId>(
       // Ownership-based internal_job_id (see preload query above).
@@ -208,11 +275,27 @@ router.get('/runs/:id/logs', (req: Request, res: Response) => {
        FROM run_job_logs rjl
        LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
        LEFT JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
-       WHERE rjl.run_id = ?`,
+       WHERE rjl.run_id = ?${rowFilter.clause}`,
     )
-    .all(profileId, runId);
+    .all(profileId, runId, ...rowFilter.params);
 
   res.json({ jobs: processJobs(logs, timezone) });
+});
+
+// GET /reports/job/:id/detail — HTML fragment (the shared job-detail body) for the slide-in
+// drawer. Owned jobs only (loadJobDetail is scoped to the profile); rendered WITHOUT the app
+// layout so the client can inject it into the drawer.
+router.get('/job/:id/detail', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).send(''); return; }
+
+  const detail = loadJobDetail(req.profile.id, id);
+  if (!detail) { res.status(404).send(''); return; }
+
+  req.app.render('partials/job-detail-body', { ...uiHelpers, ...detail }, (err: Error, html: string) => {
+    if (err) { res.status(500).send(''); return; }
+    res.send(html);
+  });
 });
 
 export { router as reportsRouter };

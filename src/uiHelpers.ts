@@ -455,11 +455,21 @@ export function renderJobsAllTableHeader(): string {
   return renderJobTableHeader('jobs-all');
 }
 
+// DS v2 tally colors (§5.2 verdict palette), used by the run-status count pills.
+const RUN_TALLY_COLORS: Record<string, string> = {
+  strong: '#067647',
+  weak: '#b54708',
+  no_match: '#b42318',
+  duplicate: '#6941c6',
+  filtered: '#8a91a0',
+  blacklisted: '#b42318',
+};
+
 export function renderRunStatusCounts(run: Record<string, unknown>): string {
   return getRunStatusCounts(run)
     .filter((count) => count.value > 0 || ['strong', 'weak', 'no_match', 'duplicate', 'filtered'].includes(count.key))
-    .map((count) => `<span><span class="font-medium">${escapeHtml(count.value)}</span> ${escapeHtml(count.label.toLowerCase())}</span>`)
-    .join('<span class="text-gray-300">·</span>');
+    .map((count) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:${RUN_TALLY_COLORS[count.key]};white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.85"></span>${escapeHtml(count.value)} ${escapeHtml(count.label.toLowerCase())}</span>`)
+    .join('');
 }
 
 export function getJobRowColumns(page: JobListPage, breakpoint: Breakpoint = 'desktop'): JobRowColumn[] {
@@ -500,12 +510,12 @@ export function getMobileJobCardLayout(page: JobListPage) {
 
 export function getRunStatusCounts(run: Record<string, unknown>) {
   return [
-    { key: 'strong', label: 'Strong', value: Number(run.jobs_strong_match ?? 0), tone: getVerdictTone('STRONG_MATCH') },
-    { key: 'weak', label: 'Weak', value: Number(run.jobs_weak_match ?? 0), tone: getVerdictTone('WEAK_MATCH') },
-    { key: 'no_match', label: 'No match', value: Number(run.jobs_no_match ?? 0), tone: getVerdictTone('NO_MATCH') },
-    { key: 'duplicate', label: 'Duplicate', value: Number(run.jobs_duplicate ?? 0), tone: getVerdictTone('DUPLICATE') },
-    { key: 'filtered', label: 'Filtered', value: Number(run.filtered_count ?? 0), tone: getVerdictTone('FILTERED') },
-    { key: 'blacklisted', label: 'Blacklisted', value: Number(run.blacklisted_count ?? 0), tone: getVerdictTone('BLACKLISTED') },
+    { key: 'strong', label: 'Strong', value: Number(run.jobs_strong_match ?? 0) },
+    { key: 'weak', label: 'Weak', value: Number(run.jobs_weak_match ?? 0) },
+    { key: 'no_match', label: 'No match', value: Number(run.jobs_no_match ?? 0) },
+    { key: 'duplicate', label: 'Duplicate', value: Number(run.jobs_duplicate ?? 0) },
+    { key: 'filtered', label: 'Filtered', value: Number(run.filtered_count ?? 0) },
+    { key: 'blacklisted', label: 'Blacklisted', value: Number(run.blacklisted_count ?? 0) },
   ];
 }
 

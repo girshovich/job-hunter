@@ -101,13 +101,15 @@ function scoreChip(score, verdict){
 }
 function card(job, mobile){
   const applied = Number(job.applied) || 0;
+  const cardVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
+  // Applied status (chip + New-tint + dim) is a matches-workflow concept — strong matches only.
+  const isStrongCard = cardVerdict === 'STRONG_MATCH';
   const isNew = applied === 0;
   const selected = job.id === selectedJobId;
-  const cardVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
-  const cardBg = isNew ? 'var(--accent-tint)' : '#fff';
+  const cardBg = (isStrongCard && isNew) ? 'var(--accent-tint)' : '#fff';
   const borderColor = selected ? 'var(--accent)' : '#e6e8ee';
   const shadow = selected ? '0 0 0 3px var(--accent-soft),0 1px 2px rgba(16,24,40,.06)' : '0 1px 2px rgba(16,24,40,.05)';
-  const opacity = (!selected && applied !== 0) ? '.85' : '1';
+  const opacity = (!selected && isStrongCard && applied !== 0) ? '.85' : '1';
   const onSelect = mobile ? ("location.href='/job/"+job.id+"?from="+fromKey+"'") : ('JH.select('+job.id+')');
   const summary = job.ai_summary ? esc(stripMd(job.ai_summary)) : '';
   const applyUrl = job.apply_url || job.url;
@@ -117,7 +119,7 @@ function card(job, mobile){
       + '<div style="font-size:14px;font-weight:700;line-height:1.3;color:var(--ink)">'+esc(job.title)+'</div>'
       + '<div style="display:flex;align-items:center;gap:7px;margin-top:5px">'+renderCompanyLogo(job.company, job.logo_url)+'<span style="font-size:12.5px;color:var(--muted2);font-weight:700">'+esc(job.company||'Unknown company')+'</span></div>'
     + '</div>'
-    + '<div style="flex:none">'+renderAppliedSelector(job.applied, { 'data-job-id': job.id })+'</div>'
+    + (isStrongCard ? '<div style="flex:none">'+renderAppliedSelector(job.applied, { 'data-job-id': job.id })+'</div>' : '')
   + '</div>';
   if (summary) html += '<div class="clamp3" style="font-size:12.5px;line-height:1.5;color:var(--muted2)">'+summary+'</div>';
   html += '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">'

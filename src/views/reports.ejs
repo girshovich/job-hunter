@@ -1,456 +1,383 @@
 <%
-// Server-side helpers
-
-function verdictChip(verdict, rejectionCategory) {
-  return renderVerdictChip(verdict, { editable: isVerdictEditable(verdict) });
-}
-
-function scoreClass(score) {
-  if (score == null) return 'text-gray-400';
-  return score >= 71 ? 'text-emerald-600 font-semibold' : score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500';
-}
-
-function runJobDetailHref(job) {
-  // internal_job_id is set only when this profile owns the job (see reports.ts),
-  // so an unowned job (e.g. filtered) has no link and can't 404.
-  return job.internal_job_id ? `/job/${job.internal_job_id}` : '';
-}
-
-function runSourceName(run) {
-  return formatSourceName(run.job_source || (run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider === 'lever' ? 'Lever' : 'LinkedIn'));
-}
-
+// ── Server-side helpers ──
 function runProviderName(run) {
-  return run.scraping_provider ? formatSourceLabel(run.scraping_provider) : 'Unknown provider';
+  return run.scraping_provider ? formatSourceName(run.scraping_provider) : 'Unknown provider';
 }
+
+// DS v2 run-status pill (local — the shared getRunStatusTone stays on its Tailwind form for
+// other pages until their phases). bg/color per DS §1.1 tokens.
+const RUN_STATUS_PILL = {
+  success:       { bg: '#eef7f1', color: '#178049' },
+  partial_error: { bg: '#fffaeb', color: '#b54708' },
+  running:       { bg: '#eff4ff', color: '#2f6bff' },
+  stopped:       { bg: '#f2f4f7', color: '#5b6472' },
+  error:         { bg: '#fef3f2', color: '#b42318' },
+};
+function statusPill(status) {
+  const t = RUN_STATUS_PILL[String(status || '').toLowerCase()] || RUN_STATUS_PILL.error;
+  return '<span style="display:inline-flex;align-items:center;justify-content:center;gap:5px;height:22px;min-width:84px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap;background:' + t.bg + ';color:' + t.color + '">'
+    + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>'
+    + escapeHtml(formatRunStatusLabel(status)) + '</span>';
+}
+
+const anyFilterActive = !!(filterSource || filterVerdict || filterCompany);
 %>
 
-<!-- Page header -->
-<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+<!-- ── Page header ── -->
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px">
   <div>
-    <h1 class="text-2xl font-bold text-gray-900">Run Logs</h1>
-    <p class="text-sm text-gray-500 mt-1">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %></p>
+    <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--ink)">Run Logs</h1>
+    <p style="margin:6px 0 0;font-size:13px;color:var(--faint);font-weight:600">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %></p>
   </div>
-  <div class="flex items-center gap-4">
-    <a href="/run-diff" class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">Compare last 2 runs</a>
-    <label class="flex items-center gap-2 cursor-pointer flex-shrink-0">
-      <span class="text-xs text-gray-500">Split by location</span>
-      <input type="checkbox" id="location-split-checkbox" onchange="toggleLocationSplit(this.checked)" class="sr-only peer" />
-      <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-emerald-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
-    </label>
-  </div>
+  <a href="/run-diff" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--accent)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 7h11M8 7l3-3M8 7l3 3M16 17H5M16 17l-3-3M16 17l-3 3"/></svg>
+    Compare last 2 runs
+  </a>
 </div>
 
+<!-- ── Filter bar (server-rendered; Source & Verdict single-select, Company search) ── -->
+<form id="rl-filter" method="get" action="/reports" style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,24,40,.03);display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px">
+  <div style="display:flex;flex-direction:column;gap:6px;min-width:150px">
+    <label style="font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--fainter)">Source</label>
+    <div style="position:relative">
+      <select name="source" onchange="this.form.submit()" style="width:100%;height:38px;padding:0 32px 0 12px;border:1px solid #e2e5ec;border-radius:10px;background:#fbfcfe;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;outline:none;appearance:none;-webkit-appearance:none">
+        <option value="">All sources</option>
+        <% sourceOptions.forEach(function(s){ %>
+        <option value="<%= s.value %>" <%= filterSource === s.value ? 'selected' : '' %>><%= s.label %></option>
+        <% }); %>
+      </select>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="2.2" stroke-linecap="round" style="position:absolute;right:11px;top:13px;pointer-events:none"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;min-width:150px">
+    <label style="font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--fainter)">Verdict in log</label>
+    <div style="position:relative">
+      <select name="verdict" onchange="this.form.submit()" style="width:100%;height:38px;padding:0 32px 0 12px;border:1px solid #e2e5ec;border-radius:10px;background:#fbfcfe;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;outline:none;appearance:none;-webkit-appearance:none">
+        <% const vOpts = [['','All verdicts'],['STRONG_MATCH','Strong match'],['WEAK_MATCH','Weak match'],['NO_MATCH','No match'],['DUPLICATE','Duplicate'],['FILTERED','Filtered'],['BLACKLISTED','Blacklisted']]; %>
+        <% vOpts.forEach(function(o){ %>
+        <option value="<%= o[0] %>" <%= filterVerdict === o[0] ? 'selected' : '' %>><%= o[1] %></option>
+        <% }); %>
+      </select>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="2.2" stroke-linecap="round" style="position:absolute;right:11px;top:13px;pointer-events:none"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:190px">
+    <label style="font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--fainter)">Company</label>
+    <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 11px;background:#fbfcfe;border:1px solid #e2e5ec;border-radius:10px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      <input name="company" value="<%= filterCompany %>" placeholder="Search company…" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13px;font-weight:600;color:var(--ink)">
+      <% if (filterCompany) { %><button type="button" onclick="this.form.company.value='';this.form.submit()" title="Clear" style="border:none;background:none;color:var(--fainter);cursor:pointer;font-size:16px;line-height:1;padding:0">×</button><% } %>
+    </div>
+  </div>
+  <% if (anyFilterActive) { %>
+  <a href="/reports" style="height:38px;display:inline-flex;align-items:center;padding:0 14px;border:1px solid #e5e7ee;border-radius:10px;font-size:12.5px;font-weight:700;color:var(--accent);background:#fff">Clear</a>
+  <% } %>
+</form>
+
 <% if (runs.length === 0) { %>
-<%- renderEmptyState('No pipeline runs yet. Run the pipeline from the Dashboard to see results here.', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2') %>
+  <% if (anyFilterActive) { %>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:48px 20px;text-align:center;box-shadow:var(--shadow-card)">
+    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#d4d8e0" stroke-width="1.5" stroke-linecap="round" style="margin:0 auto 12px"><path d="M3 4h18M7 12h10M10 20h4"/></svg>
+    <p style="margin:0;font-size:13.5px;font-weight:600;color:var(--faint)">No runs match these filters</p>
+    <a href="/reports" style="display:inline-flex;align-items:center;margin-top:14px;height:34px;padding:0 14px;border:1px solid #e5e7ee;border-radius:9px;color:var(--accent);font-size:12.5px;font-weight:700">Clear all filters</a>
+  </div>
+  <% } else { %>
+  <%- renderEmptyState('No pipeline runs yet. Run the pipeline from the Dashboard to see results here.', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2') %>
+  <% } %>
 <% } else { %>
 
-<div class="space-y-3">
-<% runs.forEach(run => { %>
-
-<details class="group jh-card overflow-hidden"
-         data-run-id="<%= run.id %>"
-         <%= run.preloaded ? 'data-preloaded' : '' %>>
-
-  <summary class="flex items-start gap-3 px-5 py-3 cursor-pointer select-none list-none hover:bg-gray-50 transition-colors">
-    <div class="flex-shrink-0 pt-1">
-      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
+<div class="rl-runs" style="display:flex;flex-direction:column;gap:12px">
+<% runs.forEach(function(run){ %>
+<%
+  const totalCost = (run.cost_openai_usd == null && run.cost_apify_usd == null) ? null : (run.cost_openai_usd ?? 0) + (run.cost_apify_usd ?? 0);
+  const jobsJson = JSON.stringify(run.jobs).replace(/</g, '\\u003c');
+%>
+<details class="rl-card" data-run-id="<%= run.id %>" data-run-date="<%= run.ran_at_date %> · <%= run.ran_at_time %>" <%= run.preloaded ? 'data-preloaded' : '' %>
+         style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.04);overflow:hidden">
+  <summary style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none;list-style:none">
+    <svg class="rl-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aeb4bf" stroke-width="2.6" stroke-linecap="round" style="flex:none;transition:transform .15s"><path d="M9 5l7 7-7 7"/></svg>
+    <div style="min-width:0;flex:1;display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+      <span style="font-size:13.5px;font-weight:800;white-space:nowrap;color:var(--ink)"><%= run.ran_at_date %></span>
+      <span style="font-size:12.5px;color:var(--faint);font-weight:600;white-space:nowrap"><%= run.ran_at_time %></span>
+      <%- statusPill(run.status) %>
+      <% if (run.trigger === 'manual') { %><span title="Started manually" style="display:inline-flex;align-items:center;justify-content:center;height:20px;min-width:20px;padding:0 5px;border-radius:6px;background:#eef2ff;color:var(--accent);font-size:11px;font-weight:800">M</span><% } %>
+      <span style="width:1px;height:13px;background:#e2e5ea"></span>
+      <span style="font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap"><%= runProviderName(run) %></span>
     </div>
-
-    <div class="min-w-0 flex-1">
-      <div class="flex items-center gap-2 min-w-0 flex-wrap">
-        <span class="font-semibold text-gray-900 text-sm whitespace-nowrap"><%= run.ran_at_date %></span>
-        <span class="text-gray-400 text-xs">·</span>
-        <span class="text-gray-500 text-sm whitespace-nowrap"><%= run.ran_at_time %></span>
-        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize <%= getRunStatusTone(run.status) %>"><%= formatRunStatusLabel(run.status) %></span>
-        <% if (run.trigger === 'manual') { %><span title="Run started manually" class="inline-flex h-5 min-w-5 items-center justify-center rounded bg-blue-50 px-1.5 text-xs font-semibold text-blue-600">M</span><% } %>
-        <span class="relative md:hidden" onclick="event.stopPropagation()">
-          <%- renderDottedPopupLink('$', { onclick: `toggleCostPopup('${run.id}', this, event)`, title: 'Run costs', 'aria-label': 'Run costs', class: 'align-baseline leading-inherit p-0' }) %>
-        </span>
-        <span class="hidden md:inline text-gray-300">·</span>
-        <span class="hidden md:inline truncate text-xs text-gray-500"><%= runProviderName(run) %></span>
-      </div>
-      <div class="mt-1 flex items-center text-xs text-gray-500 md:hidden">
-        <span class="truncate"><%= runProviderName(run) %></span>
-      </div>
-    </div>
-
-    <div class="hidden md:flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-xs text-gray-500 md:min-w-[390px]">
-      <span><span class="font-medium text-gray-700"><%= run.jobs_fetched %></span> fetched</span>
-      <span class="text-gray-300">·</span>
+    <div style="flex:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+      <span style="font-size:12px;color:var(--faint);font-weight:600;white-space:nowrap"><span style="font-weight:800;color:var(--ink2)"><%= run.jobs_fetched %></span> fetched</span>
       <%- renderRunStatusCounts(run) %>
-      <span class="text-gray-300">·</span>
-      <span class="relative" onclick="event.stopPropagation()">
-        <%- renderDottedPopupLink('$', { onclick: `toggleCostPopup('${run.id}', this, event)`, title: 'Run costs', 'aria-label': 'Run costs', class: 'align-baseline leading-inherit p-0' }) %>
-      </span>
-    </div>
-    <div id="cost-popup-<%= run.id %>" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
-      <% if (run.job_source || run.scraping_provider) { %>
-      <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
-        <span>Source</span>
-        <span class="font-medium text-gray-700"><%= formatSourceLabel(run.job_source || (run.scraping_provider === 'harvestapi' ? 'LinkedIn' : run.scraping_provider === 'indeed' ? 'Indeed' : run.scraping_provider === 'stepstone' ? 'StepStone' : run.scraping_provider === 'greenhouse' ? 'Greenhouse' : run.scraping_provider === 'ashby' ? 'Ashby' : run.scraping_provider === 'lever' ? 'Lever' : run.scraping_provider)) %></span>
-      </div>
-      <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
-        <span>Provider</span>
-        <span class="font-medium text-gray-700"><%= run.scraping_provider ? formatSourceLabel(run.scraping_provider) : '—' %></span>
-      </div>
-      <% } %>
-      <% const totalCost = (run.cost_openai_usd == null && run.cost_apify_usd == null) ? null : (run.cost_openai_usd ?? 0) + (run.cost_apify_usd ?? 0); %>
-      <div class="flex justify-between gap-6 pb-1.5 mb-1.5 border-b border-gray-100">
-        <span class="font-medium text-gray-700">Total</span>
-        <span class="font-bold text-gray-900"><%= formatRunCost(totalCost) %></span>
-      </div>
-      <% if (run.cost_apify_usd != null) { %>
-      <div class="flex justify-between gap-6 text-gray-600">
-        <span>Fetch</span>
-        <span class="font-medium text-gray-900"><%= formatRunCost(run.cost_apify_usd) %></span>
-      </div>
-      <% } %>
-      <% if (run.cost_openai_usd != null) { %>
-      <div class="flex justify-between gap-6 text-gray-600 mt-1.5">
-        <span>AI</span>
-        <span class="font-medium text-gray-900"><%= formatRunCost(run.cost_openai_usd) %></span>
-      </div>
-      <% } %>
+      <span class="rl-cost-trigger" onclick="toggleCostPopup('<%= run.id %>', this, event)" title="View cost breakdown" style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;background:#f4f5f8;color:var(--muted);white-space:nowrap;cursor:pointer;text-decoration:underline dotted;text-decoration-color:#b4b9c4;text-underline-offset:3px"><%= formatRunCost(totalCost) %></span>
     </div>
   </summary>
 
-  <!-- Expanded content -->
-  <div class="border-t border-gray-100">
+  <!-- cost breakdown popup -->
+  <div id="cost-popup-<%= run.id %>" class="hidden" style="position:fixed;z-index:70;background:#fff;border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 32px -8px rgba(16,24,40,.28);padding:12px;font-size:12px;min-width:180px">
+    <% if (run.job_source || run.scraping_provider) { %>
+    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
+      <span>Source</span>
+      <span style="font-weight:600;color:var(--ink2)"><%= formatSourceLabel(run.job_source || run.scraping_provider) %></span>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
+      <span>Provider</span>
+      <span style="font-weight:600;color:var(--ink2)"><%= run.scraping_provider ? formatSourceLabel(run.scraping_provider) : '—' %></span>
+    </div>
+    <% } %>
+    <div style="display:flex;justify-content:space-between;gap:24px;padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
+      <span style="font-weight:700;color:var(--ink2)">Total</span>
+      <span style="font-weight:800;color:var(--ink)"><%= formatRunCost(totalCost) %></span>
+    </div>
+    <% if (run.cost_apify_usd != null) { %>
+    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted)"><span>Fetch</span><span style="font-weight:600;color:var(--ink)"><%= formatRunCost(run.cost_apify_usd) %></span></div>
+    <% } %>
+    <% if (run.cost_openai_usd != null) { %>
+    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);margin-top:6px"><span>AI</span><span style="font-weight:600;color:var(--ink)"><%= formatRunCost(run.cost_openai_usd) %></span></div>
+    <% } %>
+  </div>
 
+  <!-- expanded -->
+  <div style="border-top:1px solid #eef0f4">
     <% if (run.error_log) { %>
-    <div class="px-5 py-3 bg-red-50 border-b border-red-100">
-      <p class="text-xs text-red-600 font-medium">Error log:</p>
-      <pre class="text-xs text-red-500 mt-1 whitespace-pre-wrap"><%= run.error_log %></pre>
+    <div style="padding:11px 20px;background:var(--red-soft);border-bottom:1px solid #fbdcd9;display:flex;gap:9px;align-items:flex-start">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:1px"><path d="M12 9v4M12 17h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <div style="font-size:12px;line-height:1.5;color:var(--red-ink);font-weight:600;white-space:pre-wrap"><%= run.error_log %></div>
     </div>
     <% } %>
 
-    <!-- Jobs container: server-rendered for preloaded runs, lazy for the rest -->
-    <div class="run-jobs-container">
-      <% if (run.preloaded) { %>
-        <% if (run.jobs.length === 0) { %>
-        <div class="px-5 py-8 text-center text-sm text-gray-400">
-          No job logs for this run.
-          <% if (run.status === 'running') { %><span class="block mt-1 text-xs">Run is still in progress.</span><% } %>
-        </div>
-        <% } else { %>
+    <div class="run-jobs-container" data-run-id="<%= run.id %>"><% if (run.preloaded) { %><script type="application/json" class="rl-jobs-json"><%- jobsJson %></script><% } %></div>
 
-        <!-- Desktop table -->
-        <table class="<%= getJobTableClass() %>">
-          <%- renderJobsAllColgroup() %>
-          <%- renderJobsAllTableHeader() %>
-          <tbody class="divide-y divide-gray-50">
-            <% run.jobs.forEach(function(job, idx) { %>
-            <tr data-row-idx="<%= idx %>" data-country="<%= job.country %>" class="<%= getJobTableRowClass() %>">
-              <td class="<%= getJobTableCellClass() %> pl-5">
-                <%- renderJobPositionCompanyCell(job.title, job.company, runJobDetailHref(job), job.logo_url) %>
-              </td>
-              <td class="<%= getJobTableCellClass() %>">
-                <%- renderLocationCell(job.location, job.country) %>
-              </td>
-              <td class="<%= getJobTableCellClass('score') %>">
-                <%- renderScoreCell(job.ai_score) %>
-              </td>
-              <td class="<%= getJobTableCellClass('verdict') %>">
-                <% if (job.internal_job_id) { %>
-                <button class="verdict-btn cursor-pointer"
-                      data-job-id="<%= job.internal_job_id %>"
-                      data-log-id="<%= job.id %>"
-                      data-verdict="<%= job.ai_verdict %>"
-                      data-chip-style="compact">
-                  <%- verdictChip(job.ai_verdict, job.rejection_category) %>
-                </button>
-                <% } else { %>
-                <%- renderVerdictChip(job.ai_verdict) %>
-                <% } %>
-              </td>
-              <td class="<%= getJobTableCellClass('date') %>">
-                <%- renderDateTimeCell(job.logged_at, timezone || 'UTC') %>
-              </td>
-              <td class="<%= getJobTableCellClass('source') %>">
-                <%- renderSourceLinkCell(job.apply_url || job.url, job.job_source || 'LinkedIn', 'Apply') %>
-              </td>
-            </tr>
-            <% }); %>
-          </tbody>
-        </table>
-
-        <!-- Mobile list -->
-        <div class="<%= getJobMobileListClass() %> jobs-mobile-list">
-          <% run.jobs.forEach(function(job, idx) { %>
-          <% const target = runJobDetailHref(job) || null; %>
-          <div class="job-mobile-row <%= getJobMobileCardClass(target ? 'cursor-pointer' : '') %>"
-               data-row-idx="<%= idx %>"
-               data-country="<%= job.country %>"
-               <% if (target) { %>data-href="<%= target %>" onclick="if(event.target.closest('.verdict-btn')) return; location.href=this.dataset.href"<% } %>>
-            <div class="flex items-start justify-between gap-3">
-              <span class="job-identity-title text-sm font-semibold text-gray-900"><%= job.title %></span>
-              <div class="flex-shrink-0"><%- renderScoreCell(job.ai_score) %></div>
-            </div>
-            <div class="mt-1 flex items-start justify-between gap-3">
-              <span class="job-identity-meta text-xs text-gray-500 flex items-center gap-1.5"><%- renderCompanyLogo(job.company, job.logo_url) %><%= job.company || 'Unknown company' %></span>
-              <div class="flex-shrink-0">
-                <% if (job.internal_job_id) { %>
-                <button class="verdict-btn cursor-pointer"
-                      data-job-id="<%= job.internal_job_id %>"
-                      data-log-id="<%= job.id %>"
-                      data-verdict="<%= job.ai_verdict %>"
-                      data-chip-style="compact">
-                  <%- verdictChip(job.ai_verdict, job.rejection_category) %>
-                </button>
-                <% } else { %>
-                <%- renderVerdictChip(job.ai_verdict) %>
-                <% } %>
-              </div>
-            </div>
-            <div class="mt-2 flex items-start justify-between gap-3">
-              <div class="min-w-0"><%- renderLocationCell(job.location) %></div>
-              <%- renderSourceLinkCell(job.apply_url || job.url, job.job_source || 'LinkedIn', 'Apply') %>
-            </div>
-          </div>
-          <% }); %>
-        </div>
-
-        <% } %>
-      <% } %>
-      <!-- Lazy runs: container is empty; JS fills it on first expand -->
-    </div>
-
-    <!-- Run footer -->
-    <div class="px-5 py-2.5 border-t border-gray-100 text-xs text-gray-400 flex items-center justify-between">
+    <div style="padding:10px 20px;border-top:1px solid #eef0f4;display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--faintest);font-weight:600">
       <span>Run #<%= run.id %></span>
-      <% if (run.duration_ms) { %>
-      <span><%= (run.duration_ms / 1000).toFixed(1) %>s</span>
-      <% } %>
+      <% if (run.duration_ms) { %><span><%= (run.duration_ms / 1000).toFixed(1) %>s</span><% } %>
     </div>
-
   </div>
 </details>
-
 <% }); %>
 </div>
 <% } %>
 
+<!-- ── Job detail slide-in drawer (desktop; mobile taps → /job/:id) ── -->
+<div id="rl-drawer" class="hidden">
+  <div id="rl-drawer-backdrop" style="position:absolute;inset:0;background:rgba(19,23,34,.4)"></div>
+  <aside id="rl-drawer-panel" class="jh-scroll" style="position:relative;width:min(620px,94vw);height:100%;background:#f6f5f3;box-shadow:-16px 0 44px -14px rgba(16,24,40,.4);overflow-y:auto">
+    <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;padding:13px 18px;background:rgba(246,245,243,.9);backdrop-filter:blur(8px);border-bottom:1px solid #e7e6e2">
+      <div style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--fainter)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        <span id="rl-drawer-label">Job details</span>
+      </div>
+      <span style="flex:1"></span>
+      <button id="rl-drawer-close" title="Close (Esc)" style="flex:none;width:32px;height:32px;display:grid;place-items:center;border:1px solid #e2e5ea;border-radius:9px;background:#fff;color:var(--muted);cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+      </button>
+    </div>
+    <div id="rl-drawer-body"></div>
+  </aside>
+</div>
+
+<style>
+  .rl-card > summary::-webkit-details-marker { display: none; }
+  .rl-card > summary::marker { content: ''; }
+  .rl-card[open] .rl-chev { transform: rotate(90deg); }
+  .rl-row:hover { background: #fafbfe; }
+  .rl-desktop { display: block; }
+  .rl-mobile { display: none; }
+  @media (max-width: 767px) { .rl-desktop { display: none; } .rl-mobile { display: flex; } }
+  /* z-index 40 keeps the drawer below the shared overlays it hosts — the verdict/applied
+     dropdowns (z-50) and the confirm/alert modals (z-[60]) must open ON TOP of it. */
+  #rl-drawer { position: fixed; inset: 0; z-index: 40; display: flex; justify-content: flex-end; }
+  #rl-drawer.hidden { display: none; }
+  #rl-drawer:not(.hidden) #rl-drawer-backdrop { animation: jhfade .18s ease; }
+  #rl-drawer:not(.hidden) #rl-drawer-panel { animation: jhslide .22s ease; }
+  @keyframes jhslide { from { transform: translateX(24px); opacity: .4 } to { transform: translateX(0); opacity: 1 } }
+  @keyframes jhfade { from { opacity: 0 } to { opacity: 1 } }
+  .rl-ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+
 <script>
-// ---- Utilities ----
-const RUN_LOG_TIMEZONE = <%- JSON.stringify(timezone || 'UTC') %>;
+// ── Config from server ──
+const RL_ROW_FILTER = <%- JSON.stringify({ verdict: filterVerdict || '', company: filterCompany || '' }) %>;
+const RL_GRID = 'minmax(220px,1fr) 150px 60px 122px 100px 84px';
 
 function escHtml(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(str == null ? '' : str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function formatDateTimeToMinutes(value) {
-  if (!value) return '\u2014';
-  const d = new Date(String(value));
-  if (Number.isNaN(d.getTime())) return String(value).slice(0, 16) || '\u2014';
-  const date = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: RUN_LOG_TIMEZONE }).format(d);
-  const time = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: RUN_LOG_TIMEZONE }).format(d);
-  return date + ' ' + time;
-}
-
-function scoreClass(score) {
-  if (score == null) return 'text-gray-400';
-  return score >= 71 ? 'text-emerald-600 font-semibold' : score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500';
-}
-
-function logVerdictChip(verdict, rejectionCategory, editable) {
+function logVerdictChip(verdict, editable) {
   const canEdit = editable === undefined ? window.JHUI.isVerdictEditable(verdict) : editable;
-  const label = window.JHUI.formatVerdictLabel(verdict) + (canEdit ? ' \u25be' : '');
+  const label = window.JHUI.formatVerdictLabel(verdict) + (canEdit ? ' ▾' : '');
   return '<span style="display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:700;white-space:nowrap;' + window.JHUI.getVerdictChipStyle(verdict) + '">' + label + '</span>';
 }
 
-function sourceLinkHTML(url) {
-  return url
-    ? '<a href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Apply" aria-label="Apply" class="source-link-cell inline-flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M9 7h8v8"/></svg></a>'
-    : '<span class="text-gray-300 text-xs">\u2014</span>';
+function scoreChip(score, verdict) {
+  return '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:23px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;' + window.JHUI.getVerdictChipStyle(verdict) + '">' + window.JHUI.formatScore(score) + '</span>';
 }
 
-// ---- Build jobs HTML from JSON (used by lazy-load) ----
+function sourceLink(url) {
+  return url
+    ? '<a href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open posting" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>'
+    : '<span style="color:#c9cdd6;font-size:13px">—</span>';
+}
 
+function companyLogo(company) {
+  const letter = escHtml(String(company || 'U').charAt(0).toUpperCase());
+  return '<div style="width:30px;height:30px;flex:none;border-radius:8px;background:#eef1f6;display:grid;place-items:center;color:var(--muted);font-weight:800;font-size:12px">' + letter + '</div>';
+}
+
+// ── Build a run's jobs block (desktop grid + mobile cards) ──
 function buildJobsHTML(jobs) {
   if (!jobs || jobs.length === 0) {
-    return '<div class="px-5 py-8 text-center text-sm text-gray-400">No job logs for this run.</div>';
+    return '<div style="padding:34px 20px;text-align:center;font-size:13px;color:var(--faint);font-weight:600">No job logs for this run.</div>';
   }
 
-  let tableRows = '';
-  let mobileRows = '';
+  const headCell = function(label, right) {
+    return '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--fainter)' + (right ? ';text-align:right' : '') + '">' + label + '</div>';
+  };
+  let desktop = '<div class="jh-scroll" style="overflow-x:auto"><div style="min-width:806px">'
+    + '<div style="display:grid;grid-template-columns:' + RL_GRID + ';align-items:center;gap:14px;padding:10px 20px;background:#fafbfd;border-bottom:1px solid #eef0f4">'
+    + headCell('Position') + headCell('Location') + headCell('Score') + headCell('Verdict') + headCell('Logged') + headCell('Source', true)
+    + '</div>';
 
-  jobs.forEach(function(job, idx) {
-    const sc = scoreClass(job.ai_score);
-    // internal_job_id is ownership-based (set only when this profile owns the job),
-    // so unowned rows (e.g. filtered) get no link and no 404.
-    const linkable = !!job.internal_job_id;
-    const detailHref = linkable ? '/job/' + job.internal_job_id : '';
-    const target = detailHref || null;
-    tableRows += '<tr data-row-idx="' + idx + '" data-country="' + escHtml(job.country) + '" class="job-table-row">'
-      + '<td class="job-table-cell pl-5">'
-      + '<div class="min-w-0">'
-      + (linkable
-          ? '<a href="' + detailHref + '" class="job-identity-title text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">' + escHtml(job.title) + '</a>'
-          : '<span class="job-identity-title text-sm font-semibold text-gray-900">' + escHtml(job.title) + '</span>')
-      + '<span class="job-identity-meta text-xs text-gray-500 mt-0.5">' + escHtml(job.company || 'Unknown company') + '</span>'
-      + '</div></td>'
-      + '<td class="job-table-cell">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</td>'
-      + '<td class="job-table-cell job-table-fixed">' + (job.ai_score != null ? '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge ' + (job.ai_score >= 71 ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100') + '">' + window.JHUI.formatScore(job.ai_score) + '</span>' : '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge text-gray-600 bg-gray-100">\u2014</span>') + '</td>'
-      + '<td class="job-table-cell job-table-fixed">'
-      + (linkable
-          ? '<button class="verdict-btn cursor-pointer" data-job-id="' + job.internal_job_id + '" data-log-id="' + job.id + '" data-verdict="' + job.ai_verdict + '" data-chip-style="compact">' + logVerdictChip(job.ai_verdict, job.rejection_category) + '</button>'
-          : logVerdictChip(job.ai_verdict, job.rejection_category, false))
-      + '</td>'
-      + '<td class="job-table-cell job-table-fixed"><span class="text-xs text-gray-500 whitespace-nowrap">' + escHtml(formatDateTimeToMinutes(job.logged_at)) + '</span></td>'
-      + '<td class="job-table-cell job-table-fixed">' + sourceLinkHTML(job.apply_url || job.url) + '</td>'
-      + '</tr>';
+  let mobile = '<div class="rl-mobile" style="flex-direction:column">';
 
-    mobileRows += '<div class="job-mobile-row job-mobile-card' + (target ? ' cursor-pointer' : '') + '"'
-      + ' data-row-idx="' + idx + '"'
-      + ' data-country="' + escHtml(job.country) + '"'
-      + (target ? ' data-href="' + escHtml(target) + '" onclick="if(event.target.closest(&quot;.verdict-btn&quot;)) return; location.href=this.dataset.href"' : '')
-      + '>'
-      + '<div class="flex items-start justify-between gap-3">'
-      + '<span class="job-identity-title text-sm font-semibold text-gray-900">' + escHtml(job.title) + '</span>'
-      + '<div class="flex-shrink-0">' + (job.ai_score != null ? '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge ' + (job.ai_score >= 71 ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100') + '">' + window.JHUI.formatScore(job.ai_score) + '</span>' : '<span class="inline-flex h-7 min-w-9 items-center justify-center rounded-lg px-2 font-bold text-xs score-badge text-gray-600 bg-gray-100">\u2014</span>') + '</div>'
-      + '</div>'
-      + '<div class="mt-1 flex items-start justify-between gap-3">'
-      + '<span class="job-identity-meta text-xs text-gray-500">' + escHtml(job.company || 'Unknown company') + '</span>'
-      + '<div class="flex-shrink-0">'
-      + (linkable
-          ? '<button class="verdict-btn cursor-pointer" data-job-id="' + job.internal_job_id + '" data-log-id="' + job.id + '" data-verdict="' + job.ai_verdict + '" data-chip-style="compact">' + logVerdictChip(job.ai_verdict, job.rejection_category) + '</button>'
-          : logVerdictChip(job.ai_verdict, job.rejection_category, false))
-      + '</div></div>'
-      + '<div class="mt-2 flex items-start justify-between gap-3"><div class="min-w-0">' + (job.location ? '<span class="job-location-text text-xs leading-snug text-gray-500">' + (job.flag ? job.flag + ' ' : '') + escHtml(job.location) + '</span>' : '<span class="text-xs text-gray-300">\u2014</span>') + '</div>' + sourceLinkHTML(job.apply_url || job.url) + '</div>'
+  jobs.forEach(function(job) {
+    const owned = !!job.internal_job_id;
+    const flag = job.flag ? '<span style="flex:none">' + job.flag + '</span>' : '';
+    const loc = job.location
+      ? '<div style="display:flex;align-items:center;gap:6px;min-width:0;font-size:12.5px;font-weight:600;color:var(--muted)">' + flag + '<span class="rl-ell">' + escHtml(job.location) + '</span></div>'
+      : '<span style="font-size:12.5px;color:#c9cdd6">—</span>';
+    const verdictCell = owned
+      ? '<button class="verdict-btn" data-job-id="' + job.internal_job_id + '" data-log-id="' + job.id + '" data-verdict="' + escHtml(job.ai_verdict) + '" data-chip-style="compact" style="background:none;border:none;padding:0;cursor:pointer">' + logVerdictChip(job.ai_verdict) + '</button>'
+      : logVerdictChip(job.ai_verdict, false);
+
+    // Desktop grid row
+    desktop += '<div class="rl-row" data-job-id="' + (owned ? job.internal_job_id : '') + '"'
+      + (owned ? ' onclick="rlRowClick(event, this)"' : '')
+      + ' style="display:grid;grid-template-columns:' + RL_GRID + ';align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid #f2f3f6;' + (owned ? 'cursor:pointer' : '') + '">'
+      + '<div style="display:flex;align-items:center;gap:11px;min-width:0">' + companyLogo(job.company)
+      + '<div style="min-width:0"><div class="rl-ell" style="font-size:13.5px;font-weight:700;color:var(--ink)" title="' + escHtml(job.title) + '">' + escHtml(job.title) + '</div>'
+      + '<div class="rl-ell" style="font-size:12px;font-weight:600;color:var(--faint);margin-top:2px">' + escHtml(job.company || 'Unknown company') + '</div></div></div>'
+      + loc
+      + '<div>' + scoreChip(job.ai_score, job.ai_verdict) + '</div>'
+      + '<div>' + verdictCell + '</div>'
+      + '<div style="font-size:12px;font-weight:600;color:var(--faint)">' + escHtml(((job.logged_date || '') + ' ' + (job.logged_time || '')).trim() || '—') + '</div>'
+      + '<div style="text-align:right">' + sourceLink(job.apply_url || job.url) + '</div>'
+      + '</div>';
+
+    // Mobile card (tap → /job/:id for owned)
+    mobile += '<div class="rl-mrow"' + (owned ? ' data-href="/job/' + job.internal_job_id + '" onclick="if(event.target.closest(&quot;.verdict-btn&quot;)||event.target.closest(&quot;a&quot;))return;location.href=this.dataset.href"' : '')
+      + ' style="padding:12px 16px;border-bottom:1px solid #f2f3f6;' + (owned ? 'cursor:pointer' : '') + '">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><span style="font-size:13.5px;font-weight:700;color:var(--ink)">' + escHtml(job.title) + '</span>' + scoreChip(job.ai_score, job.ai_verdict) + '</div>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px"><span style="font-size:12px;font-weight:600;color:var(--faint)">' + escHtml(job.company || 'Unknown company') + '</span>' + verdictCell + '</div>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px"><div style="min-width:0">' + loc + '</div>' + sourceLink(job.apply_url || job.url) + '</div>'
       + '</div>';
   });
 
-  return '<table class="job-table job-desktop-table"><colgroup><col style="width:auto;"><col style="width:150px;"><col style="width:56px;"><col style="width:88px;"><col style="width:150px;"><col style="width:44px;"></colgroup><thead class="bg-gray-50"><tr><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ">Position</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ">Location</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Score</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Verdict</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Date</th><th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide text-center"><span class="sr-only">Source</span></th></tr></thead><tbody class="divide-y divide-gray-50">' + tableRows + '</tbody></table>'
-       + '<div class="job-mobile-list jobs-mobile-list-js space-y-2">' + mobileRows + '</div>';
+  desktop += '</div></div>';
+  mobile += '</div>';
+  return '<div class="rl-desktop">' + desktop + '</div>' + mobile;
 }
 
-// ---- Lazy-load ----
+// ── Preloaded runs: build from embedded JSON. Lazy runs: fetch on first expand. ──
+function rlRowFilterQS() {
+  const p = new URLSearchParams();
+  if (RL_ROW_FILTER.verdict) p.set('verdict', RL_ROW_FILTER.verdict);
+  if (RL_ROW_FILTER.company) p.set('company', RL_ROW_FILTER.company);
+  const s = p.toString();
+  return s ? '?' + s : '';
+}
 
-async function loadRunLogs(runId, detailsEl) {
-  const container = detailsEl.querySelector('.run-jobs-container');
-  if (!container) return;
-  container.innerHTML = '<div class="px-5 py-8 text-center text-sm text-gray-400">Loading\u2026</div>';
-  try {
-    const res = await fetch('/reports/runs/' + runId + '/logs');
-    const data = await res.json();
-    container.innerHTML = buildJobsHTML(data.jobs);
-    if (isSplitEnabled) applySplitToDetailsEl(detailsEl, true);
-  } catch (_) {
-    container.innerHTML = '<div class="px-5 py-8 text-center text-sm text-red-400">Failed to load logs.</div>';
+document.querySelectorAll('.run-jobs-container').forEach(function(container) {
+  const dataEl = container.querySelector('.rl-jobs-json');
+  if (dataEl) {
+    try { container.innerHTML = buildJobsHTML(JSON.parse(dataEl.textContent)); }
+    catch (_) { container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--red-ink);font-size:13px">Failed to render logs.</div>'; }
   }
-}
+});
 
-// Attach toggle listeners to lazy runs
 document.querySelectorAll('details[data-run-id]:not([data-preloaded])').forEach(function(details) {
   details.addEventListener('toggle', async function() {
     if (!this.open || this.dataset.loaded) return;
     this.dataset.loaded = '1';
-    await loadRunLogs(this.dataset.runId, this);
+    const container = this.querySelector('.run-jobs-container');
+    if (!container) return;
+    container.innerHTML = '<div style="padding:34px 20px;text-align:center;font-size:13px;color:var(--faint);font-weight:600">Loading…</div>';
+    try {
+      const res = await fetch('/reports/runs/' + this.dataset.runId + '/logs' + rlRowFilterQS());
+      const data = await res.json();
+      container.innerHTML = buildJobsHTML(data.jobs);
+    } catch (_) {
+      container.innerHTML = '<div style="padding:34px 20px;text-align:center;font-size:13px;color:var(--red-ink);font-weight:600">Failed to load logs.</div>';
+    }
   });
 });
 
-// ---- Location split ----
-
-function buildCountryGroups(rows) {
-  const map = new Map();
-  rows.forEach(function(row) {
-    const c = row.dataset.country || 'Remote / Unknown';
-    if (!map.has(c)) map.set(c, []);
-    map.get(c).push(row);
-  });
-  return Array.from(map.entries()).sort(function([a], [b]) {
-    if (a === 'Remote / Unknown') return 1;
-    if (b === 'Remote / Unknown') return -1;
-    return a.localeCompare(b);
-  });
+// ── Slide-in drawer ──
+function rlRowClick(event, el) {
+  if (event.target.closest('.verdict-btn') || event.target.closest('a')) return;
+  const jobId = el.dataset.jobId;
+  if (!jobId) return;
+  if (window.innerWidth < 768) { location.href = '/job/' + jobId; return; }
+  openDrawer(jobId, el);
 }
 
-function applyLocationSplitToTbody(tbody) {
-  tbody.querySelectorAll('.country-header').forEach(function(el) { el.remove(); });
-  const groups = buildCountryGroups(Array.from(tbody.querySelectorAll('tr[data-row-idx]')));
-  groups.forEach(function([country, rows]) {
-    const hdr = document.createElement('tr');
-    hdr.className = 'country-header';
-    hdr.innerHTML = `<td colspan="6" class="px-5 py-2 bg-gray-50 border-y border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">${escHtml(country)}</td>`;
-    tbody.appendChild(hdr);
-    rows.forEach(function(r) { tbody.appendChild(r); });
+function runInjectedScripts(container) {
+  container.querySelectorAll('script').forEach(function(old) {
+    const s = document.createElement('script');
+    if (old.src) s.src = old.src; else s.textContent = old.textContent;
+    old.replaceWith(s);
   });
 }
 
-function restoreFlatOrderToTbody(tbody) {
-  tbody.querySelectorAll('.country-header').forEach(function(el) { el.remove(); });
-  const rows = Array.from(tbody.querySelectorAll('tr[data-row-idx]'));
-  rows.sort(function(a, b) { return +a.dataset.rowIdx - +b.dataset.rowIdx; });
-  rows.forEach(function(r) { tbody.appendChild(r); });
-}
-
-function applyLocationSplitToMobileList(list) {
-  list.querySelectorAll('.country-header').forEach(function(el) { el.remove(); });
-  const groups = buildCountryGroups(Array.from(list.querySelectorAll('[data-row-idx]')));
-  groups.forEach(function([country, rows]) {
-    const hdr = document.createElement('div');
-    hdr.className = 'country-header px-4 py-2 bg-gray-50 border-y border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide';
-    hdr.textContent = country;
-    list.appendChild(hdr);
-    rows.forEach(function(r) { list.appendChild(r); });
-  });
-}
-
-function restoreFlatOrderToMobileList(list) {
-  list.querySelectorAll('.country-header').forEach(function(el) { el.remove(); });
-  const rows = Array.from(list.querySelectorAll('[data-row-idx]'));
-  rows.sort(function(a, b) { return +a.dataset.rowIdx - +b.dataset.rowIdx; });
-  rows.forEach(function(r) { list.appendChild(r); });
-}
-
-function applySplitToDetailsEl(detailsEl, split) {
-  const tbody = detailsEl.querySelector('tbody');
-  const mobileList = detailsEl.querySelector('.jobs-mobile-list');
-  if (tbody)      { split ? applyLocationSplitToTbody(tbody)      : restoreFlatOrderToTbody(tbody); }
-  if (mobileList) { split ? applyLocationSplitToMobileList(mobileList) : restoreFlatOrderToMobileList(mobileList); }
-}
-
-let isSplitEnabled = false;
-
-function toggleLocationSplit(checked) {
-  isSplitEnabled = checked;
-  document.querySelectorAll('details[data-run-id]').forEach(function(detailsEl) {
-    // Only touch runs that are already loaded
-    if (detailsEl.hasAttribute('data-preloaded') || detailsEl.dataset.loaded) {
-      applySplitToDetailsEl(detailsEl, checked);
-    }
-  });
-  localStorage.setItem('runLogsSplitByLocation', checked ? '1' : '0');
-}
-
-// Restore split preference on load
-(function() {
-  if (localStorage.getItem('runLogsSplitByLocation') === '1') {
-    const cb = document.getElementById('location-split-checkbox');
-    if (cb) { cb.checked = true; toggleLocationSplit(true); }
+async function openDrawer(jobId, rowEl) {
+  const drawer = document.getElementById('rl-drawer');
+  const body = document.getElementById('rl-drawer-body');
+  const label = document.getElementById('rl-drawer-label');
+  const details = rowEl ? rowEl.closest('details') : null;
+  label.textContent = details ? ('Run · ' + details.dataset.runDate) : 'Job details';
+  body.innerHTML = '<div style="padding:48px 20px;text-align:center;color:var(--faint);font-size:13px;font-weight:600">Loading…</div>';
+  drawer.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('rl-drawer-panel').scrollTop = 0;
+  try {
+    const res = await fetch('/reports/job/' + jobId + '/detail');
+    if (!res.ok) throw new Error('bad');
+    body.innerHTML = await res.text();
+    runInjectedScripts(body);
+  } catch (_) {
+    body.innerHTML = '<div style="padding:48px 20px;text-align:center;color:var(--red-ink);font-size:13px;font-weight:600">Failed to load this job.</div>';
   }
-})();
+}
 
-// ---- Cost popups ----
+function closeDrawer() {
+  const drawer = document.getElementById('rl-drawer');
+  drawer.classList.add('hidden');
+  document.getElementById('rl-drawer-body').innerHTML = '';
+  document.body.style.overflow = '';
+}
 
+document.getElementById('rl-drawer-close').addEventListener('click', closeDrawer);
+document.getElementById('rl-drawer-backdrop').addEventListener('click', closeDrawer);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && !document.getElementById('rl-drawer').classList.contains('hidden')) closeDrawer();
+});
+
+// ── Cost popups ──
 function toggleCostPopup(runId, btn, event) {
-  if (event) event.stopPropagation();
+  if (event) { event.stopPropagation(); event.preventDefault(); }
   const popup = document.getElementById('cost-popup-' + runId);
   if (!popup || !btn) return;
   const isHidden = popup.classList.contains('hidden');
   document.querySelectorAll('[id^="cost-popup-"]').forEach(function(el) { el.classList.add('hidden'); });
   if (isHidden) {
     const rect = btn.getBoundingClientRect();
-    popup.style.top  = (rect.bottom + 4) + 'px';
+    popup.style.top = (rect.bottom + 4) + 'px';
     popup.style.right = (window.innerWidth - rect.right) + 'px';
     popup.classList.remove('hidden');
   }
 }
 
-document.addEventListener('click', function() {
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.rl-cost-trigger')) return;
   document.querySelectorAll('[id^="cost-popup-"]').forEach(function(el) { el.classList.add('hidden'); });
 });
 </script>

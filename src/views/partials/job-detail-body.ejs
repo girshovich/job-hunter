@@ -201,10 +201,13 @@ function renderLinks(raw) {
         </div>
       </div>
 
-      <!-- Applied selector (shared dropdown, top-right) -->
+      <!-- Applied selector (shared dropdown, top-right) — only for strong matches;
+           applying is a matches-workflow concept, so non-strong verdicts don't show it. -->
+      <% if (detailVerdict === 'STRONG_MATCH') { %>
       <div style="flex:none;">
         <%- renderAppliedSelector(job.applied, { 'data-job-id': job.id }) %>
       </div>
+      <% } %>
     </div>
 
     <!-- AI summary -->
@@ -377,8 +380,10 @@ function renderLinks(raw) {
 </style>
 
 <script>
-const _jobId = <%= job.id %>;
-const _companyName = <%- JSON.stringify(job.company) %>;
+// `var` (not `const`) so this script is safe to re-execute — the Run Logs drawer re-injects
+// this partial and re-runs the script on each open; const would throw on redeclaration.
+var _jobId = <%= job.id %>;
+var _companyName = <%- JSON.stringify(job.company) %>;
 
 function renderMdJs(text) {
   if (!text) return '';
@@ -433,8 +438,8 @@ async function runCvCompare() {
   }
 }
 
-let _companyPopoverOpen = false;
-let _currentCompanyNote = <%- JSON.stringify(locals.companyNote || '') %>;
+var _companyPopoverOpen = false;
+var _currentCompanyNote = <%- JSON.stringify(locals.companyNote || '') %>;
 
 function closeCompanyNotePopover() {
   const area = document.getElementById('company-note-popover-area');
@@ -470,14 +475,19 @@ function openCompanyNotePopover(event) {
   setTimeout(() => area.focus(), 50);
 }
 
-document.addEventListener('click', function(e) {
-  if (!_companyPopoverOpen) return;
-  const pop = document.getElementById('company-note-popover');
-  const btn = document.getElementById('company-name-btn');
-  if (!pop.contains(e.target) && !btn.contains(e.target)) {
-    closeCompanyNotePopover();
-  }
-});
+// Guarded so re-executing this script (drawer re-open) doesn't stack duplicate listeners.
+if (!window.__jdCompanyPopoverWired) {
+  window.__jdCompanyPopoverWired = true;
+  document.addEventListener('click', function(e) {
+    if (!_companyPopoverOpen) return;
+    const pop = document.getElementById('company-note-popover');
+    const btn = document.getElementById('company-name-btn');
+    if (!pop || !btn) return;
+    if (!pop.contains(e.target) && !btn.contains(e.target)) {
+      closeCompanyNotePopover();
+    }
+  });
+}
 
 async function saveCompanyNotePopover() {
   const area = document.getElementById('company-note-popover-area');
