@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@types/multer": "^2.1.0",
     "apify-client": "^2.22.1",
     "compression": "^1.8.1",

@@ -2,6 +2,7 @@ node_modules/
 dist/
 data/
 logs/
+.playwright-cli/
 .env
 *.db
 *.db-shm

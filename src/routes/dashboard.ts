@@ -3,9 +3,10 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type JobWithState, type SearchRunRow, type SearchGroupRow, type SettingsRow, type CvRow } from '../db';
+import { getDb, type JobWithState, type SearchRunRow, type SearchGroupRow, type SettingsRow } from '../db';
 import { getScheduleStatus } from '../pipeline/scheduler';
 import { lookupCountry, getPreferredCountries } from '../pipeline/locationNormalizer';
+import { loadJobDetail } from './jobDetail';
 
 const router = Router();
 
@@ -269,108 +270,13 @@ router.get('/history', (req: Request, res: Response) => {
 
 // Job Detail
 router.get('/job/:id', (req: Request, res: Response) => {
-  const db = getDb();
   const id = parseInt(req.params.id, 10);
-
-  const profileId = req.profile.id;
-  const jobRow = db.prepare(`
-    SELECT j.*, jps.*, c.logo_url, COALESCE(jd.description_text, j.description) AS description_text
-    FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-    LEFT JOIN job_descriptions jd ON jd.job_id = j.id
-    LEFT JOIN companies c ON c.company = j.company
-    WHERE j.id = ? AND jps.profile_id = ?
-  `).get(id, profileId) as (JobWithState & { description_text?: string }) | undefined;
-  const job = jobRow ? { ...jobRow, description: jobRow.description_text ?? jobRow.description } : undefined;
-  if (!job) {
+  const detail = loadJobDetail(req.profile.id, id);
+  if (!detail) {
     res.status(404).render('404', { title: 'Not Found' });
     return;
   }
-
-  // Duplicate chain
-  let original: JobWithState | undefined;
-  if (job.duplicate_of_job_id) {
-    const originalRow = db.prepare(`
-      SELECT j.*, jps.*, c.logo_url, COALESCE(jd.description_text, j.description) AS description_text
-      FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-      LEFT JOIN job_descriptions jd ON jd.job_id = j.id
-      LEFT JOIN companies c ON c.company = j.company
-      WHERE j.id = ? AND jps.profile_id = ?
-    `).get(job.duplicate_of_job_id, profileId) as (JobWithState & { description_text?: string }) | undefined;
-    original = originalRow ? { ...originalRow, description: originalRow.description_text ?? originalRow.description } : undefined;
-  }
-
-  const duplicateRows = db.prepare(`
-    SELECT j.*, jps.*, c.logo_url, COALESCE(jd.description_text, j.description) AS description_text
-    FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-    LEFT JOIN job_descriptions jd ON jd.job_id = j.id
-    LEFT JOIN companies c ON c.company = j.company
-    WHERE jps.duplicate_of_job_id = ? AND jps.profile_id = ?
-    ORDER BY jps.fetched_at DESC
-  `).all(job.id, profileId) as Array<JobWithState & { description_text?: string }>;
-  const duplicatesOfThis = duplicateRows.map((row) => ({
-    ...row,
-    description: row.description_text ?? row.description,
-  }));
-
-  const from = String(req.query.from || 'history');
-  const backUrl   = from === 'jobs' ? '/jobs' : from === 'home' ? '/' : '/history';
-  const backLabel = 'Back';
-
-  // Prev/Next navigation — scoped to same profile, order matches the source page
-  let prevId: number | null = null;
-  let nextId: number | null = null;
-  if (from === 'jobs') {
-    // Sort order: fetched_at DESC, ai_score DESC, id DESC (matches jobs page)
-    // prev = item that appears above current = "bigger" in sort terms
-    const prevRow = db.prepare(`
-      SELECT j.id FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-      WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
-        AND (jps.fetched_at > ?
-          OR (jps.fetched_at = ? AND jps.ai_score > ?)
-          OR (jps.fetched_at = ? AND jps.ai_score = ? AND j.id > ?))
-      ORDER BY jps.fetched_at ASC, jps.ai_score ASC, j.id ASC LIMIT 1
-    `).get(profileId,
-        job.fetched_at,
-        job.fetched_at, job.ai_score,
-        job.fetched_at, job.ai_score, id) as { id: number } | undefined;
-    prevId = prevRow?.id ?? null;
-
-    // next = item that appears below current = "smaller" in sort terms
-    const nextRow = db.prepare(`
-      SELECT j.id FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-      WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
-        AND (jps.fetched_at < ?
-          OR (jps.fetched_at = ? AND jps.ai_score < ?)
-          OR (jps.fetched_at = ? AND jps.ai_score = ? AND j.id < ?))
-      ORDER BY jps.fetched_at DESC, jps.ai_score DESC, j.id DESC LIMIT 1
-    `).get(profileId,
-        job.fetched_at,
-        job.fetched_at, job.ai_score,
-        job.fetched_at, job.ai_score, id) as { id: number } | undefined;
-    nextId = nextRow?.id ?? null;
-  } else if (from === 'home') {
-    const day = job.fetched_at ? String(job.fetched_at).slice(0, 10) : null;
-    if (day) {
-      const sameDayIds = db.prepare(`
-        SELECT j.id FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-        WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
-          AND strftime('%Y-%m-%d', jps.fetched_at) = ?
-        ORDER BY jps.ai_score DESC
-      `).all(profileId, day) as Array<{ id: number }>;
-      const idx = sameDayIds.findIndex((r) => r.id === id);
-      if (idx > 0) prevId = sameDayIds[idx - 1].id;
-      if (idx >= 0 && idx < sameDayIds.length - 1) nextId = sameDayIds[idx + 1].id;
-    }
-  }
-
-  const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow | undefined;
-  const cvs = db.prepare('SELECT id, filename, mime_type, file_size, uploaded_at FROM cvs WHERE profile_id = ? ORDER BY uploaded_at DESC').all(profileId) as Omit<CvRow, 'content_b64'>[];
-  const companyNoteRow = db.prepare('SELECT note FROM company_notes WHERE profile_id = ? AND company = ?').get(profileId, job.company) as { note: string } | undefined;
-  const companyNote = companyNoteRow?.note || '';
-
-  const locationLabelRows = db.prepare(`SELECT label FROM job_locations WHERE job_id = ? ORDER BY rowid ASC`).all(id) as Array<{ label: string }>;
-  const locationLabels = locationLabelRows.map((r) => r.label);
-  res.render('job-detail', { job, original, duplicatesOfThis, title: job.title, backUrl, backLabel, prevId, nextId, from, cvs, settings, companyNote, locationLabels, locPref: getPreferredCountries(profileId) });
+  res.render('job-detail', { ...detail, title: detail.job.title });
 });
 
 export { router as dashboardRouter };

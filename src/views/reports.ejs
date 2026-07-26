@@ -256,10 +256,9 @@ function scoreClass(score) {
 }
 
 function logVerdictChip(verdict, rejectionCategory, editable) {
-  const base = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium whitespace-nowrap';
   const canEdit = editable === undefined ? window.JHUI.isVerdictEditable(verdict) : editable;
   const label = window.JHUI.formatVerdictLabel(verdict) + (canEdit ? ' \u25be' : '');
-  return '<span class="' + base + ' ' + window.JHUI.getVerdictTone(verdict) + '">' + label + '</span>';
+  return '<span style="display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:700;white-space:nowrap;' + window.JHUI.getVerdictChipStyle(verdict) + '">' + label + '</span>';
 }
 
 function sourceLinkHTML(url) {

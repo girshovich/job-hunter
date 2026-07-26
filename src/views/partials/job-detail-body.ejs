@@ -1,0 +1,544 @@
+<%
+// Minimal markdown → HTML: **bold**, line breaks into paragraphs
+function renderMd(text) {
+  if (!text) return '';
+  // Escape HTML first
+  let s = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  // **bold**
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Split by blank lines into paragraphs, treat single newlines as <br>
+  const paras = s.split(/\n{2,}/);
+  return paras.map(p => '<p>' + p.replace(/\n/g, '<br>') + '</p>').join('');
+}
+// Plain-text strip of markdown emphasis for the one-line AI summary
+function stripMdInline(text) {
+  return String(text || '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/[*_`#]/g, '').trim();
+}
+const tz = (settings && settings.timezone) || 'UTC';
+function formatDate(iso) {
+  return formatDateTimeToMinutes(iso, tz);
+}
+const detailVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
+// Score badge takes the verdict tone in the detail header (DS v2 §5.1/§5.2)
+function verdictTone(v) {
+  if (v === 'STRONG_MATCH') return { bg: '#ecfdf3', color: '#067647' };
+  if (v === 'WEAK_MATCH')   return { bg: '#fffaeb', color: '#b54708' };
+  if (v === 'DUPLICATE')    return { bg: '#f4f3ff', color: '#6941c6' };
+  return { bg: '#fef3f2', color: '#b42318' }; // NO_MATCH / fallback
+}
+// General AI analysis tone box (DS v2 §5.5)
+function analysisTone(v) {
+  if (v === 'STRONG_MATCH') return { bg: '#ecfdf3', border: '#c7ecd4', head: '#067647', body: '#2f5741', icon: '#1e9e5a' };
+  if (v === 'WEAK_MATCH')   return { bg: '#fffaeb', border: '#fdecc8', head: '#b54708', body: '#5c4413', icon: '#e79a1a' };
+  if (v === 'DUPLICATE')    return { bg: '#f4f3ff', border: '#e4dcff', head: '#6941c6', body: '#4a3a6b', icon: '#7c5cf0' };
+  return { bg: '#fef3f2', border: '#fcd9d6', head: '#b42318', body: '#5c2b28', icon: '#e5484d' };
+}
+// Source badge tone (DS v2 §5.4)
+function sourceTone(label) {
+  switch (label) {
+    case 'LinkedIn':   return { bg: '#eff6ff', color: '#1d64d8', border: '#cfe0fb' };
+    case 'Greenhouse': return { bg: '#ecfdf3', color: '#067647', border: '#c7ecd4' };
+    case 'Ashby':      return { bg: '#f4f3ff', color: '#6941c6', border: '#ddd6fe' };
+    case 'Lever':      return { bg: '#fff7ed', color: '#c2410c', border: '#fddcab' };
+    case 'Indeed':     return { bg: '#eef6ff', color: '#2557a7', border: '#cfe0fb' };
+    case 'StepStone':  return { bg: '#fff7ed', color: '#c2410c', border: '#fddcab' };
+    default:           return { bg: '#f2f4f7', color: '#475467', border: '#e4e6ec' };
+  }
+}
+%>
+<%
+// ── Full description: real sanitized-HTML renderer (R2 — never the mockup placeholder) ──
+const _desc = job.description || '';
+const _isHtml = /<[a-z][\s\S]*?>/i.test(_desc);
+const _safeDesc = _isHtml
+  ? (() => {
+      // Security: strip scripts, styles, inline event handlers and inline styles
+      let html = _desc
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/\son\w+="[^"]*"/gi, '')
+        .replace(/style="[^"]*"/gi, '');
+
+      if (!/<p\b/i.test(html)) {
+        // Flat structure — Apify sometimes strips <p> tags and uses <br> as separators.
+        // Convert any run of <br> into a paragraph break, then wrap the whole thing.
+        html = '<p>' + html.replace(/(<br\s*\/?>\s*)+/gi, '</p><p>') + '</p>';
+        // Split "<b>Header</b>content" → "<b>Header</b></p><p>content" so headers
+        // get their own paragraph and the following text starts a fresh paragraph.
+        html = html.replace(/(<p>)(<(?:b|strong)>[^<]{2,80}<\/(?:b|strong)>)/gi, '$1$2</p><p>');
+      } else {
+        // Block structure — clean up whitespace artifacts and split inline headers.
+        html = html
+          .replace(/<p>\s*(?:<br\s*\/?>\s*)*<\/p>/gi, '')
+          .replace(/<p>(?:&nbsp;\s*)+<\/p>/gi, '')
+          .replace(/([.!?;])\s*(<(?:strong|b)>[^<]{3,70}<\/(?:strong|b)>)/gi, '$1</p><p>$2');
+      }
+
+      // Remove empty paragraphs left by consecutive breaks or split artifacts
+      return html.replace(/<p>(\s|&nbsp;)*<\/p>/gi, '');
+    })()
+  : null;
+
+// Plain-text descriptions (e.g. Telegram): escape everything, then make links
+// clickable — inline markdown [label](url) from ingest, plus any bare URLs.
+function renderLinks(raw) {
+  const esc = (s) => String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const anchor = (url, label) =>
+    '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" class="jd-link">' + esc(label) + '</a>';
+  const autolink = (txt) => {
+    let res = '', li = 0, um;
+    const re = /https?:\/\/[^\s<]+/g;
+    while ((um = re.exec(txt)) !== null) {
+      res += esc(txt.slice(li, um.index));
+      const u = um[0].replace(/[.,;:)\]]+$/, '');
+      res += anchor(u, u);
+      li = um.index + u.length;
+    }
+    return res + esc(txt.slice(li));
+  };
+  const md = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  let out = '', last = 0, m;
+  while ((m = md.exec(raw)) !== null) {
+    out += autolink(raw.slice(last, m.index));
+    out += anchor(m[2], m[1]);
+    last = m.index + m[0].length;
+  }
+  return out + autolink(raw.slice(last));
+}
+%>
+<style>
+  .cv-md { font-size: 0.875rem; line-height: 1.65; color: #1e3a5f; }
+  .cv-md p { margin-top: 0.75em; margin-bottom: 0; }
+  .cv-md p:first-child { margin-top: 0; }
+  .cv-md strong { font-weight: 600; }
+  /* Scoped description styles — NO Tailwind prose class on this div to avoid conflicts. */
+  .jd-html { font-size: 14px; line-height: 1.7; color: #4a5262; }
+  .jd-html p, .jd-html ul, .jd-html ol   { margin-top: 1em; margin-bottom: 0; }
+  .jd-html > *:first-child               { margin-top: 0; }
+  .jd-html li                            { margin-top: 0.25em; margin-bottom: 0.25em; }
+  .jd-html ul                            { padding-left: 1.5em; list-style-type: disc; }
+  .jd-html ol                            { padding-left: 1.5em; list-style-type: decimal; }
+  .jd-html h1, .jd-html h2,
+  .jd-html h3, .jd-html h4              { margin-top: 1.5em; margin-bottom: 0; font-weight: 700; }
+  .jd-html h1 + *, .jd-html h2 + *,
+  .jd-html h3 + *, .jd-html h4 + *     { margin-top: 0.25em; }
+  .jd-html p:has(> strong:only-child),
+  .jd-html p:has(> b:only-child)        { margin-top: 1.5em; margin-bottom: 0; font-weight: 700; }
+  .jd-html p:has(> strong:only-child) + *,
+  .jd-html p:has(> b:only-child) + *   { margin-top: 0.25em; }
+  .jd-html a, .jd-link                  { color: var(--accent); text-decoration: underline; overflow-wrap: anywhere; }
+  .jd-plain { font-size: 14px; line-height: 1.7; color: #4a5262; white-space: pre-wrap; }
+</style>
+
+<div style="display:flex;flex-direction:column;gap:12px;max-width:900px;">
+
+  <!-- Eyebrow -->
+  <div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--fainter);padding:0 2px 2px;">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    Job details
+  </div>
+
+  <!-- Header card -->
+  <div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-card);">
+    <div style="display:flex;align-items:flex-start;gap:15px;">
+      <div style="flex:1;min-width:0;">
+        <!-- Badges: score (verdict-toned) · verdict selector · source -->
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;">
+          <% const _st = verdictTone(detailVerdict); %>
+          <span title="Relevance score"
+                style="display:inline-flex;align-items:center;height:23px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;background:<%= _st.bg %>;color:<%= _st.color %>;">
+            <%= formatScore(job.ai_score) %>
+          </span>
+          <span style="width:1px;height:14px;background:#e2e5ea;"></span>
+          <%- renderVerdictSelector(detailVerdict, { 'data-job-id': job.id, 'data-verdict': detailVerdict, 'data-chip-style': 'detail', title: 'Click to change status', class: 'cursor-pointer' }) %>
+          <% const sourceLabel = formatSourceLabel(job.job_source || 'LinkedIn'); %>
+          <% const sourceName = formatSourceName(job.job_source || 'LinkedIn'); %>
+          <% const _src = sourceTone(sourceLabel); %>
+          <span style="display:inline-flex;align-items:center;height:23px;padding:0 10px;border-radius:7px;font-size:11.5px;font-weight:700;border:1px solid <%= _src.border %>;background:<%= _src.bg %>;color:<%= _src.color %>;">
+            <%= sourceLabel %>
+          </span>
+        </div>
+
+        <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.2;color:var(--ink);"><%= job.title %></h1>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+          <%- renderCompanyLogo(job.company, job.logo_url) %>
+          <button id="company-name-btn" onclick="openCompanyNotePopover(event)"
+                  style="font-size:14px;color:var(--muted);font-weight:700;border-bottom:1px dotted #c2c7d0;padding:0 0 1px;background:none;border-left:0;border-right:0;border-top:0;cursor:pointer;text-align:left;">
+            <%= job.company %>
+          </button>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--muted2);font-weight:600;">
+          <% const _pick = pickPrimaryLocation(locationLabels, job.country, locPref);
+             const _ordered = (locationLabels && locationLabels.length > 0)
+               ? (_pick.primary ? [_pick.primary, ...locationLabels.filter((l) => l !== _pick.primary)] : locationLabels)
+               : null;
+             const _detailLoc = _ordered ? _ordered.join(', ') : job.location; %>
+          <% if (_detailLoc) { %>
+          <span style="display:inline-flex;align-items:center;gap:5px;">
+            <% const locationFlag = countryToFlag(_pick.flagCountry); %><% if (locationFlag) { %><%= locationFlag %> <% } %><%= _detailLoc %>
+          </span>
+          <% } %>
+          <% if (job.work_mode) { %>
+          <span style="display:inline-flex;align-items:center;gap:5px;text-transform:capitalize;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <%= job.work_mode %>
+          </span>
+          <% } %>
+          <% if (job.posted_date) { %>
+          <span style="display:inline-flex;align-items:center;gap:5px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+            Posted <%= new Date(job.posted_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: tz }) %>
+          </span>
+          <% } %>
+          <span style="color:var(--faintest);">Fetched <%= formatDate(job.fetched_at) %></span>
+        </div>
+      </div>
+
+      <!-- Applied selector (shared dropdown, top-right) -->
+      <div style="flex:none;">
+        <%- renderAppliedSelector(job.applied, { 'data-job-id': job.id }) %>
+      </div>
+    </div>
+
+    <!-- AI summary -->
+    <% const _aiSummary = stripMdInline(job.ai_summary); %>
+    <% if (_aiSummary) { %>
+    <div style="display:flex;gap:9px;align-items:baseline;margin-top:14px;">
+      <div style="flex:none;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);">AI summary</div>
+      <div style="flex:1;min-width:0;font-size:13.5px;line-height:1.5;color:var(--ink2);"><%= _aiSummary %></div>
+    </div>
+    <% } %>
+
+    <!-- Actions -->
+    <% const applyUrl = job.apply_url || job.url; %>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <% if (applyUrl) { %>
+      <a href="<%= applyUrl %>" target="_blank" rel="noopener noreferrer"
+         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--green);color:#fff;font-size:13.5px;font-weight:700;box-shadow:0 1px 2px rgba(30,158,90,.35);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        Apply on website
+      </a>
+      <% } %>
+      <% if (job.url) { %>
+      <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer"
+         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700;border:1px solid var(--accent-border);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+        View on <%= sourceName %>
+      </a>
+      <% } %>
+    </div>
+
+    <!-- Compare to CV -->
+    <div style="display:flex;margin-top:10px;">
+      <button id="cv-compare-btn" onclick="openCvModal()"
+              style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:9px;background:transparent;border:0;color:var(--faint);font-size:12.5px;font-weight:600;cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4"/></svg>
+        Compare to CV
+      </button>
+    </div>
+  </div>
+
+  <!-- Notes about the job -->
+  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 16px;box-shadow:var(--shadow-card);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-size:13px;font-weight:800;color:var(--ink);">Notes about the job</div>
+      <button id="notes-save-btn" onclick="saveNotes()"
+              style="font-size:12px;font-weight:700;color:var(--accent);background:transparent;border:0;cursor:pointer;">Save</button>
+    </div>
+    <textarea id="notes-area" placeholder="Add your notes about this job…"
+              style="width:100%;min-height:44px;resize:vertical;border:1px solid var(--line2);border-radius:10px;padding:9px 11px;font-size:13px;color:var(--ink2);outline:none;line-height:1.5;"><%= job.user_notes || '' %></textarea>
+    <p id="notes-status" class="hidden" style="font-size:11px;color:var(--faintest);margin-top:6px;"></p>
+  </div>
+
+  <!-- In-Depth AI Assessment (CV compare result) -->
+  <div id="cv-assessment-block" class="<%= job.cv_assessment ? '' : 'hidden' %>" style="background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:14px;padding:15px 18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4"/></svg>
+        <span style="font-size:13.5px;font-weight:800;color:var(--accent);">In-Depth AI Assessment</span>
+      </div>
+      <button onclick="openCvModal()" style="font-size:12px;color:var(--accent);background:transparent;border:0;cursor:pointer;font-weight:600;">Re-run</button>
+    </div>
+    <div id="cv-assessment-text" class="cv-md"><% if (job.cv_assessment) { %><%- renderMd(job.cv_assessment) %><% } %></div>
+  </div>
+
+  <!-- General AI analysis -->
+  <% if (job.ai_rationale) { const an = analysisTone(detailVerdict); %>
+  <div style="background:<%= an.bg %>;border:1px solid <%= an.border %>;border-radius:14px;padding:15px 18px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="<%= an.icon %>" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg>
+      <span style="font-size:14px;font-weight:800;color:<%= an.head %>;">General AI analysis</span>
+    </div>
+    <p style="margin:0;font-size:14px;line-height:1.65;color:<%= an.body %>;"><%= job.ai_rationale %></p>
+  </div>
+  <% } %>
+
+  <!-- Duplicate detected -->
+  <% if (job.is_duplicate && original) { %>
+  <div style="background:#f4f3ff;border:1px solid #e4dcff;border-radius:14px;padding:15px 18px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6941c6" stroke-width="2" stroke-linecap="round"><path d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z"/></svg>
+      <span style="font-size:13.5px;font-weight:800;color:#6941c6;">Duplicate Detected</span>
+    </div>
+    <p style="margin:0;font-size:13px;color:#5b4b86;">This job was flagged as a repost of an earlier listing.</p>
+    <a href="/job/<%= original.id %>" style="display:inline-flex;align-items:center;gap:4px;margin-top:8px;font-size:13px;color:#6941c6;font-weight:700;">
+      View original: <%= original.title %> →
+    </a>
+  </div>
+  <% } %>
+
+  <!-- Reposts of this job -->
+  <% if (duplicatesOfThis.length > 0) { %>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 18px;">
+    <h3 style="margin:0 0 4px;font-size:13.5px;font-weight:800;color:var(--ink2);">Reposts of this job (<%= duplicatesOfThis.length %>)</h3>
+    <ul style="margin:0;padding-left:16px;">
+      <% duplicatesOfThis.forEach(dup => { %>
+      <li style="margin-top:8px;">
+        <a href="/job/<%= dup.id %>" style="font-size:13px;color:var(--muted);font-weight:600;">
+          <%= dup.title %> · <%= formatDate(dup.fetched_at) %>
+        </a>
+      </li>
+      <% }); %>
+    </ul>
+  </div>
+  <% } %>
+
+  <!-- Full job description -->
+  <div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-card);">
+    <div style="font-size:15px;font-weight:800;color:var(--ink);margin-bottom:14px;">Full Job Description</div>
+    <% if (_isHtml) { %>
+    <div class="jd-html"><%- _safeDesc %></div>
+    <% } else { %>
+    <div class="jd-plain"><%- renderLinks(_desc) %></div>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- Company note popover -->
+<div id="company-note-popover" class="hidden" style="position:fixed;z-index:50;background:#fff;border-radius:12px;border:1px solid var(--line2);box-shadow:var(--shadow-popover);padding:12px;width:280px;max-width:90vw;">
+  <div style="font-size:11px;font-weight:700;color:var(--faint);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;">Company notes</div>
+  <textarea id="company-note-popover-area" rows="4" maxlength="5000" placeholder="Add notes about this company…"
+            style="width:100%;font-size:13px;color:var(--ink2);border:1px solid var(--line2);border-radius:9px;padding:9px 11px;resize:none;outline:none;line-height:1.5;"
+            onkeydown="if(event.key==='Escape'){event.stopPropagation();closeCompanyNotePopover();}"></textarea>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+    <span id="company-note-popover-status" class="hidden" style="font-size:12px;color:var(--green2);">✓ Saved</span>
+    <button onclick="saveCompanyNotePopover()" style="margin-left:auto;font-size:12px;font-weight:700;background:var(--accent);color:#fff;padding:5px 12px;border:0;border-radius:9px;cursor:pointer;">Save</button>
+  </div>
+</div>
+
+<!-- CV Selection Modal -->
+<div id="cv-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="padding:16px;">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(2px);" onclick="closeCvModal()"></div>
+  <div style="position:relative;background:#fff;border-radius:16px;box-shadow:var(--shadow-modal);width:100%;max-width:28rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line);">
+      <h2 style="font-size:15px;font-weight:800;color:var(--ink);">Compare to CV</h2>
+      <button onclick="closeCvModal()" style="color:var(--faintest);background:transparent;border:0;padding:4px;border-radius:8px;cursor:pointer;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="padding:20px 24px;">
+      <% if (cvs && cvs.length > 0) { %>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Select a CV to compare against this job:</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+        <% cvs.forEach(function(cv, i) { %>
+        <label class="cv-option" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;border:1px solid var(--line2);cursor:pointer;">
+          <input type="radio" name="cv_selection" value="<%= cv.id %>" <%= i === 0 ? 'checked' : '' %> style="accent-color:var(--accent);" />
+          <div style="min-width:0;">
+            <p style="font-size:13px;font-weight:600;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= cv.filename %></p>
+            <p style="font-size:11px;color:var(--faintest);"><%= (cv.file_size / 1024).toFixed(0) %> KB · <%= new Date(cv.uploaded_at).toLocaleDateString('en-GB') %></p>
+          </div>
+        </label>
+        <% }); %>
+      </div>
+      <div id="cv-modal-error" class="hidden" style="font-size:13px;color:var(--red-ink);background:var(--red-soft);border:1px solid var(--red-border);border-radius:9px;padding:8px 12px;margin-bottom:12px;"></div>
+      <button onclick="runCvCompare()"
+              style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--accent);color:#fff;font-size:13.5px;font-weight:700;padding:10px 16px;border:0;border-radius:10px;cursor:pointer;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4"/></svg>
+        <span id="cv-run-label">Analyse</span>
+      </button>
+      <% } else { %>
+      <p style="font-size:13px;color:var(--faint);margin-bottom:16px;">No CVs uploaded yet. Go to <a href="/settings" style="color:var(--accent);text-decoration:underline;">Settings</a> to upload a CV first.</p>
+      <button onclick="closeCvModal()" style="width:100%;font-size:13px;color:var(--ink2);background:#eef1f6;padding:8px 16px;border:0;border-radius:9px;cursor:pointer;">Close</button>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<style>
+  .cv-option:has(:checked) { border-color: var(--accent); background: var(--accent-soft); }
+</style>
+
+<script>
+const _jobId = <%= job.id %>;
+const _companyName = <%- JSON.stringify(job.company) %>;
+
+function renderMdJs(text) {
+  if (!text) return '';
+  return text.split(/\n{2,}/).map(function(p) {
+    let escaped = p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return '<p>' + escaped.replace(/\n/g, '<br>') + '</p>';
+  }).join('');
+}
+
+function openCvModal() {
+  document.getElementById('cv-modal').classList.remove('hidden');
+  document.getElementById('cv-modal-error')?.classList.add('hidden');
+}
+
+function closeCvModal() {
+  document.getElementById('cv-modal').classList.add('hidden');
+}
+
+async function runCvCompare() {
+  const selected = document.querySelector('input[name="cv_selection"]:checked');
+  if (!selected) return;
+  const cvId = selected.value;
+
+  const label = document.getElementById('cv-run-label');
+  const errEl = document.getElementById('cv-modal-error');
+  label.textContent = 'Analysing…';
+
+  try {
+    const res = await fetch('/api/jobs/' + _jobId + '/cv-compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cv_id: parseInt(cvId, 10) }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const block = document.getElementById('cv-assessment-block');
+      const text = document.getElementById('cv-assessment-text');
+      text.innerHTML = renderMdJs(data.assessment);
+      block.classList.remove('hidden');
+      closeCvModal();
+      block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      errEl.textContent = data.error || 'Analysis failed';
+      errEl.classList.remove('hidden');
+    }
+  } catch {
+    errEl.textContent = 'Network error — please try again';
+    errEl.classList.remove('hidden');
+  } finally {
+    label.textContent = 'Analyse';
+  }
+}
+
+let _companyPopoverOpen = false;
+let _currentCompanyNote = <%- JSON.stringify(locals.companyNote || '') %>;
+
+function closeCompanyNotePopover() {
+  const area = document.getElementById('company-note-popover-area');
+  if (area) _currentCompanyNote = area.value;
+  document.getElementById('company-note-popover').classList.add('hidden');
+  _companyPopoverOpen = false;
+}
+
+function openCompanyNotePopover(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const pop = document.getElementById('company-note-popover');
+  if (_companyPopoverOpen) {
+    closeCompanyNotePopover();
+    return;
+  }
+  const area = document.getElementById('company-note-popover-area');
+  area.value = _currentCompanyNote;
+  document.getElementById('company-note-popover-status').classList.add('hidden');
+  pop.classList.remove('hidden');
+  _companyPopoverOpen = true;
+  const btn = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const popW = 280, popH = 190;
+  let left = rect.left;
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (left < 8) left = 8;
+  let top = rect.bottom + 6;
+  if (top + popH > window.innerHeight - 8) top = rect.top - popH - 6;
+  if (top < 8) top = 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  setTimeout(() => area.focus(), 50);
+}
+
+document.addEventListener('click', function(e) {
+  if (!_companyPopoverOpen) return;
+  const pop = document.getElementById('company-note-popover');
+  const btn = document.getElementById('company-name-btn');
+  if (!pop.contains(e.target) && !btn.contains(e.target)) {
+    closeCompanyNotePopover();
+  }
+});
+
+async function saveCompanyNotePopover() {
+  const area = document.getElementById('company-note-popover-area');
+  const note = area.value;
+  const saveBtn = document.querySelector('#company-note-popover button');
+  const status = document.getElementById('company-note-popover-status');
+  saveBtn.textContent = 'Saving…';
+  saveBtn.disabled = true;
+  try {
+    const res = await fetch('/api/company-notes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: _companyName, note }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      _currentCompanyNote = note;
+      closeCompanyNotePopover();
+    } else {
+      status.textContent = 'Error saving';
+      status.classList.remove('hidden');
+    }
+  } catch {
+    status.textContent = 'Error';
+    status.classList.remove('hidden');
+  } finally {
+    saveBtn.textContent = 'Save';
+    saveBtn.disabled = false;
+  }
+}
+
+async function saveNotes() {
+  const area = document.getElementById('notes-area');
+  const notes = area.value;
+  const btn = document.getElementById('notes-save-btn');
+  const status = document.getElementById('notes-status');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/jobs/' + _jobId + '/notes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      status.textContent = '✓ Saved';
+      status.style.color = 'var(--green2)';
+    } else {
+      status.textContent = data.error || 'Error saving';
+      status.style.color = 'var(--red-ink)';
+    }
+    status.classList.remove('hidden');
+    area.addEventListener('input', () => { status.classList.add('hidden'); }, { once: true });
+  } catch (e) {
+    status.textContent = 'Network error';
+    status.style.color = 'var(--red-ink)';
+    status.classList.remove('hidden');
+  } finally {
+    btn.textContent = 'Save';
+    btn.disabled = false;
+  }
+}
+</script>

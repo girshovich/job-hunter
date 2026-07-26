@@ -112,6 +112,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.locals.onboarding = { states, completedCount: done.filter(Boolean).length };
   res.locals.useJhCredits = (s?.use_jh_credits ?? 1) === 1;
   res.locals.creditsBalance = s?.credits_balance ?? 0;
+  res.locals.matchesCount = (db.prepare(
+    "SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 AND applied = 0",
+  ).get(pid) as { c: number }).c;
   next();
 });
 

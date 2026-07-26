@@ -10,7 +10,7 @@
     [x-cloak] { display: none !important; }
     :root { --page-max-w: <%= locals.pageMaxWidth || '72rem' %>; }
     .score-badge { font-variant-numeric: tabular-nums; }
-    .score-badge-match { background: var(--jh-sb-green); }
+    .score-badge-match { background: var(--green); }
     html, body { overflow: hidden; }
     .app-shell { height: 100dvh; min-height: 100%; background: #f9fafb; overflow: hidden; }
     .app-sidebar { width: 14rem; height: 100dvh; overflow: hidden; overscroll-behavior: contain; }
@@ -19,6 +19,9 @@
     .app-content { width: 100%; max-width: var(--page-max-w); min-height: 100%; display: flex; flex-direction: column; }
     .app-page { flex: 1 0 auto; padding: 2rem 1.5rem 2rem; }
     @media (max-width: 767px) { .app-page { padding-bottom: 5rem; } }
+    /* Full-bleed pages (two-pane Matches/All Jobs, Run Logs): fill the main area edge-to-edge */
+    .app-content.full { max-width: none; }
+    .app-page.full { padding: 0; }
     .app-footer { flex-shrink: 0; padding: 0 1.5rem 1.5rem; }
     .mobile-bottom-nav {
       height: calc(4rem + env(safe-area-inset-bottom, 0px));
@@ -57,7 +60,7 @@
       cursor: pointer;
       transition: box-shadow 0.15s ease;
     }
-    .job-mobile-card:hover { box-shadow: inset 3px 0 0 var(--jh-sb-green), 0 1px 2px rgba(15, 23, 42, 0.04); }
+    .job-mobile-card:hover { box-shadow: inset 3px 0 0 var(--green), 0 1px 2px rgba(15, 23, 42, 0.04); }
     .job-identity-title { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .job-table .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
     .job-mobile-card .job-identity-title { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.35; }
@@ -82,50 +85,34 @@
       .job-desktop-table { display: none; }
     }
 
-    /* ── Sidebar/nav shared tokens ──────────────────────────────── */
-    :root {
-      --jh-sb-bg:     #0C0E12;
-      --jh-sb-bg2:    #14171D;
-      --jh-sb-border: #1F242C;
-      --jh-sb-ink:    #E9ECF1;
-      --jh-sb-muted:  #8A91A0;
-      --jh-sb-hover:  #1A1E26;
-      --jh-sb-active: #232936;
-      --jh-sb-blue:   #2F6BFF;
-      --jh-sb-blue2:  #2056E8;
-      --jh-sb-green:  #1E9E5A;
-      --jh-sb-green2: #178049;
-    }
-
-    /* Sidebar width override */
-    .app-sidebar { width: 264px; }
+    /* Sidebar width override (DS v2: 236px, light) */
+    .app-sidebar { width: 236px; }
 
     /* ── Nav items ──────────────────────────────────────────────── */
     .sb-item {
       display: flex; align-items: center; gap: 11px;
-      padding: 9px 10px; border-radius: 8px;
-      color: var(--jh-sb-ink); font-size: 13.5px; font-weight: 500;
+      padding: 9px 11px; border-radius: 9px;
+      color: var(--muted); font-size: 13.5px; font-weight: 600;
       background: transparent; border: 0; width: 100%;
       text-align: left; cursor: pointer; text-decoration: none;
     }
-    .sb-item .ico { color: var(--jh-sb-muted); display: inline-flex; }
-    .sb-item:hover { background: var(--jh-sb-hover); }
+    .sb-item .ico { color: var(--fainter); display: inline-flex; }
+    .sb-item:hover { background: #f5f6f8; color: var(--ink2); }
     .sb-item.active {
-      background: var(--jh-sb-active);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      background: var(--accent-soft); color: var(--accent); font-weight: 700;
     }
-    .sb-item.active .ico { color: var(--jh-sb-ink); }
+    .sb-item.active .ico { color: var(--accent); }
     .sb-count {
-      margin-left: auto; font-size: 11px;
-      color: var(--jh-sb-muted);
-      background: rgba(255,255,255,0.04);
-      border-radius: 999px; padding: 2px 7px;
+      margin-left: auto; font-size: 11px; font-weight: 700;
+      color: #fff;
+      background: var(--accent);
+      border-radius: 999px; padding: 1px 8px;
     }
 
     /* ── Scrollable nav middle section ──────────────────────────── */
     .sb-nav-scroll {
       flex: 1; overflow-y: auto; min-height: 0;
-      padding: 12px 10px;
+      padding: 8px 12px;
       display: flex; flex-direction: column; gap: 2px;
     }
     .sb-nav-scroll::-webkit-scrollbar { width: 0; }
@@ -134,158 +121,161 @@
     .sb-subnav {
       display: flex; flex-direction: column; gap: 2px;
       padding: 2px 0 4px 10px; margin-left: 10px;
-      border-left: 1px solid var(--jh-sb-border);
+      border-left: 1px solid var(--line);
     }
     .sb-subitem {
-      padding: 7px 10px; font-size: 13px; font-weight: 500;
-      color: var(--jh-sb-muted); gap: 10px;
+      padding: 7px 10px; font-size: 13px; font-weight: 600;
+      color: var(--muted); gap: 10px;
     }
-    .sb-subitem:hover { color: var(--jh-sb-ink); background: var(--jh-sb-hover); }
-    .sb-subitem.active { background: var(--jh-sb-active); color: var(--jh-sb-ink); }
+    .sb-subitem:hover { color: var(--ink2); background: #f5f6f8; }
+    .sb-subitem.active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
     .sb-subdot {
       width: 4px; height: 4px; border-radius: 50%;
       background: currentColor; opacity: 0.55; flex-shrink: 0; margin-left: 2px;
     }
-    .sb-subitem.active .sb-subdot { opacity: 1; background: #4D87FF; }
-    .sb-subitem.admin.active .sb-subdot { opacity: 1; background: #EF4444; }
-    .sb-admin-divider { height: 1px; background: var(--jh-sb-border); margin: 10px 10px; }
+    .sb-subitem.active .sb-subdot { opacity: 1; }
+    .sb-subitem.admin.active { background: #fef3f2; color: var(--red-ink); }
+    .sb-subitem.admin.active .sb-subdot { opacity: 1; background: var(--red); }
+    .sb-admin-divider { height: 1px; background: var(--line); margin: 10px 10px; }
     .sb-chev {
       display: inline-flex; align-items: center; margin-left: auto;
-      color: var(--jh-sb-muted); transition: transform 0.15s ease;
+      color: var(--fainter); transition: transform 0.15s ease;
     }
     .sb-chev.open { transform: rotate(90deg); }
 
     /* ── Sidebar footer ─────────────────────────────────────────── */
     .sb-footer {
-      padding: 12px; border-top: 1px solid var(--jh-sb-border);
-      display: flex; flex-direction: column; gap: 10px;
+      padding: 12px; border-top: 1px solid var(--line);
+      display: flex; flex-direction: column; gap: 8px;
     }
     .sb-run-group { display: flex; flex-direction: column; gap: 6px; }
 
-    /* ── Run buttons ────────────────────────────────────────────── */
+    /* ── Run buttons (DS v2 light) ──────────────────────────────── */
     .sb-run {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px; border-radius: 9px; border: 0;
-      font-size: 13.5px; font-weight: 600; font-family: inherit;
+      display: flex; align-items: center; gap: 9px;
+      padding: 10px 13px; border-radius: 10px; border: 0;
+      font-size: 13.5px; font-weight: 700; font-family: inherit;
       text-align: left; width: 100%; cursor: pointer;
-      white-space: nowrap; color: white;
+      white-space: nowrap;
     }
     .sb-run-primary {
-      background: var(--jh-sb-green);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 1px 2px rgba(30,158,90,0.35);
+      border: 1px solid var(--green-border);
+      background: var(--green-soft); color: var(--green2);
     }
-    .sb-run-primary:hover { background: var(--jh-sb-green2); }
+    .sb-run-primary:hover { background: #e6f3ec; }
     .sb-run-primary:disabled { opacity: 0.55; cursor: not-allowed; }
     .sb-run-secondary {
-      background: var(--jh-sb-blue);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 1px 2px rgba(47,107,255,0.4);
+      background: #eef1f6; color: var(--ink2);
     }
-    .sb-run-secondary:hover { background: var(--jh-sb-blue2); }
+    .sb-run-secondary:hover { background: #e6eaf1; }
     .sb-run-danger {
-      background: #dc2626;
-      box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset;
+      border: 1px solid var(--red-border);
+      background: var(--red-soft); color: var(--red-ink);
     }
-    .sb-run-danger:hover { background: #b91c1c; }
+    .sb-run-danger:hover { background: #fde7e5; }
 
-    /* ── Shared success / run button color ─────────────────── */
-    .jh-btn-success { background: var(--jh-sb-green); border-color: var(--jh-sb-green); }
-    .jh-btn-success:hover { background: var(--jh-sb-green2); border-color: var(--jh-sb-green2); }
+    /* ── Shared success / run button color (solid green, on light) ── */
+    .jh-btn-success { background: var(--green); border-color: var(--green); }
+    .jh-btn-success:hover { background: var(--green2); border-color: var(--green2); }
     .jh-btn-success:disabled { opacity: 0.55; cursor: not-allowed; }
 
     .sb-run-meta {
-      margin-left: auto; font-size: 11px; font-weight: 500;
+      margin-left: auto; font-size: 11px; font-weight: 600;
       opacity: 0.85; font-family: monospace;
     }
 
     /* ── Credits placeholder ────────────────────────────────────── */
     .sb-credits {
-      background: linear-gradient(180deg, #1B2230 0%, #161B25 100%);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 10px; padding: 8px 12px;
+      background: #fbfcfe;
+      border: 1px solid var(--line2);
+      border-radius: 11px; padding: 9px 11px;
       display: flex; align-items: center; gap: 10px;
-      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 14px rgba(0,0,0,0.25);
+      margin-top: 2px;
     }
-    .sb-credits-icon { color: white; display: inline-flex; }
+    .sb-credits-icon { color: var(--accent); display: inline-flex; }
+    .sb-credits-vals { display: flex; align-items: baseline; gap: 6px; }
     .sb-credits-num {
-      font-size: 18px; font-weight: 700;
-      letter-spacing: -0.02em; color: var(--jh-sb-ink);
+      font-size: 16px; font-weight: 800;
+      letter-spacing: -0.02em; color: var(--ink);
     }
-    .sb-credits-sub { font-size: 10.5px; color: var(--jh-sb-muted); flex: 1; }
+    .sb-credits-sub { font-size: 10.5px; color: var(--faint); font-weight: 600; white-space: nowrap; }
     .sb-credits-topup {
-      display: inline-flex; align-items: center; gap: 4px;
-      background: var(--jh-sb-blue); color: white; border: 0;
-      font-weight: 600; font-size: 11.5px; font-family: inherit;
-      padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0;
-      box-shadow: 0 1px 0 rgba(255,255,255,0.16) inset;
+      margin-left: auto; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; padding: 0;
+      background: transparent; color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 7px; cursor: pointer;
     }
-    .sb-credits-topup:hover { background: var(--jh-sb-blue2); }
+    .sb-credits-topup:hover { background: var(--accent-soft); }
 
     /* ── Profile row ────────────────────────────────────────────── */
     .sb-profile {
       display: flex; align-items: center; gap: 10px;
-      padding: 8px; border-radius: 10px;
+      padding: 8px 6px; border-radius: 10px;
       background: transparent; width: 100%;
-      color: var(--jh-sb-ink);
+      color: var(--ink);
     }
     .sb-avatar {
       width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg, #4D87FF, #2F6BFF);
+      background: linear-gradient(135deg, #5b8cff, var(--accent));
       display: grid; place-items: center;
-      color: white; font-weight: 600; font-size: 13px; flex-shrink: 0;
+      color: white; font-weight: 700; font-size: 13px; flex-shrink: 0;
     }
     .sb-profile-meta { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-    .sb-profile-name { font-size: 13.5px; font-weight: 600; line-height: 1.2; }
+    .sb-profile-name { font-size: 13px; font-weight: 700; line-height: 1.2; }
     .sb-profile-email {
-      font-size: 11.5px; color: var(--jh-sb-muted);
+      font-size: 11px; color: var(--faint);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .sb-role-pill {
+      display: inline-flex; align-items: center; height: 16px;
       font-size: 9.5px;
-      background: rgba(180,114,8,0.18); color: #E6B66B;
-      padding: 1px 6px; border-radius: 999px;
+      background: #eef2ff; color: var(--accent);
+      padding: 0 6px; border-radius: 5px;
       letter-spacing: 0.04em; text-transform: uppercase;
-      font-weight: 600; margin-left: 6px; vertical-align: middle;
+      font-weight: 800; margin-left: 6px; vertical-align: middle;
     }
     .sb-logout-btn {
-      width: 28px; height: 28px; border-radius: 6px;
+      width: 30px; height: 30px; border-radius: 8px;
       display: grid; place-items: center;
-      color: var(--jh-sb-muted); flex-shrink: 0;
+      color: var(--fainter); flex-shrink: 0;
       background: transparent; border: 0; cursor: pointer;
     }
-    .sb-logout-btn:hover { background: rgba(255,255,255,0.06); color: var(--jh-sb-ink); }
+    .sb-logout-btn:hover { background: #f4f5f7; color: var(--muted); }
 
     /* ── Onboarding widget ──────────────────────────────────────── */
     .sb-onboard {
-      background: linear-gradient(180deg, rgba(47,107,255,0.10) 0%, rgba(47,107,255,0.04) 100%);
-      border: 1px solid rgba(77,135,255,0.18);
-      border-radius: 10px; padding: 10px 10px 6px; margin-bottom: 16px;
-      display: flex; flex-direction: column; gap: 6px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      border-radius: 11px; padding: 11px 11px 8px; margin-bottom: 12px;
+      display: flex; flex-direction: column; gap: 7px;
     }
     .sb-onboard-head { display: flex; align-items: center; justify-content: space-between; }
     .sb-onboard-title {
       display: inline-flex; align-items: center; gap: 6px;
-      font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
-      text-transform: uppercase; color: #B6CDFF;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--accent);
     }
-    .sb-onboard-title svg { color: #82A8FF; width: 12px; height: 12px; }
+    .sb-onboard-title svg { color: var(--accent); width: 12px; height: 12px; }
     .sb-onboard-close {
       width: 20px; height: 20px; border-radius: 5px;
       display: grid; place-items: center;
       background: transparent; border: 0;
-      color: var(--jh-sb-muted); cursor: pointer;
+      color: var(--faintest); cursor: pointer;
     }
-    .sb-onboard-close:hover { background: rgba(255,255,255,0.06); color: var(--jh-sb-ink); }
+    .sb-onboard-close:hover { background: rgba(0,0,0,0.05); color: var(--muted); }
     .sb-onboard-meta {
       display: flex; align-items: center; gap: 8px;
-      font-size: 10.5px; color: var(--jh-sb-muted);
+      font-size: 10.5px; color: var(--faint); font-weight: 700;
     }
     .sb-onboard-bar {
       flex: 1; height: 3px;
-      background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden;
+      background: #e2e6ee; border-radius: 999px; overflow: hidden;
     }
     .sb-onboard-bar-fill {
       display: block; height: 100%;
-      background: linear-gradient(90deg, #4D87FF, #2F6BFF); border-radius: 999px;
+      background: var(--accent); border-radius: 999px;
     }
     .sb-onboard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
     .sb-onboard-item {
@@ -293,26 +283,25 @@
       grid-template-columns: 16px 1fr 12px;
       align-items: center; gap: 8px; padding: 4px;
       border-radius: 6px; background: transparent; border: 0;
-      color: var(--jh-sb-ink); font-size: 12px; font-family: inherit;
+      color: var(--ink2); font-size: 12px; font-family: inherit;
       text-align: left; text-decoration: none; cursor: pointer; line-height: 1.2;
     }
-    .sb-onboard-item:hover:not(.no-action) { background: rgba(255,255,255,0.04); }
+    .sb-onboard-item:hover:not(.no-action) { background: rgba(47,107,255,0.06); }
     .sb-onboard-item.no-action { cursor: default; }
-    .sb-onboard-item.done { color: var(--jh-sb-muted); }
+    .sb-onboard-item.done { color: var(--fainter); }
     .sb-onboard-item.done .sb-onboard-label {
       text-decoration: line-through;
-      text-decoration-color: rgba(255,255,255,0.15);
     }
     .sb-onboard-check {
       width: 16px; height: 16px; border-radius: 50%;
       display: grid; place-items: center;
-      border: 1px solid rgba(255,255,255,0.18);
-      color: var(--jh-sb-muted); font-size: 9.5px; font-weight: 600;
-      background: rgba(255,255,255,0.02); flex-shrink: 0;
+      border: 1px solid #d6dae2;
+      color: var(--faint); font-size: 9.5px; font-weight: 700;
+      background: #fff; flex-shrink: 0;
     }
-    .sb-onboard-check.done { background: #1E9E5A; border-color: #1E9E5A; color: white; }
+    .sb-onboard-check.done { background: var(--green); border-color: var(--green); color: white; }
     .sb-onboard-check.done svg { width: 10px; height: 10px; stroke-width: 2.6; }
-    .sb-onboard-chev { color: var(--jh-sb-muted); opacity: 0.6; width: 12px; height: 12px; }
+    .sb-onboard-chev { color: var(--faintest); opacity: 0.6; width: 12px; height: 12px; }
     .sb-onboard-item:hover .sb-onboard-chev { opacity: 1; }
 
   </style>
@@ -336,13 +325,20 @@
       },
       formatAppliedLabel(value) {
         const n = Number(value);
-        return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'Not Applied';
+        return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'New';
       },
       getAppliedTone(value) {
         const n = Number(value);
         if (n === 1) return 'bg-success-600 text-white';
         if (n === 2) return 'bg-red-600 text-white';
         return 'border border-gray-200 bg-gray-50 text-gray-300';
+      },
+      getVerdictChipStyle(value) {
+        return window.JHUI_TOKENS.verdictChipStyles[String(value || '').trim().toUpperCase()] || window.JHUI_TOKENS.verdictChipFallback;
+      },
+      getAppliedChipStyle(value) {
+        const n = Number(value);
+        return window.JHUI_TOKENS.appliedChipStyles[n === 1 ? 1 : n === 2 ? 2 : 0];
       }
     };
   </script>
@@ -353,15 +349,11 @@
   <div class="app-shell flex">
 
     <!-- SidebarNav (desktop only) -->
-    <aside class="app-sidebar hidden md:flex flex-shrink-0 flex-col sticky top-0 h-screen" style="background:var(--jh-sb-bg);color:var(--jh-sb-ink);">
+    <aside class="app-sidebar hidden md:flex flex-shrink-0 flex-col sticky top-0 h-screen" style="background:#fff;color:var(--ink);border-right:1px solid var(--line);">
 
       <!-- Brand row -->
-      <div style="display:flex;align-items:center;gap:10px;padding:18px 16px 16px;border-bottom:1px solid var(--jh-sb-border);flex-shrink:0;">
-        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#4D87FF,#2F6BFF);display:grid;place-items:center;color:white;font-weight:700;font-size:12px;letter-spacing:0.02em;box-shadow:0 1px 0 rgba(255,255,255,0.12) inset,0 2px 6px rgba(47,107,255,0.35);flex-shrink:0;">JH</div>
-        <div>
-          <div style="font-weight:600;font-size:15px;letter-spacing:-0.01em;color:var(--jh-sb-ink);">Job Hunter</div>
-          <div style="font-size:11px;color:var(--jh-sb-muted);margin-top:1px;">Find a matching job</div>
-        </div>
+      <div style="display:flex;align-items:center;padding:18px 18px 6px;flex-shrink:0;">
+        <img src="/logo.PNG" alt="Job Hunter" style="width:100%;max-width:200px;height:auto;display:block;" />
       </div>
 
       <!-- Scrollable nav section -->
@@ -388,8 +380,8 @@
             <%
               const obSteps = [
                 { label: 'Set up your profile',          href: '/settings',          clickFn: null },
-                { label: 'Add target roles & criteria',  href: '/settings?tab=roles', clickFn: null },
-                { label: 'Buy credits or add API keys',  href: '/settings?tab=ai',   clickFn: null },
+                { label: 'Add target roles',             href: '/settings?tab=roles', clickFn: null },
+                { label: 'Add or buy API keys',          href: '/settings?tab=ai',   clickFn: null },
                 { label: 'Run your first search',        href: null,                  clickFn: 'jhOnboardRun()' },
                 { label: 'Set a daily schedule',         href: null,                  clickFn: 'jhOnboardSchedule()' },
               ];
@@ -412,7 +404,7 @@
                   <% } %>
                 </span>
                 <span class="sb-onboard-label"><%= step.label %></span>
-                <% if (hasAction && state !== 'done') { %>
+                <% if (hasAction) { %>
                   <svg class="sb-onboard-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
                 <% } else { %>
                   <span></span>
@@ -437,6 +429,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
           </span>
           Matches
+          <% if (typeof matchesCount !== 'undefined' && matchesCount > 0) { %><span class="sb-count"><%= matchesCount %></span><% } %>
         </a>
         <a href="/history" class="sb-item <%= title === 'All Jobs' ? 'active' : '' %>">
           <span class="ico">
@@ -544,10 +537,10 @@
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
               Schedule active
             </span>
-            <span id="schedule-expr" style="font-size:11px;color:var(--jh-sb-muted);font-family:monospace;"></span>
+            <span id="schedule-expr" style="font-size:11px;color:var(--muted);font-family:monospace;"></span>
           </div>
 
-          <p id="schedule-msg" class="text-xs text-center hidden" style="color:var(--jh-sb-muted);"></p>
+          <p id="schedule-msg" class="text-xs text-center hidden" style="color:var(--muted);"></p>
         </div>
 
         <!-- Credits widget (shown only when using JH credits) -->
@@ -556,11 +549,12 @@
           <span class="sb-credits-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
           </span>
-          <span class="sb-credits-num">$<%= Number(locals.creditsBalance || 0).toFixed(1) %></span>
-          <span class="sb-credits-sub">≈ <%= Math.floor(Math.round(Number(locals.creditsBalance || 0) / 0.2 * 100) / 100) %> runs</span>
-          <button class="sb-credits-topup" type="button" onclick="jhTopUp()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            Top up
+          <div class="sb-credits-vals">
+            <span class="sb-credits-num">$<%= Number(locals.creditsBalance || 0).toFixed(1) %></span>
+            <span class="sb-credits-sub">≈ <%= Math.floor(Math.round(Number(locals.creditsBalance || 0) / 0.2 * 100) / 100) %> runs</span>
+          </div>
+          <button class="sb-credits-topup" type="button" onclick="jhTopUp()" title="Top up" aria-label="Top up">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           </button>
         </div>
         <% } %>
@@ -593,11 +587,11 @@
 
     <!-- Main content -->
     <main class="app-main flex-1">
-      <div class="app-content">
-        <div class="app-page">
+      <div class="app-content<%= locals.fullBleed ? ' full' : '' %>">
+        <div class="app-page<%= locals.fullBleed ? ' full' : '' %>">
           <%- body %>
         </div>
-        <footer class="app-footer hidden md:block">
+        <footer class="app-footer hidden md:block<%= locals.fullBleed ? ' hidden' : '' %>">
           <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
             <a href="/pricing" class="<%= title === 'Pricing' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Pricing</a>
             <a href="/terms" class="<%= title === 'Terms' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Terms</a>
@@ -609,24 +603,24 @@
   </div>
 
   <!-- MobileBottomNav -->
-  <nav class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex items-stretch" style="background:var(--jh-sb-bg);border-color:var(--jh-sb-border);">
-    <a href="/" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Start' ? 'text-white' : '' %>" style="<%= title !== 'Start' ? 'color:var(--jh-sb-muted)' : '' %>">
+  <nav class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex items-stretch" style="background:#fff;border-color:var(--line);">
+    <a href="/" class="flex-1 flex flex-col items-center justify-center gap-0.5" style="color:<%= title === 'Start' ? 'var(--accent)' : 'var(--muted)' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
       <span class="text-[10px] font-medium">Start</span>
     </a>
-    <a href="/jobs" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Matches' ? 'text-white' : '' %>" style="<%= title !== 'Matches' ? 'color:var(--jh-sb-muted)' : '' %>">
+    <a href="/jobs" class="flex-1 flex flex-col items-center justify-center gap-0.5" style="color:<%= title === 'Matches' ? 'var(--accent)' : 'var(--muted)' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
       <span class="text-[10px] font-medium">Matches</span>
     </a>
-    <a href="/history" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'All Jobs' ? 'text-white' : '' %>" style="<%= title !== 'All Jobs' ? 'color:var(--jh-sb-muted)' : '' %>">
+    <a href="/history" class="flex-1 flex flex-col items-center justify-center gap-0.5" style="color:<%= title === 'All Jobs' ? 'var(--accent)' : 'var(--muted)' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
       <span class="text-[10px] font-medium">All</span>
     </a>
-    <a href="/analytics" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Stats' ? 'text-white' : '' %>" style="<%= title !== 'Stats' ? 'color:var(--jh-sb-muted)' : '' %>">
+    <a href="/analytics" class="flex-1 flex flex-col items-center justify-center gap-0.5" style="color:<%= title === 'Stats' ? 'var(--accent)' : 'var(--muted)' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
       <span class="text-[10px] font-medium">Stats</span>
     </a>
-    <a href="/reports" class="flex-1 flex flex-col items-center justify-center gap-0.5 <%= title === 'Run Logs' ? 'text-white' : '' %>" style="<%= title !== 'Run Logs' ? 'color:var(--jh-sb-muted)' : '' %>">
+    <a href="/reports" class="flex-1 flex flex-col items-center justify-center gap-0.5" style="color:<%= title === 'Run Logs' ? 'var(--accent)' : 'var(--muted)' %>">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
       <span class="text-[10px] font-medium">Logs</span>
     </a>
@@ -640,30 +634,30 @@
   <!-- Profile bottom sheet (mobile only) -->
   <div id="profile-sheet" class="md:hidden hidden fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" onclick="closeProfileSheet()"></div>
-    <div class="absolute bottom-16 left-0 right-0 rounded-t-2xl border-t px-4 pt-4 pb-6" style="background:var(--jh-sb-bg);border-color:var(--jh-sb-border);">
+    <div class="absolute bottom-16 left-0 right-0 rounded-t-2xl border-t px-4 pt-4 pb-6" style="background:#fff;border-color:var(--line);">
       <!-- Current user info -->
       <div class="flex items-center gap-3 px-3 py-3 mb-2">
         <div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0" style="background:linear-gradient(135deg,#4D87FF,#2F6BFF);">
           <%= activeProfile.displayName.charAt(0).toUpperCase() %>
         </div>
         <div>
-          <p class="text-sm font-medium text-white"><%= activeProfile.displayName %></p>
-          <p class="text-xs" style="color:var(--jh-sb-muted);"><%= activeProfile.email %></p>
+          <p class="text-sm font-medium" style="color:var(--ink);"><%= activeProfile.displayName %></p>
+          <p class="text-xs" style="color:var(--muted);"><%= activeProfile.email %></p>
         </div>
         <% if (activeProfile.isAdmin) { %>
-        <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">admin</span>
+        <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded font-medium" style="background:#eef2ff;color:var(--accent);">admin</span>
         <% } %>
       </div>
-      <div class="border-t pt-3 space-y-0.5" style="border-color:var(--jh-sb-border);">
+      <div class="border-t pt-3 space-y-0.5" style="border-color:var(--line);">
         <div class="flex gap-2">
         <a href="/settings" onclick="closeProfileSheet()"
-           class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors" style="color:var(--jh-sb-muted);">
+           class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors" style="color:var(--muted);">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span class="text-sm font-medium">Settings</span>
         </a>
         <% if (activeProfile.isAdmin) { %>
         <a href="/admin" onclick="closeProfileSheet()"
-           class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors" style="color:var(--jh-sb-muted);">
+           class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors" style="color:var(--muted);">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/></svg>
           <span class="text-sm font-medium">Admin</span>
         </a>
@@ -671,21 +665,21 @@
         </div>
         <div class="px-3 pt-1 pb-0.5">
           <div class="flex items-center gap-1.5">
-            <p class="text-[10px] uppercase tracking-wide" style="color:var(--jh-sb-muted);">Legal</p>
-            <div class="flex-1 h-px" style="background:var(--jh-sb-border);"></div>
+            <p class="text-[10px] uppercase tracking-wide" style="color:var(--muted);">Legal</p>
+            <div class="flex-1 h-px" style="background:var(--line);"></div>
           </div>
           <div class="mt-1 flex items-center gap-1">
             <a href="/pricing" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Pricing' ? 'text-white bg-white/10' : 'hover:bg-white/5' %> transition-colors" style="<%= title !== 'Pricing' ? 'color:var(--jh-sb-muted)' : '' %>">Pricing</a>
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Pricing' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100' %> transition-colors" style="<%= title !== 'Pricing' ? 'color:var(--muted)' : '' %>">Pricing</a>
             <a href="/terms" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Terms' ? 'text-white bg-white/10' : 'hover:bg-white/5' %> transition-colors" style="<%= title !== 'Terms' ? 'color:var(--jh-sb-muted)' : '' %>">Terms</a>
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Terms' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100' %> transition-colors" style="<%= title !== 'Terms' ? 'color:var(--muted)' : '' %>">Terms</a>
             <a href="/privacy" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Privacy' ? 'text-white bg-white/10' : 'hover:bg-white/5' %> transition-colors" style="<%= title !== 'Privacy' ? 'color:var(--jh-sb-muted)' : '' %>">Privacy</a>
+               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Privacy' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100' %> transition-colors" style="<%= title !== 'Privacy' ? 'color:var(--muted)' : '' %>">Privacy</a>
           </div>
         </div>
         <form method="POST" action="/logout">
           <button type="submit"
-                  class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-400 hover:bg-white/5 transition-colors">
+                  class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-600 hover:bg-gray-100 transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
@@ -746,7 +740,7 @@
   <!-- Applied dropdown -->
   <div id="applied-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
     <div class="py-1">
-      <button onclick="setApplied(0)" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-600 font-medium">Not Applied</button>
+      <button onclick="setApplied(0)" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-600 font-medium">New</button>
       <button onclick="setApplied(1)" class="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 text-emerald-700 font-medium">Applied</button>
       <button onclick="setApplied(2)" class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">Won't Apply</button>
     </div>
@@ -2027,9 +2021,8 @@
     });
 
     function verdictChipHTML(verdict, style) {
-      const base = 'inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium whitespace-nowrap';
       const label = window.JHUI.formatVerdictLabel(verdict) + (window.JHUI.isVerdictEditable(verdict) ? ' \u25be' : '');
-      return '<span class="' + base + ' ' + window.JHUI.getVerdictTone(verdict) + '">' + label + '</span>';
+      return '<span style="display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:700;white-space:nowrap;' + window.JHUI.getVerdictChipStyle(verdict) + '">' + label + '</span>';
     }
 
     async function setVerdict(newVerdict) {
@@ -2101,8 +2094,8 @@
     });
 
     function appliedChipHTML(state, full) {
-      const base = (full ? 'w-full' : 'w-24') + ' inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium whitespace-nowrap';
-      return '<span class="' + base + ' ' + window.JHUI.getAppliedTone(state) + '">' + window.JHUI.formatAppliedLabel(state) + ' ▾</span>';
+      const width = full ? 'width:100%;justify-content:center;' : '';
+      return '<span style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;' + width + window.JHUI.getAppliedChipStyle(state) + '">' + window.JHUI.formatAppliedLabel(state) + ' ▾</span>';
     }
 
     async function setApplied(newState) {
@@ -2122,6 +2115,7 @@
         if (data.success) {
           btn.dataset.applied = String(newState);
           btn.innerHTML = appliedChipHTML(newState, btn.dataset.chipStyle === 'detail');
+          if (window.onAppliedChanged) { try { window.onAppliedChanged(jobId, newState); } catch (e) {} }
         } else {
           await showAlert(data.error || 'Failed to update applied status');
         }

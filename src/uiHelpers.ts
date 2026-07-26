@@ -50,6 +50,29 @@ const VERDICT_LABELS: Record<string, string> = {
   BLACKLISTED: 'Blacklisted',
 };
 
+// DS v2 §5.2/§5.3 exact chip palettes (inline styles so colors match the mockup precisely).
+const VERDICT_CHIP_STYLES: Record<string, string> = {
+  STRONG_MATCH: 'background:#ecfdf3;color:#067647',
+  WEAK_MATCH: 'background:#fffaeb;color:#b54708',
+  NO_MATCH: 'background:#fef3f2;color:#b42318',
+  DUPLICATE: 'background:#f4f3ff;color:#6941c6',
+};
+const VERDICT_CHIP_FALLBACK = 'background:#f2f4f7;color:#5b6472';
+const APPLIED_CHIP_STYLES: Record<number, string> = {
+  0: 'background:#1f2634;color:#fff', // New — dark chip (DS §5.3)
+  1: 'background:#1e9e5a;color:#fff',
+  2: 'background:#e5484d;color:#fff',
+};
+
+export function getVerdictChipStyle(value: unknown): string {
+  const key = String(value ?? '').trim().toUpperCase();
+  return VERDICT_CHIP_STYLES[key] ?? VERDICT_CHIP_FALLBACK;
+}
+export function getAppliedChipStyle(value: unknown): string {
+  const n = Number(value);
+  return APPLIED_CHIP_STYLES[n === 1 ? 1 : n === 2 ? 2 : 0];
+}
+
 const VERDICT_TONES: Record<string, string> = {
   STRONG_MATCH: 'bg-emerald-50 text-emerald-700',
   WEAK_MATCH: 'bg-yellow-50 text-yellow-700',
@@ -147,7 +170,7 @@ export function formatScore(value: unknown): string {
 
 export function formatAppliedLabel(value: unknown): string {
   const n = Number(value);
-  return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'Not Applied';
+  return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'New';
 }
 
 export function getAppliedTone(value: unknown): string {
@@ -266,7 +289,7 @@ export function renderDottedPopupLink(label: unknown, attrs: HtmlAttrs = {}): st
 export function renderVerdictChip(value: unknown, options: { editable?: boolean; rounded?: boolean } = {}): string {
   const editable = options.editable ?? false;
   const label = `${formatVerdictLabel(value)}${editable && isVerdictEditable(value) ? ' ▾' : ''}`;
-  return `<span class="inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium ${getVerdictTone(value)} whitespace-nowrap">${escapeHtml(label)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:700;white-space:nowrap;${getVerdictChipStyle(value)}">${escapeHtml(label)}</span>`;
 }
 
 export function renderVerdictSelector(value: unknown, attrs: HtmlAttrs = {}): string {
@@ -277,13 +300,13 @@ export function renderVerdictSelector(value: unknown, attrs: HtmlAttrs = {}): st
 }
 
 export function renderAppliedStatus(value: unknown): string {
-  return `<span class="inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium border ${getAppliedTone(value)} whitespace-nowrap">${formatAppliedLabel(value)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;${getAppliedChipStyle(value)}">${formatAppliedLabel(value)}</span>`;
 }
 
 export function renderAppliedChip(value: unknown, options: { editable?: boolean; full?: boolean } = {}): string {
   const caret = options.editable ? ' ▾' : '';
-  const width = options.full ? 'w-full' : 'w-24';
-  return `<span class="${width} inline-flex h-7 items-center justify-center rounded-lg px-2 text-xs font-medium ${getAppliedTone(value)} whitespace-nowrap">${formatAppliedLabel(value)}${caret}</span>`;
+  const width = options.full ? 'width:100%;justify-content:center;' : '';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;${width}${getAppliedChipStyle(value)}">${formatAppliedLabel(value)}${caret}</span>`;
 }
 
 export function renderAppliedSelector(value: unknown, attrs: HtmlAttrs = {}): string {
@@ -520,6 +543,9 @@ export function getClientUiTokens() {
     verdictLabels: VERDICT_LABELS,
     verdictTones: VERDICT_TONES,
     editableVerdicts: ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH', 'DUPLICATE'],
+    verdictChipStyles: VERDICT_CHIP_STYLES,
+    verdictChipFallback: VERDICT_CHIP_FALLBACK,
+    appliedChipStyles: APPLIED_CHIP_STYLES,
   };
 }
 
