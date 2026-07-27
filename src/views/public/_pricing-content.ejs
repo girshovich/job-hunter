@@ -1,93 +1,88 @@
 <section class="space-y-6">
-  <header class="space-y-2">
-    <h1 class="text-2xl font-bold text-gray-900">Pricing</h1>
-    <p class="text-sm text-gray-600">Last updated: <%= effectiveDate %></p>
-  </header>
-
-  <p class="text-sm text-gray-700">Job Hunter is available in three usage modes. Only the hosted mode involves a payment to this service.</p>
+  <p class="text-sm text-[color:var(--ink2)]">Job Hunter is available in three usage modes. Only the hosted mode involves a payment to this service.</p>
 
   <section class="space-y-4">
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <article class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col gap-3">
-        <h2 class="text-sm font-semibold text-gray-900">Buy credits</h2>
-        <p class="text-sm text-gray-600">Use the hosted service. You purchase a prepaid credit balance; credits are consumed as the service runs.</p>
-        <ul class="list-disc pl-5 space-y-1 text-sm text-gray-600">
+      <article class="jh-card p-5 flex flex-col gap-3">
+        <h2 class="text-sm font-semibold text-[color:var(--ink)]">Buy credits</h2>
+        <p class="text-sm text-[color:var(--muted)]">Use the hosted service. You purchase a prepaid credit balance; credits are consumed as the service runs.</p>
+        <ul class="list-disc pl-5 space-y-1 text-sm text-[color:var(--muted)]">
           <li>Credits cover source API costs, AI scoring, deduplication, and email delivery costs.</li>
           <li>Purchased through Hipolink</li>
         </ul>
-        <a href="https://hipolink.net/girshovich" target="_blank" rel="noopener noreferrer" class="mt-auto inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors">Buy credits</a>
+        <a href="https://hipolink.net/girshovich" target="_blank" rel="noopener noreferrer" class="mt-auto jh-btn-primary">Buy credits</a>
       </article>
 
-      <article class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col gap-3">
-        <h2 class="text-sm font-semibold text-gray-900">Bring your own keys</h2>
-        <p class="text-sm text-gray-600">Use the app at no charge by connecting your own provider API keys.</p>
-        <ul class="list-disc pl-5 space-y-1 text-sm text-gray-600">
+      <article class="jh-card p-5 flex flex-col gap-3">
+        <h2 class="text-sm font-semibold text-[color:var(--ink)]">Bring your own keys</h2>
+        <p class="text-sm text-[color:var(--muted)]">Use the app at no charge by connecting your own provider API keys.</p>
+        <ul class="list-disc pl-5 space-y-1 text-sm text-[color:var(--muted)]">
           <li>No credit purchase required.</li>
           <li>You are billed directly by your providers (OpenAI, Apify, etc.).</li>
           <li>No service fee from Job Hunter.</li>
         </ul>
-        <a href="/welcome" class="mt-auto inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors">Get started</a>
+        <a href="/welcome" class="mt-auto inline-flex items-center justify-center px-5 py-2.5 rounded-[11px] text-sm font-semibold transition-colors hover:bg-[color:var(--accent-border)]" style="background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border)">Get started</a>
       </article>
 
-      <article class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col gap-3">
-        <h2 class="text-sm font-semibold text-gray-900">Self-hosted</h2>
-        <p class="text-sm text-gray-600">Run the open-source code from GitHub for personal, non-commercial use.</p>
-        <ul class="list-disc pl-5 space-y-1 text-sm text-gray-600">
+      <article class="jh-card p-5 flex flex-col gap-3">
+        <h2 class="text-sm font-semibold text-[color:var(--ink)]">Self-hosted</h2>
+        <p class="text-sm text-[color:var(--muted)]">Run the open-source code from GitHub for personal, non-commercial use.</p>
+        <ul class="list-disc pl-5 space-y-1 text-sm text-[color:var(--muted)]">
           <li>No charge from this service.</li>
           <li>You manage your own infrastructure, security, and provider keys.</li>
           <li>Commercial use is not permitted under this mode.</li>
         </ul>
-        <a href="https://github.com/girshovich/linkedin-job-hunter" target="_blank" rel="noopener noreferrer" class="mt-auto inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold transition-colors">View on GitHub</a>
+        <a href="https://github.com/girshovich/linkedin-job-hunter" target="_blank" rel="noopener noreferrer" class="mt-auto inline-flex items-center justify-center px-5 py-2.5 rounded-[11px] text-sm font-semibold jh-btn-secondary">View on GitHub</a>
       </article>
     </div>
   </section>
 
   <section class="space-y-3">
-    <h2 class="text-base font-semibold text-gray-900">Credits</h2>
-    <p class="text-sm text-gray-700">Credits are a prepaid usage balance tied to your account. They have no cash value, are non-transferable, and cannot be shared between accounts. Credits are consumed when provider costs are incurred — when a job run executes, AI scoring happens, or emails are sent — regardless of the quality of results.</p>
-    <p class="text-sm text-gray-700">Cost varies by the number and type of job sources used, roles and locations scored, AI model selected, and volume of matching jobs on the market. First use over a longer period fetches more results than daily updates, so costs more.</p>
+    <h2 class="text-base font-semibold text-[color:var(--ink)]">Credits</h2>
+    <p class="text-sm text-[color:var(--ink2)]">Credits are a prepaid usage balance tied to your account. They have no cash value, are non-transferable, and cannot be shared between accounts. Credits are consumed when provider costs are incurred — when a job run executes, AI scoring happens, or emails are sent — regardless of the quality of results.</p>
+    <p class="text-sm text-[color:var(--ink2)]">Cost varies by the number and type of job sources used, roles and locations scored, AI model selected, and volume of matching jobs on the market. First use over a longer period fetches more results than daily updates, so costs more.</p>
 
-    <h3 class="text-sm font-medium text-gray-900 pt-1">Credit packages</h3>
-    <div class="border border-gray-200 rounded-xl divide-y divide-gray-100 bg-white overflow-hidden text-sm">
+    <h3 class="text-sm font-medium text-[color:var(--ink)] pt-1">Credit packages</h3>
+    <div class="jh-card divide-y divide-[color:var(--line)] overflow-hidden text-sm">
       <div class="flex items-center px-4 py-3">
-        <span class="font-bold text-gray-900 w-28 shrink-0">2 credits</span>
-        <span class="text-gray-400 w-8 shrink-0 text-center">=</span>
-        <span class="font-bold text-gray-900 w-16 shrink-0 pr-4">$4</span>
-        <span class="text-gray-700 flex-1">To start and try</span>
+        <span class="font-bold text-[color:var(--ink)] w-28 shrink-0">2 credits</span>
+        <span class="text-[color:var(--faintest)] w-8 shrink-0 text-center">=</span>
+        <span class="font-bold text-[color:var(--ink)] w-16 shrink-0 pr-4">$4</span>
+        <span class="text-[color:var(--ink2)] flex-1">To start and try</span>
       </div>
       <div class="flex items-center px-4 py-3">
-        <span class="font-bold text-gray-900 w-28 shrink-0">5 credits</span>
-        <span class="text-gray-400 w-8 shrink-0 text-center">=</span>
-        <span class="font-bold text-gray-900 w-16 shrink-0 pr-4">$8</span>
-        <span class="text-gray-700 flex-1">~80% source coverage, a couple of roles across 3–5 countries</span>
-        <span class="ml-4 shrink-0 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium">save $2</span>
+        <span class="font-bold text-[color:var(--ink)] w-28 shrink-0">5 credits</span>
+        <span class="text-[color:var(--faintest)] w-8 shrink-0 text-center">=</span>
+        <span class="font-bold text-[color:var(--ink)] w-16 shrink-0 pr-4">$8</span>
+        <span class="text-[color:var(--ink2)] flex-1">~80% source coverage, a couple of roles across 3–5 countries</span>
+        <span class="ml-4 shrink-0 px-2.5 py-0.5 rounded-md text-xs font-medium" style="background:var(--green-soft);color:var(--green2)">save $2</span>
       </div>
       <div class="flex items-center px-4 py-3">
-        <span class="font-bold text-gray-900 w-28 shrink-0">10 credits</span>
-        <span class="text-gray-400 w-8 shrink-0 text-center">=</span>
-        <span class="font-bold text-gray-900 w-16 shrink-0 pr-4">$15</span>
-        <span class="text-gray-700 flex-1">Every source, a couple of roles across 3–5 countries</span>
-        <span class="ml-4 shrink-0 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium">save $5</span>
+        <span class="font-bold text-[color:var(--ink)] w-28 shrink-0">10 credits</span>
+        <span class="text-[color:var(--faintest)] w-8 shrink-0 text-center">=</span>
+        <span class="font-bold text-[color:var(--ink)] w-16 shrink-0 pr-4">$15</span>
+        <span class="text-[color:var(--ink2)] flex-1">Every source, a couple of roles across 3–5 countries</span>
+        <span class="ml-4 shrink-0 px-2.5 py-0.5 rounded-md text-xs font-medium" style="background:var(--green-soft);color:var(--green2)">save $5</span>
       </div>
       <div class="flex items-center px-4 py-3">
-        <span class="font-bold text-gray-900 w-28 shrink-0">20 credits</span>
-        <span class="text-gray-400 w-8 shrink-0 text-center">=</span>
-        <span class="font-bold text-gray-900 w-16 shrink-0 pr-4">$29</span>
-        <span class="text-gray-700 flex-1">Best value for power users</span>
-        <span class="ml-4 shrink-0 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium">save $11</span>
+        <span class="font-bold text-[color:var(--ink)] w-28 shrink-0">20 credits</span>
+        <span class="text-[color:var(--faintest)] w-8 shrink-0 text-center">=</span>
+        <span class="font-bold text-[color:var(--ink)] w-16 shrink-0 pr-4">$29</span>
+        <span class="text-[color:var(--ink2)] flex-1">Best value for power users</span>
+        <span class="ml-4 shrink-0 px-2.5 py-0.5 rounded-md text-xs font-medium" style="background:var(--green-soft);color:var(--green2)">save $11</span>
       </div>
     </div>
-    <p class="text-xs text-gray-500">Coverage estimates are indicative. Credits are not refundable, and are forfeited if your account is closed or terminated for cause.</p>
+    <p class="text-xs text-[color:var(--faint)]">Coverage estimates are indicative. Credits are not refundable, and are forfeited if your account is closed or terminated for cause.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Billing and payment</h2>
-    <p class="text-sm text-gray-700">Credits are sold by Mikhail Girshovich. Payments are processed by <strong>Hipolink</strong>, which handles checkout, payment processing, and receipts.</p>
-    <p class="text-sm text-gray-700 mt-1">Checkout takes place on Hipolink's secure payment page. You do not enter card details into Job Hunter. Hipolink's <a href="https://hipolink.net/en/app/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:underline">privacy policy</a> applies to the payment data you provide there.</p>
+    <h2 class="text-base font-semibold text-[color:var(--ink)]">Billing and payment</h2>
+    <p class="text-sm text-[color:var(--ink2)]">Credits are sold by Mikhail Girshovich. Payments are processed by <strong>Hipolink</strong>, which handles checkout, payment processing, and receipts.</p>
+    <p class="text-sm text-[color:var(--ink2)] mt-1">Checkout takes place on Hipolink's secure payment page. You do not enter card details into Job Hunter. Hipolink's <a href="https://hipolink.net/en/app/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-[color:var(--accent)] hover:underline">privacy policy</a> applies to the payment data you provide there.</p>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-gray-900">Availability</h2>
-    <p class="text-sm text-gray-700">Hosted credit purchasing is planned and not yet available. These terms will apply once the feature launches.</p>
+    <h2 class="text-base font-semibold text-[color:var(--ink)]">Availability</h2>
+    <p class="text-sm text-[color:var(--ink2)]">Hosted credit purchasing is planned and not yet available. These terms will apply once the feature launches.</p>
   </section>
 </section>

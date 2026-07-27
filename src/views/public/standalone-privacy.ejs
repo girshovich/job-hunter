@@ -9,20 +9,24 @@
 </head>
 <body class="min-h-full font-sans antialiased text-gray-900 bg-gray-50">
   <div class="min-h-screen flex flex-col">
-    <header class="border-b border-gray-200 bg-white">
+    <header style="border-bottom:1px solid var(--line);background:#fff">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-        <a href="/pricing" class="font-semibold text-gray-900">Job Hunter</a>
-        <nav class="flex flex-wrap items-center justify-end gap-2 text-xs sm:text-sm text-gray-600">
-          <a href="/pricing" class="hover:text-gray-900">Pricing</a>
-          <a href="/terms" class="hover:text-gray-900">Terms</a>
-          <a href="/privacy" class="text-blue-700 font-medium">Privacy</a>
-          <a href="/welcome" class="px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700">Sign in</a>
+        <a href="/pricing" class="flex items-center shrink-0"><img src="/logo.PNG" alt="Job Hunter" style="height:26px;width:auto;display:block" /></a>
+        <nav class="flex flex-wrap items-center justify-end gap-3 text-xs sm:text-sm">
+          <a href="/pricing" class="transition-colors hover:text-[color:var(--ink)]" style="color:var(--muted)">Pricing</a>
+          <a href="/terms" class="transition-colors hover:text-[color:var(--ink)]" style="color:var(--muted)">Terms</a>
+          <a href="/privacy" class="font-semibold" style="color:var(--accent)">Privacy</a>
+          <a href="/welcome" class="px-3 py-1.5 rounded-[9px] transition-colors hover:bg-[color:var(--panel)]" style="color:var(--ink2);border:1px solid var(--line2)">Sign in</a>
         </nav>
       </div>
     </header>
 
     <main class="flex-1">
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 md:py-10">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+        <div>
+          <h1 class="text-2xl font-bold text-[color:var(--ink)]">Privacy Policy</h1>
+          <p class="text-sm text-[color:var(--faint)] mt-1">Effective date: <%= effectiveDate %></p>
+        </div>
         <div class="jh-card p-5 md:p-6">
           <%- include('_privacy-content') %>
         </div>
