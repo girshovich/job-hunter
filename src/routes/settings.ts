@@ -10,6 +10,7 @@ import multer from 'multer';
 import { Resend } from 'resend';
 import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
+import { emailFrame } from '../pipeline/emailReport';
 import { hashToken } from './auth';
 
 const router = Router();
@@ -175,21 +176,17 @@ router.post('/', async (req: Request, res: Response) => {
           from,
           to: newEmail,
           subject: 'Confirm your new email address — Job Search',
-          html: `
-            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 16px;">
-              <h2 style="margin:0 0 16px;color:#111827;">Confirm email change</h2>
-              <p style="color:#374151;font-size:14px;margin:0 0 24px;">
-                Click the button below to confirm <strong>${newEmail}</strong> as your new login address.
-                This link expires in 24 hours.
-              </p>
-              <a href="${confirmUrl}"
-                 style="display:inline-block;padding:12px 24px;background:#2563EB;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">
-                Confirm new email
-              </a>
-              <p style="color:#9CA3AF;font-size:12px;margin-top:24px;">
-                If you didn't request this, ignore this email — your address won't change.
-              </p>
-            </div>`,
+          html: emailFrame('brand', `
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:800;color:#131722;letter-spacing:-0.01em;">Confirm email change</h3>
+      <p style="color:#3a4250;font-size:14px;line-height:1.6;margin:0 0 20px;">
+        Click the button below to confirm <strong>${newEmail}</strong> as your new login address. This link expires in 24 hours.
+      </p>
+      <a href="${confirmUrl}" style="display:inline-block;background:#4373ff;color:#fff;text-decoration:none;padding:11px 20px;border-radius:11px;font-size:14px;font-weight:700;">
+        Confirm new email
+      </a>
+      <p style="color:#8a91a0;font-size:12px;line-height:1.6;margin:20px 0 0;">
+        If you didn't request this, ignore this email — your address won't change.
+      </p>`),
         });
         if (sendErr) throw new Error(`Failed to send confirmation email: ${sendErr.message}`);
 

@@ -16,6 +16,10 @@ interface RunStats {
   blacklisted: number;
 }
 
+// DS v2 email constants (literal hex — mail clients don't resolve CSS vars).
+const EMAIL_FONT = "'Plus Jakarta Sans',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+const BRAND_FUCHSIA = '#F0398A'; // logo.PNG "Job Search" wordmark
+
 function cadenceHeading(trigger: string, cronSchedule: string): string {
   if (trigger === 'manual') return 'Latest matches';
   const parts = cronSchedule.trim().split(/\s+/);
@@ -28,18 +32,18 @@ function cadenceHeading(trigger: string, cronSchedule: string): string {
   return "Today's matches";
 }
 
-function scorePillStyle(): string {
-  // Digest only ever carries strong matches, so every pill is the strong green.
-  return 'display:inline-block;height:26px;line-height:26px;min-width:50px;padding:0 9px;border-radius:999px;font-size:12.5px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;box-sizing:border-box;background:#1E9E5A;color:#ffffff;';
+function scoreBadgeStyle(): string {
+  // Digest only ever carries strong matches → v2 §5.1 badge, strong tone.
+  return 'display:inline-block;height:23px;line-height:23px;padding:0 9px;border-radius:7px;font-size:12px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;box-sizing:border-box;background:#eef7f1;color:#178049;';
 }
 
 function statCell(label: string, value: number, color: string, index: number, total: number): string {
   const isFirst = index === 0;
   const isLast = index === total - 1;
   return `<td class="jh-stat-cell${isFirst ? ' jh-stat-cell-first' : ''}${isLast ? ' jh-stat-cell-last' : ''}" width="${(100 / total).toFixed(4)}%" style="width:${(100 / total).toFixed(4)}%;padding-left:${isFirst ? 0 : 4}px;padding-right:${isLast ? 0 : 4}px;vertical-align:top;">
-  <div class="jh-stat" style="box-sizing:border-box;width:100%;text-align:center;padding:11px 6px;border:1px solid #F3F4F6;border-radius:8px;background:#FCFCFD;">
+  <div class="jh-stat" style="box-sizing:border-box;width:100%;text-align:center;padding:11px 6px;border:1px solid #e7e9ee;border-radius:8px;background:#fbfcfe;">
     <div class="jh-stat-num" style="font-size:19px;font-weight:800;color:${color};line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;">${value}</div>
-    <div class="jh-stat-lab" style="font-size:10.5px;font-weight:600;color:#6B7280;margin-top:6px;">${label}</div>
+    <div class="jh-stat-lab" style="font-size:10.5px;font-weight:600;color:#6b7280;margin-top:6px;">${label}</div>
   </div>
 </td>`;
 }
@@ -53,6 +57,34 @@ function escapeHtml(str: string | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Shared shell for transactional emails (login code aside — that one is
+ * header-less, see auth.ts). `headerMode` picks the brand-white or alert-red
+ * header; the caller supplies the inner card body.
+ */
+export function emailFrame(headerMode: 'brand' | 'alert', bodyHtml: string): string {
+  const header = headerMode === 'alert'
+    ? `<div style="background:#ef6d70;border:1px solid #fcd9d6;border-radius:16px;padding:20px 24px;text-align:center;">
+        <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;color:#000000;">Yet Another Job Search</h1>
+      </div>`
+    : `<div style="background:#ffffff;border:1px solid #ebedf1;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,0.05);padding:20px 24px;text-align:center;">
+        <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;color:${BRAND_FUCHSIA};">Yet Another Job Search</h1>
+      </div>`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Job Search</title></head>
+<body style="font-family:${EMAIL_FONT};background:#f3f4f7;margin:0;padding:0;">
+  <div style="max-width:520px;margin:0 auto;padding:24px 16px;">
+    ${header}
+    <div style="background:#ffffff;border:1px solid #ebedf1;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,0.05);padding:24px;margin-top:16px;">
+      ${bodyHtml}
+    </div>
+    <p style="text-align:center;color:#8a91a0;font-size:12px;margin-top:24px;">Sent by Job Search</p>
+  </div>
+</body>
+</html>`;
+}
+
 function buildEmailHtml(
   jobs: JobWithState[],
   stats: RunStats,
@@ -63,20 +95,20 @@ function buildEmailHtml(
   const escapedBaseUrl = escapeHtml(baseUrl);
   const ctaHtml = baseUrl
     ? `<div style="text-align:center;margin-top:16px;">
-        <a href="${escapedBaseUrl}/jobs" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;">
+        <a href="${escapedBaseUrl}/jobs" style="display:inline-block;background:#4373ff;color:white;text-decoration:none;padding:12px 26px;border-radius:11px;font-size:14px;font-weight:700;">
           View your matches
         </a>
       </div>`
     : '';
 
   const statItems = [
-    { label: 'Fetched', value: stats.jobsFetched, color: '#6B7280' },
-    { label: 'Strong', value: stats.strongMatch, color: '#059669' },
-    { label: 'Weak', value: stats.weakMatch, color: '#D97706' },
-    { label: 'No match', value: stats.noMatch, color: '#DC2626' },
-    { label: 'Duplicate', value: stats.duplicates, color: '#7C3AED' },
-    { label: 'Filtered', value: stats.filtered, color: '#64748B' },
-    { label: 'Blacklisted', value: stats.blacklisted, color: '#9CA3AF' },
+    { label: 'Fetched', value: stats.jobsFetched, color: '#131722' },
+    { label: 'Strong', value: stats.strongMatch, color: '#178049' },
+    { label: 'Weak', value: stats.weakMatch, color: '#b54708' },
+    { label: 'No match', value: stats.noMatch, color: '#b42318' },
+    { label: 'Duplicate', value: stats.duplicates, color: '#6941c6' },
+    { label: 'Filtered', value: stats.filtered, color: '#5b6472' },
+    { label: 'Blacklisted', value: stats.blacklisted, color: '#8a91a0' },
   ];
 
   const statsHtml = `<table class="jh-stats-grid" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;">
@@ -86,27 +118,27 @@ function buildEmailHtml(
   </table>`;
 
   const jobCards = jobs.length === 0
-    ? `<div style="background:white;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:24px 16px;">
-        <p style="color:#6B7280;text-align:center;margin:0;font-size:14px;">No strong matches this run.</p>
+    ? `<div style="background:white;border:1px solid #e6e8ee;border-radius:14px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:24px 16px;">
+        <p style="color:#5b6472;text-align:center;margin:0;font-size:14px;">No strong matches this run.</p>
       </div>`
     : jobs.map((job) => `
-      <div class="jh-job" style="background:white;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:14px 16px;margin-bottom:10px;">
+      <div class="jh-job" style="background:white;border:1px solid #e6e8ee;border-radius:14px;box-shadow:0 1px 2px 0 rgba(16,24,40,0.05);padding:14px 16px;margin-bottom:10px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
           <tr>
             <td style="vertical-align:top;padding-right:10px;">
-              <h3 class="jh-title" style="margin:0;font-size:16px;font-weight:700;color:#111827;line-height:1.3;letter-spacing:-0.01em;">
-                <a href="${baseUrl ? `${escapedBaseUrl}/job/${job.id}` : '#'}" style="color:#111827;text-decoration:none;">${escapeHtml(job.title)}</a>
+              <h3 class="jh-title" style="margin:0;font-size:16px;font-weight:700;color:#131722;line-height:1.3;letter-spacing:-0.01em;">
+                <a href="${baseUrl ? `${escapedBaseUrl}/job/${job.id}` : '#'}" style="color:#131722;text-decoration:none;">${escapeHtml(job.title)}</a>
               </h3>
-              <p class="jh-meta" style="margin:4px 0 0;font-size:13px;color:#6B7280;line-height:1.4;">
-                <b style="color:#374151;font-weight:600;">${escapeHtml(job.company)}</b>${(job.country || job.location) ? ` · ${escapeHtml(job.country || job.location)}` : ''}${job.work_mode ? ` · <span style="text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
+              <p class="jh-meta" style="margin:4px 0 0;font-size:13px;color:#5b6472;line-height:1.4;">
+                <b style="color:#3a4250;font-weight:600;">${escapeHtml(job.company)}</b>${(job.country || job.location) ? ` · ${escapeHtml(job.country || job.location)}` : ''}${job.work_mode ? ` · <span style="text-transform:capitalize;">${escapeHtml(job.work_mode)}</span>` : ''}
               </p>
             </td>
             <td style="vertical-align:top;text-align:right;white-space:nowrap;width:1%;">
-              <span class="jh-score" style="${scorePillStyle()}">${job.ai_score}%</span>
+              <span class="jh-score" style="${scoreBadgeStyle()}">${job.ai_score}%</span>
             </td>
           </tr>
         </table>
-        ${job.ai_summary ? `<p class="jh-desc" style="margin:8px 0 0;font-size:13px;color:#6B7280;line-height:1.5;">${escapeHtml(job.ai_summary)}</p>` : ''}
+        ${job.ai_summary ? `<p class="jh-desc" style="margin:8px 0 0;font-size:13.5px;color:#3a4250;line-height:1.5;">${escapeHtml(job.ai_summary)}</p>` : ''}
       </div>
     `).join('');
 
@@ -122,8 +154,8 @@ function buildEmailHtml(
      beat the inline styles. Clients that ignore media queries keep desktop. */
   @media (max-width:640px){
     .jh-stage{padding:14px 12px 32px !important;}
-    .jh-header{padding:13px 18px !important;border-radius:8px !important;}
-    .jh-h1{font-size:17px !important;}
+    .jh-header{padding:16px 18px !important;border-radius:14px !important;}
+    .jh-h1{font-size:20px !important;}
     .jh-stats-card{padding:14px 14px 12px !important;}
     .jh-stats-h2{font-size:14.5px !important;}
     .jh-stat-cell{padding-left:2px !important;padding-right:2px !important;}
@@ -133,24 +165,24 @@ function buildEmailHtml(
     .jh-stat-num{font-size:15px !important;}
     .jh-stat-lab{font-size:7.5px !important;letter-spacing:-0.02em !important;white-space:nowrap !important;margin-top:5px !important;}
     .jh-job{padding:13px 14px !important;margin-bottom:9px !important;}
-    .jh-title{font-size:13.5px !important;line-height:1.28 !important;}
+    .jh-title{font-size:14px !important;line-height:1.28 !important;}
     .jh-meta{font-size:12.5px !important;}
     .jh-desc{font-size:12.5px !important;margin-top:7px !important;}
-    .jh-score{height:25px !important;line-height:25px !important;min-width:46px !important;font-size:12px !important;}
+    .jh-score{height:22px !important;line-height:22px !important;font-size:12px !important;}
   }
 </style>
 </head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
+<body style="font-family:${EMAIL_FONT};background:#f3f4f7;margin:0;padding:0;">
   <div class="jh-stage" style="max-width:680px;margin:0 auto;padding:20px 16px;">
 
     <!-- Header -->
-    <div class="jh-header" style="background:#2F6BFF;background:linear-gradient(180deg,#3B74FF,#2F6BFF);border-radius:12px;padding:14px 22px;margin-bottom:16px;box-shadow:0 6px 18px rgba(47,107,255,0.22);">
-      <h1 class="jh-h1" style="margin:0;font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-0.01em;">Job Search</h1>
+    <div class="jh-header" style="background:#ffffff;border:1px solid #ebedf1;border-radius:16px;padding:20px 24px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,0.05);text-align:center;">
+      <h1 class="jh-h1" style="margin:0;font-size:24px;font-weight:800;color:${BRAND_FUCHSIA};letter-spacing:-0.02em;">Yet Another Job Search</h1>
     </div>
 
     <!-- Stats + heading -->
-    <div class="jh-stats-card" style="background:white;border:1px solid #E5E7EB;border-radius:12px;padding:18px 18px 16px;margin-bottom:16px;">
-      <h2 class="jh-stats-h2" style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111827;">${escapeHtml(heading)}</h2>
+    <div class="jh-stats-card" style="background:white;border:1px solid #ebedf1;border-radius:16px;padding:18px 18px 16px;margin-bottom:16px;">
+      <h2 class="jh-stats-h2" style="margin:0 0 14px;font-size:15px;font-weight:800;color:#131722;letter-spacing:-0.01em;">${escapeHtml(heading)}</h2>
       ${statsHtml}
     </div>
 
@@ -160,8 +192,8 @@ function buildEmailHtml(
     ${ctaHtml}
 
     <!-- Footer -->
-    <p class="jh-footer" style="text-align:center;color:#9CA3AF;font-size:12px;line-height:1.6;margin:26px 4px 0;">
-      Sent by Job Search${baseUrl ? ` · <a href="${escapedBaseUrl}" style="color:#2563EB;text-decoration:none;font-weight:600;">${escapedBaseUrl}</a>` : ''}
+    <p class="jh-footer" style="text-align:center;color:#8a91a0;font-size:12px;line-height:1.6;margin:26px 4px 0;">
+      Sent by Job Search${baseUrl ? ` · <a href="${escapedBaseUrl}" style="color:#4373ff;text-decoration:none;font-weight:600;">${escapedBaseUrl}</a>` : ''}
     </p>
   </div>
 </body>
@@ -290,25 +322,12 @@ export async function sendTopUpRequest(
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Top-up request — Job Search</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
-  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
-    <div style="background:linear-gradient(135deg,#4D87FF,#2F6BFF);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
-      <p style="margin:0;opacity:0.85;font-size:14px;">Top-up request</p>
-    </div>
-    <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
-      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px;">
+  const html = emailFrame('brand', `
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:800;color:#131722;letter-spacing:-0.01em;">Top-up request</h3>
+      <p style="color:#3a4250;font-size:14px;line-height:1.6;margin:0 0 16px;">
         <strong>${userEmail}</strong> · current balance $${balance.toFixed(2)}
       </p>
-      <pre style="white-space:pre-wrap;font-family:inherit;color:#111827;font-size:14px;line-height:1.6;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin:0;">${escaped}</pre>
-    </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
-  </div>
-</body>
-</html>`;
+      <pre style="white-space:pre-wrap;font-family:inherit;color:#131722;font-size:14px;line-height:1.6;background:#fbfcfe;border:1px solid #e7e9ee;border-radius:12px;padding:16px;margin:0;">${escaped}</pre>`);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
@@ -328,33 +347,19 @@ export async function sendLowCreditsEmail(
   resendApiKey: string,
   emailFrom: string,
 ): Promise<void> {
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Low Credits — Job Search</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
-  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
-    <div style="background:linear-gradient(135deg,#DC2626,#B91C1C);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
-      <p style="margin:0;opacity:0.85;font-size:14px;">Credits Alert</p>
-    </div>
-    <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
-      <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#111827;">Your JH credits are low</h2>
-      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px;">
-        Your current balance is <strong style="color:#DC2626;">$${balance.toFixed(2)}</strong>,
+  const html = emailFrame('alert', `
+      <h3 style="margin:0 0 12px;font-size:18px;font-weight:800;color:#000000;letter-spacing:-0.01em;">Your Job Search credits are low</h3>
+      <p style="color:#000000;font-size:14px;line-height:1.6;margin:0 0 14px;">
+        Your current balance is <strong style="color:#b42318;">$${balance.toFixed(2)}</strong>,
         which is below the minimum required ($0.50) to run new job searches.
         Your scheduled runs have been paused.
       </p>
-      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
+      <p style="color:#000000;font-size:14px;line-height:1.6;margin:0 0 4px;">
         Top up your credits to continue using Job Search.
       </p>
-      <a href="#" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:500;">
-        Top Up Credits (coming soon)
-      </a>
-    </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
-  </div>
-</body>
-</html>`;
+      <a href="#" style="display:inline-block;background:#4373ff;color:#fff;text-decoration:none;padding:11px 20px;border-radius:11px;font-size:14px;font-weight:700;margin-top:12px;">
+        Top up credits
+      </a>`);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
@@ -372,25 +377,13 @@ export async function sendRateLimitAlert(
   resendApiKey: string,
   emailFrom: string,
 ): Promise<void> {
-  const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>Rate Limit — Job Search</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
-  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
-    <div style="background:linear-gradient(135deg,#DC2626,#B91C1C);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
-      <p style="margin:0;opacity:0.85;font-size:14px;">Rate Limit Alert</p>
-    </div>
-    <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
-      <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#111827;">OpenAI rate limit hit during scoring</h2>
-      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">
+  const html = emailFrame('alert', `
+      <h3 style="margin:0 0 12px;font-size:18px;font-weight:800;color:#000000;letter-spacing:-0.01em;">OpenAI rate limit hit during scoring</h3>
+      <p style="color:#000000;font-size:14px;line-height:1.6;margin:0;">
         A pipeline run hit an OpenAI rate limit (HTTP 429) after automatic retries, so some jobs were left unscored.
         This usually means the shared account's tier limit was exceeded during the morning spike.
         Consider raising the OpenAI usage tier or lowering <code>SCORING_CONCURRENCY</code>.
-      </p>
-    </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
-  </div>
-</body></html>`;
+      </p>`);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
@@ -409,25 +402,13 @@ export async function sendDiscoveryEmptyAlert(
   resendApiKey: string,
   emailFrom: string,
 ): Promise<void> {
-  const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>Discovery Empty — Job Search</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
-  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
-    <div style="background:linear-gradient(135deg,#DC2626,#B91C1C);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
-      <p style="margin:0;opacity:0.85;font-size:14px;">Discovery Alert</p>
-    </div>
-    <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
-      <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#111827;">${label} returned zero companies</h2>
-      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">
+  const html = emailFrame('alert', `
+      <h3 style="margin:0 0 12px;font-size:18px;font-weight:800;color:#000000;letter-spacing:-0.01em;">${label} returned zero companies</h3>
+      <p style="color:#000000;font-size:14px;line-height:1.6;margin:0;">
         A scheduled ${label} run completed but produced <strong>no records at all</strong> — neither new nor
         already-known companies. This usually signals an upstream contract break (the source dataset moved,
         emptied, or changed schema) rather than a normal no-op. Check the server logs and the discovery source.
-      </p>
-    </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
-  </div>
-</body></html>`;
+      </p>`);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({

@@ -170,16 +170,23 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
       from,
       to: email,
       subject: `Job Search code: ${otp}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 16px;">
-          <h2 style="margin:0 0 16px;color:#111827;">Log in to Job Search</h2>
-          <p style="font-size:48px;font-weight:700;letter-spacing:12px;font-family:monospace;
-                    color:#2563EB;margin:0 0 16px;">${otp}</p>
-          <p style="color:#6B7280;font-size:14px;">Expires in ${OTP_MINUTES} minutes. Do not share this code.</p>
-          <p style="color:#374151;font-size:14px;margin:16px 0 0;">
-            Or <a href="${loginLink}" style="color:#2563EB;">click here to log in</a> in a new tab — no code needed.
-          </p>
-        </div>`,
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Job Search</title></head>
+<body style="font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f3f4f7;margin:0;padding:0;">
+  <div style="max-width:520px;margin:0 auto;padding:24px 16px;">
+    <div style="background:#ffffff;border:1px solid #ebedf1;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,0.05);padding:24px;">
+      <h3 style="margin:0 0 14px;font-size:17px;font-weight:800;color:#131722;letter-spacing:-0.01em;">Log in to Job Search</h3>
+      <p style="margin:0 0 14px;font-size:44px;font-weight:800;letter-spacing:10px;color:#4373ff;font-variant-numeric:tabular-nums;">${otp}</p>
+      <p style="color:#5b6472;font-size:13.5px;line-height:1.6;margin:0;">Expires in ${OTP_MINUTES} minutes. Do not share this code.</p>
+      <p style="color:#5b6472;font-size:13.5px;line-height:1.6;margin:14px 0 0;">
+        Or <a href="${loginLink}" style="color:#4373ff;text-decoration:none;font-weight:600;">click here to log in</a> in a new tab — no code needed.
+      </p>
+    </div>
+    <p style="text-align:center;color:#8a91a0;font-size:12px;margin-top:24px;">Sent by Job Search</p>
+  </div>
+</body>
+</html>`,
     });
     if (sendErr) throw new Error(sendErr.message);
   } catch (err) {
