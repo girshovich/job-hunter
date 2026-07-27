@@ -164,7 +164,7 @@ async function testApiKey(service, inputId, statusId) {
     });
     const data = await res.json();
     statusEl.textContent = data.success ? '✓ ' + data.message : '✗ ' + data.error;
-    statusEl.className = 'text-xs mt-1.5 ' + (data.success ? 'text-emerald-600' : 'text-red-600');
+    statusEl.className = 'text-xs mt-1.5 ' + (data.success ? 'text-[var(--green2)]' : 'text-red-600');
   } catch (e) {
     statusEl.textContent = '✗ Network error';
     statusEl.className = 'text-xs mt-1.5 text-red-600';
@@ -1034,8 +1034,8 @@ function isFormIdDirty(formId) {
 function showBlockStatus(el, msg, ok) {
   if (!el) return;
   el.textContent = msg;
-  el.classList.remove('hidden', 'text-green-600', 'text-red-600');
-  el.classList.add(ok ? 'text-green-600' : 'text-red-600');
+  el.classList.remove('hidden', 'text-[var(--green2)]', 'text-red-600');
+  el.classList.add(ok ? 'text-[var(--green2)]' : 'text-red-600');
   if (ok) setTimeout(() => el.classList.add('hidden'), 2000);
 }
 

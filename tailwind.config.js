@@ -16,7 +16,7 @@ module.exports = {
         },
         // Action-success green (Run / Apply / Applied). Matches --jh-sb-green used by .jh-btn-success.
         success: {
-          600: '#1E9E5A',
+          600: '#28B169',
           700: '#178049',
         },
         // Design System v2 tokens (DESIGN_SYSTEM_v2.md §1.1) — CSS vars defined in src/styles/tailwind.css.

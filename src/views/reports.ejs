@@ -7,11 +7,11 @@ function runProviderName(run) {
 // DS v2 run-status pill (local — the shared getRunStatusTone stays on its Tailwind form for
 // other pages until their phases). bg/color per DS §1.1 tokens.
 const RUN_STATUS_PILL = {
-  success:       { bg: '#eef7f1', color: '#178049' },
-  partial_error: { bg: '#fffaeb', color: '#b54708' },
-  running:       { bg: '#eff4ff', color: '#2f6bff' },
+  success:       { bg: 'var(--green-soft)', color: 'var(--green2)' },
+  partial_error: { bg: 'var(--amber-soft)', color: 'var(--amber-ink)' },
+  running:       { bg: 'var(--accent-soft)', color: 'var(--accent)' },
   stopped:       { bg: '#f2f4f7', color: '#5b6472' },
-  error:         { bg: '#fef3f2', color: '#b42318' },
+  error:         { bg: 'var(--red-soft)', color: 'var(--red-ink)' },
 };
 function statusPill(status) {
   const t = RUN_STATUS_PILL[String(status || '').toLowerCase()] || RUN_STATUS_PILL.error;

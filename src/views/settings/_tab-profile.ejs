@@ -15,7 +15,7 @@
         <input type="email" name="profile_email" value="<%= profileEmail %>" required class="stg-ctl" />
         <% if (pendingEmailChange) { %>
         <div class="stg-help-body" style="position:static;width:auto;max-width:none;box-shadow:none;border-color:var(--amber-border);background:var(--amber-soft);margin-top:8px;display:flex;align-items:flex-start;gap:8px;padding:9px 11px">
-          <svg width="15" height="15" style="color:#e79a1a;flex:none;margin-top:1px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg width="15" height="15" style="color:var(--amber);flex:none;margin-top:1px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
           <span style="flex:1;font-size:12px;color:var(--amber-ink);line-height:1.45">Confirmation sent to <strong><%= pendingEmailChange.new_email %></strong>. Click the link in the email to confirm.</span>

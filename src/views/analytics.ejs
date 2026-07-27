@@ -24,7 +24,7 @@
   .sp-tbl tbody td{padding:13px 12px;text-align:center;font-size:13px;border-top:1px solid #f3f4f6;color:var(--muted2)}
   .sp-tbl tbody td.l{text-align:left;padding-left:20px;font-weight:600;color:var(--ink)}
   .sp-tbl tbody tr:hover{background:#fafbfc}
-  .sp-t-strong{color:var(--green);font-weight:700}
+  .sp-t-strong{color:var(--green2);font-weight:700}
   .sp-t-applied{color:var(--accent);font-weight:700}
   .sp-rate-wrap{display:inline-flex;align-items:center;gap:8px}
   .sp-rate-bar{width:60px;height:6px;background:#eef0f4;border-radius:999px;overflow:hidden}
@@ -74,10 +74,10 @@
 <% if (totals.total > 0) { %>
 <%
   const STATUS_CONFIG = {
-    STRONG_MATCH: { label: formatVerdictLabel('STRONG_MATCH'), bar: '#10b981' },
-    WEAK_MATCH:   { label: formatVerdictLabel('WEAK_MATCH'),   bar: '#eab308' },
-    NO_MATCH:     { label: formatVerdictLabel('NO_MATCH'),     bar: '#f87171' },
-    DUPLICATE:    { label: formatVerdictLabel('DUPLICATE'),    bar: '#c084fc' },
+    STRONG_MATCH: { label: formatVerdictLabel('STRONG_MATCH'), bar: 'var(--green)' },
+    WEAK_MATCH:   { label: formatVerdictLabel('WEAK_MATCH'),   bar: 'var(--amber)' },
+    NO_MATCH:     { label: formatVerdictLabel('NO_MATCH'),     bar: 'var(--red)' },
+    DUPLICATE:    { label: formatVerdictLabel('DUPLICATE'),    bar: 'var(--purple-strong)' },
     BLACKLISTED:  { label: formatVerdictLabel('BLACKLISTED'),  bar: '#9ca3af' },
     UNKNOWN:      { label: formatVerdictLabel('UNKNOWN'),      bar: '#d1d5db' },
   };
@@ -253,9 +253,9 @@ document.addEventListener('mousemove', _moveTip);
 // ── Quality chart shared renderer (used for both daily and monthly) ────────────
 const Q_ORDER  = ['kept', 'promoted', 'demoted'];
 const Q_CONFIG = {
-  kept:     { label: 'AI strong — kept',    color: '#10b981' },
-  promoted: { label: 'Promoted to strong',  color: '#eab308' },
-  demoted:  { label: 'Demoted from strong', color: '#f87171' },
+  kept:     { label: 'AI strong — kept',    color: 'var(--green)' },
+  promoted: { label: 'Promoted to strong',  color: 'var(--amber)' },
+  demoted:  { label: 'Demoted from strong', color: 'var(--red)' },
 };
 
 function renderQualityChart(containerId, legendId, rawData, periods, getLabel, getKey) {

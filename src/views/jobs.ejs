@@ -45,7 +45,7 @@ function renderFilterBar(){
 
   // Verdict (single)
   const verdictIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>';
-  const verdictDots = { all:null, STRONG_MATCH:'#1e9e5a', WEAK_MATCH:'#f0a500', NO_MATCH:'#e5484d', DUPLICATE:'#8b5cf6' };
+  const verdictDots = { all:null, STRONG_MATCH:'var(--green)', WEAK_MATCH:'var(--amber)', NO_MATCH:'var(--red)', DUPLICATE:'var(--purple-strong)' };
   let verdictMenu = '';
   ['all','STRONG_MATCH','WEAK_MATCH','NO_MATCH','DUPLICATE'].forEach(v => { verdictMenu += menuRow("JH.setVerdict('"+v+"')", verdictDots[v], verdictLabels[v], null, f.verdict === v); });
 
@@ -64,8 +64,8 @@ function renderFilterBar(){
   const statusIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>';
   let statusMenu = menuRow("JH.setStatus('')", '#cfd4dd', 'All statuses', statusCounts.all, f.status === '');
   statusMenu += menuRow("JH.setStatus('new')", '#8a91a0', 'New', statusCounts[0], f.status === 'new');
-  statusMenu += menuRow("JH.setStatus('applied')", '#1e9e5a', 'Applied', statusCounts[1], f.status === 'applied');
-  statusMenu += menuRow("JH.setStatus('wont')", '#e5484d', "Won't apply", statusCounts[2], f.status === 'wont');
+  statusMenu += menuRow("JH.setStatus('applied')", 'var(--green)', 'Applied', statusCounts[1], f.status === 'applied');
+  statusMenu += menuRow("JH.setStatus('wont')", 'var(--red)', "Won't apply", statusCounts[2], f.status === 'wont');
 
   // Date range (custom calendar)
   const dateIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>';
@@ -93,10 +93,10 @@ function renderFilterBar(){
 // ── List card (desktop → selects pane; mobile → navigates to /job/:id) ──
 function scoreChip(score, verdict){
   // Score chip takes the verdict tone (same palette as the verdict chip), not a flat green.
-  const t = verdict === 'STRONG_MATCH' ? 'background:#ecfdf3;color:#067647'
-    : verdict === 'WEAK_MATCH' ? 'background:#fffaeb;color:#b54708'
-    : verdict === 'DUPLICATE' ? 'background:#f4f3ff;color:#6941c6'
-    : 'background:#fef3f2;color:#b42318'; // NO_MATCH / fallback
+  const t = verdict === 'STRONG_MATCH' ? 'background:var(--green-soft);color:var(--green2)'
+    : verdict === 'WEAK_MATCH' ? 'background:var(--amber-soft);color:var(--amber-ink)'
+    : verdict === 'DUPLICATE' ? 'background:var(--purple-soft);color:var(--purple)'
+    : 'background:var(--red-soft);color:var(--red-ink)'; // NO_MATCH / fallback
   return '<span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;'+t+'">'+formatScore(score)+'</span>';
 }
 function card(job, mobile){

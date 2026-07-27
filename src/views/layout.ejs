@@ -134,7 +134,7 @@
       background: currentColor; opacity: 0.55; flex-shrink: 0; margin-left: 2px;
     }
     .sb-subitem.active .sb-subdot { opacity: 1; }
-    .sb-subitem.admin.active { background: #fef3f2; color: var(--red-ink); }
+    .sb-subitem.admin.active { background: var(--red-soft); color: var(--red-ink); }
     .sb-subitem.admin.active .sb-subdot { opacity: 1; background: var(--red); }
     .sb-admin-divider { height: 1px; background: var(--line); margin: 10px 10px; }
     .sb-chev {
@@ -533,8 +533,8 @@
 
           <!-- Schedule active status row (shown below stop button when active) -->
           <div id="schedule-status" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? '' : 'hidden' %>" style="align-items:center;justify-content:space-between;padding:2px 4px;<%= locals.scheduleStatus && locals.scheduleStatus.active ? 'display:flex;' : '' %>">
-            <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#34d399;font-weight:500;">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--green2);font-weight:500;">
+              <span class="w-1.5 h-1.5 rounded-full bg-[var(--green)] animate-pulse inline-block"></span>
               Schedule active
             </span>
             <span id="schedule-expr" style="font-size:11px;color:var(--muted);font-family:monospace;"></span>
@@ -730,7 +730,7 @@
   <!-- Verdict dropdown -->
   <div id="verdict-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
     <div class="py-1">
-      <button onclick="setVerdict('STRONG_MATCH')" class="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 text-emerald-700 font-medium">Strong</button>
+      <button onclick="setVerdict('STRONG_MATCH')" class="w-full text-left px-4 py-2 text-sm hover:bg-[var(--green-soft)] text-[var(--green2)] font-medium">Strong</button>
       <button onclick="setVerdict('WEAK_MATCH')"   class="w-full text-left px-4 py-2 text-sm hover:bg-yellow-50 text-yellow-700 font-medium">Weak</button>
       <button onclick="setVerdict('NO_MATCH')"     class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">No match</button>
       <button onclick="setVerdict('DUPLICATE')"    class="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 text-purple-600 font-medium">Duplicate</button>
@@ -741,7 +741,7 @@
   <div id="applied-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
     <div class="py-1">
       <button onclick="setApplied(0)" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-600 font-medium">New</button>
-      <button onclick="setApplied(1)" class="w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 text-emerald-700 font-medium">Applied</button>
+      <button onclick="setApplied(1)" class="w-full text-left px-4 py-2 text-sm hover:bg-[var(--green-soft)] text-[var(--green2)] font-medium">Applied</button>
       <button onclick="setApplied(2)" class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">Won't Apply</button>
     </div>
   </div>
@@ -921,7 +921,7 @@
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+          <span class="w-2 h-2 rounded-full bg-[var(--green)] animate-pulse inline-block"></span>
           <h2 class="font-semibold text-gray-900">Schedule Active</h2>
         </div>
         <button onclick="closeScheduleStatusModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
@@ -1243,7 +1243,7 @@
           <label class="flex items-center cursor-pointer flex-shrink-0">
             <input type="checkbox" class="${inputClass} sr-only" value="${g.id}"
                    ${on ? 'checked' : ''} onchange="${onChange}" />
-            <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}">
+            <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-[var(--green)]' : 'bg-gray-300'}">
               <div class="absolute top-0.5 ${on ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
             </div>
           </label>
@@ -1315,10 +1315,10 @@
       const track = checkbox.nextElementSibling;
       const thumb = track.firstElementChild;
       if (checkbox.checked) {
-        track.classList.replace('bg-gray-300', 'bg-emerald-500');
+        track.classList.replace('bg-gray-300', 'bg-[var(--green)]');
         thumb.classList.replace('left-0.5', 'left-4');
       } else {
-        track.classList.replace('bg-emerald-500', 'bg-gray-300');
+        track.classList.replace('bg-[var(--green)]', 'bg-gray-300');
         thumb.classList.replace('left-4', 'left-0.5');
       }
     }
@@ -1640,7 +1640,7 @@
           <label class="flex items-center cursor-pointer flex-shrink-0">
             <input type="checkbox" class="${inputClass} sr-only" value="${g.id}"
                    ${on ? 'checked' : ''} onchange="${onChange}" />
-            <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}">
+            <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-[var(--green)]' : 'bg-gray-300'}">
               <div class="absolute top-0.5 ${on ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
             </div>
           </label>
@@ -1712,10 +1712,10 @@
       const track = checkbox.nextElementSibling;
       const thumb = track.firstElementChild;
       if (checkbox.checked) {
-        track.classList.replace('bg-gray-300', 'bg-emerald-500');
+        track.classList.replace('bg-gray-300', 'bg-[var(--green)]');
         thumb.classList.replace('left-0.5', 'left-4');
       } else {
-        track.classList.replace('bg-emerald-500', 'bg-gray-300');
+        track.classList.replace('bg-[var(--green)]', 'bg-gray-300');
         thumb.classList.replace('left-4', 'left-0.5');
       }
     }
@@ -1742,7 +1742,7 @@
     function renderRunProviderRow(provider, inputClass, onChange) {
       return `
         <label class="flex items-center gap-2.5 cursor-pointer py-1">
-          <input type="checkbox" class="${inputClass} w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+          <input type="checkbox" class="${inputClass} w-4 h-4 rounded border-gray-300 text-[var(--green)] focus:ring-[var(--green)]"
                  value="${provider.value}" ${provider.checked ? 'checked' : ''} onchange="${onChange}">
           <span class="text-sm text-gray-700 min-w-0 truncate">${escHtml(provider.label)}</span>
         </label>`;

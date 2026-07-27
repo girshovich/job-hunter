@@ -39,29 +39,35 @@
   --line: #ebedf1;
   --line2: #e7e9ee;
   --line3: #e6e8ee;
-  /* accent (blue) */
-  --accent: #2f6bff;
-  --accent-hover: #2056e8;
+  /* accent (blue) — solid fill / hover / soft-bg / border / tint.
+     --accent lifted a step (L≈0.21) so primary buttons read lighter; hover = former default. */
+  --accent: #4373ff;
+  --accent-hover: #2f6bff;
   --accent-soft: #eef3ff;
   --accent-border: #d7e3ff;
   --accent-tint: #f6f8ff;
-  /* green (success / run / strong) */
-  --green: #1e9e5a;
+  /* green (success / run / strong) — unified ramp: solid / ink / soft-bg / border.
+     --green lifted to WCAG L≈0.33 (hue preserved) so toggles/buttons read less dark. */
+  --green: #28b169;
   --green2: #178049;
   --green-soft: #eef7f1;
   --green-border: #d3eade;
-  /* red (danger / no-match / won't-apply) */
-  --red: #e5484d;
+  /* red (danger / no-match / won't-apply) — ramp: solid / ink / soft-bg / border.
+     --red solid lifted (L≈0.30) for fills; text uses --red-ink. */
+  --red: #ef6d70;
   --red-ink: #b42318;
   --red-soft: #fef3f2;
   --red-border: #fcd9d6;
-  /* amber (weak) */
+  /* amber (weak) — --amber solid unifies verdict/analytics golds; text uses --amber-ink. */
+  --amber: #eaa61a;
   --amber-soft: #fffaeb;
   --amber-border: #fdecc8;
   --amber-ink: #b54708;
-  /* purple (duplicate) */
+  /* purple (duplicate) — ramp: strong solid / ink / soft-bg / border. Text uses --purple (ink). */
   --purple: #6941c6;
+  --purple-strong: #9f80f7;
   --purple-soft: #f4f3ff;
+  --purple-border: #e4dcff;
   /* sky (info, admin) */
   --sky-soft: #e8f4fd;
   --sky-ink: #0369a1;

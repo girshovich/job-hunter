@@ -41,7 +41,7 @@ function statusTone(s) {
   .hp-btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;border-radius:11px;padding:11px 18px;border:0;white-space:nowrap;color:#fff}
   .hp-btn-sched{background:var(--accent);box-shadow:0 1px 2px rgba(47,107,255,.4)}
   .hp-btn-sched:hover{background:var(--accent-hover)}
-  .hp-btn-run{background:var(--green);box-shadow:0 1px 2px rgba(30,158,90,.35)}
+  .hp-btn-run{background:var(--green);box-shadow:0 1px 2px rgba(40,177,105,.35)}
   .hp-btn-run:hover{background:var(--green2)}
   .hp-btn-run.stop{background:var(--red);box-shadow:none}
   .hp-btn-run.stop:hover{background:#d13b40}
@@ -68,8 +68,8 @@ function statusTone(s) {
   .hp-stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;text-align:center}
   .hp-stat{border-radius:11px;padding:12px 4px}
   .hp-stat-fetched{background:#f4f5f8}
-  .hp-stat-strong{background:#ecfdf3}
-  .hp-stat-weak{background:#fffaeb}
+  .hp-stat-strong{background:var(--green-soft)}
+  .hp-stat-weak{background:var(--amber-soft)}
   .hp-stat-n{font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .hp-stat-l{font-size:11px;color:var(--faint);font-weight:600;margin-top:2px}
   .hp-sess-foot{font-size:11.5px;color:var(--faint);margin-top:14px;font-weight:600}
@@ -88,7 +88,7 @@ function statusTone(s) {
   .hp-apply{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:700;color:var(--accent)}
   .hp-empty{padding:40px 20px;text-align:center;font-size:13px;color:var(--faint);font-weight:600}
   .hp-empty-err{margin-top:8px}
-  .hp-err-sum{font-size:12px;color:var(--red);cursor:pointer}
+  .hp-err-sum{font-size:12px;color:var(--red-ink);cursor:pointer}
   .hp-err-pre{font-size:11px;color:var(--red-ink);background:var(--red-soft);padding:8px;border-radius:8px;margin-top:6px;overflow:auto;max-height:96px;white-space:pre-wrap}
   @media (max-width:960px){
     .hp-intro{flex-direction:column}
@@ -134,9 +134,9 @@ function statusTone(s) {
     <div class="hp-hiw-list">
       <div class="hp-hiw-item"><div class="hp-hiw-ico" style="background:#f3f0ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="1.6" stroke-linecap="round"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.6a1 1 0 0 1 .7.3l5.4 5.4a1 1 0 0 1 .3.7V19a2 2 0 0 1-2 2z"/></svg></div><div><div class="hp-hiw-t">Describe yourself</div><div class="hp-hiw-d">You, roles, locations and what you care about.</div></div></div>
       <div class="hp-hiw-item"><div class="hp-hiw-ico" style="background:#eef6ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2f6bff" stroke-width="1.6" stroke-linecap="round"><path d="M15.8 5.3a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7 5.9c-.6-.1-1.2 0-1.6.4l-2.7 2.7H8.3v2.3H6v2.3H2.3v-2.8c0-.6.2-1.2.7-1.6l6.5-6.5c.4-.4.5-1 .4-1.6a6 6 0 1 1 11.8-2.1z"/></svg></div><div><div class="hp-hiw-t">Set API keys</div><div class="hp-hiw-d">Add your Apify and LLM keys, or use mine.</div></div></div>
-      <div class="hp-hiw-item"><div class="hp-hiw-ico" style="background:#fff7e8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e79a1a" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5 15.5 12 10 15.5v-7z" fill="#e79a1a" stroke="none"/></svg></div><div><div class="hp-hiw-t">Schedule job search</div><div class="hp-hiw-d">Get the latest jobs from top job platforms.</div></div></div>
+      <div class="hp-hiw-item"><div class="hp-hiw-ico" style="background:#fff7e8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5 15.5 12 10 15.5v-7z" fill="var(--amber)" stroke="none"/></svg></div><div><div class="hp-hiw-t">Schedule job search</div><div class="hp-hiw-d">Get the latest jobs from top job platforms.</div></div></div>
       <div class="hp-hiw-item"><div class="hp-hiw-ico" style="background:#f5f0ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="1.6" stroke-linecap="round"><path d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.3 12l2.8-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.3l.8 2.8a4.5 4.5 0 0 0 3.1 3.1l2.8.8-2.8.8a4.5 4.5 0 0 0-3.1 3.1zM18.3 8.7 18 9.8l-.3-1a3.4 3.4 0 0 0-2.4-2.5L14.3 6l1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.3l.3 1a3.4 3.4 0 0 0 2.4 2.4l1 .3-1 .3a3.4 3.4 0 0 0-2.4 2.4z"/></svg></div><div><div class="hp-hiw-t">Wait for AI scoring</div><div class="hp-hiw-d">Each job scored vs your profile. No duplicates.</div></div></div>
-      <div class="hp-hiw-item"><div class="hp-hiw-ico" style="background:#ecfdf3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1e9e5a" stroke-width="1.6" stroke-linecap="round"><path d="M3 8l7.9 5.3a2 2 0 0 0 2.2 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"/></svg></div><div><div class="hp-hiw-t">Get job matches</div><div class="hp-hiw-d">Email digest with the gems. Open. Apply. Done.</div></div></div>
+      <div class="hp-hiw-item"><div class="hp-hiw-ico" style="background:var(--green-soft)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round"><path d="M3 8l7.9 5.3a2 2 0 0 0 2.2 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"/></svg></div><div><div class="hp-hiw-t">Get job matches</div><div class="hp-hiw-d">Email digest with the gems. Open. Apply. Done.</div></div></div>
     </div>
   </div>
 
@@ -149,7 +149,7 @@ function statusTone(s) {
       </button>
     </div>
     <div class="hp-hiw-list">
-      <div class="hp-hiw-item start"><div class="hp-hiw-ico" style="background:#ecfdf3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1e9e5a" stroke-width="1.6" stroke-linecap="round"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z"/></svg></div><div><div class="hp-hiw-t">Buy credits</div><div class="hp-hiw-d">Use my API keys, pay per use. Top up in <a href="/settings?tab=ai">Settings</a> or navigation panel.</div></div></div>
+      <div class="hp-hiw-item start"><div class="hp-hiw-ico" style="background:var(--green-soft)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z"/></svg></div><div><div class="hp-hiw-t">Buy credits</div><div class="hp-hiw-d">Use my API keys, pay per use. Top up in <a href="/settings?tab=ai">Settings</a> or navigation panel.</div></div></div>
       <div class="hp-hiw-item start"><div class="hp-hiw-ico" style="background:#eef6ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2f6bff" stroke-width="1.6" stroke-linecap="round"><path d="M15 7a2 2 0 0 1 2 2m4 0a6 6 0 0 1-7.7 5.7L11 17H9v2H7v2H4a1 1 0 0 1-1-1v-2.6a1 1 0 0 1 .3-.7l6-6A6 6 0 1 1 21 9z"/></svg></div><div><div class="hp-hiw-t">Use your own API keys</div><div class="hp-hiw-d">Add OpenAI + Apify keys in <a href="/settings?tab=ai">Settings</a>.</div></div></div>
       <div class="hp-hiw-item start"><div class="hp-hiw-ico" style="background:#f1f2f5"><svg width="16" height="16" viewBox="0 0 24 24" fill="#5b6472"><path d="M12 2C6.5 2 2 6.5 2 12c0 4.4 2.9 8.2 6.8 9.5.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.4-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-4.9 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.6 9.6 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.8-2.3 4.6-4.6 4.9.4.3.7.9.7 1.8v2.7c0 .3.2.6.7.5A10 10 0 0 0 22 12c0-5.5-4.5-10-10-10z"/></svg></div><div><div class="hp-hiw-t">Self-host</div><div class="hp-hiw-d"><a href="https://github.com/girshovich/job-hunter" target="_blank" rel="noopener">Fork on GitHub</a> for personal use.</div></div></div>
     </div>
@@ -214,8 +214,8 @@ function statusTone(s) {
       </div>
       <div class="hp-stat3">
         <div class="hp-stat hp-stat-fetched"><div class="hp-stat-n" style="color:var(--ink)"><%= lastRun.jobs_fetched %></div><div class="hp-stat-l">Fetched</div></div>
-        <div class="hp-stat hp-stat-strong"><div class="hp-stat-n" style="color:#067647"><%= liveStrong %></div><div class="hp-stat-l">Strong</div></div>
-        <div class="hp-stat hp-stat-weak"><div class="hp-stat-n" style="color:#b54708"><%= liveWeak %></div><div class="hp-stat-l">Weak</div></div>
+        <div class="hp-stat hp-stat-strong"><div class="hp-stat-n" style="color:var(--green2)"><%= liveStrong %></div><div class="hp-stat-l">Strong</div></div>
+        <div class="hp-stat hp-stat-weak"><div class="hp-stat-n" style="color:var(--amber-ink)"><%= liveWeak %></div><div class="hp-stat-l">Weak</div></div>
       </div>
       <p class="hp-sess-foot"><%= formatDate(lastRun.ran_at) %><% if (lastRun.duration_ms) { %> · <%= (lastRun.duration_ms / 1000).toFixed(0) %>s<% } %></p>
       <% if (lastRun.error_log) { %>

@@ -185,7 +185,7 @@
                 <span class="text-xs text-gray-500">Use main profile</span>
                 <div class="relative">
                   <input type="checkbox" id="modal-use-main-profile" class="sr-only peer" onchange="toggleMainProfileDesc()" />
-                  <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-emerald-500 rounded-full transition-colors
+                  <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-[var(--green)] rounded-full transition-colors
                               after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white
                               after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
                 </div>
@@ -256,7 +256,7 @@
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">
-                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span><%= formatVerdictLabel('STRONG_MATCH') %> min
+                    <span class="inline-block w-2 h-2 rounded-full bg-[var(--green)] mr-1"></span><%= formatVerdictLabel('STRONG_MATCH') %> min
                   </label>
                   <input id="modal-strong-match-min" type="number" min="1" max="100" value="71"
                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500" />
