@@ -1,77 +1,69 @@
   <!-- ==================== ROLES TAB ==================== -->
   <div id="tab-pane-roles" class="<%= activeTab !== 'roles' ? 'hidden' : '' %>">
+   <div class="stg-stack">
 
     <!-- SEARCH GROUPS -->
-    <div class="jh-card p-6 mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="text-base font-semibold text-gray-900">
-            Roles you seek
-            <span id="groups-count" class="ml-2 text-xs font-normal text-gray-400"><%= groups.length %> / 15</span>
-          </h2>
+    <div class="jh-card stg-cardpad">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px">
+        <div class="stg-h2">
+          Roles you seek
+          <span id="groups-count" style="margin-left:6px;font-size:12px;font-weight:600;color:var(--faintest)"><%= groups.length %> / 15</span>
         </div>
         <button id="add-group-btn" onclick="openGroupModal(null)"
                 <%= groups.length >= 15 ? 'disabled title="Maximum of 15 roles reached"' : '' %>
-                class="inline-flex items-center gap-1.5 text-sm font-medium jh-btn-secondary px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                class="stg-btn stg-btn-secondary stg-btn-sm">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           Add Role
         </button>
       </div>
-      <div id="groups-error" class="hidden mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg"></div>
+      <div id="groups-error" class="hidden" style="margin-bottom:12px;font-size:13px;color:var(--red-ink);background:var(--red-soft);border:1px solid var(--red-border);padding:8px 11px;border-radius:9px"></div>
       <div id="groups-list">
-        <div class="py-8 text-center text-gray-400 text-sm">
-          <svg class="w-6 h-6 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          Loading groups…
-        </div>
+        <div style="padding:32px 0;text-align:center;color:var(--faintest);font-size:13px">Loading groups…</div>
       </div>
     </div>
 
     <!-- CVs -->
-    <div class="jh-card overflow-hidden mb-6">
-      <button type="button" onclick="togglePromptBlock('cvs-body', 'cvs-chevron')"
-              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
+    <div class="jh-card" style="overflow:hidden">
+      <button type="button" onclick="togglePromptBlock('cvs-body', 'cvs-chevron')" class="stg-coll-head">
         <div>
-          <h2 class="text-base font-semibold text-gray-900">CVs
-            <span class="ml-2 text-xs font-normal text-gray-400"><%= cvs ? cvs.length : 0 %></span>
-          </h2>
-          <p class="text-xs text-gray-500 mt-0.5">Upload your CVs to use for job comparison. PDF, TXT, and MD files supported.</p>
+          <div class="stg-h2">CVs
+            <span style="margin-left:6px;font-size:12px;font-weight:600;color:var(--faintest)"><%= cvs ? cvs.length : 0 %></span>
+          </div>
+          <p class="stg-sub">Upload your CVs to use for job comparison. PDF, TXT, and MD files supported.</p>
         </div>
-        <svg id="cvs-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg id="cvs-chevron" class="stg-coll-chev" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
-      <div id="cvs-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6">
+      <div id="cvs-body" class="hidden stg-coll-body">
       <% if (cvs && cvs.length > 0) { %>
-      <div class="space-y-2 mb-4">
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
         <% cvs.forEach(function(cv) { %>
-        <div class="flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200" data-cv-id="<%= cv.id %>">
-          <div class="flex items-center gap-2 min-w-0">
+        <div class="stg-prow" style="justify-content:space-between" data-cv-id="<%= cv.id %>">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
             <% if (cv.mime_type === 'application/pdf') { %>
-            <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <svg width="16" height="16" style="color:var(--red);flex:none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <% } else { %>
-            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <svg width="16" height="16" style="color:var(--fainter);flex:none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <% } %>
-            <span class="text-sm text-gray-800 truncate"><%= cv.filename %></span>
-            <span class="text-xs text-gray-400 flex-shrink-0"><%= (cv.file_size / 1024).toFixed(0) %> KB</span>
+            <span style="font-size:13px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= cv.filename %></span>
+            <span style="font-size:11.5px;color:var(--faintest);flex:none"><%= (cv.file_size / 1024).toFixed(0) %> KB</span>
           </div>
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <a href="/settings/cvs/<%= cv.id %>/view" target="_blank"
-               class="inline-flex items-center text-xs font-medium jh-btn-secondary px-2.5 py-1 rounded-lg transition-colors">Open</a>
-            <button type="button" onclick="deleteCV(<%= cv.id %>, this)"
-                    class="inline-flex items-center text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-lg transition-colors">Delete</button>
+          <div style="display:flex;align-items:center;gap:8px;flex:none">
+            <a href="/settings/cvs/<%= cv.id %>/view" target="_blank" class="stg-btn stg-btn-secondary stg-btn-sm">Open</a>
+            <button type="button" onclick="deleteCV(<%= cv.id %>, this)" class="stg-btn stg-btn-sm" style="background:var(--red-soft);color:var(--red-ink);border:1px solid var(--red-border)">Delete</button>
           </div>
         </div>
         <% }); %>
       </div>
       <% } else { %>
-      <p class="text-sm text-gray-400 mb-4">No CVs uploaded yet.</p>
+      <p style="font-size:13px;color:var(--faintest);margin-bottom:16px">No CVs uploaded yet.</p>
       <% } %>
-      <form method="post" action="/settings/cvs/upload" enctype="multipart/form-data" class="flex items-center gap-3">
+      <form method="post" action="/settings/cvs/upload" enctype="multipart/form-data" style="display:flex;align-items:center;gap:12px">
         <input type="file" name="cv_file" accept=".pdf,.txt,.md" onchange="toggleUploadBtn(this)"
                class="block text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-gray-200 file:text-xs file:font-medium file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 cursor-pointer" />
-        <button type="submit" id="cv-upload-btn"
-                class="hidden flex-shrink-0 inline-flex items-center gap-1.5 text-sm font-medium jh-btn-secondary px-3 py-1.5 rounded-lg transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        <button type="submit" id="cv-upload-btn" class="hidden stg-btn stg-btn-secondary stg-btn-sm" style="flex:none">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
           Upload
         </button>
       </form>
@@ -79,32 +71,32 @@
     </div>
 
     <!-- BLACKLISTED COMPANIES -->
-    <div class="jh-card p-6 mb-6">
-      <div class="flex items-center justify-between mb-3">
+    <div class="jh-card stg-cardpad">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
         <div>
-          <h2 class="text-base font-semibold text-gray-900">
+          <div class="stg-h2">
             Blacklisted Companies
-            <span id="bl-count-badge" class="ml-2 text-xs font-normal text-gray-400"></span>
-          </h2>
-          <p class="text-xs text-gray-500 mt-0.5">Jobs from these companies are removed before scoring — across all groups.</p>
+            <span id="bl-count-badge" style="margin-left:6px;font-size:12px;font-weight:600;color:var(--faintest)"></span>
+          </div>
+          <p class="stg-sub">Jobs from these companies are removed before scoring — across all groups.</p>
         </div>
-        <button onclick="openBlacklistMgmtModal()"
-                class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <button onclick="openBlacklistMgmtModal()" class="stg-btn stg-btn-ghost stg-btn-sm">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
           Edit
         </button>
       </div>
-      <div id="bl-compact-view" class="text-sm text-gray-400">Loading…</div>
+      <div id="bl-compact-view" style="font-size:13px;color:var(--faintest)">Loading…</div>
     </div>
 
     <!-- Roles tab footer: Preview Fetch + last saved -->
-    <div class="flex items-center gap-4 flex-wrap mt-2">
+    <div class="stg-saverow">
       <button type="button" id="fetch-preview-btn" onclick="fetchPreview(this)"
               title="Fetch jobs without AI scoring — for testing your search configuration"
-              class="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 px-4 py-2.5 rounded-xl transition-colors">
+              class="stg-btn stg-btn-ghost">
         <span id="fetch-preview-label">Preview Fetch</span>
       </button>
-      <p class="text-xs text-gray-400">Last saved: <%= rolesLastSaved ? new Date(rolesLastSaved).toLocaleString('en-GB') : 'Never' %></p>
+      <p class="stg-saved-note">Last saved: <%= rolesLastSaved ? new Date(rolesLastSaved).toLocaleString('en-GB') : 'Never' %></p>
     </div>
 
+   </div>
   </div>

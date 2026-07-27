@@ -1,36 +1,35 @@
 <!-- ==================== PROFILE TAB ==================== -->
 <div id="tab-pane-profile" class="<%= activeTab !== 'profile' ? 'hidden' : '' %>">
-<form id="profile-form" method="post" action="/settings" class="space-y-6">
+<form id="profile-form" method="post" action="/settings" class="stg-stack">
   <input type="hidden" name="tab" value="profile">
 
   <!-- YOUR PROFILE -->
-  <div class="jh-card p-6">
-    <h2 class="text-base font-semibold text-gray-900 mb-5">Your profile</h2>
+  <div class="jh-card stg-cardpad">
+    <div class="stg-h2" style="margin-bottom:18px">Your profile</div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+    <div class="stg-grid2">
 
       <!-- Login email -->
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Login email <span class="text-red-500">*</span></label>
-        <input type="email" name="profile_email" value="<%= profileEmail %>" required
-               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+      <div class="stg-field">
+        <label class="stg-label">Login email <span class="stg-req">*</span></label>
+        <input type="email" name="profile_email" value="<%= profileEmail %>" required class="stg-ctl" />
         <% if (pendingEmailChange) { %>
-        <div class="mt-2 flex items-start gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          <svg class="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="stg-help-body" style="position:static;width:auto;max-width:none;box-shadow:none;border-color:var(--amber-border);background:var(--amber-soft);margin-top:8px;display:flex;align-items:flex-start;gap:8px;padding:9px 11px">
+          <svg width="15" height="15" style="color:#e79a1a;flex:none;margin-top:1px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span class="text-amber-800 flex-1">Confirmation sent to <strong><%= pendingEmailChange.new_email %></strong>. Click the link in the email to confirm.</span>
-          <button type="submit" form="cancel-email-change-form" class="text-amber-600 hover:text-red-600 font-medium underline whitespace-nowrap flex-shrink-0">Cancel</button>
+          <span style="flex:1;font-size:12px;color:var(--amber-ink);line-height:1.45">Confirmation sent to <strong><%= pendingEmailChange.new_email %></strong>. Click the link in the email to confirm.</span>
+          <button type="submit" form="cancel-email-change-form" style="color:var(--amber-ink);font-size:12px;font-weight:700;text-decoration:underline;white-space:nowrap;flex:none;background:none;border:0;cursor:pointer">Cancel</button>
         </div>
         <% } else { %>
-        <p class="text-xs text-gray-400 mt-1.5 leading-snug">Confirmation link is sent before the change takes effect.</p>
+        <p class="stg-hint">Confirmation link is sent before the change takes effect.</p>
         <% } %>
       </div>
 
       <!-- Timezone -->
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Timezone</label>
-        <select name="timezone" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+      <div class="stg-field">
+        <label class="stg-label">Timezone</label>
+        <select name="timezone" class="stg-ctl">
       <option value="UTC"                               <%= settings.timezone === 'UTC'                               ? 'selected' : '' %>>GMT+0 (UTC)</option>
       <option value="Europe/London"                     <%= settings.timezone === 'Europe/London'                     ? 'selected' : '' %>>GMT+0 (London)</option>
       <option value="Africa/Lagos"                      <%= settings.timezone === 'Africa/Lagos'                      ? 'selected' : '' %>>GMT+1 (Lagos)</option>
@@ -68,13 +67,13 @@
       <option value="Pacific/Honolulu"                  <%= settings.timezone === 'Pacific/Honolulu'                  ? 'selected' : '' %>>GMT-10 (Honolulu)</option>
         <option value="Pacific/Pago_Pago"                 <%= settings.timezone === 'Pacific/Pago_Pago'                 ? 'selected' : '' %>>GMT-11 (Pago Pago)</option>
         </select>
-        <p class="text-xs text-gray-400 mt-1.5 leading-snug">Used for logs, run times and schedules.</p>
+        <p class="stg-hint">Used for logs, run times and schedules.</p>
       </div>
 
       <!-- Current country -->
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Current country</label>
-        <select name="current_location" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+      <div class="stg-field">
+        <label class="stg-label">Current country</label>
+        <select name="current_location" class="stg-ctl">
           <option value="">— not set —</option>
           <% locationCountries.forEach(function(country) { %>
             <option value="<%= country %>" <%= settings.current_location === country ? 'selected' : '' %>><%= country %></option>
@@ -83,51 +82,45 @@
             <option value="<%= settings.current_location %>" selected><%= settings.current_location %> (custom)</option>
           <% } %>
         </select>
-        <p class="text-xs text-gray-400 mt-1.5 leading-snug">Used to check if you need relocation</p>
+        <p class="stg-hint">Used to check if you need relocation</p>
       </div>
 
       <!-- Languages -->
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Languages</label>
-        <input type="text" name="languages" value="<%= settings.languages || '' %>" placeholder="e.g. English, Russian, Armenian"
-               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        <p class="text-xs text-gray-400 mt-1.5 leading-snug">To filter jobs by languages you can use professionally</p>
+      <div class="stg-field">
+        <label class="stg-label">Languages</label>
+        <input type="text" name="languages" value="<%= settings.languages || '' %>" placeholder="e.g. English, Russian, Armenian" class="stg-ctl" />
+        <p class="stg-hint">To filter jobs by languages you can use professionally</p>
       </div>
 
     </div>
 
     <!-- Profile description -->
-    <div class="mt-6">
-      <label class="block text-xs font-medium text-gray-600 mb-1">Profile description to match with jobs <span class="text-red-500">*</span></label>
-      <textarea name="profile_description" rows="7" required
-                placeholder="A senior product professional with 6+ years of product management and leadership in customer support products in a large classifieds, and 3 years as head of sellers support operations (B2B) at a large marketplace. Overall 13 years in e-commerce and customer service industries. Built help center, multi-channel CRM, automated support, some AI features, and moderation tools. Made a strategy, got board-level funding, grew the teams from 0 to 9 PMs and 3 Group PMs, and got tangible business impact on cost savings."
-                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"><%= settings.profile_description || '' %></textarea>
-      <p class="text-xs text-gray-400 mt-1.5 leading-snug">Roles can inherit this instead of having their own.</p>
+    <div class="stg-field" style="margin-top:18px">
+      <label class="stg-label">Profile description to match with jobs <span class="stg-req">*</span></label>
+      <textarea name="profile_description" rows="7" required class="stg-ctl"
+                placeholder="A senior product professional with 6+ years of product management and leadership in customer support products in a large classifieds, and 3 years as head of sellers support operations (B2B) at a large marketplace. Overall 13 years in e-commerce and customer service industries. Built help center, multi-channel CRM, automated support, some AI features, and moderation tools. Made a strategy, got board-level funding, grew the teams from 0 to 9 PMs and 3 Group PMs, and got tangible business impact on cost savings."><%= settings.profile_description || '' %></textarea>
+      <p class="stg-hint">Roles can inherit this instead of having their own.</p>
     </div>
 
     <!-- Email notifications toggle -->
-    <div class="flex items-center gap-3 mt-6">
-      <p class="text-sm font-medium text-gray-700">Get job reports by email</p>
-      <label class="flex items-center cursor-pointer">
+    <div class="stg-field" style="flex-direction:row;align-items:center;gap:12px;margin-top:18px">
+      <p style="font-size:13px;font-weight:600;color:var(--ink2);margin:0">Get job reports by email</p>
+      <label class="stg-tgl">
         <input type="checkbox" name="email_enabled" value="on"
                onchange="document.getElementById('profile-save-btn').disabled = false"
-               class="sr-only peer"
                <%= settings.email_enabled !== 0 ? 'checked' : '' %> />
-        <div class="relative w-10 h-5 bg-gray-300 peer-checked:bg-emerald-500 rounded-full transition-colors
-                    after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white
-                    after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
+        <span class="stg-tgl-track"></span>
       </label>
     </div>
   </div>
 
   <!-- Profile save button -->
-  <div class="flex items-center gap-4 flex-wrap">
-    <button type="submit" id="profile-save-btn" disabled
-            class="jh-btn-primary">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+  <div class="stg-saverow">
+    <button type="submit" id="profile-save-btn" disabled class="stg-btn stg-btn-primary">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
       Save Settings
     </button>
-    <p class="text-xs text-gray-400">Last saved: <%= settings.profile_updated_at ? new Date(settings.profile_updated_at).toLocaleString('en-GB') : 'Never' %></p>
+    <p class="stg-saved-note">Last saved: <%= settings.profile_updated_at ? new Date(settings.profile_updated_at).toLocaleString('en-GB') : 'Never' %></p>
   </div>
 
 </form>

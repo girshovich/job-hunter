@@ -289,15 +289,14 @@ function renderGroups() {
   const container = document.getElementById('groups-list');
   if (_groups.length === 0) {
     container.innerHTML = `
-      <div class="py-10 text-center">
-        <svg class="w-8 h-8 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div style="padding:40px 0;text-align:center">
+        <svg width="32" height="32" style="color:#d4d8e0;margin:0 auto 12px;display:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
         </svg>
-        <p class="text-sm text-gray-400 mb-3">No roles yet.</p>
-        <button onclick="openGroupModal(null)"
-                class="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <p style="font-size:13px;color:var(--faint);margin-bottom:12px">No roles yet.</p>
+        <button onclick="openGroupModal(null)" class="stg-btn stg-btn-secondary stg-btn-sm">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           Add your first group
         </button>
       </div>`;
@@ -312,42 +311,38 @@ function renderGroups() {
     const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
     // Work mode only surfaces when it's a subset — all three modes is the common default.
     const modeLabel = (modes.length && modes.length < 3)
-      ? ` <span class="font-normal text-gray-500">(${modes.map(cap).join(' · ')})</span>`
+      ? ` <span class="stg-role-modes">(${modes.map(cap).join(' · ')})</span>`
       : '';
-    const nameCls = isActive ? 'text-gray-900' : 'text-gray-700';
-    const metaCls = isActive ? 'text-gray-600' : 'text-gray-400';
     const badge = isActive
-      ? '<span class="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Active</span>'
-      : '<span class="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-100 text-gray-500"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Paused</span>';
-    const editBtn = `<button onclick="openGroupModal(${g.id})" class="text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors">Edit</button>`;
-    const deleteBtn = `<button data-del-id="${g.id}" onclick="confirmDelete(${g.id})" class="text-sm font-medium text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">Delete</button>`;
-    const kwText = kws.slice(0, 4).map(escHtml).join(', ') + (kws.length > 4 ? ` <span class="text-gray-400">+${kws.length - 4}</span>` : '');
-    const locText = locs.slice(0, 5).map(escHtml).join(', ') + (locs.length > 5 ? ` <span class="text-gray-400">+${locs.length - 5}</span>` : '');
+      ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full" style="background:var(--green-soft);color:var(--green2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--green)"></span>Active</span>'
+      : '<span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full" style="background:#f1f2f5;color:var(--faint)"><span style="width:6px;height:6px;border-radius:50%;background:var(--faintest)"></span>Paused</span>';
+    const editBtn = `<button onclick="openGroupModal(${g.id})" class="stg-btn stg-btn-ghost stg-btn-sm">Edit</button>`;
+    const deleteBtn = `<button data-del-id="${g.id}" onclick="confirmDelete(${g.id})" class="stg-btn stg-btn-sm" style="background:transparent;color:var(--red-ink)">Delete</button>`;
+    const kwText = kws.slice(0, 4).map(escHtml).join(', ') + (kws.length > 4 ? ` <span class="plus">+${kws.length - 4}</span>` : '');
+    const locText = locs.slice(0, 5).map(escHtml).join(', ') + (locs.length > 5 ? ` <span class="plus">+${locs.length - 5}</span>` : '');
     const meta = [];
-    if (kws.length) meta.push(`<span title="${escHtml(kws.join(', '))}"><span class="uppercase text-xs font-semibold tracking-wide text-gray-400 mr-1.5">Keywords</span>${kwText}</span>`);
-    if (locs.length) meta.push(`<span class="basis-full" title="${escHtml(locs.join(', '))}"><span class="uppercase text-xs font-semibold tracking-wide text-gray-400 mr-1.5">Locations</span>${locText}</span>`);
+    if (kws.length) meta.push(`<span title="${escHtml(kws.join(', '))}"><span class="k">Keywords</span>${kwText}</span>`);
+    if (locs.length) meta.push(`<span class="stg-role-loc" title="${escHtml(locs.join(', '))}"><span class="k">Locations</span>${locText}</span>`);
 
     return `
-      <div class="py-4 border-b border-gray-50 last:border-0">
-        <div class="flex items-start justify-between gap-3">
+      <div class="stg-role-row" style="${isActive ? '' : 'opacity:.75'}">
+        <div class="stg-role-top">
           <div class="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span class="text-sm font-medium text-gray-400 tabular-nums">${i + 1}</span>
-            ${g.group_name ? `<span class="text-sm font-semibold ${nameCls}">${escHtml(g.group_name)}${modeLabel}</span>` : ''}
+            <span class="stg-role-id" style="font-variant-numeric:tabular-nums">${i + 1}</span>
+            ${g.group_name ? `<span class="stg-role-name">${escHtml(g.group_name)}${modeLabel}</span>` : ''}
             ${badge}
           </div>
-          <div class="flex items-center gap-3 flex-shrink-0">
-            <label class="flex items-center cursor-pointer" title="${isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}">
-              <input type="checkbox" class="group-active-toggle sr-only" data-id="${g.id}" ${isActive ? 'checked' : ''}
+          <div class="stg-role-actions">
+            <label class="stg-tgl" title="${isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}">
+              <input type="checkbox" class="group-active-toggle" data-id="${g.id}" ${isActive ? 'checked' : ''}
                      onchange="toggleGroupActive(${g.id}, this.checked, this)" />
-              <div class="relative w-10 h-5 rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-gray-300'}">
-                <div class="absolute top-0.5 ${isActive ? 'left-5' : 'left-0.5'} w-4 h-4 bg-white rounded-full shadow transition-all"></div>
-              </div>
+              <span class="stg-tgl-track"></span>
             </label>
             <div class="hidden sm:flex items-center gap-2">${editBtn}${deleteBtn}</div>
           </div>
         </div>
-        <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs ${metaCls}">${meta.join('')}</div>
-        <div class="flex sm:hidden justify-start gap-2 mt-2.5">${deleteBtn}${editBtn}</div>
+        <div class="stg-role-meta">${meta.join('')}</div>
+        <div class="flex sm:hidden justify-start gap-2" style="margin-top:10px">${deleteBtn}${editBtn}</div>
       </div>`;
   }).join('');
 }
@@ -813,39 +808,37 @@ function renderBlacklistCompact() {
   const badge = document.getElementById('bl-count-badge');
   if (_blacklist.length === 0) {
     badge.textContent = '';
-    container.innerHTML = '<span class="text-sm text-gray-400">No companies blacklisted yet.</span>';
+    container.innerHTML = '<span style="font-size:13px;color:var(--faint)">No companies blacklisted yet.</span>';
     return;
   }
   badge.textContent = _blacklist.length + ' compan' + (_blacklist.length === 1 ? 'y' : 'ies');
   const names = _blacklist.map(e => escHtml(e.company_name)).join(', ');
-  container.innerHTML = '<p class="text-sm text-gray-600 leading-relaxed">' + names + '</p>';
+  container.innerHTML = '<p style="font-size:13px;color:var(--muted);line-height:1.5">' + names + '</p>';
 }
 
 function renderBlacklistMgmt() {
   const container = document.getElementById('bl-mgmt-list');
   if (_blacklist.length === 0) {
     container.innerHTML = `
-      <div class="py-8 text-center">
-        <svg class="w-6 h-6 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div style="padding:32px 0;text-align:center">
+        <svg width="24" height="24" style="color:#d4d8e0;margin:0 auto 8px;display:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
         </svg>
-        <p class="text-sm text-gray-400">No companies blacklisted yet. Add one below.</p>
+        <p style="font-size:13px;color:var(--faint)">No companies blacklisted yet. Add one below.</p>
       </div>`;
     return;
   }
   container.innerHTML = _blacklist.map(entry => `
-    <div class="flex items-start justify-between gap-4 py-3 border-b border-gray-50 last:border-0">
+    <div class="stg-role-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
       <div class="min-w-0 flex-1">
-        <p class="text-sm font-medium text-gray-900">${escHtml(entry.company_name)}</p>
-        ${entry.notes ? `<p class="text-xs text-gray-400 mt-0.5">${escHtml(entry.notes)}</p>` : ''}
+        <p class="stg-role-name">${escHtml(entry.company_name)}</p>
+        ${entry.notes ? `<p style="font-size:11.5px;color:var(--faint);margin-top:2px">${escHtml(entry.notes)}</p>` : ''}
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <button onclick="startEditBlacklist(${entry.id})"
-                class="text-xs font-medium text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-2.5 py-1.5 rounded-lg transition-colors">
+        <button onclick="startEditBlacklist(${entry.id})" class="stg-btn stg-btn-ghost stg-btn-sm">
           Edit
         </button>
-        <button id="bl-del-btn-${entry.id}" onclick="confirmBlacklistDelete(${entry.id})"
-                class="text-xs font-medium text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-200 px-2.5 py-1.5 rounded-lg transition-colors">
+        <button id="bl-del-btn-${entry.id}" onclick="confirmBlacklistDelete(${entry.id})" class="stg-btn stg-btn-ghost stg-btn-sm">
           Remove
         </button>
       </div>
@@ -1109,6 +1102,9 @@ function activateTab(tabName) {
     updateTabBtnStyle(t, t === tabName);
   });
   autoGrowIn(document.getElementById('tab-pane-' + tabName));
+  // Keep the page title in sync with the active sub-tab (mobile in-page switch).
+  const _h1 = document.querySelector('.stg-h1');
+  if (_h1) _h1.textContent = 'Settings: ' + ({ profile: 'Profile', roles: 'Roles', ai: 'AI Setup' }[tabName] || '');
   // Keep the sidebar sub-nav highlight in sync (Profile has no ?tab= in its href).
   const sub = document.getElementById('sb-settings-sub');
   if (sub) {
@@ -1127,17 +1123,7 @@ function maybeLoadAdminTab(tabName) {
 function updateTabBtnStyle(tabName, isActive) {
   const btn = document.getElementById('tab-btn-' + tabName);
   if (!btn) return;
-  if (tabName === 'admin') {
-    btn.classList.toggle('border-red-600', isActive);
-    btn.classList.toggle('text-red-600', isActive);
-    btn.classList.toggle('border-transparent', !isActive);
-    btn.classList.toggle('text-red-400', !isActive);
-  } else {
-    btn.classList.toggle('border-blue-600', isActive);
-    btn.classList.toggle('text-blue-600', isActive);
-    btn.classList.toggle('border-transparent', !isActive);
-    btn.classList.toggle('text-gray-500', !isActive);
-  }
+  btn.classList.toggle('active', isActive);
 }
 
 async function unsavedSave() {
@@ -1260,6 +1246,15 @@ function initSettings(activeTab, initialGroups) {
         promptUnsaved();
       }
     });
+  });
+
+  // Backstop (R12): hard reload / tab close / any navigation not caught above still
+  // warns when a Profile or AI Setup form has unsaved edits (native browser prompt).
+  window.addEventListener('beforeunload', function(e) {
+    if ((_activeTab === 'profile' || _activeTab === 'ai') && isFormDirty(_activeTab)) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
   });
 }
 

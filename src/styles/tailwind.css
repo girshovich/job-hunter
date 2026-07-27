@@ -101,17 +101,18 @@ html { line-height: 1.25; }
 .jh-scroll::-webkit-scrollbar-thumb { background: #d4d7de; border-radius: 9px; }
 
 @layer components {
-  /* Page-level primary action (Save / confirm). Single source for the app's solid-blue button. */
+  /* Page-level primary action (Save / confirm). DS v2 accent button. */
   .jh-btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition-colors;
+    border-radius: 11px; background: var(--accent); box-shadow: 0 1px 2px rgba(47,107,255,.35);
   }
-  .jh-btn-primary:hover { @apply bg-blue-700; }
-  .jh-btn-primary:disabled { @apply cursor-not-allowed opacity-40 pointer-events-none; }
+  .jh-btn-primary:hover { background: var(--accent-hover); }
+  .jh-btn-primary:disabled { @apply cursor-not-allowed opacity-40 pointer-events-none; box-shadow: none; }
 
-  /* Soft-blue secondary action. Look only — size (px/py/text) stays a utility per site. */
-  .jh-btn-secondary { @apply border border-blue-200 bg-blue-50 text-blue-600 transition-colors; }
-  .jh-btn-secondary:hover { @apply bg-blue-100; }
+  /* DS v2 grey secondary action. Look only — size (px/py/text) stays a utility per site. */
+  .jh-btn-secondary { background: #eef1f6; color: var(--ink2); border: 0; transition: background .12s; }
+  .jh-btn-secondary:hover { background: #e6eaf1; }
 
-  /* Standard card surface. Padding stays a utility on the element (p-6 / p-5 / p-4 sm:p-6). */
-  .jh-card { @apply rounded-xl border border-gray-200 bg-white shadow-sm; }
+  /* Standard card surface (DS v2 generic panel card). Padding stays a utility on the element (p-6 / p-5 / p-4 sm:p-6). */
+  .jh-card { border-radius: 16px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow-card); }
 }

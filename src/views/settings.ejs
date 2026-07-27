@@ -1,47 +1,33 @@
 <!-- Settings page -->
-<div class="max-w-3xl">
+<%- include('partials/_stg-styles') %>
+<div class="stg-page">
 
-  <div class="flex items-center justify-between mb-6">
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
-  </div>
-  </div>
+  <h1 class="stg-h1" style="margin-bottom:20px">Settings: <%= ({ profile: 'Profile', roles: 'Roles', ai: 'AI Setup' })[activeTab] || 'Profile' %></h1>
 
   <% if (saved) { %>
-  <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm mb-6">
-    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+  <div class="stg-banner stg-banner-ok">
+    <svg width="16" height="16" style="flex:none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
     Settings saved successfully.
   </div>
   <% } %>
   <% if (notice) { %>
-  <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm mb-6">
-    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+  <div class="stg-banner stg-banner-ok">
+    <svg width="16" height="16" style="flex:none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
     <%= notice %>
   </div>
   <% } %>
   <% if (error) { %>
-  <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm mb-6">
-    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+  <div class="stg-banner stg-banner-err">
+    <svg width="16" height="16" style="flex:none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     <%= error %>
   </div>
   <% } %>
 
-  <!-- Tab bar -->
-  <div class="border-b border-gray-200 mb-8">
-    <nav class="flex -mb-px">
-      <button id="tab-btn-profile" onclick="switchTab('profile')"
-              class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= activeTab === 'profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
-        Profile
-      </button>
-      <button id="tab-btn-roles" onclick="switchTab('roles')"
-              class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= activeTab === 'roles' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
-        Roles
-      </button>
-      <button id="tab-btn-ai" onclick="switchTab('ai')"
-              class="py-3 px-5 text-sm font-medium border-b-2 transition-colors <%= activeTab === 'ai' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' %>">
-        AI Setup
-      </button>
-    </nav>
+  <!-- Tab bar (mobile only — desktop navigates via the sidebar sub-items) -->
+  <div class="stg-tabs md:hidden">
+    <button id="tab-btn-profile" onclick="switchTab('profile')" class="stg-tab <%= activeTab === 'profile' ? 'active' : '' %>">Profile</button>
+    <button id="tab-btn-roles" onclick="switchTab('roles')" class="stg-tab <%= activeTab === 'roles' ? 'active' : '' %>">Roles</button>
+    <button id="tab-btn-ai" onclick="switchTab('ai')" class="stg-tab <%= activeTab === 'ai' ? 'active' : '' %>">AI Setup</button>
   </div>
 
   <%- include('settings/_tab-profile') %>
@@ -53,7 +39,7 @@
 <!-- ==================== GROUP MODAL ==================== -->
 <div id="group-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
   <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeGroupModal()"></div>
-  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+  <div class="stg-modal relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
 
     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
       <h2 id="modal-title" class="font-semibold text-gray-900 text-lg">Add Role</h2>
@@ -82,7 +68,7 @@
           <label class="block text-sm font-medium text-gray-700">Desired Locations <span class="text-red-500 ml-0.5">*</span></label>
           <div id="location-help-wrap" class="relative inline-flex">
             <button type="button" onclick="toggleLocationHelp()" aria-label="How locations are used"
-                    class="w-4 h-4 rounded-full border border-gray-300 bg-white text-gray-500 text-[11px] font-semibold leading-none flex items-center justify-center hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">?</button>
+                    class="stg-help-btn">?</button>
             <div id="location-help-body" class="hidden absolute top-6 left-0 z-20 w-80 max-w-[78vw] rounded-lg border border-gray-200 bg-white shadow-2xl px-3.5 py-3">
               <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">How locations are used</p>
               <div class="space-y-2 text-xs text-gray-500">
@@ -125,7 +111,7 @@
             <label class="block text-sm font-medium text-gray-700">Job Type</label>
             <div id="jobtype-help-wrap" class="relative inline-flex">
               <button type="button" onclick="toggleJobTypeHelp()" aria-label="How job type is used"
-                      class="w-4 h-4 rounded-full border border-gray-300 bg-white text-gray-500 text-[11px] font-semibold leading-none flex items-center justify-center hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">?</button>
+                      class="stg-help-btn">?</button>
               <div id="jobtype-help-body" class="hidden absolute top-6 left-0 z-20 w-64 max-w-[78vw] rounded-lg border border-gray-200 bg-white shadow-2xl px-3.5 py-2.5">
                 <p class="text-xs text-gray-500">None selected = every type ok.</p>
                 <p class="text-xs text-gray-500 mt-1.5">StepStone knows only full/part; Indeed, Greenhouse, Telegram &amp; Lever skip this filter. They are checked via AI.</p>
@@ -152,7 +138,7 @@
             <label class="block text-sm font-medium text-gray-700">Work Modes</label>
             <div id="workmode-help-wrap" class="relative inline-flex">
               <button type="button" onclick="toggleWorkModeHelp()" aria-label="How work modes are used"
-                      class="w-4 h-4 rounded-full border border-gray-300 bg-white text-gray-500 text-[11px] font-semibold leading-none flex items-center justify-center hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">?</button>
+                      class="stg-help-btn">?</button>
               <div id="workmode-help-body" class="hidden absolute top-6 right-0 z-20 w-64 max-w-[78vw] rounded-lg border border-gray-200 bg-white shadow-2xl px-3.5 py-2.5">
                 <p class="text-xs text-gray-500">None selected = every mode ok.</p>
                 <p class="text-xs text-gray-500 mt-1.5">Indeed &amp; Greenhouse jobs ignore it — no work-mode data.</p>
@@ -296,13 +282,11 @@
     </div>
 
     <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
-      <button type="button" onclick="closeGroupModal()"
-              class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+      <button type="button" onclick="closeGroupModal()" class="stg-btn stg-btn-secondary">
         Cancel
       </button>
-      <button id="modal-save-btn" onclick="saveGroup()" disabled
-              class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+      <button id="modal-save-btn" onclick="saveGroup()" disabled class="stg-btn stg-btn-primary">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
         <span id="modal-save-label">Save Group</span>
       </button>
     </div>
@@ -313,7 +297,7 @@
 <!-- ==================== BLACKLIST MANAGEMENT MODAL ==================== -->
 <div id="blacklist-mgmt-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
   <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeBlacklistMgmtModal()"></div>
-  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+  <div class="stg-modal relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
 
     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
       <h2 class="font-semibold text-gray-900 text-lg">Blacklisted Companies</h2>
@@ -339,13 +323,11 @@
                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
                   placeholder="Reason (optional)"></textarea>
         <div class="flex items-center gap-2">
-          <button onclick="saveBlacklistEntry()"
-                  class="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <button onclick="saveBlacklistEntry()" class="stg-btn stg-btn-danger stg-btn-sm">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             <span id="bl-form-save-label">Add to Blacklist</span>
           </button>
-          <button id="bl-form-cancel-btn" onclick="cancelBlacklistEdit()"
-                  class="hidden px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+          <button id="bl-form-cancel-btn" onclick="cancelBlacklistEdit()" class="hidden stg-btn stg-btn-secondary stg-btn-sm">
             Cancel
           </button>
         </div>
@@ -362,16 +344,13 @@
     <h3 class="font-semibold text-gray-900 mb-2">Unsaved changes</h3>
     <p class="text-sm text-gray-600 mb-5">You have unsaved changes on the <strong id="unsaved-tab-name"></strong> tab.</p>
     <div class="flex gap-3 justify-end">
-      <button onclick="unsavedCancel()"
-              class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+      <button onclick="unsavedCancel()" class="stg-btn stg-btn-ghost stg-btn-sm">
         Cancel
       </button>
-      <button onclick="unsavedDiscard()"
-              class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors">
+      <button onclick="unsavedDiscard()" class="stg-btn stg-btn-secondary stg-btn-sm">
         Discard
       </button>
-      <button onclick="unsavedSave()"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+      <button onclick="unsavedSave()" class="stg-btn stg-btn-primary stg-btn-sm">
         Save
       </button>
     </div>

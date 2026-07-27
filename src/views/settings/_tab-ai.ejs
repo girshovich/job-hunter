@@ -1,17 +1,17 @@
   <!-- ==================== AI TAB ==================== -->
   <div id="tab-pane-ai" class="<%= activeTab !== 'ai' ? 'hidden' : '' %>">
-  <div class="space-y-6">
+  <div class="stg-stack">
 
     <!-- API KEYS -->
     <form id="ai-keys-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
-          class="jh-card p-6">
+          class="jh-card stg-cardpad">
       <input type="hidden" name="tab" value="ai">
-      <h2 class="text-base font-semibold text-gray-900 mb-1">API Keys</h2>
-      <p class="text-xs text-gray-500 mb-5">Choose whether to run on Job Hunter credits or on your own API keys.</p>
+      <div class="stg-h2" style="margin-bottom:3px">API Keys</div>
+      <p class="stg-sub" style="margin-bottom:18px">Choose whether to run on Job Hunter credits or on your own API keys.</p>
 
       <!-- Mode choice -->
-      <div class="rounded-xl border border-gray-300 bg-gray-50 p-3.5 mb-5">
-        <span class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2.5 ml-0.5">How do you want to pay for runs?</span>
+      <div class="stg-panel" style="margin-bottom:18px">
+        <div class="stg-help-h" style="margin-bottom:10px">How do you want to pay for runs?</div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <button type="button" id="jh-creds-btn" class="jh-choice" aria-pressed="true" onclick="setKeyMode(true)">
             <span class="jh-choice-check" aria-hidden="true">
@@ -21,7 +21,7 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v5c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/><path d="M4 11v5c0 1.66 3.58 3 8 3s8-1.34 8-3v-5"/></svg>
             </span>
             <span>
-              <span class="block text-sm font-semibold text-gray-900 mb-0.5">Buy JH credits</span>
+              <span class="block text-gray-900" style="font-size:13.5px;font-weight:700;margin-bottom:2px">Buy JH credits</span>
               <span class="block text-xs text-gray-600 leading-snug">I run on my keys and deduct from your balance.</span>
               <span class="jh-choice-badge">Easy setup</span>
             </span>
@@ -34,7 +34,7 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4"/><path d="M10.5 12.5 20 3"/><path d="m17 6 2.5 2.5"/><path d="M14.5 8.5 17 11"/></svg>
             </span>
             <span>
-              <span class="block text-sm font-semibold text-gray-900 mb-0.5">Use your own keys</span>
+              <span class="block text-gray-900" style="font-size:13.5px;font-weight:700;margin-bottom:2px">Use your own keys</span>
               <span class="block text-xs text-gray-600 leading-snug">You pay Apify and OpenAI directly. Bring your own tokens.</span>
             </span>
           </button>
@@ -44,18 +44,17 @@
 
       <!-- JH Credits view -->
       <div id="jh-credits-view" class="space-y-3">
-        <div class="flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+        <div class="stg-balance-row">
           <div>
-            <p class="text-lg font-bold text-gray-900 tabular-nums tracking-tight">$<%= Number(settings.credits_balance || 0).toFixed(1) %> available</p>
-            <p class="text-xs text-gray-500 mt-0.5">Deducted per run based on token usage and Apify costs</p>
+            <p style="font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin:0">$<%= Number(settings.credits_balance || 0).toFixed(1) %> available</p>
+            <p class="stg-hint" style="margin-top:2px">Deducted per run based on token usage and Apify costs</p>
           </div>
-          <button type="button" onclick="openTopUp()"
-                  class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>
+          <button type="button" onclick="openTopUp()" class="stg-btn stg-btn-primary stg-btn-sm" style="flex:none">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>
             Top up
           </button>
         </div>
-        <p class="text-xs text-gray-500">Runs require a minimum of $0.50 balance to start. If your balance drops below $0.50, active schedules are cancelled and you'll receive an email.</p>
+        <p class="stg-hint">Runs require a minimum of $0.50 balance to start. If your balance drops below $0.50, active schedules are cancelled and you'll receive an email.</p>
       </div>
 
       <!-- Own keys view -->
@@ -63,7 +62,7 @@
         <!-- Apify -->
         <div>
           <div class="flex items-center gap-1.5 mb-1.5">
-            <label class="block text-sm font-medium text-gray-700">Apify API Token <span class="text-red-500">*</span></label>
+            <label style="font-size:12px;font-weight:600;color:var(--muted)">Apify API Token <span class="stg-req">*</span></label>
             <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener noreferrer"
                class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your Apify token">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -72,7 +71,7 @@
           <div class="flex gap-2">
             <div class="relative flex-1">
               <input id="user-apify-token-input" type="password" name="user_apify_api_token" value="<%= settings.user_apify_api_token %>"
-                     class="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                     class="stg-ctl mono" style="padding-right:38px"
                      placeholder="apify_api_…" autocomplete="off" />
               <button type="button" onclick="toggleEye('user-apify-token-input', this)"
                       class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -80,7 +79,7 @@
               </button>
             </div>
             <button type="button" onclick="testApiKey('apify', 'user-apify-token-input', 'user-apify-test-status')"
-                    class="flex-shrink-0 px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors whitespace-nowrap">
+                    class="stg-btn stg-btn-secondary stg-btn-sm" style="flex:none">
               Test key
             </button>
           </div>
@@ -90,7 +89,7 @@
         <!-- OpenAI -->
         <div>
           <div class="flex items-center gap-1.5 mb-1.5">
-            <label class="block text-sm font-medium text-gray-700">OpenAI API Key <span class="text-red-500">*</span></label>
+            <label style="font-size:12px;font-weight:600;color:var(--muted)">OpenAI API Key <span class="stg-req">*</span></label>
             <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer"
                class="text-gray-400 hover:text-blue-500 transition-colors" title="Get your OpenAI API key">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -99,7 +98,7 @@
           <div class="flex gap-2">
             <div class="relative flex-1">
               <input id="user-openai-key-input" type="password" name="user_openai_api_key" value="<%= settings.user_openai_api_key %>"
-                     class="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                     class="stg-ctl mono" style="padding-right:38px"
                      placeholder="sk-…" autocomplete="off" />
               <button type="button" onclick="toggleEye('user-openai-key-input', this)"
                       class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -107,7 +106,7 @@
               </button>
             </div>
             <button type="button" onclick="testApiKey('openai', 'user-openai-key-input', 'user-openai-test-status')"
-                    class="flex-shrink-0 px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors whitespace-nowrap">
+                    class="stg-btn stg-btn-secondary stg-btn-sm" style="flex:none">
               Test key
             </button>
           </div>
@@ -117,7 +116,7 @@
 
       <div id="ai-keys-actions" class="hidden items-center gap-3 mt-5 pt-5 border-t border-gray-100">
         <button type="submit" id="ai-keys-save-btn"
-                class="jh-btn-primary">
+                class="stg-btn stg-btn-primary">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
           <span id="ai-keys-save-label">Save</span>
         </button>
@@ -130,28 +129,27 @@
     <form id="ai-models-form" method="post" action="/settings" onsubmit="return saveAiBlock(event, this)"
           class="jh-card overflow-hidden">
       <input type="hidden" name="tab" value="ai">
-      <button type="button" onclick="togglePromptBlock('llm-models-body', 'llm-models-chevron')"
-              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
+      <button type="button" onclick="togglePromptBlock('llm-models-body', 'llm-models-chevron')" class="stg-coll-head">
         <div>
-          <h2 class="text-base font-semibold text-gray-900">LLM models</h2>
-          <p class="text-xs text-gray-500 mt-0.5">Which model handles the easy and the hard AI tasks.</p>
+          <div class="stg-h2">LLM models</div>
+          <p class="stg-sub">Which model handles the easy and the hard AI tasks.</p>
         </div>
-        <svg id="llm-models-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg id="llm-models-chevron" class="stg-coll-chev" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
-      <div id="llm-models-body" class="hidden border-t border-gray-100 px-6 pt-5 pb-6 space-y-3">
+      <div id="llm-models-body" class="hidden stg-coll-body space-y-3">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5">Easy tasks model <span class="font-normal text-gray-400">— initial scoring, dedup pre-filter</span></label>
-          <select name="ai_model" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+          <label class="stg-label">Easy tasks model <span style="font-weight:500;color:var(--faintest)">— initial scoring, dedup pre-filter</span></label>
+          <select name="ai_model" class="stg-ctl" style="max-width:288px">
             <option value="gpt-5.4-nano" <%= settings.ai_model === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
             <option value="gpt-5.4-mini" <%= settings.ai_model === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
             <option value="gpt-5.4"      <%= settings.ai_model === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5">Hard tasks model <span class="font-normal text-gray-400">— strong match re-validation, full dedup, CV comparison</span></label>
-          <select name="ai_model_hard" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+          <label class="stg-label">Hard tasks model <span style="font-weight:500;color:var(--faintest)">— strong match re-validation, full dedup, CV comparison</span></label>
+          <select name="ai_model_hard" class="stg-ctl" style="max-width:288px">
             <option value="gpt-5.4-nano" <%= settings.ai_model_hard === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
             <option value="gpt-5.4-mini" <%= settings.ai_model_hard === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
             <option value="gpt-5.4"      <%= settings.ai_model_hard === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
@@ -159,7 +157,7 @@
         </div>
         <div class="flex items-center gap-3 pt-2">
           <button type="submit" id="ai-models-save-btn" disabled
-                  class="jh-btn-primary">
+                  class="stg-btn stg-btn-primary">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             Save
           </button>
@@ -172,11 +170,11 @@
     <div class="jh-card">
       <div class="flex items-center gap-4 px-6 py-4">
         <div class="flex-1 min-w-0">
-          <h2 class="text-base font-semibold text-gray-900">Customize AI prompts</h2>
-          <p class="text-xs text-gray-500 mt-0.5">Scoring, duplicate checks, CV comparison — 4 advanced prompts.</p>
+          <div class="stg-h2">Customize AI prompts</div>
+          <p class="stg-sub">Scoring, duplicate checks, CV comparison — 4 advanced prompts.</p>
         </div>
         <button type="button" onclick="openPromptsModal()"
-                class="inline-flex items-center justify-center gap-1.5 min-w-[5.5rem] text-sm font-medium jh-btn-secondary px-3 py-1.5 rounded-lg transition-colors">
+                class="stg-btn stg-btn-secondary stg-btn-sm" style="min-width:5.5rem">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9h18"/></svg>
           Open
         </button>
@@ -199,7 +197,7 @@
     <!-- ==================== AI PROMPTS MODAL ==================== -->
     <div id="prompts-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="tryClosePromptsModal()"></div>
-      <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[90vh] flex flex-col overflow-hidden">
+      <div class="stg-modal relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[90vh] flex flex-col overflow-hidden">
 
         <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <h2 class="font-semibold text-gray-900 text-base">Customize AI prompts</h2>
@@ -368,7 +366,7 @@ For summary: if score is >70 —</pre>
               <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
                 <p class="text-xs hidden" data-save-status></p>
                 <button type="submit" id="ai-scoring-save-btn" disabled
-                        class="jh-btn-primary">
+                        class="stg-btn stg-btn-primary">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                   Save
                 </button>
@@ -461,7 +459,7 @@ Description: {description — up to 1,500 chars each}
               <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
                 <p class="text-xs hidden" data-save-status></p>
                 <button type="submit" id="ai-dedup-save-btn" disabled
-                        class="jh-btn-primary">
+                        class="stg-btn stg-btn-primary">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                   Save
                 </button>
@@ -492,7 +490,7 @@ Description: {description — up to 1,500 chars each}
               <div class="pm-foot flex items-center justify-end gap-3 px-5 py-3 border-t border-gray-100 flex-shrink-0">
                 <p class="text-xs hidden" data-save-status></p>
                 <button type="submit" id="ai-cv-save-btn" disabled
-                        class="jh-btn-primary">
+                        class="stg-btn stg-btn-primary">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                   Save
                 </button>
@@ -507,7 +505,7 @@ Description: {description — up to 1,500 chars each}
     <!-- TOP-UP REQUEST MODAL -->
     <div id="topup-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeTopUp()"></div>
-      <div class="relative bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div class="stg-modal relative bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
         <div class="flex items-start justify-between gap-3 px-6 pt-5">
           <div>
             <h3 class="text-base font-semibold text-gray-900">Top up credits</h3>
@@ -549,31 +547,31 @@ Description: {description — up to 1,500 chars each}
     <style>
       .jh-choice {
         position: relative; display: flex; gap: 0.75rem; align-items: flex-start; text-align: left;
-        background: #fff; border: 2px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem 0.875rem;
-        transition: border-color .15s, background-color .15s, box-shadow .15s;
+        background: #fff; border: 2px solid var(--line2); border-radius: 12px; padding: 15px 14px;
+        transition: border-color .15s, background-color .15s, box-shadow .15s; cursor: pointer;
       }
       .jh-choice:hover { border-color: #d1d5db; }
       .jh-choice[aria-pressed="true"] {
-        border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+        border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 4px rgba(47, 107, 255, .18);
       }
       .jh-choice-icon {
         flex: none; display: grid; place-items: center; width: 2.5rem; height: 2.5rem;
-        border: 1px solid #e5e7eb; border-radius: 0.5rem; background: #f9fafb; color: #9ca3af;
+        border: 1px solid var(--line2); border-radius: 10px; background: #f9fafb; color: var(--fainter);
         transition: background-color .15s, color .15s, border-color .15s;
       }
-      .jh-choice[aria-pressed="true"] .jh-choice-icon { background: #dbeafe; border-color: #bfdbfe; color: #2563eb; }
+      .jh-choice[aria-pressed="true"] .jh-choice-icon { background: #dbeafe; border-color: var(--accent-border); color: var(--accent); }
       .jh-choice-check {
         position: absolute; top: 0.625rem; right: 0.625rem; display: grid; place-items: center;
-        width: 1.125rem; height: 1.125rem; border-radius: 9999px; background: #2563eb; color: #fff;
+        width: 1.125rem; height: 1.125rem; border-radius: 9999px; background: var(--accent); color: #fff;
         opacity: 0; transition: opacity .15s;
       }
       .jh-choice[aria-pressed="true"] .jh-choice-check { opacity: 1; }
       .jh-choice-badge {
         display: inline-block; margin-top: 0.5rem; padding: 0.125rem 0.375rem; border-radius: 0.25rem;
-        font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
-        background: #eff6ff; color: #2563eb;
+        font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+        background: var(--accent-soft); color: var(--accent);
       }
-      .jh-choice[aria-pressed="true"] .jh-choice-badge { background: #2563eb; color: #fff; }
+      .jh-choice[aria-pressed="true"] .jh-choice-badge { background: var(--accent); color: #fff; }
     </style>
 
     <script>
@@ -695,7 +693,7 @@ Description: {description — up to 1,500 chars each}
     })();
     </script>
 
-    <p id="ai-last-saved" class="text-xs text-gray-400">Last saved: <%= settings.ai_updated_at ? new Date(settings.ai_updated_at).toLocaleString('en-GB') : 'Never' %></p>
+    <p id="ai-last-saved" class="stg-saved-note">Last saved: <%= settings.ai_updated_at ? new Date(settings.ai_updated_at).toLocaleString('en-GB') : 'Never' %></p>
 
   </div>
   </div>
