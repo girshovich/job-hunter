@@ -18,19 +18,44 @@
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-[color:var(--ink)]">4. Usage modes</h2>
-    <ul class="list-disc pl-5 space-y-1.5 text-sm text-[color:var(--ink2)]">
-      <li><strong>Buy credits</strong> — use Job Hunter's hosted infrastructure. Source API costs, AI scoring, deduplication, and email delivery costs are covered by a prepaid credit balance you purchase through Hipolink (see Section 5). A 10% service fee applies on top of underlying costs.</li>
-      <li><strong>Bring your own keys (BYOK)</strong> — use the app for free by connecting your own OpenAI, Apify, or similar API keys. No credit purchase is required; you pay your providers directly.</li>
-      <li><strong>Self-hosted</strong> — run the open-source code from GitHub for personal, non-commercial use. You are responsible for your own infrastructure, security, and provider keys.</li>
-    </ul>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <article class="jh-card p-5 flex flex-col gap-3">
+        <h3 class="text-sm font-semibold text-[color:var(--ink)]">Use internal credits</h3>
+        <p class="text-sm text-[color:var(--muted)]">Use the hosted service. You ask me for a prepaid credit balance; credits are consumed as the service runs.</p>
+        <ul class="list-disc pl-5 space-y-1 text-sm text-[color:var(--muted)]">
+          <li>Credits cover source API costs, AI scoring, deduplication, and email delivery costs.</li>
+        </ul>
+        <a href="/welcome" class="mt-auto inline-flex items-center justify-center px-5 py-2.5 rounded-[11px] text-sm font-semibold transition-colors hover:bg-[color:var(--accent-border)]" style="background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border)">Get started</a>
+      </article>
+
+      <article class="jh-card p-5 flex flex-col gap-3">
+        <h3 class="text-sm font-semibold text-[color:var(--ink)]">Bring your own keys</h3>
+        <p class="text-sm text-[color:var(--muted)]">Use the app at no charge by connecting your own provider API keys.</p>
+        <ul class="list-disc pl-5 space-y-1 text-sm text-[color:var(--muted)]">
+          <li>No credit purchase required.</li>
+          <li>You are billed directly by your providers (OpenAI, Apify, etc.).</li>
+          <li>No service fee from Job Hunter.</li>
+        </ul>
+        <a href="/welcome" class="mt-auto inline-flex items-center justify-center px-5 py-2.5 rounded-[11px] text-sm font-semibold transition-colors hover:bg-[color:var(--accent-border)]" style="background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border)">Get started</a>
+      </article>
+
+      <article class="jh-card p-5 flex flex-col gap-3">
+        <h3 class="text-sm font-semibold text-[color:var(--ink)]">Self-hosted</h3>
+        <p class="text-sm text-[color:var(--muted)]">Run the open-source code from GitHub for personal, non-commercial use.</p>
+        <ul class="list-disc pl-5 space-y-1 text-sm text-[color:var(--muted)]">
+          <li>No charge from this service.</li>
+          <li>You manage your own infrastructure, security, and provider keys.</li>
+          <li>Commercial use is not permitted under this mode.</li>
+        </ul>
+        <a href="https://github.com/girshovich/linkedin-job-hunter" target="_blank" rel="noopener noreferrer" class="mt-auto inline-flex items-center justify-center px-5 py-2.5 rounded-[11px] text-sm font-semibold jh-btn-secondary">View on GitHub</a>
+      </article>
+    </div>
   </section>
 
   <section class="space-y-2">
-    <h2 class="text-base font-semibold text-[color:var(--ink)]">5. Credits and payments (hosted mode)</h2>
-    <p class="text-sm text-[color:var(--ink2)]"><strong>What credits are.</strong> Credits are a prepaid usage balance. They cover the cost of AI processing, job scraping, and email delivery on the hosted service, plus a 10% service fee. Credits have no cash value, are non-transferable, and are tied to your account.</p>
-    <p class="text-sm text-[color:var(--ink2)] mt-2"><strong>Hipolink as payment provider.</strong> Credits are sold by Mikhail Girshovich. Payments are processed by <strong>Hipolink</strong>, which handles checkout, payment processing, and receipts. Checkout takes place on Hipolink's secure payment page; you do not enter card details into Job Hunter. Hipolink's <a href="https://hipolink.net/en/app/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-[color:var(--accent)] hover:underline">privacy policy</a> applies to the payment data you provide there.</p>
-    <p class="text-sm text-[color:var(--ink2)] mt-2"><strong>Credits are not refundable.</strong> All credit purchases are final. Credits are not refundable, whether used or unused, and unused credits are forfeited if your account is closed by you or terminated for cause.</p>
-    <p class="text-sm text-[color:var(--ink2)] mt-2"><strong>Availability note.</strong> Hosted credit purchasing is planned but not yet available. These payment terms will take effect once the feature launches.</p>
+    <h2 class="text-base font-semibold text-[color:var(--ink)]">5. Credits (hosted mode)</h2>
+    <p class="text-sm text-[color:var(--ink2)]">Credits are a prepaid usage balance tied to your account. They have no cash value, are non-transferable, and cannot be shared between accounts. Credits are consumed when provider costs are incurred — when a job run executes, AI scoring happens, or emails are sent — regardless of the quality of results.</p>
+    <p class="text-sm text-[color:var(--ink2)] mt-2">Cost varies by the number and type of job sources used, roles and locations scored, AI model selected, and volume of matching jobs on the market. First use over a longer period fetches more results than daily updates, so costs more.</p>
   </section>
 
   <section class="space-y-2">
@@ -50,7 +75,7 @@
       <li>Only upload content (such as a CV) that you have the right to use.</li>
       <li>Do not abuse or circumvent provider APIs, scraping rate limits, or service controls.</li>
       <li>Keep your login credentials and any API keys you enter in settings secure.</li>
-      <li>Do not attempt to bypass billing, credits, or access controls.</li>
+      <li>Do not attempt to bypass credits or access controls.</li>
       <li>Do not resell or sublicense hosted access to others.</li>
       <li>Do not use the self-hosted code for commercial purposes.</li>
     </ul>
@@ -63,12 +88,12 @@
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-[color:var(--ink)]">9. Third-party services</h2>
-    <p class="text-sm text-[color:var(--ink2)]">Job Hunter relies on third-party providers to operate. These can include Hipolink (payment processing for credit purchases), OpenAI or Anthropic (AI), Apify and other scraping providers (job collection), Resend (email delivery), and job sources such as LinkedIn, Indeed, StepStone, Greenhouse, Ashby, and Lever. Each provider's own terms and privacy policies apply to their part of the service.</p>
+    <p class="text-sm text-[color:var(--ink2)]">Job Hunter relies on third-party providers to operate. These can include OpenAI or Anthropic (AI), Apify and other scraping providers (job collection), Resend (email delivery), and job sources such as LinkedIn, Indeed, StepStone, Greenhouse, Ashby, and Lever. Each provider's own terms and privacy policies apply to their part of the service.</p>
   </section>
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-[color:var(--ink)]">10. Suspension and termination</h2>
-    <p class="text-sm text-[color:var(--ink2)]">Access may be suspended or terminated for misuse, non-payment, confirmed fraud, or unresolved chargebacks. Unused credits are forfeited upon termination for cause. You may close your account at any time by contacting support.</p>
+    <p class="text-sm text-[color:var(--ink2)]">Access may be suspended or terminated for misuse or confirmed fraud. Unused credits are forfeited upon termination for cause. You may close your account at any time by contacting me.</p>
   </section>
 
   <section class="space-y-2">
@@ -78,7 +103,7 @@
 
   <section class="space-y-2">
     <h2 class="text-base font-semibold text-[color:var(--ink)]">12. Governing law</h2>
-    <p class="text-sm text-[color:var(--ink2)]">These terms are governed by the laws of the Republic of Armenia. For payment disputes involving Hipolink transactions, Hipolink's own dispute and resolution procedures also apply.</p>
+    <p class="text-sm text-[color:var(--ink2)]">These terms are governed by the laws of the Republic of Armenia.</p>
   </section>
 
   <section class="space-y-2">

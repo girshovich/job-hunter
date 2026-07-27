@@ -52,7 +52,7 @@ const VERDICT_LABELS: Record<string, string> = {
 
 // DS v2 §5.2/§5.3 exact chip palettes (inline styles so colors match the mockup precisely).
 const VERDICT_CHIP_STYLES: Record<string, string> = {
-  STRONG_MATCH: 'background:#ecfdf3;color:#067647',
+  STRONG_MATCH: 'background:var(--green-soft);color:var(--green2)',
   WEAK_MATCH: 'background:#fffaeb;color:#b54708',
   NO_MATCH: 'background:#fef3f2;color:#b42318',
   DUPLICATE: 'background:#f4f3ff;color:#6941c6',
@@ -574,6 +574,7 @@ export const uiHelpers = {
   renderVerdictSelector,
   renderAppliedStatus,
   renderAppliedSelector,
+  getVerdictChipStyle,
   renderScoreCell,
   renderDateTimeCell,
   renderSourceLinkCell,

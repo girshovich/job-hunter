@@ -22,13 +22,6 @@ function formatDate(iso) {
   return formatDateTimeToMinutes(iso, tz);
 }
 const detailVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
-// Score badge takes the verdict tone in the detail header (DS v2 §5.1/§5.2)
-function verdictTone(v) {
-  if (v === 'STRONG_MATCH') return { bg: 'var(--green-soft)', color: 'var(--green2)' };
-  if (v === 'WEAK_MATCH')   return { bg: 'var(--amber-soft)', color: 'var(--amber-ink)' };
-  if (v === 'DUPLICATE')    return { bg: 'var(--purple-soft)', color: 'var(--purple)' };
-  return { bg: 'var(--red-soft)', color: 'var(--red-ink)' }; // NO_MATCH / fallback
-}
 // General AI analysis tone box (DS v2 §5.5)
 function analysisTone(v) {
   if (v === 'STRONG_MATCH') return { bg: 'var(--green-soft)', border: 'var(--green-border)', head: 'var(--green2)', body: '#2f5741', icon: 'var(--green)' };
@@ -149,9 +142,8 @@ function renderLinks(raw) {
       <div style="flex:1;min-width:0;">
         <!-- Badges: score (verdict-toned) · verdict selector · source -->
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;">
-          <% const _st = verdictTone(detailVerdict); %>
           <span title="Relevance score"
-                style="display:inline-flex;align-items:center;height:23px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;background:<%= _st.bg %>;color:<%= _st.color %>;">
+                style="display:inline-flex;align-items:center;height:23px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;<%= getVerdictChipStyle(detailVerdict) %>;">
             <%= formatScore(job.ai_score) %>
           </span>
           <span style="width:1px;height:14px;background:#e2e5ea;"></span>

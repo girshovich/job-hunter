@@ -92,11 +92,8 @@ function renderFilterBar(){
 <%
 // ── List card (desktop → selects pane; mobile → navigates to /job/:id) ──
 function scoreChip(score, verdict){
-  // Score chip takes the verdict tone (same palette as the verdict chip), not a flat green.
-  const t = verdict === 'STRONG_MATCH' ? 'background:var(--green-soft);color:var(--green2)'
-    : verdict === 'WEAK_MATCH' ? 'background:var(--amber-soft);color:var(--amber-ink)'
-    : verdict === 'DUPLICATE' ? 'background:var(--purple-soft);color:var(--purple)'
-    : 'background:var(--red-soft);color:var(--red-ink)'; // NO_MATCH / fallback
+  // Score chip takes the verdict tone from the shared chip palette (single source: getVerdictChipStyle).
+  const t = getVerdictChipStyle(verdict);
   return '<span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;'+t+'">'+formatScore(score)+'</span>';
 }
 function card(job, mobile){
@@ -188,6 +185,13 @@ function renderList(mobile){
         </div>
         <% } %>
       <% } %>
+      <!-- Legal footer (same as other pages) -->
+      <footer style="margin-top:18px">
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
+          <a href="/terms" class="text-gray-500 hover:text-gray-700 transition-colors">Terms</a>
+          <a href="/privacy" class="text-gray-500 hover:text-gray-700 transition-colors">Privacy</a>
+        </div>
+      </footer>
     </div>
   </section>
 
