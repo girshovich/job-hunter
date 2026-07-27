@@ -174,7 +174,7 @@ router.post('/', async (req: Request, res: Response) => {
         const { error: sendErr } = await resend.emails.send({
           from,
           to: newEmail,
-          subject: 'Confirm your new email address — Job Hunter',
+          subject: 'Confirm your new email address — Job Search',
           html: `
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 16px;">
               <h2 style="margin:0 0 16px;color:#111827;">Confirm email change</h2>

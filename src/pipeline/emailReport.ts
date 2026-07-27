@@ -115,7 +115,7 @@ function buildEmailHtml(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Job Hunter</title>
+<title>Job Search</title>
 <style>
   /* Inline styles are the desktop base (works in every client, incl. Outlook).
      These rules only override for narrow screens; !important is required to
@@ -145,7 +145,7 @@ function buildEmailHtml(
 
     <!-- Header -->
     <div class="jh-header" style="background:#2F6BFF;background:linear-gradient(180deg,#3B74FF,#2F6BFF);border-radius:12px;padding:14px 22px;margin-bottom:16px;box-shadow:0 6px 18px rgba(47,107,255,0.22);">
-      <h1 class="jh-h1" style="margin:0;font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-0.01em;">Job Hunter</h1>
+      <h1 class="jh-h1" style="margin:0;font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-0.01em;">Job Search</h1>
     </div>
 
     <!-- Stats + heading -->
@@ -161,7 +161,7 @@ function buildEmailHtml(
 
     <!-- Footer -->
     <p class="jh-footer" style="text-align:center;color:#9CA3AF;font-size:12px;line-height:1.6;margin:26px 4px 0;">
-      Sent by Job Hunter${baseUrl ? ` · <a href="${escapedBaseUrl}" style="color:#2563EB;text-decoration:none;font-weight:600;">${escapedBaseUrl}</a>` : ''}
+      Sent by Job Search${baseUrl ? ` · <a href="${escapedBaseUrl}" style="color:#2563EB;text-decoration:none;font-weight:600;">${escapedBaseUrl}</a>` : ''}
     </p>
   </div>
 </body>
@@ -201,7 +201,7 @@ export async function sendDailyReport({
     : [];
 
   const n = jobs.length;
-  const subject = n > 0 ? `${n} jobs found // Job Hunter` : 'no jobs found // Job Hunter';
+  const subject = n > 0 ? `${n} jobs found // Job Search` : 'no jobs found // Job Search';
   const heading = cadenceHeading(trigger, cronSchedule);
   const html = buildEmailHtml(jobs, stats, heading, appUrl);
 
@@ -271,7 +271,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
   const { error } = await resend.emails.send({
     from: emailFrom,
     to: recipientEmail,
-    subject: '[TEST] Job Hunter — Email Preview',
+    subject: '[TEST] Job Search — Email Preview',
     html,
   });
   if (error) throw new Error(error.message);
@@ -292,11 +292,11 @@ export async function sendTopUpRequest(
     .replace(/>/g, '&gt;');
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Top-up request — Job Hunter</title></head>
+<head><meta charset="UTF-8"><title>Top-up request — Job Search</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
   <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
     <div style="background:linear-gradient(135deg,#4D87FF,#2F6BFF);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Hunter</h1>
+      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
       <p style="margin:0;opacity:0.85;font-size:14px;">Top-up request</p>
     </div>
     <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
@@ -305,7 +305,7 @@ export async function sendTopUpRequest(
       </p>
       <pre style="white-space:pre-wrap;font-family:inherit;color:#111827;font-size:14px;line-height:1.6;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin:0;">${escaped}</pre>
     </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Hunter</p>
+    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
   </div>
 </body>
 </html>`;
@@ -315,7 +315,7 @@ export async function sendTopUpRequest(
     from: emailFrom,
     to: adminEmail,
     reply_to: userEmail,
-    subject: `Job Hunter — top-up request from ${userEmail}`,
+    subject: `Job Search — top-up request from ${userEmail}`,
     html,
   });
   if (error) throw new Error(error.message);
@@ -330,11 +330,11 @@ export async function sendLowCreditsEmail(
 ): Promise<void> {
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Low Credits — Job Hunter</title></head>
+<head><meta charset="UTF-8"><title>Low Credits — Job Search</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
   <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
     <div style="background:linear-gradient(135deg,#DC2626,#B91C1C);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Hunter</h1>
+      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
       <p style="margin:0;opacity:0.85;font-size:14px;">Credits Alert</p>
     </div>
     <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
@@ -345,13 +345,13 @@ export async function sendLowCreditsEmail(
         Your scheduled runs have been paused.
       </p>
       <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
-        Top up your credits to continue using Job Hunter.
+        Top up your credits to continue using Job Search.
       </p>
       <a href="#" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:500;">
         Top Up Credits (coming soon)
       </a>
     </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Hunter</p>
+    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
   </div>
 </body>
 </html>`;
@@ -360,7 +360,7 @@ export async function sendLowCreditsEmail(
   const { error } = await resend.emails.send({
     from: emailFrom,
     to: recipientEmail,
-    subject: 'Job Hunter — Low credits balance',
+    subject: 'Job Search — Low credits balance',
     html,
   });
   if (error) throw new Error(error.message);
@@ -373,11 +373,11 @@ export async function sendRateLimitAlert(
   emailFrom: string,
 ): Promise<void> {
   const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>Rate Limit — Job Hunter</title></head>
+<html lang="en"><head><meta charset="UTF-8"><title>Rate Limit — Job Search</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
   <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
     <div style="background:linear-gradient(135deg,#DC2626,#B91C1C);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Hunter</h1>
+      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
       <p style="margin:0;opacity:0.85;font-size:14px;">Rate Limit Alert</p>
     </div>
     <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
@@ -388,7 +388,7 @@ export async function sendRateLimitAlert(
         Consider raising the OpenAI usage tier or lowering <code>SCORING_CONCURRENCY</code>.
       </p>
     </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Hunter</p>
+    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
   </div>
 </body></html>`;
 
@@ -396,7 +396,7 @@ export async function sendRateLimitAlert(
   const { error } = await resend.emails.send({
     from: emailFrom,
     to: recipientEmail,
-    subject: 'Job Hunter — OpenAI rate limit hit',
+    subject: 'Job Search — OpenAI rate limit hit',
     html,
   });
   if (error) throw new Error(error.message);
@@ -410,11 +410,11 @@ export async function sendDiscoveryEmptyAlert(
   emailFrom: string,
 ): Promise<void> {
   const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>Discovery Empty — Job Hunter</title></head>
+<html lang="en"><head><meta charset="UTF-8"><title>Discovery Empty — Job Search</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;margin:0;padding:0;">
   <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
     <div style="background:linear-gradient(135deg,#DC2626,#B91C1C);border-radius:12px;padding:24px;margin-bottom:24px;color:white;">
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Hunter</h1>
+      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;">Job Search</h1>
       <p style="margin:0;opacity:0.85;font-size:14px;">Discovery Alert</p>
     </div>
     <div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:24px;">
@@ -425,7 +425,7 @@ export async function sendDiscoveryEmptyAlert(
         emptied, or changed schema) rather than a normal no-op. Check the server logs and the discovery source.
       </p>
     </div>
-    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Hunter</p>
+    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:24px;">Sent by Job Search</p>
   </div>
 </body></html>`;
 
@@ -433,7 +433,7 @@ export async function sendDiscoveryEmptyAlert(
   const { error } = await resend.emails.send({
     from: emailFrom,
     to: recipientEmail,
-    subject: `Job Hunter — ${label} returned empty`,
+    subject: `Job Search — ${label} returned empty`,
     html,
   });
   if (error) throw new Error(error.message);
