@@ -1,6 +1,6 @@
-# Job Hunter
+# Job Search
 
-A self-hosted job search dashboard. Pulls listings from multiple job boards and ATS platforms, scores them with AI against your criteria, and surfaces only the strong matches — daily, in your inbox or on the web UI.
+A self-hosted job search dashboard. Pulls listings from multiple job boards, ATS platforms, and Telegram channels, scores them with AI against your criteria, and surfaces only the strong matches — daily, in your inbox or on the web UI.
 
 ![Node.js](https://img.shields.io/badge/Node.js-22.5%2B-green) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 
@@ -26,11 +26,11 @@ Each pipeline run (scheduled or manual):
 
 | Mode | How it works |
 |---|---|
-| **Hosted / Buy Credits** | Use the hosted service; purchase a prepaid credits balance; shared infrastructure handles the pipeline at API cost + fee. |
-| **Own Keys** | Supply your own API keys (job discovery provider + OpenAI); no credits required; no service fee. |
-| **Self-hosted** | Run the open-source code yourself; no charge; commercial use not permitted. |
+| **Hosted** | Use the hosted service against shared keys; runs draw from a prepaid credits balance managed by the operator. |
+| **Own Keys** | Supply your own API keys (job discovery provider + OpenAI); no credits balance involved. |
+| **Self-hosted** | Run the open-source code yourself; commercial use not permitted. |
 
-Credit packages (hosted): $4 / $8 / $15 / $29. Cost per run varies by provider selection, number of roles, location breadth, and model choice.
+Resource use per run varies by provider selection, number of roles, location breadth, and model choice.
 
 ---
 
@@ -40,7 +40,7 @@ Credit packages (hosted): $4 / $8 / $15 / $29. Cost per run varies by provider s
 - **Web** — Express 4 + EJS + Tailwind CSS
 - **Database** — SQLite via built-in `node:sqlite`
 - **AI** — OpenAI Responses API (soft model: `gpt-5.4-mini`; hard model: `gpt-5.4`; both configurable)
-- **Job sources** — HarvestAPI, Valig, Indeed, StepStone, Greenhouse, Ashby, Lever
+- **Job sources** — HarvestAPI, Valig, Indeed, StepStone, Greenhouse, Ashby, Lever, Telegram
 - **Email** — Resend (OTP login + digests)
 - **Scheduler** — node-cron (in-process, survives restarts)
 
@@ -50,8 +50,8 @@ Credit packages (hosted): $4 / $8 / $15 / $29. Cost per run varies by provider s
 
 **1. Clone and install**
 ```bash
-git clone https://github.com/girshovich/Job-Hunter.git
-cd Job-Hunter/linkedin-job-hunter
+git clone https://github.com/girshovich/job-hunter.git
+cd job-hunter/linkedin-job-hunter
 npm install
 ```
 
@@ -113,24 +113,27 @@ pm2 save
 
 ## Features
 
-- **Multiple job sources** — HarvestAPI, Valig, Indeed, StepStone, Greenhouse, Ashby, Lever; mix providers per run
-- **Roles** — multiple search profiles per account, each with its own keywords, locations, work modes, and AI prompt
-- **Structured AI prompts** — each role has six configurable prompt fields: profile description, scoring criteria, scoring guide, no-match criteria, industries list, and other expectations
+- **Multiple job sources** — HarvestAPI, Valig, Indeed, StepStone, Greenhouse, Ashby, Lever, Telegram; mix providers per run
+- **Roles** — multiple search profiles per account, each with its own keywords, titles, locations, work modes, job types, and AI prompt
+- **Structured AI prompts** — each role configures profile description, scoring criteria, extra rejection rules, priority industries, and 100%-rejected industries; several rejection rules are derived automatically from your fields (country, language, job type)
 - **Profile description** — a top-level background/CV context field injected into every AI scoring call; can be shared across all roles or overridden per role
-- **Languages + current location** — preferred posting languages and your current country, used in no-match criteria evaluation
+- **Languages + current location** — preferred posting languages drive the language disqualifier; your current country gates the visa/relocation rejection rule
 - **Dual AI model configuration** — a fast soft model for batch scoring and a separate hard model for semantic dedup, re-scoring, and CV comparison; both configurable independently
 - **Score thresholds** — scores run 0–100; thresholds for Strong (default ≥71), Weak (51–70), and No Match (≤50) are configurable per Role
+- **Work mode & job type filters** — filter by remote/hybrid/onsite and full/part/fixed-term, honored per provider (some sources skip filters they can't support)
 - **Title word filter** — narrow results without changing search keywords
 - **Company blacklist** — permanently skip companies across all Roles
-- **Company logos** — automatically fetched and cached for Greenhouse and Ashby listings
+- **Company logos** — automatically fetched and cached for Greenhouse, Ashby, and Lever listings
 - **Country flags** — location strings are resolved to country labels and shown alongside listing data
-- **Jobs Match** — review strong matches, mark Applied, add notes, fix AI verdicts inline
+- **Matches** — two-pane list + detail; review strong matches, mark Applied, add notes, fix AI verdicts inline
+- **Multi-country jobs** — the same role in several countries is grouped into one opportunity, with duplicates folded
 - **CV comparison** — upload your CV (PDF, TXT, or MD) and run a per-job AI analysis against your background
 - **Email address change** — update your login email via a verified token link sent to the new address
-- **Run Logs** — full audit log of every pipeline run, including filter decisions, scores, and outcomes
+- **Run Logs** — full audit log of every pipeline run, including filter decisions, scores, and outcomes; filter by source, verdict, and company
+- **Stoppable runs** — a manual or scheduled run in progress can be stopped; work already scored is kept and billed, no digest is sent
 - **Last Session card** — the home dashboard aggregates all providers from a single run trigger into one summary (jobs found, strong/weak counts, duration, combined status)
 - **Analytics** — daily and monthly trend charts, per-role and per-country breakdowns
 - **Run Diff** — compare job deltas between the two most recent runs
 - **Scheduling** — per-profile cron with timezone support; schedule state survives server restarts
 - **Preflight checks** — validates config before running
-- **Location normalisation** — resolved via a local cache backed by [Nominatim](https://nominatim.openstreetmap.org/) (no API key required); EMEA, DACH, EU, EEA are hardcoded
+- **Location normalisation** — resolved via a local cache backed by [Nominatim](https://nominatim.openstreetmap.org/) (no API key required); countries, synonyms, and regions (DACH plus ~13 macro-regions like EMEA, EU, MENA, APAC, Worldwide) are DB-backed and admin-editable
