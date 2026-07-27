@@ -60,8 +60,8 @@ const VERDICT_CHIP_STYLES: Record<string, string> = {
 const VERDICT_CHIP_FALLBACK = 'background:#f2f4f7;color:#5b6472';
 const APPLIED_CHIP_STYLES: Record<number, string> = {
   0: 'background:#1f2634;color:#fff', // New — dark chip (DS §5.3)
-  1: 'background:#1e9e5a;color:#fff',
-  2: 'background:#e5484d;color:#fff',
+  1: 'background:var(--green);color:#fff', // Applied — DS --green (§5.3)
+  2: 'background:var(--red);color:#fff', // Won't apply — DS --red (§5.3)
 };
 
 export function getVerdictChipStyle(value: unknown): string {
@@ -173,13 +173,6 @@ export function formatAppliedLabel(value: unknown): string {
   return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'New';
 }
 
-export function getAppliedTone(value: unknown): string {
-  const n = Number(value);
-  if (n === 1) return 'bg-success-600 text-white';
-  if (n === 2) return 'bg-red-600 text-white';
-  return 'border border-gray-200 bg-gray-50 text-gray-300';
-}
-
 export function formatRunStatusLabel(value: unknown): string {
   const key = String(value ?? '').trim().toLowerCase();
   return key === 'partial_error' ? 'partial error' : key;
@@ -219,25 +212,6 @@ export function formatSourceName(value: unknown): string {
   return SOURCE_NAMES[key] ?? humanizeToken(key, 'Source');
 }
 
-export function getButtonVariant(actionMeaning: unknown): string {
-  const key = String(actionMeaning ?? '').trim().toLowerCase();
-  if (['execute', 'execution', 'completion', 'apply', 'applied', 'run-once'].includes(key)) return 'primary-green';
-  if (['configure', 'configuration', 'confirm', 'confirmation', 'save', 'schedule', 'filter'].includes(key)) return 'primary-blue';
-  if (['danger', 'destructive', 'delete', 'stop'].includes(key)) return 'danger-red';
-  if (['popup', 'drilldown', 'details', 'source', 'compare', 'costs'].includes(key)) return 'text-link';
-  return 'secondary-gray';
-}
-
-export function getButtonClass(actionMeaning: unknown): string {
-  const variant = getButtonVariant(actionMeaning);
-  const base = 'inline-flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition-colors';
-  if (variant === 'primary-green') return `${base} bg-success-600 hover:bg-success-700 text-white`;
-  if (variant === 'primary-blue') return `${base} bg-blue-600 hover:bg-blue-700 text-white`;
-  if (variant === 'danger-red') return `${base} bg-red-600 hover:bg-red-700 text-white`;
-  if (variant === 'text-link') return 'inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline';
-  return `${base} bg-gray-100 hover:bg-gray-200 text-gray-700`;
-}
-
 export function renderPageHeader(title: unknown, subtitle?: unknown, actionsHtml = ''): string {
   const subtitleHtml = subtitle
     ? `<p style="font-size:13px;color:var(--muted);margin-top:3px">${escapeHtml(subtitle)}</p>`
@@ -253,18 +227,6 @@ export function renderEmptyState(message: unknown, iconPath?: string): string {
     ? `<svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="${iconPath}"/></svg>`
     : '';
   return `<div class="jh-card p-12 text-center">${icon}<p class="text-sm text-gray-500">${escapeHtml(message)}</p></div>`;
-}
-
-export function renderActionButton(label: unknown, actionMeaning: unknown, attrs: HtmlAttrs = {}): string {
-  const className = `${getButtonClass(actionMeaning)} px-4 py-2 ${attrs.class ?? ''}`.trim();
-  const htmlAttrs = attrsToHtml({ ...attrs, class: className });
-  return `<button ${htmlAttrs}>${escapeHtml(label)}</button>`;
-}
-
-export function renderTextActionLink(label: unknown, href: unknown, attrs: HtmlAttrs = {}): string {
-  const className = `text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline ${attrs.class ?? ''}`.trim();
-  const htmlAttrs = attrsToHtml({ href, ...attrs, class: className });
-  return `<a ${htmlAttrs}>${escapeHtml(label)}</a>`;
 }
 
 export function renderDottedPopupLink(label: unknown, attrs: HtmlAttrs = {}): string {
@@ -284,10 +246,6 @@ export function renderVerdictSelector(value: unknown, attrs: HtmlAttrs = {}): st
   const className = `verdict-btn ${attrs.class ?? ''}`.trim();
   const htmlAttrs = attrsToHtml({ ...attrs, class: className });
   return `<button ${htmlAttrs}>${renderVerdictChip(value, { editable: true, rounded: attrs['data-chip-style'] === 'detail' })}</button>`;
-}
-
-export function renderAppliedStatus(value: unknown): string {
-  return `<span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;${getAppliedChipStyle(value)}">${formatAppliedLabel(value)}</span>`;
 }
 
 export function renderAppliedChip(value: unknown, options: { editable?: boolean; full?: boolean } = {}): string {
@@ -311,7 +269,7 @@ export function renderScoreCell(value: unknown, verdict?: unknown): string {
   const num = Number(value);
   const tone = verdict != null && verdict !== ''
     ? getVerdictChipStyle(verdict)
-    : (Number.isFinite(num) && num >= 71 ? 'background:#ecfdf3;color:#067647' : 'background:#f2f4f7;color:#5b6472');
+    : (Number.isFinite(num) && num >= 71 ? 'background:var(--green-soft);color:#178049' : 'background:#f2f4f7;color:#5b6472');
   return `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:23px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;${tone}">${formatScore(value)}</span>`;
 }
 
@@ -449,7 +407,7 @@ export function renderJobsAllTableHeader(): string {
 
 // DS v2 tally colors (§5.2 verdict palette), used by the run-status count pills.
 const RUN_TALLY_COLORS: Record<string, string> = {
-  strong: '#067647',
+  strong: '#178049',
   weak: '#b54708',
   no_match: '#b42318',
   duplicate: '#6941c6',
@@ -518,16 +476,6 @@ export function formatRunCost(value: unknown): string {
   return `$${num.toFixed(4)}`;
 }
 
-export function getRunHeaderActions(run: Record<string, unknown>) {
-  return [{ key: 'costs', label: '$', variant: getButtonVariant('costs'), runId: run.id }];
-}
-
-export function getPageHeaderActions(page: unknown) {
-  return page === 'run-logs'
-    ? [{ key: 'compare-last-2', label: 'Compare last 2 runs', href: '/run-diff', variant: getButtonVariant('compare') }]
-    : [];
-}
-
 export function truncateTextClass(kind: unknown): string {
   const key = String(kind ?? '').trim().toLowerCase();
   if (key === 'summary') return 'min-w-0 overflow-hidden text-ellipsis line-clamp-3';
@@ -558,21 +506,15 @@ export const uiHelpers = {
   isVerdictEditable,
   formatScore,
   formatAppliedLabel,
-  getAppliedTone,
   formatRunStatusLabel,
   formatDateTimeToMinutes,
   formatSourceLabel,
   formatSourceName,
-  getButtonVariant,
-  getButtonClass,
   renderPageHeader,
   renderEmptyState,
-  renderActionButton,
-  renderTextActionLink,
   renderDottedPopupLink,
   renderVerdictChip,
   renderVerdictSelector,
-  renderAppliedStatus,
   renderAppliedSelector,
   getVerdictChipStyle,
   renderScoreCell,
@@ -597,8 +539,6 @@ export const uiHelpers = {
   getMobileJobCardLayout,
   getRunStatusCounts,
   formatRunCost,
-  getRunHeaderActions,
-  getPageHeaderActions,
   truncateTextClass,
   getResponsiveListMode,
   getClientUiTokens,

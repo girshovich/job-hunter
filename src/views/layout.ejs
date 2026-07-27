@@ -327,12 +327,6 @@
         const n = Number(value);
         return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'New';
       },
-      getAppliedTone(value) {
-        const n = Number(value);
-        if (n === 1) return 'bg-success-600 text-white';
-        if (n === 2) return 'bg-red-600 text-white';
-        return 'border border-gray-200 bg-gray-50 text-gray-300';
-      },
       getVerdictChipStyle(value) {
         return window.JHUI_TOKENS.verdictChipStyles[String(value || '').trim().toUpperCase()] || window.JHUI_TOKENS.verdictChipFallback;
       },
@@ -701,7 +695,7 @@
           Cancel
         </button>
         <button onclick="_jhConfirmResolve(true)"
-                class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                class="px-4 py-2 text-sm font-semibold text-white bg-ds-accent hover:bg-ds-accent-hover rounded-lg transition-colors">
           Confirm
         </button>
       </div>
@@ -717,7 +711,7 @@
       </div>
       <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
         <button onclick="_jhAlertResolve()"
-                class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                class="px-4 py-2 text-sm font-semibold text-white bg-ds-accent hover:bg-ds-accent-hover rounded-lg transition-colors">
           OK
         </button>
       </div>
@@ -728,9 +722,9 @@
   <div id="verdict-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
     <div class="py-1">
       <button onclick="setVerdict('STRONG_MATCH')" class="w-full text-left px-4 py-2 text-sm hover:bg-[var(--green-soft)] text-[var(--green2)] font-medium">Strong</button>
-      <button onclick="setVerdict('WEAK_MATCH')"   class="w-full text-left px-4 py-2 text-sm hover:bg-yellow-50 text-yellow-700 font-medium">Weak</button>
-      <button onclick="setVerdict('NO_MATCH')"     class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">No match</button>
-      <button onclick="setVerdict('DUPLICATE')"    class="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 text-purple-600 font-medium">Duplicate</button>
+      <button onclick="setVerdict('WEAK_MATCH')"   class="w-full text-left px-4 py-2 text-sm hover:bg-ds-amber-soft text-ds-amber-ink font-medium">Weak</button>
+      <button onclick="setVerdict('NO_MATCH')"     class="w-full text-left px-4 py-2 text-sm hover:bg-ds-red-soft text-ds-red-ink font-medium">No match</button>
+      <button onclick="setVerdict('DUPLICATE')"    class="w-full text-left px-4 py-2 text-sm hover:bg-ds-purple-soft text-ds-purple font-medium">Duplicate</button>
     </div>
   </div>
 
@@ -739,7 +733,7 @@
     <div class="py-1">
       <button onclick="setApplied(0)" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-600 font-medium">New</button>
       <button onclick="setApplied(1)" class="w-full text-left px-4 py-2 text-sm hover:bg-[var(--green-soft)] text-[var(--green2)] font-medium">Applied</button>
-      <button onclick="setApplied(2)" class="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 font-medium">Won't Apply</button>
+      <button onclick="setApplied(2)" class="w-full text-left px-4 py-2 text-sm hover:bg-ds-red-soft text-ds-red-ink font-medium">Won't Apply</button>
     </div>
   </div>
 
@@ -838,7 +832,7 @@
           Cancel
         </button>
         <button id="sched-start-btn" onclick="startScheduleFromModal()"
-                class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
+                class="inline-flex items-center gap-2 bg-ds-accent hover:bg-ds-accent-hover text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           Start Schedule
         </button>
@@ -860,7 +854,7 @@
       </div>
       <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllSchedRoles(true)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
           Select all
         </button>
         <button type="button" onclick="setAllSchedRoles(false)"
@@ -893,7 +887,7 @@
       </div>
       <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllSchedProviders(true)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
           Select all
         </button>
         <button type="button" onclick="setAllSchedProviders(false)"
@@ -957,7 +951,7 @@
           Close
         </button>
         <button onclick="scheduleStop(); closeScheduleStatusModal();"
-                class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
+                class="inline-flex items-center gap-2 bg-ds-red hover:brightness-95 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10h6v4H9z"/>
           </svg>
@@ -1043,7 +1037,7 @@
       </div>
       <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllRunRoles(true)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
           Select all
         </button>
         <button type="button" onclick="setAllRunRoles(false)"
@@ -1076,7 +1070,7 @@
       </div>
       <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllRunProviders(true)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
           Select all
         </button>
         <button type="button" onclick="setAllRunProviders(false)"
@@ -1196,9 +1190,9 @@
       _schedDateRange = range;
       document.querySelectorAll('.sched-dr-btn').forEach(btn => {
         const isActive = btn.id === 'sched-dr-' + range;
-        btn.classList.toggle('bg-blue-600', isActive);
+        btn.classList.toggle('bg-ds-accent', isActive);
         btn.classList.toggle('text-white', isActive);
-        btn.classList.toggle('border-blue-600', isActive);
+        btn.classList.toggle('border-ds-accent', isActive);
         btn.classList.toggle('text-gray-600', !isActive);
         btn.classList.toggle('border-gray-300', !isActive);
         btn.classList.toggle('hover:bg-gray-50', !isActive);
@@ -1209,9 +1203,9 @@
       _schedFrequency = freq;
       document.querySelectorAll('.freq-btn').forEach(btn => {
         const isActive = btn.id === 'freq-' + freq;
-        btn.classList.toggle('bg-blue-600', isActive);
+        btn.classList.toggle('bg-ds-accent', isActive);
         btn.classList.toggle('text-white', isActive);
-        btn.classList.toggle('border-blue-600', isActive);
+        btn.classList.toggle('border-ds-accent', isActive);
         btn.classList.toggle('text-gray-600', !isActive);
         btn.classList.toggle('border-gray-300', !isActive);
         btn.classList.toggle('hover:bg-gray-50', !isActive);
@@ -1607,9 +1601,9 @@
       _runDateRange = range;
       document.querySelectorAll('.run-dr-btn').forEach(btn => {
         const isActive = btn.id === 'run-dr-' + range;
-        btn.classList.toggle('bg-blue-600', isActive);
+        btn.classList.toggle('bg-ds-accent', isActive);
         btn.classList.toggle('text-white', isActive);
-        btn.classList.toggle('border-blue-600', isActive);
+        btn.classList.toggle('border-ds-accent', isActive);
         btn.classList.toggle('text-gray-600', !isActive);
         btn.classList.toggle('border-gray-300', !isActive);
         btn.classList.toggle('hover:bg-gray-50', !isActive);
