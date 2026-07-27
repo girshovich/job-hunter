@@ -1,30 +1,22 @@
-<div class="flex items-center justify-between mb-8">
+<%- include('partials/_stg-styles') %>
+<div class="flex items-center justify-between mb-6">
   <div>
-    <h1 class="text-2xl font-bold text-gray-900">Unresolved Locations</h1>
-    <p class="text-sm text-gray-500 mt-1">
-      Cached unknown pool locations — <span class="font-medium text-gray-700"><%= total.toLocaleString() %></span> total
+    <h1 class="stg-h1">Unresolved Locations</h1>
+    <p class="stg-sub">
+      Cached unknown pool locations — <span style="color:var(--ink2);font-weight:700"><%= total.toLocaleString() %></span> total
     </p>
   </div>
-  <a href="/admin?tab=locations"
-     class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors">
-    Back to Admin
-  </a>
+  <a href="/admin?tab=locations" class="stg-btn stg-btn-ghost stg-btn-sm">Back to Admin</a>
 </div>
 
 <div class="jh-card overflow-hidden">
-  <div class="px-5 py-4 border-b border-gray-100">
-    <form method="GET" action="/settings/unresolved-locations" class="flex gap-2">
+  <div class="px-5 py-4" style="border-bottom:1px solid var(--line)">
+    <form method="GET" action="/admin/unresolved-locations" class="flex gap-2 items-center">
       <input type="text" name="q" value="<%= q %>" placeholder="Filter locations"
-             class="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-      <button type="submit"
-              class="px-3 py-2 text-sm font-medium jh-btn-secondary rounded-lg transition-colors">
-        Filter
-      </button>
+             class="stg-ctl" style="max-width:24rem">
+      <button type="submit" class="stg-btn stg-btn-secondary stg-btn-sm">Filter</button>
       <% if (q) { %>
-        <a href="/settings/unresolved-locations"
-           class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg transition-colors">
-          Clear
-        </a>
+        <a href="/admin/unresolved-locations" class="stg-btn stg-btn-ghost stg-btn-sm">Clear</a>
       <% } %>
     </form>
   </div>
@@ -32,42 +24,42 @@
   <% if (locations.length === 0) { %>
     <%- renderEmptyState('No cached unknown locations found.') %>
   <% } else { %>
-    <table class="w-full text-left">
-      <thead class="bg-gray-50 border-b border-gray-100">
+    <table class="stg-tbl">
+      <thead>
         <tr>
-          <th class="px-5 py-3 text-xs font-medium text-gray-400">Location</th>
-          <th class="px-5 py-3 text-xs font-medium text-gray-400 w-24">Jobs</th>
-          <th class="px-5 py-3 text-xs font-medium text-gray-400 w-36">Providers</th>
-          <th class="px-5 py-3 text-xs font-medium text-gray-400">Examples</th>
-          <th class="px-5 py-3 text-xs font-medium text-gray-400 w-40">Last Checked</th>
+          <th>Location</th>
+          <th class="w-24">Jobs</th>
+          <th class="w-36">Providers</th>
+          <th>Examples</th>
+          <th class="w-40">Last Checked</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-100">
+      <tbody>
         <% locations.forEach(row => { %>
           <tr class="hover:bg-gray-50/70">
-            <td class="px-5 py-4 align-top">
-              <div class="text-sm font-medium text-gray-900 break-words"><%= row.location %></div>
+            <td class="align-top">
+              <div class="font-semibold break-words" style="color:var(--ink)"><%= row.location %></div>
             </td>
-            <td class="px-5 py-4 align-top text-sm font-medium text-gray-700"><%= row.job_count.toLocaleString() %></td>
-            <td class="px-5 py-4 align-top">
+            <td class="align-top font-semibold" style="color:var(--ink2)"><%= row.job_count.toLocaleString() %></td>
+            <td class="align-top">
               <div class="flex flex-wrap gap-1">
                 <% String(row.providers || '').split(',').filter(Boolean).forEach(provider => { %>
-                  <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium"><%= provider %></span>
+                  <span class="stg-chip-c" style="font-size:11px;padding:2px 8px"><%= provider %></span>
                 <% }) %>
               </div>
             </td>
-            <td class="px-5 py-4 align-top">
+            <td class="align-top">
               <div class="space-y-1">
                 <% row.examples.forEach(ex => { %>
-                  <div class="text-xs text-gray-500">
-                    <span class="font-medium text-gray-700"><%= ex.company %></span>
-                    <span class="text-gray-300">·</span>
+                  <div style="color:var(--muted)">
+                    <span class="font-semibold" style="color:var(--ink2)"><%= ex.company %></span>
+                    <span style="color:var(--faintest)">·</span>
                     <span><%= ex.title %></span>
                   </div>
                 <% }) %>
               </div>
             </td>
-            <td class="px-5 py-4 align-top text-xs text-gray-400">
+            <td class="align-top" style="color:var(--faint)">
               <%= row.last_checked ? new Date(row.last_checked).toLocaleString() : '—' %>
             </td>
           </tr>
@@ -79,21 +71,17 @@
 
 <% if (pageCount > 1) { %>
   <div class="flex items-center justify-between mt-5">
-    <div class="text-xs text-gray-400">
+    <div class="text-xs" style="color:var(--faint)">
       Page <%= page %> of <%= pageCount %>
     </div>
     <div class="flex gap-2">
       <% if (page > 1) { %>
-        <a href="/settings/unresolved-locations?page=<%= page - 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>"
-           class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors">
-          Previous
-        </a>
+        <a href="/admin/unresolved-locations?page=<%= page - 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>"
+           class="stg-btn stg-btn-ghost stg-btn-sm">Previous</a>
       <% } %>
       <% if (page < pageCount) { %>
-        <a href="/settings/unresolved-locations?page=<%= page + 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>"
-           class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors">
-          Next
-        </a>
+        <a href="/admin/unresolved-locations?page=<%= page + 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>"
+           class="stg-btn stg-btn-ghost stg-btn-sm">Next</a>
       <% } %>
     </div>
   </div>

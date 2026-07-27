@@ -154,17 +154,19 @@ app.use('/run-diff', rundiffRouter);
 
 // 404
 app.use((_req, res) => {
-  res.status(404).render('layout', {
-    body: '<div class="py-20 text-center text-gray-400">Page not found.</div>',
-    title: '404',
-  });
+  res.status(404).render('404', { title: '404' });
 });
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[express] Unhandled error:', err);
   res.status(500).render('layout', {
-    body: `<div class="py-20 text-center"><p class="text-red-600 font-medium">${err.message}</p></div>`,
+    body: `<div class="min-h-[60vh] flex items-center justify-center"><div class="text-center max-w-sm mx-auto">`
+      + `<p class="text-sm font-semibold mb-2" style="color:var(--faint)">500</p>`
+      + `<h1 class="text-2xl font-bold mb-2" style="color:var(--ink)">Something went wrong</h1>`
+      + `<p class="text-sm mb-5" style="color:var(--muted)">${err.message}</p>`
+      + `<button type="button" onclick="history.back()" class="inline-flex items-center justify-center rounded-lg jh-btn-secondary px-4 py-2 text-sm font-semibold">Go back</button>`
+      + `</div></div>`,
     title: 'Error',
   });
 });
