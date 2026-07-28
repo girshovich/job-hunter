@@ -42,7 +42,19 @@
   .sp-cmore{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);font-weight:600;cursor:pointer}
   .sp-cmore:hover{background:#fafbfc;color:var(--muted)}
   .sp-qlegend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:14px;margin-bottom:16px}
-  @media(max-width:960px){.sp-kpi-grid{grid-template-columns:1fr}.sp-grid2{grid-template-columns:1fr}}
+  /* By Role: table on desktop, utility rows on phones (the 5 columns clip below ~768px) */
+  .sp-roles-mobile{display:none}
+  .sp-rolerow{padding:13px 20px;border-top:1px solid #f3f4f6}
+  .sp-rolerow:first-child{border-top:0}
+  .sp-rolename{font-size:13px;font-weight:700;color:var(--ink);line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .sp-rolemeta{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:5px;font-size:11.5px;font-weight:600;color:var(--faint)}
+  .sp-rolemeta b{font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .sp-rolemeta b.sp-t-strong{color:var(--green2)}
+  .sp-rolemeta b.sp-t-applied{color:var(--accent)}
+  .sp-rolerate{display:flex;align-items:center;gap:8px;margin-top:9px}
+  .sp-rolerate .sp-rate-bar{flex:1;width:auto}
+  @media(max-width:960px){.sp-kpi-grid{grid-template-columns:1fr}.sp-grid2{grid-template-columns:minmax(0,1fr)}}
+  @media(max-width:767px){.sp-roles-desktop{display:none}.sp-roles-mobile{display:block}}
 </style>
 
 <!-- Stats page -->
@@ -129,7 +141,7 @@
     <% if (groupStats.length === 0) { %>
     <div class="sp-empty">No roles yet.</div>
     <% } else { %>
-    <table class="sp-tbl">
+    <table class="sp-tbl sp-roles-desktop">
       <thead>
         <tr><th class="l">Role</th><th>Found</th><th>Strong</th><th>Applied</th><th>Rate</th></tr>
       </thead>
@@ -151,6 +163,24 @@
         <% }); %>
       </tbody>
     </table>
+    <!-- Phones: the 5-column table can't fit — same rows as utility rows (DS §6). -->
+    <div class="sp-roles-mobile">
+      <% groupStats.forEach(g => { %>
+      <% const rate = g.strong > 0 ? Math.round(g.applied / g.strong * 100) : 0; %>
+      <div class="sp-rolerow">
+        <div class="sp-rolename"><%= g.name %></div>
+        <div class="sp-rolemeta">
+          <span>Found <b><%= g.total %></b></span>
+          <span>Strong <b class="sp-t-strong"><%= g.strong %></b></span>
+          <span>Applied <b class="sp-t-applied"><%= g.applied %></b></span>
+        </div>
+        <div class="sp-rolerate">
+          <div class="sp-rate-bar"><span style="width:<%= rate %>%"></span></div>
+          <span class="sp-rate-pct"><%= rate %>%</span>
+        </div>
+      </div>
+      <% }); %>
+    </div>
     <% } %>
   </div>
 

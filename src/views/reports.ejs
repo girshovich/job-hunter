@@ -94,17 +94,17 @@ const anyFilterActive = !!(filterSource || filterVerdict || filterCompany);
 %>
 <details class="rl-card" data-run-id="<%= run.id %>" data-run-date="<%= run.ran_at_date %> · <%= run.ran_at_time %>" <%= run.preloaded ? 'data-preloaded' : '' %>
          style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.04);overflow:hidden">
-  <summary style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none;list-style:none">
+  <summary style="display:flex;align-items:center;gap:12px;row-gap:9px;flex-wrap:wrap;padding:14px 18px;cursor:pointer;user-select:none;list-style:none">
     <svg class="rl-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aeb4bf" stroke-width="2.6" stroke-linecap="round" style="flex:none;transition:transform .15s"><path d="M9 5l7 7-7 7"/></svg>
-    <div style="min-width:0;flex:1;display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+    <div class="rl-sum-main">
       <span style="font-size:13.5px;font-weight:800;white-space:nowrap;color:var(--ink)"><%= run.ran_at_date %></span>
       <span style="font-size:12.5px;color:var(--faint);font-weight:600;white-space:nowrap"><%= run.ran_at_time %></span>
       <%- statusPill(run.status) %>
       <% if (run.trigger === 'manual') { %><span title="Started manually" style="display:inline-flex;align-items:center;justify-content:center;height:20px;min-width:20px;padding:0 5px;border-radius:6px;background:#eef2ff;color:var(--accent);font-size:11px;font-weight:800">M</span><% } %>
-      <span style="width:1px;height:13px;background:#e2e5ea"></span>
+      <span class="rl-sum-sep" style="width:1px;height:13px;background:#e2e5ea"></span>
       <span style="font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap"><%= runProviderName(run) %></span>
     </div>
-    <div style="flex:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+    <div class="rl-sum-meta">
       <span style="font-size:12px;color:var(--faint);font-weight:600;white-space:nowrap"><span style="font-weight:800;color:var(--ink2)"><%= run.jobs_fetched %></span> fetched</span>
       <%- renderRunStatusCounts(run) %>
       <span class="rl-cost-trigger" onclick="toggleCostPopup('<%= run.id %>', this, event)" title="View cost breakdown" style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;background:#f4f5f8;color:var(--muted);white-space:nowrap;cursor:pointer;text-decoration:underline dotted;text-decoration-color:#b4b9c4;text-underline-offset:3px"><%= formatRunCost(totalCost) %></span>
@@ -175,13 +175,26 @@ const anyFilterActive = !!(filterSource || filterVerdict || filterCompany);
 </div>
 
 <style>
+  .rl-sum-main { min-width: 0; flex: 1; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  /* shrinkable (not flex:none): between the phone breakpoint and full desktop the meta group has to
+     give way and wrap its own tallies instead of overflowing the card. */
+  .rl-sum-meta { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 9px 12px; flex-wrap: wrap; justify-content: flex-end; }
   .rl-card > summary::-webkit-details-marker { display: none; }
   .rl-card > summary::marker { content: ''; }
   .rl-card[open] .rl-chev { transform: rotate(90deg); }
   .rl-row:hover { background: #fafbfe; }
   .rl-desktop { display: block; }
   .rl-mobile { display: none; }
-  @media (max-width: 767px) { .rl-desktop { display: none; } .rl-mobile { display: flex; } }
+  @media (max-width: 767px) {
+    .rl-desktop { display: none; }
+    .rl-mobile { display: flex; }
+    /* The summary's two groups can't share one line on a phone: the run meta (fetched + tallies +
+       cost) is nowrap and would squeeze the date/status group to zero, overlapping it. Stack them. */
+    .rl-card > summary { padding: 13px 15px; }
+    .rl-sum-main { flex: 1 1 0; }
+    .rl-sum-meta { flex: 1 0 100%; justify-content: flex-start; }
+    .rl-sum-sep { display: none; }   /* the provider wraps to its own line — no dangling divider */
+  }
   /* z-index 40 keeps the drawer below the shared overlays it hosts — the verdict/applied
      dropdowns (z-50) and the confirm/alert modals (z-[60]) must open ON TOP of it. */
   #rl-drawer { position: fixed; inset: 0; z-index: 40; display: flex; justify-content: flex-end; }

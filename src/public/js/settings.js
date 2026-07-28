@@ -328,8 +328,7 @@ function renderGroups() {
       <div class="stg-role-row" style="${isActive ? '' : 'opacity:.75'}">
         <div class="stg-role-top">
           <div class="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span class="stg-role-id" style="font-variant-numeric:tabular-nums">${i + 1}</span>
-            ${g.group_name ? `<span class="stg-role-name">${escHtml(g.group_name)}${modeLabel}</span>` : ''}
+            <span class="stg-role-name"><span class="stg-role-id" style="font-variant-numeric:tabular-nums">${i + 1}</span>${g.group_name ? `${escHtml(g.group_name)}${modeLabel}` : ''}</span>
             ${badge}
           </div>
           <div class="stg-role-actions">
