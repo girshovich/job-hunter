@@ -61,7 +61,9 @@ function wrapDatabase(raw: NodeSQLiteDatabase): Database {
 
 // ---- Seed data ----
 
-export const DEFAULT_DEDUP_SYSTEM_PROMPT = `You are a job posting deduplication engine. Your task is to determine whether a NEW job posting is effectively the same position as any of the EXISTING postings from the same company. Two postings are duplicates if they describe the same role even if the text has been slightly reworded, reformatted, or reposted with a new ID.`;
+export const DEFAULT_DEDUP_SYSTEM_PROMPT = `You are a job posting deduplication engine. Your task is to determine if a NEW job posting is the same role as any of the EXISTING postings from the same company.
+
+Two postings are duplicates if they describe the same role with the same responsibilities even if the text has been slightly reworded, reformatted, or reposted with a new ID, or if the locations are different.`;
 
 export const DEFAULT_SUMMARY_PROMPT = `Analyze the job description and write a summary of what product this role owns. No more than 15 words, be very concise.`;
 

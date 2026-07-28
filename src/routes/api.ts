@@ -19,7 +19,7 @@ import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
-import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, type ProfileRow } from '../db';
+import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -359,10 +359,16 @@ router.post('/profiles', (req: Request, res: Response) => {
 
   const settingsExist = db.prepare('SELECT id FROM settings WHERE profile_id = ?').get(newId);
   if (!settingsExist) {
+    // Seed the three editable AI prompts (Settings → AI) so a new profile starts with the same
+    // working text the app ships, not blank boxes. `ai_system_prompt` is deliberately left empty —
+    // the scorer rebuilds it per run (buildScoringSystemPrompt) and never reads the stored value.
     db.prepare(`
-      INSERT INTO settings (profile_id, email_recipient, email_send_time, updated_at)
-      VALUES (?, ?, '07:00', ?)
-    `).run(newId, email, now);
+      INSERT INTO settings (
+        profile_id, email_recipient, email_send_time, updated_at,
+        summary_prompt, dedup_system_prompt, cv_comparison_prompt
+      )
+      VALUES (?, ?, '07:00', ?, ?, ?, ?)
+    `).run(newId, email, now, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT);
   }
 
   res.json({ success: true, profile: { id: newId, email, is_admin: 0, created_at: now } });
