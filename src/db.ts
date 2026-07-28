@@ -67,6 +67,11 @@ Two postings are duplicates if they describe the same role with the same respons
 
 export const DEFAULT_SUMMARY_PROMPT = `Analyze the job description and write a summary of what product this role owns. No more than 15 words, be very concise.`;
 
+// Soft model (batch job scoring + Telegram extraction). Written explicitly wherever a settings row
+// is created — the `ai_model` column default is 'gpt-5.4' on DBs built by the pre-split v17 schema,
+// so relying on it would silently put new profiles on the expensive model.
+export const DEFAULT_AI_MODEL = 'gpt-5.4-mini';
+
 export const DEFAULT_CV_COMPARISON_PROMPT = `analyze and answer these questions in a very brief manner so i can read it in 1 min:
 - what's the area or product this role owns?
 - does it openly say about supporting or not supporting with visa / relocation / remote work from everywhere?
@@ -2342,7 +2347,7 @@ function seedSettings(db: Database): void {
         email_recipient, email_send_time, updated_at
       ) VALUES (
         1, ?, ?, ?,
-        'fullTime', '0 7 * * *', ?, 'gpt-5.4',
+        'fullTime', '0 7 * * *', ?, ?,
         ?, ?, ?,
         50, 70, 71,
         '', '07:00', ?
@@ -2352,6 +2357,7 @@ function seedSettings(db: Database): void {
       DEFAULT_LOCATIONS,
       JSON.stringify(['remote', 'hybrid', 'onsite']),
       DEFAULT_AI_SYSTEM_PROMPT,
+      DEFAULT_AI_MODEL,
       DEFAULT_DEDUP_SYSTEM_PROMPT,
       DEFAULT_SUMMARY_PROMPT,
       DEFAULT_CV_COMPARISON_PROMPT,
@@ -2372,7 +2378,7 @@ function seedSettings(db: Database): void {
         email_recipient, email_send_time, updated_at
       ) VALUES (
         2, ?, ?, ?,
-        'fullTime', '0 7 * * *', ?, 'gpt-5.4',
+        'fullTime', '0 7 * * *', ?, ?,
         ?, ?, ?,
         50, 70, 71,
         '', '07:00', ?
@@ -2382,6 +2388,7 @@ function seedSettings(db: Database): void {
       DEFAULT_LOCATIONS,
       JSON.stringify(['remote', 'hybrid', 'onsite']),
       DEFAULT_AI_SYSTEM_PROMPT,
+      DEFAULT_AI_MODEL,
       DEFAULT_DEDUP_SYSTEM_PROMPT,
       DEFAULT_SUMMARY_PROMPT,
       DEFAULT_CV_COMPARISON_PROMPT,
