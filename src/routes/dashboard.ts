@@ -8,6 +8,7 @@ import { getScheduleStatus } from '../pipeline/scheduler';
 import { getPreferredCountries } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
 import { renderJobList } from './jobs';
+import { uiHelpers } from '../uiHelpers';
 
 const router = Router();
 
@@ -162,6 +163,22 @@ router.get('/history', (req: Request, res: Response) =>
     showSubtitle: false,
   }),
 );
+
+// GET /job/:id/detail — HTML fragment (the shared job-detail body) for the Matches / All Jobs
+// detail pane. Owned jobs only (loadJobDetail is scoped to the profile); rendered WITHOUT the app
+// layout so the client can swap the pane instead of re-navigating the whole page.
+router.get('/job/:id/detail', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).send(''); return; }
+
+  const detail = loadJobDetail(req.profile.id, id);
+  if (!detail) { res.status(404).send(''); return; }
+
+  req.app.render('partials/job-detail-body', { ...uiHelpers, ...detail }, (err: Error, html: string) => {
+    if (err) { res.status(500).send(''); return; }
+    res.send(html);
+  });
+});
 
 // Job Detail
 router.get('/job/:id', (req: Request, res: Response) => {

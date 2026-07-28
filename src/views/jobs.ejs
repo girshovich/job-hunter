@@ -90,27 +90,23 @@ function renderFilterBar(){
 %>
 
 <%
-// ── List card (desktop → selects pane; mobile → navigates to /job/:id) ──
+// ── List card (rendered once; JH.open routes to the pane on desktop, /job/:id on mobile) ──
+// Card state (New tint / dim / selected ring) is expressed as data-attributes so the client can
+// repaint a card without a re-render — the rules live in the .jobcard CSS below.
 function scoreChip(score, verdict){
   // Score chip takes the verdict tone from the shared chip palette (single source: getVerdictChipStyle).
   const t = getVerdictChipStyle(verdict);
   return '<span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;'+t+'">'+formatScore(score)+'</span>';
 }
-function card(job, mobile){
+function card(job){
   const applied = Number(job.applied) || 0;
   const cardVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
   // Applied status (chip + New-tint + dim) is a matches-workflow concept — strong matches only.
   const isStrongCard = cardVerdict === 'STRONG_MATCH';
-  const isNew = applied === 0;
   const selected = job.id === selectedJobId;
-  const cardBg = (isStrongCard && isNew) ? 'var(--accent-tint)' : '#fff';
-  const borderColor = selected ? 'var(--accent)' : '#e6e8ee';
-  const shadow = selected ? '0 0 0 3px var(--accent-soft),0 1px 2px rgba(16,24,40,.06)' : '0 1px 2px rgba(16,24,40,.05)';
-  const opacity = (!selected && isStrongCard && applied !== 0) ? '.85' : '1';
-  const onSelect = mobile ? ("location.href='/job/"+job.id+"?from="+fromKey+"'") : ('JH.select('+job.id+')');
   const summary = job.ai_summary ? esc(stripMd(job.ai_summary)) : '';
   const applyUrl = job.apply_url || job.url;
-  let html = '<div class="jobcard" data-id="'+job.id+'" onclick="if(!JH.isControl(event)){'+onSelect+'}" style="display:flex;flex-direction:column;gap:9px;padding:14px 15px;border-radius:14px;cursor:pointer;background:'+cardBg+';border:1px solid '+borderColor+';box-shadow:'+shadow+';opacity:'+opacity+';transition:box-shadow .12s,border-color .12s,opacity .12s">';
+  let html = '<div class="jobcard" data-id="'+job.id+'" data-strong="'+(isStrongCard?'1':'0')+'" data-applied="'+applied+'"'+(selected?' data-selected="1"':'')+' onclick="if(!JH.isControl(event)){JH.open('+job.id+')}">';
   html += '<div style="display:flex;align-items:flex-start;gap:11px">'
     + '<div style="flex:1;min-width:0">'
       + '<div style="font-size:14px;font-weight:700;line-height:1.3;color:var(--ink)">'+esc(job.title)+'</div>'
@@ -129,7 +125,7 @@ function card(job, mobile){
   html += '</div>';
   return html;
 }
-function renderList(mobile){
+function renderList(){
   let html = '';
   dateGroups.forEach((group, gi) => {
     html += '<div onclick="JH.toggleGroup('+gi+')" style="display:flex;align-items:center;gap:9px;padding:14px 6px 8px;cursor:pointer;user-select:none">'
@@ -139,25 +135,55 @@ function renderList(mobile){
       + '<span style="font-size:11.5px;color:var(--faintest);font-weight:600">'+group.jobs.length+(group.jobs.length===1?' job':' jobs')+'</span>'
     + '</div>';
     html += '<div class="grp-body" data-gi="'+gi+'" style="display:flex;flex-direction:column;gap:9px">';
-    group.jobs.forEach(job => { html += card(job, mobile); });
+    group.jobs.forEach(job => { html += card(job); });
     html += '</div>';
   });
   return html;
 }
 %>
 
-<!-- ============ DESKTOP TWO-PANE ============ -->
-<div class="hidden md:flex" style="height:100dvh">
+<style>
+  /* ── Matches / All Jobs shell ──
+     One list in the DOM: mobile is a plain scrolling page (cards → /job/:id, pane hidden),
+     desktop (≥md) is the fixed-width list column + detail pane. */
+  .jh-jobs { display: block; }
+  .jh-jobs-list { display: flex; flex-direction: column; }
+  .jh-jobs-head { flex: none; padding: 20px 16px 0; }
+  .jh-jobs-body { padding: 12px 16px 84px; }
+  .jh-jobs-detail, .jh-jobs-foot { display: none; }
+  @media (min-width: 768px) {
+    .jh-jobs { display: flex; height: 100dvh; }
+    .jh-jobs-list {
+      width: 456px; flex: none; min-height: 0; background: var(--panel); z-index: 1;
+      border-left: 1px solid #e6e8ee; border-right: 1px solid #dfe2e9; box-shadow: var(--shadow-list-edge);
+    }
+    .jh-jobs-head { padding: 24px 22px 12px 16px; }
+    .jh-jobs-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 24px; }
+    .jh-jobs-detail { display: block; flex: 1; min-width: 0; overflow-y: auto; background: #f6f5f3; }
+    .jh-jobs-foot { display: block; }
+  }
+  /* Card state is driven by data-attributes so JH.open can repaint without a re-render. */
+  .jobcard {
+    display: flex; flex-direction: column; gap: 9px; padding: 14px 15px; border-radius: 14px;
+    cursor: pointer; background: #fff; border: 1px solid #e6e8ee; box-shadow: 0 1px 2px rgba(16,24,40,.05);
+    transition: box-shadow .12s, border-color .12s, opacity .12s;
+  }
+  .jobcard[data-strong="1"][data-applied="0"] { background: var(--accent-tint); }
+  .jobcard[data-strong="1"]:not([data-applied="0"]):not([data-selected="1"]) { opacity: .85; }
+  .jobcard[data-selected="1"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 2px rgba(16,24,40,.06); }
+</style>
+
+<div class="jh-jobs">
   <!-- List column -->
-  <section style="width:456px;flex:none;border-left:1px solid #e6e8ee;border-right:1px solid #dfe2e9;box-shadow:var(--shadow-list-edge);z-index:1;display:flex;flex-direction:column;min-height:0;background:var(--panel)">
-    <div style="padding:24px 22px 12px 16px;flex:none">
+  <section class="jh-jobs-list">
+    <div class="jh-jobs-head">
       <div style="display:flex;align-items:baseline;gap:10px">
         <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)"><%= title %></h1>
         <% if (showSubtitle) { %><span style="font-size:13px;color:var(--faint);font-weight:600"><%= newCount %> new</span><% } %>
       </div>
       <%- renderFilterBar() %>
     </div>
-    <div class="jh-scroll" style="flex:1;min-height:0;overflow-y:auto;padding:4px 16px 24px">
+    <div class="jh-scroll jh-jobs-body">
       <% if (totalUnfiltered === 0) { %>
         <div style="padding:52px 20px;text-align:center">
           <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#d4d8e0" stroke-width="1.5" stroke-linecap="round" style="margin:0 auto 12px;display:block"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4V2M16 4V2"/></svg>
@@ -171,7 +197,7 @@ function renderList(mobile){
           <button onclick="JH.clearAll()" style="margin-top:14px;height:34px;padding:0 16px;border:1px solid #e5e7ee;border-radius:9px;background:#fff;color:var(--accent);font-size:12.5px;font-weight:700;cursor:pointer">Clear all filters</button>
         </div>
       <% } else { %>
-        <%- renderList(false) %>
+        <%- renderList() %>
         <% if (totalPages > 1 || page > 1) { %>
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
           <span style="font-size:11.5px;color:var(--faint);font-weight:600">
@@ -185,8 +211,8 @@ function renderList(mobile){
         </div>
         <% } %>
       <% } %>
-      <!-- Legal footer (same as other pages) -->
-      <footer style="margin-top:18px">
+      <!-- Legal footer (same as other pages; desktop only, as before) -->
+      <footer class="jh-jobs-foot" style="margin-top:18px">
         <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
           <a href="/terms" class="text-gray-500 hover:text-gray-700 transition-colors">Terms</a>
           <a href="/privacy" class="text-gray-500 hover:text-gray-700 transition-colors">Privacy</a>
@@ -195,69 +221,37 @@ function renderList(mobile){
     </div>
   </section>
 
-  <!-- Detail pane -->
-  <section class="jh-scroll" style="flex:1;min-width:0;overflow-y:auto;background:#f6f5f3">
+  <!-- Detail pane (desktop only; mobile cards navigate to /job/:id) -->
+  <section id="jh-detail" class="jh-scroll jh-jobs-detail">
     <div style="max-width:900px;margin:0;padding:18px clamp(14px,1.5vw,22px) 40px">
-      <% if (pane) { %>
-        <%- include('partials/job-detail-body', { job: pane.job, original: pane.original, duplicatesOfThis: pane.duplicatesOfThis, cvs: pane.cvs, settings: pane.settings, companyNote: pane.companyNote, locationLabels: pane.locationLabels, locPref: pane.locPref }) %>
-      <% } else { %>
-        <div style="height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#d4d8e0" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:10px"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 10h8M8 14h5"/></svg>
-          <p style="margin:0;font-size:13px;color:var(--faint);font-weight:600">No job selected</p>
-          <p style="margin:4px 0 0;font-size:12px;color:var(--faintest)">Pick a job from the list to see the details.</p>
-        </div>
-      <% } %>
+      <div id="jh-pane">
+        <% if (pane) { %>
+          <%- include('partials/job-detail-body', { job: pane.job, original: pane.original, duplicatesOfThis: pane.duplicatesOfThis, cvs: pane.cvs, settings: pane.settings, companyNote: pane.companyNote, locationLabels: pane.locationLabels, locPref: pane.locPref }) %>
+        <% } else { %>
+          <div style="height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#d4d8e0" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:10px"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 10h8M8 14h5"/></svg>
+            <p style="margin:0;font-size:13px;color:var(--faint);font-weight:600">No job selected</p>
+            <p style="margin:4px 0 0;font-size:12px;color:var(--faintest)">Pick a job from the list to see the details.</p>
+          </div>
+        <% } %>
+      </div>
     </div>
   </section>
-</div>
-
-<!-- ============ MOBILE (list → tap → /job/:id) ============ -->
-<div class="md:hidden" style="padding:20px 16px 84px">
-  <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px">
-    <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)"><%= title %></h1>
-    <% if (showSubtitle) { %><span style="font-size:13px;color:var(--faint);font-weight:600"><%= newCount %> new</span><% } %>
-  </div>
-  <%- renderFilterBar() %>
-  <div style="margin-top:12px">
-    <% if (totalUnfiltered === 0) { %>
-      <div style="padding:52px 20px;text-align:center">
-        <p style="margin:0;font-size:13.5px;color:var(--faint);font-weight:600">Run a job search first</p>
-        <p style="margin:4px 0 0;font-size:12.5px;color:var(--faintest)">Your matches will show up here.</p>
-      </div>
-    <% } else if (dateGroups.length === 0) { %>
-      <div style="padding:52px 20px;text-align:center">
-        <p style="margin:0;font-size:13.5px;color:var(--faint);font-weight:600">No matches fit your filters.</p>
-        <button onclick="JH.clearAll()" style="margin-top:14px;height:34px;padding:0 16px;border:1px solid #e5e7ee;border-radius:9px;background:#fff;color:var(--accent);font-size:12.5px;font-weight:700;cursor:pointer">Clear all filters</button>
-      </div>
-    <% } else { %>
-      <%- renderList(true) %>
-      <% if (totalPages > 1 || page > 1) { %>
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:11.5px;color:var(--faint);font-weight:600">page <%= page %> of <%= totalPages %></span>
-        <div style="display:flex;gap:7px">
-          <button onclick="<%= page > 1 ? 'JH.gotoPage(' + (page-1) + ')' : '' %>" <%= page > 1 ? '' : 'disabled' %> style="padding:6px 12px;font-size:12px;font-weight:700;border-radius:9px;<%= page > 1 ? 'color:var(--muted);background:#fff;border:1px solid var(--line2);cursor:pointer' : 'color:var(--faintest);background:#f4f5f8;border:1px solid var(--line2);cursor:not-allowed' %>">← Newer</button>
-          <button onclick="<%= page < totalPages ? 'JH.gotoPage(' + (page+1) + ')' : '' %>" <%= page < totalPages ? '' : 'disabled' %> style="padding:6px 12px;font-size:12px;font-weight:700;border-radius:9px;<%= page < totalPages ? 'color:#fff;background:var(--accent);border:0;cursor:pointer' : 'color:var(--faintest);background:#f4f5f8;border:1px solid var(--line2);cursor:not-allowed' %>">Older →</button>
-        </div>
-      </div>
-      <% } %>
-    <% } %>
-  </div>
 </div>
 
 <script>
 window.__dateFilter = { df: '<%= f.df %>', dt: '<%= f.dt %>' };
 window.__selectedJobId = <%= selectedJobId || 'null' %>;
+window.__fromKey = '<%= fromKey %>';
 window.__filterOpts = {
   roles: <%- JSON.stringify(roleOptions.map(r => ({ v: String(r.id), label: r.group_name || ('Role ' + r.id), count: r.cnt })).concat(orphanCount > 0 ? [{ v: 'other', label: 'Other', count: orphanCount }] : [])) %>,
   country: <%- JSON.stringify(countryOptions.map(c => ({ v: c.value, label: c.label, count: c.cnt }))) %>
 };
-// When applied status changes via the shared dropdown, the card must drop/gain the New tint + dim.
+// When applied status changes via the shared dropdown, the card must drop/gain the New tint + dim
+// — the .jobcard CSS derives both from data-applied.
 window.onAppliedChanged = function(jobId, state){
-  const isNew = Number(state) === 0;
-  const selected = String(window.__selectedJobId) === String(jobId);
   document.querySelectorAll('.jobcard[data-id="' + jobId + '"]').forEach(function(card){
-    card.style.background = isNew ? 'var(--accent-tint)' : '#fff';
-    card.style.opacity = (!selected && !isNew) ? '.85' : '1';
+    card.dataset.applied = String(Number(state));
   });
 };
 window.JH = (function(){
@@ -282,6 +276,56 @@ window.JH = (function(){
     country: <%- JSON.stringify(f.countries) %>
   };
   function escJs(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  // ── Detail pane: swap in the job-detail fragment instead of re-navigating the whole page ──
+  // (same mechanism as the Reports run-log drawer: /job/:id/detail renders the shared partial
+  // without the app layout, and its inline script is written to be safely re-executed.)
+  let _paneToken = 0;
+  function runInjectedScripts(container){
+    container.querySelectorAll('script').forEach(function(old){
+      const s = document.createElement('script');
+      if (old.src) s.src = old.src; else s.textContent = old.textContent;
+      old.replaceWith(s);
+    });
+  }
+  function markSelected(id){
+    window.__selectedJobId = id == null ? null : Number(id);
+    document.querySelectorAll('.jobcard').forEach(function(c){
+      if (id != null && String(c.dataset.id) === String(id)) c.dataset.selected = '1';
+      else delete c.dataset.selected;
+    });
+  }
+  function paneMsg(text, color){
+    return '<div style="height:70vh;display:flex;align-items:center;justify-content:center;text-align:center;'
+      + 'font-size:13px;font-weight:600;color:' + (color || 'var(--faint)') + '">' + text + '</div>';
+  }
+  async function loadPane(id){
+    const host = document.getElementById('jh-pane');
+    const scroller = document.getElementById('jh-detail');
+    if (!host) return;
+    markSelected(id);
+    const token = ++_paneToken;
+    host.innerHTML = paneMsg('Loading…');
+    scroller.scrollTop = 0;
+    try {
+      const res = await fetch('/job/' + id + '/detail');
+      if (!res.ok) throw new Error('bad');
+      const html = await res.text();
+      if (token !== _paneToken) return; // a newer click already won
+      host.innerHTML = html;
+      runInjectedScripts(host);
+      scroller.scrollTop = 0;
+    } catch (_) {
+      if (token === _paneToken) host.innerHTML = paneMsg('Failed to load this job.', 'var(--red-ink)');
+    }
+  }
+  // Back/forward between ?selected= entries stays in-document; no ?selected means the server
+  // would have auto-selected the top job, so mirror that.
+  window.addEventListener('popstate', function(){
+    const param = new URL(window.location.href).searchParams.get('selected');
+    const first = document.querySelector('.jobcard');
+    const id = param || (first ? first.dataset.id : null);
+    if (id) loadPane(id); else markSelected(null);
+  });
   const CHK_W = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
   const CHK_A = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
   function buildRows(kind){
@@ -397,7 +441,18 @@ window.JH = (function(){
     },
     clearAll(){ window.location.href = '<%= basePath %>'; },
     gotoPage(p){ nav({ page: p }, { resetPage: false, keepSelected: true }); },
-    select(id){ nav({ selected: id }, { resetPage: false, keepSelected: true }); },
+    // Desktop selects the pane in place; mobile has no pane, so it opens the standalone page.
+    open(id){
+      if (window.innerWidth < 768) { window.location.href = '/job/' + id + '?from=' + window.__fromKey; return; }
+      this.select(id);
+    },
+    select(id){
+      if (String(id) === String(window.__selectedJobId)) return;
+      const u = currentUrl();
+      u.searchParams.set('selected', id);
+      history.pushState({ selected: id }, '', u.pathname + '?' + u.searchParams.toString());
+      loadPane(id);
+    },
     toggleGroup(gi){
       const body = document.querySelector('.grp-body[data-gi="'+gi+'"]');
       const chev = document.querySelector('.grp-chev[data-gi="'+gi+'"]');
