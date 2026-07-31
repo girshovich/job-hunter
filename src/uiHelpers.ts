@@ -212,6 +212,19 @@ export function formatSourceName(value: unknown): string {
   return SOURCE_NAMES[key] ?? humanizeToken(key, 'Source');
 }
 
+// Source badge tones (DESIGN_SYSTEM_v2.md §5.4). Keyed on the formatSourceLabel output.
+export function sourceTone(label: unknown): { bg: string; color: string; border: string } {
+  switch (String(label ?? '')) {
+    case 'LinkedIn':   return { bg: '#eff6ff', color: '#1d64d8', border: '#cfe0fb' };
+    case 'Greenhouse': return { bg: 'var(--green-soft)', color: 'var(--green2)', border: 'var(--green-border)' };
+    case 'Ashby':      return { bg: 'var(--purple-soft)', color: 'var(--purple)', border: '#ddd6fe' };
+    case 'Lever':      return { bg: '#fff7ed', color: '#c2410c', border: '#fddcab' };
+    case 'Indeed':     return { bg: '#eef6ff', color: '#2557a7', border: '#cfe0fb' };
+    case 'StepStone':  return { bg: '#fff7ed', color: '#c2410c', border: '#fddcab' };
+    default:           return { bg: '#f2f4f7', color: '#475467', border: '#e4e6ec' };
+  }
+}
+
 export function renderPageHeader(title: unknown, subtitle?: unknown, actionsHtml = ''): string {
   const subtitleHtml = subtitle
     ? `<p style="font-size:13px;color:var(--muted);margin-top:3px">${escapeHtml(subtitle)}</p>`
@@ -510,6 +523,7 @@ export const uiHelpers = {
   formatDateTimeToMinutes,
   formatSourceLabel,
   formatSourceName,
+  sourceTone,
   renderPageHeader,
   renderEmptyState,
   renderDottedPopupLink,

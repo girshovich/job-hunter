@@ -29,18 +29,7 @@ function analysisTone(v) {
   if (v === 'DUPLICATE')    return { bg: 'var(--purple-soft)', border: 'var(--purple-border)', head: 'var(--purple)', body: '#4a3a6b', icon: 'var(--purple-strong)' };
   return { bg: 'var(--red-soft)', border: 'var(--red-border)', head: 'var(--red-ink)', body: '#5c2b28', icon: 'var(--red)' };
 }
-// Source badge tone (DS v2 §5.4)
-function sourceTone(label) {
-  switch (label) {
-    case 'LinkedIn':   return { bg: '#eff6ff', color: '#1d64d8', border: '#cfe0fb' };
-    case 'Greenhouse': return { bg: 'var(--green-soft)', color: 'var(--green2)', border: 'var(--green-border)' };
-    case 'Ashby':      return { bg: 'var(--purple-soft)', color: 'var(--purple)', border: '#ddd6fe' };
-    case 'Lever':      return { bg: '#fff7ed', color: '#c2410c', border: '#fddcab' };
-    case 'Indeed':     return { bg: '#eef6ff', color: '#2557a7', border: '#cfe0fb' };
-    case 'StepStone':  return { bg: '#fff7ed', color: '#c2410c', border: '#fddcab' };
-    default:           return { bg: '#f2f4f7', color: '#475467', border: '#e4e6ec' };
-  }
-}
+// Source badge tone (DS v2 §5.4) comes from the shared uiHelpers `sourceTone`.
 %>
 <%
 // ── Full description: real sanitized-HTML renderer (R2 — never the mockup placeholder) ──

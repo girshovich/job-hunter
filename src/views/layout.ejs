@@ -305,9 +305,12 @@
     .sb-onboard-item:hover .sb-onboard-chev { opacity: 1; }
 
     /* ── Job source picker table ───────────────────────────────── */
+    @media (min-width: 768px) {
+      .provider-picker-panel { box-shadow: var(--shadow-modal); }
+    }
     .provider-picker-note {
       padding: 12px 24px 2px;
-      color: var(--muted);
+      color: var(--faint);
       font-size: 12.5px;
       line-height: 1.4;
     }
@@ -321,12 +324,15 @@
       gap: 14px;
       align-items: center;
     }
+    /* DS v2 §6 table header — same treatment as Run Logs / admin tables. */
     .provider-picker-head {
       padding: 8px 10px 9px;
-      color: var(--faint);
+      border-radius: 8px 8px 0 0;
+      background: #f9fafb;
+      color: var(--muted);
       font-size: 11px;
       line-height: 1.2;
-      font-weight: 800;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       border-bottom: 1px solid var(--line);
@@ -975,33 +981,33 @@
   </div>
 
   <!-- Schedule Provider Picker (used when provider options do not fit inline) -->
-  <div id="schedule-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
-    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-2xl md:shadow-2xl md:overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+  <div id="schedule-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40 md:backdrop-blur-sm">
+    <div class="provider-picker-panel h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-2xl md:overflow-hidden">
+      <div class="px-6 py-4 border-b border-[color:var(--line)] flex items-center justify-between flex-shrink-0">
         <div>
-          <h2 class="font-semibold text-gray-900">Select job sources</h2>
-          <p id="sched-provider-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
+          <h2 class="text-[15px] font-extrabold text-[color:var(--ink)]">Select job sources</h2>
+          <p id="sched-provider-picker-count" class="text-xs text-[color:var(--faint)] mt-0.5"></p>
         </div>
-        <button type="button" onclick="closeSchedProviderPicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+        <button type="button" onclick="closeSchedProviderPicker()" class="text-[color:var(--fainter)] hover:text-[color:var(--muted)] p-1 rounded-lg hover:bg-[#f5f6f8] transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
       <p class="provider-picker-note flex-shrink-0">Choose job sources. Paid have better coverage. Total cost includes fetching jobs + AI analysis.</p>
-      <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
+      <div class="px-6 py-3 border-b border-[color:var(--line)] flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllSchedProviders(true)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
+                class="flex-1 px-3 py-[9px] text-[13px] font-bold text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-[10px] transition-colors">
           Select all
         </button>
         <button type="button" onclick="setAllSchedProviders(false)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                class="flex-1 px-3 py-[9px] text-[13px] font-bold text-[color:var(--ink2)] bg-[#eef1f6] hover:bg-[#e6eaf1] rounded-[10px] transition-colors">
           Clear
         </button>
       </div>
       <div id="sched-provider-picker-list" class="provider-picker-table flex-1 overflow-y-auto">
       </div>
-      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
+      <div class="px-6 py-4 border-t border-[color:var(--line)] flex items-center justify-end gap-3 flex-shrink-0">
         <button type="button" onclick="closeSchedProviderPicker()"
-                class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+                class="px-[15px] py-[9px] text-[13px] font-bold text-white bg-ds-accent hover:bg-ds-accent-hover rounded-[10px] transition-colors">
           Done
         </button>
       </div>
@@ -1159,33 +1165,33 @@
   </div>
 
   <!-- Run Once Provider Picker -->
-  <div id="run-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
-    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-2xl md:shadow-2xl md:overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+  <div id="run-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40 md:backdrop-blur-sm">
+    <div class="provider-picker-panel h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-2xl md:overflow-hidden">
+      <div class="px-6 py-4 border-b border-[color:var(--line)] flex items-center justify-between flex-shrink-0">
         <div>
-          <h2 class="font-semibold text-gray-900">Select job sources</h2>
-          <p id="run-provider-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
+          <h2 class="text-[15px] font-extrabold text-[color:var(--ink)]">Select job sources</h2>
+          <p id="run-provider-picker-count" class="text-xs text-[color:var(--faint)] mt-0.5"></p>
         </div>
-        <button type="button" onclick="closeRunProviderPicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+        <button type="button" onclick="closeRunProviderPicker()" class="text-[color:var(--fainter)] hover:text-[color:var(--muted)] p-1 rounded-lg hover:bg-[#f5f6f8] transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
       <p class="provider-picker-note flex-shrink-0">Choose job sources. Paid have better coverage. Total cost includes fetching jobs + AI analysis.</p>
-      <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
+      <div class="px-6 py-3 border-b border-[color:var(--line)] flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllRunProviders(true)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
+                class="flex-1 px-3 py-[9px] text-[13px] font-bold text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-[10px] transition-colors">
           Select all
         </button>
         <button type="button" onclick="setAllRunProviders(false)"
-                class="flex-1 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                class="flex-1 px-3 py-[9px] text-[13px] font-bold text-[color:var(--ink2)] bg-[#eef1f6] hover:bg-[#e6eaf1] rounded-[10px] transition-colors">
           Clear
         </button>
       </div>
       <div id="run-provider-picker-list" class="provider-picker-table flex-1 overflow-y-auto">
       </div>
-      <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
+      <div class="px-6 py-4 border-t border-[color:var(--line)] flex items-center justify-end gap-3 flex-shrink-0">
         <button type="button" onclick="closeRunProviderPicker()"
-                class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+                class="px-[15px] py-[9px] text-[13px] font-bold text-white bg-ds-accent hover:bg-ds-accent-hover rounded-[10px] transition-colors">
           Done
         </button>
       </div>
@@ -1464,7 +1470,7 @@
     function renderSchedProviderRow(provider, inputClass, onChange) {
       return `
         <label class="provider-picker-row">
-          <input type="checkbox" class="${inputClass} rounded border-gray-300 focus:ring-[var(--accent)]"
+          <input type="checkbox" class="${inputClass} rounded border-[color:var(--line2)] focus:ring-[var(--accent)]"
                  value="${provider.value}" ${provider.checked ? 'checked' : ''} onchange="${onChange}">
           <span class="provider-picker-source">${escHtml(provider.pickerLabel || provider.label)}</span>
           <span class="provider-picker-cost ${provider.costPerThousand === 'free' ? 'free' : ''}">${escHtml(provider.costPerThousand || '')}</span>
@@ -1870,7 +1876,7 @@
     function renderRunProviderRow(provider, inputClass, onChange) {
       return `
         <label class="provider-picker-row">
-          <input type="checkbox" class="${inputClass} rounded border-gray-300 focus:ring-[var(--accent)]"
+          <input type="checkbox" class="${inputClass} rounded border-[color:var(--line2)] focus:ring-[var(--accent)]"
                  value="${provider.value}" ${provider.checked ? 'checked' : ''} onchange="${onChange}">
           <span class="provider-picker-source">${escHtml(provider.pickerLabel || provider.label)}</span>
           <span class="provider-picker-cost ${provider.costPerThousand === 'free' ? 'free' : ''}">${escHtml(provider.costPerThousand || '')}</span>

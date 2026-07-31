@@ -121,4 +121,9 @@ html { line-height: 1.25; }
 
   /* Standard card surface (DS v2 generic panel card). Padding stays a utility on the element (p-6 / p-5 / p-4 sm:p-6). */
   .jh-card { border-radius: 16px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow-card); }
+
+  /* DS v2 §1.5 line clamps. Referenced by the job-card summary (jobs.ejs) since the two-pane rewrite. */
+  .clamp2, .clamp3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .clamp2 { -webkit-line-clamp: 2; }
+  .clamp3 { -webkit-line-clamp: 3; }
 }
