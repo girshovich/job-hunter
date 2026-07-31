@@ -142,17 +142,17 @@
         <div>
           <label class="stg-label">Easy tasks model <span style="font-weight:500;color:var(--faintest)">— initial scoring, dedup pre-filter</span></label>
           <select name="ai_model" class="stg-ctl" style="max-width:288px">
-            <option value="gpt-5.4-nano" <%= settings.ai_model === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
-            <option value="gpt-5.4-mini" <%= settings.ai_model === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
-            <option value="gpt-5.4"      <%= settings.ai_model === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
+            <option value="gpt-5.6-luna"  <%= settings.ai_model === 'gpt-5.6-luna'  ? 'selected' : '' %>>GPT-5.6 Luna (fastest, most cost-efficient)</option>
+            <option value="gpt-5.4-mini"  <%= settings.ai_model === 'gpt-5.4-mini'  ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
+            <option value="gpt-5.6-terra" <%= settings.ai_model === 'gpt-5.6-terra' ? 'selected' : '' %>>GPT-5.6 Terra (highest accuracy)</option>
           </select>
         </div>
         <div>
           <label class="stg-label">Hard tasks model <span style="font-weight:500;color:var(--faintest)">— strong match re-validation, full dedup, CV comparison</span></label>
           <select name="ai_model_hard" class="stg-ctl" style="max-width:288px">
-            <option value="gpt-5.4-nano" <%= settings.ai_model_hard === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
-            <option value="gpt-5.4-mini" <%= settings.ai_model_hard === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
-            <option value="gpt-5.4"      <%= settings.ai_model_hard === 'gpt-5.4'      ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
+            <option value="gpt-5.6-luna"  <%= settings.ai_model_hard === 'gpt-5.6-luna'  ? 'selected' : '' %>>GPT-5.6 Luna (fastest, most cost-efficient)</option>
+            <option value="gpt-5.4-mini"  <%= settings.ai_model_hard === 'gpt-5.4-mini'  ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
+            <option value="gpt-5.6-terra" <%= settings.ai_model_hard === 'gpt-5.6-terra' ? 'selected' : '' %>>GPT-5.6 Terra (highest accuracy)</option>
           </select>
         </div>
         <div class="flex items-center gap-3 pt-2">

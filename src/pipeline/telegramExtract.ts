@@ -75,8 +75,7 @@ export async function extractJobsFromPost(
       { role: 'system', content: prompt },
       { role: 'user', content: postText },
     ],
-    temperature: 0.1,
-    max_output_tokens: 1000,
+    max_output_tokens: 3000,
     text: {
       format: {
         type: 'json_schema',

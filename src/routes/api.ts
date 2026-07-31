@@ -19,7 +19,7 @@ import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
-import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, type ProfileRow } from '../db';
+import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -271,7 +271,7 @@ router.post('/test/openai', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const settings = db.prepare('SELECT ai_model FROM settings WHERE profile_id = ?').get(req.profile.id) as { ai_model: string } | undefined;
-    const model = settings?.ai_model?.trim() || 'gpt-4o-mini';
+    const model = settings?.ai_model?.trim() || FALLBACK_AI_MODEL;
     const OpenAI = (await import('openai')).default;
     const client = new OpenAI({ apiKey: key });
     await client.responses.create({
@@ -362,15 +362,15 @@ router.post('/profiles', (req: Request, res: Response) => {
     // Seed the three editable AI prompts (Settings → AI) so a new profile starts with the same
     // working text the app ships, not blank boxes. `ai_system_prompt` is deliberately left empty —
     // the scorer rebuilds it per run (buildScoringSystemPrompt) and never reads the stored value.
-    // `ai_model` is written explicitly for the reason given at DEFAULT_AI_MODEL; `ai_model_hard`
-    // still comes from the column default, which is 'gpt-5.4' on every schema path.
+    // `ai_model` and `ai_model_hard` are written explicitly for the reason given at
+    // DEFAULT_AI_MODEL — the column defaults still read 'gpt-5.4' on migrated schemas.
     db.prepare(`
       INSERT INTO settings (
         profile_id, email_recipient, email_send_time, updated_at,
-        ai_model, summary_prompt, dedup_system_prompt, cv_comparison_prompt
+        ai_model, ai_model_hard, summary_prompt, dedup_system_prompt, cv_comparison_prompt
       )
-      VALUES (?, ?, '07:00', ?, ?, ?, ?, ?)
-    `).run(newId, email, now, DEFAULT_AI_MODEL, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT);
+      VALUES (?, ?, '07:00', ?, ?, ?, ?, ?, ?)
+    `).run(newId, email, now, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT);
   }
 
   res.json({ success: true, profile: { id: newId, email, is_admin: 0, created_at: now } });
@@ -1138,7 +1138,7 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   if (!openaiKey) { res.status(400).json({ error: 'OpenAI API key not configured.' }); return; }
 
   const prompt = settings?.cv_comparison_prompt?.trim() || DEFAULT_CV_COMPARISON_PROMPT;
-  const model = settings?.ai_model_hard || 'gpt-5.4';
+  const model = settings?.ai_model_hard?.trim() || FALLBACK_AI_MODEL;
   const jobText = `JOB TITLE: ${job.title}\nCOMPANY: ${job.company}\nLOCATION: ${job.location || 'N/A'}\nWORK MODE: ${job.work_mode || 'N/A'}\n\nDESCRIPTION:\n${(job.description || '').substring(0, 12000)}`;
 
   try {

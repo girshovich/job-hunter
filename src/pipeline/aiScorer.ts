@@ -229,8 +229,10 @@ async function callScoringLlm(
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
     ],
-    temperature: 0.2,
-    max_output_tokens: 400,
+    // Budget covers the model's internal reasoning tokens as well as the JSON answer. The schema
+    // caps the answer near 250 tokens; the rest is headroom so reasoning can never starve it.
+    // Unused budget is not billed, so the ceiling only ever prevents a truncated (empty) response.
+    max_output_tokens: 2000,
     text: {
       format: {
         type: 'json_schema',
@@ -268,10 +270,14 @@ export async function scoreJobs(
   settings: SettingsRow,
   openAiKey: string,
   onProgress?: (done: number, total: number) => void,
-): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage; rateLimited: boolean }> {
+): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage; rateLimited: boolean; failed: number; firstError: string | null }> {
   const limit = pLimit(SCORING_CONCURRENCY);
   let jobsDone = 0;
   let rateLimited = false;
+  // A job whose scoring call fails is dropped from the results, so it lands in no verdict bucket
+  // and the counts stop reconciling. Report the loss instead of swallowing it (runner marks the run).
+  let failed = 0;
+  let firstError: string | null = null;
 
   type WorkerResult = { scored: ScoredJob; usage: TokenUsage } | null;
 
@@ -302,6 +308,8 @@ export async function scoreJobs(
         );
       } catch (retryErr) {
         if ((retryErr as { status?: number })?.status === 429) rateLimited = true;
+        failed++;
+        if (!firstError) firstError = (retryErr as Error).message;
         console.error(`[aiScorer] Scoring failed for job ${job.jobId}:`, (retryErr as Error).message);
         return null;
       }
@@ -337,7 +345,7 @@ export async function scoreJobs(
     results.push(item.scored);
   }
 
-  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens }, rateLimited };
+  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens }, rateLimited, failed, firstError };
 }
 
 // ── Call 2: Dedup only (strong matches with existing same-company+title in DB) ──
@@ -409,8 +417,7 @@ export async function preFilterDuplicateCandidates(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
-      temperature: 0.1,
-      max_output_tokens: 150,
+      max_output_tokens: 1000,
       text: {
         format: {
           type: 'json_schema',
@@ -456,8 +463,7 @@ export async function dedupAndSummarise(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: buildDedupSummaryUserMessage(scoredJob, existingJobs) },
       ],
-      temperature: 0.1,
-      max_output_tokens: 100,
+      max_output_tokens: 1000,
       text: {
         format: {
           type: 'json_schema',

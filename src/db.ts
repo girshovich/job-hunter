@@ -72,6 +72,14 @@ export const DEFAULT_SUMMARY_PROMPT = `Analyze the job description and write a s
 // so relying on it would silently put new profiles on the expensive model.
 export const DEFAULT_AI_MODEL = 'gpt-5.4-mini';
 
+// Hard model (semantic dedup, Strong Match re-scoring, CV comparison). Written explicitly for the
+// same reason: the `ai_model_hard` column default is 'gpt-5.4' on DBs migrated through v26.
+export const DEFAULT_AI_MODEL_HARD = 'gpt-5.6-terra';
+
+// Last resort when a configured model is missing or blank — the cheapest model we offer, so an
+// unconfigured path can never run up a bill on the expensive one.
+export const FALLBACK_AI_MODEL = 'gpt-5.6-luna';
+
 export const DEFAULT_CV_COMPARISON_PROMPT = `analyze and answer these questions in a very brief manner so i can read it in 1 min:
 - what's the area or product this role owns?
 - does it openly say about supporting or not supporting with visa / relocation / remote work from everywhere?
@@ -2033,6 +2041,24 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_disqualifier_checkboxes failed (non-fatal):', (err as Error).message);
   }
+
+  // v_gpt56_models: the GPT-5.6 family replaces the two ends of the 5.4 line — 'gpt-5.4' → Terra,
+  // 'gpt-5.4-nano' → Luna. 'gpt-5.4-mini' is deliberately untouched: it is still an offered option
+  // and still the soft-model default. Without this remap an existing profile would hold a value no
+  // longer in the AI Setup dropdowns, so the select would render the wrong entry as selected.
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_gpt56_models'`).get();
+    if (!done) {
+      db.exec(`UPDATE settings SET ai_model      = 'gpt-5.6-terra' WHERE ai_model      = 'gpt-5.4'`);
+      db.exec(`UPDATE settings SET ai_model      = 'gpt-5.6-luna'  WHERE ai_model      = 'gpt-5.4-nano'`);
+      db.exec(`UPDATE settings SET ai_model_hard = 'gpt-5.6-terra' WHERE ai_model_hard = 'gpt-5.4'`);
+      db.exec(`UPDATE settings SET ai_model_hard = 'gpt-5.6-luna'  WHERE ai_model_hard = 'gpt-5.4-nano'`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_gpt56_models')`);
+      console.log('[db] Migration v_gpt56_models: settings models remapped to GPT-5.6');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_gpt56_models failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -2192,7 +2218,7 @@ function initSchema(db: Database): void {
       cron_schedule          TEXT    NOT NULL DEFAULT '0 7 * * *',
       ai_system_prompt       TEXT    NOT NULL DEFAULT '',
       ai_model               TEXT    NOT NULL DEFAULT 'gpt-5.4-mini',
-      ai_model_hard          TEXT    NOT NULL DEFAULT 'gpt-5.4',
+      ai_model_hard          TEXT    NOT NULL DEFAULT 'gpt-5.6-terra',
       dedup_system_prompt    TEXT    NOT NULL DEFAULT '',
       score_no_match_max     INTEGER NOT NULL DEFAULT 50,
       score_weak_match_max   INTEGER NOT NULL DEFAULT 70,
@@ -2341,13 +2367,13 @@ function seedSettings(db: Database): void {
     db.prepare(`
       INSERT INTO settings (
         profile_id, search_keywords, search_locations, search_work_modes,
-        search_job_type, cron_schedule, ai_system_prompt, ai_model,
+        search_job_type, cron_schedule, ai_system_prompt, ai_model, ai_model_hard,
         dedup_system_prompt, summary_prompt, cv_comparison_prompt,
         score_no_match_max, score_weak_match_max, score_strong_match_min,
         email_recipient, email_send_time, updated_at
       ) VALUES (
         1, ?, ?, ?,
-        'fullTime', '0 7 * * *', ?, ?,
+        'fullTime', '0 7 * * *', ?, ?, ?,
         ?, ?, ?,
         50, 70, 71,
         '', '07:00', ?
@@ -2358,6 +2384,7 @@ function seedSettings(db: Database): void {
       JSON.stringify(['remote', 'hybrid', 'onsite']),
       DEFAULT_AI_SYSTEM_PROMPT,
       DEFAULT_AI_MODEL,
+      DEFAULT_AI_MODEL_HARD,
       DEFAULT_DEDUP_SYSTEM_PROMPT,
       DEFAULT_SUMMARY_PROMPT,
       DEFAULT_CV_COMPARISON_PROMPT,
@@ -2372,13 +2399,13 @@ function seedSettings(db: Database): void {
     db.prepare(`
       INSERT INTO settings (
         profile_id, search_keywords, search_locations, search_work_modes,
-        search_job_type, cron_schedule, ai_system_prompt, ai_model,
+        search_job_type, cron_schedule, ai_system_prompt, ai_model, ai_model_hard,
         dedup_system_prompt, summary_prompt, cv_comparison_prompt,
         score_no_match_max, score_weak_match_max, score_strong_match_min,
         email_recipient, email_send_time, updated_at
       ) VALUES (
         2, ?, ?, ?,
-        'fullTime', '0 7 * * *', ?, ?,
+        'fullTime', '0 7 * * *', ?, ?, ?,
         ?, ?, ?,
         50, 70, 71,
         '', '07:00', ?
@@ -2389,6 +2416,7 @@ function seedSettings(db: Database): void {
       JSON.stringify(['remote', 'hybrid', 'onsite']),
       DEFAULT_AI_SYSTEM_PROMPT,
       DEFAULT_AI_MODEL,
+      DEFAULT_AI_MODEL_HARD,
       DEFAULT_DEDUP_SYSTEM_PROMPT,
       DEFAULT_SUMMARY_PROMPT,
       DEFAULT_CV_COMPARISON_PROMPT,

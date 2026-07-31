@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { Database } from '../db';
+import { FALLBACK_AI_MODEL, type Database } from '../db';
 import { runExtraction } from './telegramExtract';
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; JobHunterApp/1.0; +https://github.com/self-hosted)';
@@ -252,7 +252,7 @@ export async function runTelegramIngest(db: Database): Promise<TelegramIngestRes
     : undefined;
 
   const openAiKey = adminSettings?.openai_api_key?.trim() || '';
-  const model = adminSettings?.ai_model?.trim() || '';
+  const model = adminSettings?.ai_model?.trim() || FALLBACK_AI_MODEL;
   const prompt = adminSettings?.telegram_extract_prompt?.trim() || '';
 
   const { jobsCreated, postsProcessed: extracted } = await runExtraction(db, model, openAiKey, prompt);

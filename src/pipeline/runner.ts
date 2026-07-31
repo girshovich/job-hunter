@@ -26,6 +26,8 @@ const RATE_LIMIT_ALERT_COOLDOWN_MS = 30 * 60_000;
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
 // cachedInput: prompt-cache read price (billed instead of input for cached tokens)
 const OPENAI_PRICING: Record<string, { input: number; cachedInput: number; output: number }> = {
+  'gpt-5.6-terra': { input: 2.00,  cachedInput: 0.20,  output: 12.00 },
+  'gpt-5.6-luna':  { input: 0.20,  cachedInput: 0.02,  output: 1.20  },
   'gpt-5.4-mini':  { input: 0.75,  cachedInput: 0.075, output: 4.50  },
   'gpt-5.4-nano':  { input: 0.20,  cachedInput: 0.02,  output: 1.25  },
   'gpt-5.4':       { input: 2.50,  cachedInput: 0.25,  output: 15.00 },
@@ -351,6 +353,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
 
       let jobsFetched = 0;
       let jobsScored = 0;
+      let jobsFailed = 0;
       let jobsStrongMatch = 0;
       let jobsWeakMatch = 0;
       let jobsNoMatch = 0;
@@ -571,6 +574,10 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         const scoreResult = await scoreJobs(newJobsToScore, scoringSettings, openAiKey);
         scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;
+        if (scoreResult.failed > 0) {
+          jobsFailed += scoreResult.failed;
+          errors.push(`Scoring failed for ${scoreResult.failed} job(s) in "${roleLabel}": ${scoreResult.firstError}`);
+        }
         totalInputTokens += scoreResult.tokenUsage.inputTokens;
         totalCachedInputTokens += scoreResult.tokenUsage.cachedInputTokens;
         totalOutputTokens += scoreResult.tokenUsage.outputTokens;
@@ -860,6 +867,11 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         try {
           const hardSettings: SettingsRow = { ...entry.scoringSettings, ai_model: settings.ai_model_hard };
           const result = await scoreJobs([entry.job], hardSettings, openAiKey);
+          if (result.failed > 0 || !result.jobs[0]) {
+            jobsFailed += 1;
+            errors.push(`Re-score failed for "${entry.job.title}" at "${entry.job.company}": ${result.firstError ?? 'no result'}`);
+            return;   // keep the soft-model verdict rather than crash on an undefined result
+          }
           const rescored = result.jobs[0];
 
           hardInputTokens += result.tokenUsage.inputTokens;
@@ -899,7 +911,11 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
 
     // 8. Update the run row with final stats
     const durationMs = Date.now() - startedAt;
-    const status = errors.length === 0 ? 'success' : 'partial_error';
+    // Every scoring call failing is a dead run, not a partially good one — a green "success" next to
+    // 0 strong / 0 weak / 0 no match is how a broken model config stayed invisible before.
+    const status = errors.length === 0
+      ? 'success'
+      : (jobsFailed > 0 && jobsScored === 0) ? 'failed' : 'partial_error';
 
     accountProviderCost();
 
