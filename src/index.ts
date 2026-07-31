@@ -1,7 +1,7 @@
 import * as path from 'path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
-import { getDb } from './db';
+import { getDb, getMatchesCount } from './db';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -112,9 +112,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.locals.onboarding = { states, completedCount: done.filter(Boolean).length };
   res.locals.useJhCredits = (s?.use_jh_credits ?? 1) === 1;
   res.locals.creditsBalance = s?.credits_balance ?? 0;
-  res.locals.matchesCount = (db.prepare(
-    "SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 AND applied = 0",
-  ).get(pid) as { c: number }).c;
+  res.locals.matchesCount = getMatchesCount(pid);
   next();
 });
 

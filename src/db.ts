@@ -158,6 +158,14 @@ export function getDb(): Database {
   return _db;
 }
 
+// Sidebar "Matches" badge count. Shared by the layout middleware and the verdict/applied
+// endpoints so a status change can return the fresh number without a page reload.
+export function getMatchesCount(profileId: number): number {
+  return (getDb().prepare(
+    "SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 AND applied = 0",
+  ).get(profileId) as { c: number }).c;
+}
+
 function runMigrations(db: Database): void {
   // v29: profiles / sessions / otp_codes tables + seed from settings.email_recipient
   try {

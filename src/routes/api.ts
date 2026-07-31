@@ -19,7 +19,7 @@ import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
-import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, type ProfileRow } from '../db';
+import { getDb, getMatchesCount, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -886,7 +886,7 @@ router.patch('/jobs/:id/verdict', (req: Request, res: Response) => {
     return;
   }
 
-  res.json({ success: true });
+  res.json({ success: true, matchesCount: getMatchesCount(req.profile.id) });
 });
 
 // PATCH /api/run-log/:id/verdict — override verdict for a run log entry; inserts into jobs table if not yet stored
@@ -947,7 +947,7 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
     internalJobId = jobId;
   }
 
-  res.json({ success: true, internal_job_id: internalJobId });
+  res.json({ success: true, internal_job_id: internalJobId, matchesCount: getMatchesCount(profileId) });
 });
 
 // PATCH /api/jobs/:id/applied — set applied status (0 = not applied, 1 = applied, 2 = won't apply)
@@ -962,7 +962,7 @@ router.patch('/jobs/:id/applied', (req: Request, res: Response) => {
     UPDATE job_profile_states SET applied = ? WHERE job_id = ? AND profile_id = ?
   `).run(applied, id, req.profile.id).changes;
   if (changes === 0) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
-  res.json({ success: true });
+  res.json({ success: true, matchesCount: getMatchesCount(req.profile.id) });
 });
 
 // GET /api/company-notes?company=... — fetch note for a company
