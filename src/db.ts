@@ -14,6 +14,9 @@ import * as path from 'path';
 import { config } from './config';
 import ALL_COUNTRIES from './pipeline/countries.json';
 
+export const DEFAULT_PROVIDER_SELECTION = ['valig', 'greenhouse', 'ashby', 'lever', 'telegram'] as const;
+export const DEFAULT_PROVIDER_SELECTION_JSON = JSON.stringify(DEFAULT_PROVIDER_SELECTION);
+
 // Minimal type surface for node:sqlite
 interface NodeSQLiteStatement {
   run(...params: unknown[]): { lastInsertRowid: number; changes: number };
@@ -474,7 +477,7 @@ function runMigrations(db: Database): void {
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
     if (!cols.some((c) => c.name === 'scraping_providers')) {
-      db.exec(`ALTER TABLE settings ADD COLUMN scraping_providers TEXT NOT NULL DEFAULT '["harvestapi"]'`);
+      db.exec(`ALTER TABLE settings ADD COLUMN scraping_providers TEXT NOT NULL DEFAULT '${DEFAULT_PROVIDER_SELECTION_JSON}'`);
       db.exec(`UPDATE settings SET scraping_providers = '["' || scraping_provider || '"]' WHERE scraping_provider IS NOT NULL AND scraping_provider != ''`);
       console.log('[db] Migration v27: settings.scraping_providers column added');
     }
@@ -972,7 +975,7 @@ function runMigrations(db: Database): void {
       if (!cols.includes('run_date_range'))
         db.exec(`ALTER TABLE settings ADD COLUMN run_date_range TEXT NOT NULL DEFAULT '24h'`);
       if (!cols.includes('run_providers'))
-        db.exec(`ALTER TABLE settings ADD COLUMN run_providers TEXT NOT NULL DEFAULT '["harvestapi"]'`);
+        db.exec(`ALTER TABLE settings ADD COLUMN run_providers TEXT NOT NULL DEFAULT '${DEFAULT_PROVIDER_SELECTION_JSON}'`);
       db.exec(`INSERT INTO _migrations VALUES ('v_run_once_settings')`);
       console.log('[db] Migration v_run_once_settings: Run Once settings columns added');
     }
@@ -2246,7 +2249,7 @@ function initSchema(db: Database): void {
       scoring_guide          TEXT    NOT NULL DEFAULT '',
       no_match_criteria      TEXT    NOT NULL DEFAULT '',
       scraping_provider      TEXT    NOT NULL DEFAULT 'harvestapi',
-      scraping_providers     TEXT    NOT NULL DEFAULT '["harvestapi","valig"]',
+      scraping_providers     TEXT    NOT NULL DEFAULT '${DEFAULT_PROVIDER_SELECTION_JSON}',
       profile_updated_at     TEXT    NOT NULL DEFAULT '',
       ai_updated_at          TEXT    NOT NULL DEFAULT '',
       updated_at             TEXT    NOT NULL DEFAULT ''
@@ -2378,13 +2381,13 @@ function seedSettings(db: Database): void {
         search_job_type, cron_schedule, ai_system_prompt, ai_model, ai_model_hard,
         dedup_system_prompt, summary_prompt, cv_comparison_prompt,
         score_no_match_max, score_weak_match_max, score_strong_match_min,
-        email_recipient, email_send_time, updated_at
+        email_recipient, email_send_time, scraping_providers, run_providers, updated_at
       ) VALUES (
         1, ?, ?, ?,
         'fullTime', '0 7 * * *', ?, ?, ?,
         ?, ?, ?,
         50, 70, 71,
-        '', '07:00', ?
+        '', '07:00', ?, ?, ?
       )
     `).run(
       DEFAULT_KEYWORDS,
@@ -2396,6 +2399,8 @@ function seedSettings(db: Database): void {
       DEFAULT_DEDUP_SYSTEM_PROMPT,
       DEFAULT_SUMMARY_PROMPT,
       DEFAULT_CV_COMPARISON_PROMPT,
+      DEFAULT_PROVIDER_SELECTION_JSON,
+      DEFAULT_PROVIDER_SELECTION_JSON,
       now,
     );
     console.log('[db] Settings seeded for Mikhail (profile_id=1).');
@@ -2410,13 +2415,13 @@ function seedSettings(db: Database): void {
         search_job_type, cron_schedule, ai_system_prompt, ai_model, ai_model_hard,
         dedup_system_prompt, summary_prompt, cv_comparison_prompt,
         score_no_match_max, score_weak_match_max, score_strong_match_min,
-        email_recipient, email_send_time, updated_at
+        email_recipient, email_send_time, scraping_providers, run_providers, updated_at
       ) VALUES (
         2, ?, ?, ?,
         'fullTime', '0 7 * * *', ?, ?, ?,
         ?, ?, ?,
         50, 70, 71,
-        '', '07:00', ?
+        '', '07:00', ?, ?, ?
       )
     `).run(
       DEFAULT_KEYWORDS,
@@ -2428,6 +2433,8 @@ function seedSettings(db: Database): void {
       DEFAULT_DEDUP_SYSTEM_PROMPT,
       DEFAULT_SUMMARY_PROMPT,
       DEFAULT_CV_COMPARISON_PROMPT,
+      DEFAULT_PROVIDER_SELECTION_JSON,
+      DEFAULT_PROVIDER_SELECTION_JSON,
       now,
     );
     console.log('[db] Settings seeded for Arina (profile_id=2).');

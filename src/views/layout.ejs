@@ -304,6 +304,106 @@
     .sb-onboard-chev { color: var(--faintest); opacity: 0.6; width: 12px; height: 12px; }
     .sb-onboard-item:hover .sb-onboard-chev { opacity: 1; }
 
+    /* ── Job source picker table ───────────────────────────────── */
+    .provider-picker-note {
+      padding: 12px 24px 2px;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.4;
+    }
+    .provider-picker-table {
+      padding: 10px 24px 14px;
+    }
+    .provider-picker-head,
+    .provider-picker-row {
+      display: grid;
+      grid-template-columns: 34px minmax(142px, 1.05fr) 108px minmax(220px, 1.65fr);
+      gap: 14px;
+      align-items: center;
+    }
+    .provider-picker-head {
+      padding: 8px 10px 9px;
+      color: var(--faint);
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--line);
+    }
+    .provider-picker-row {
+      min-height: 60px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line3);
+      cursor: pointer;
+    }
+    .provider-picker-row:last-child { border-bottom: 0; }
+    .provider-picker-row:hover { background: #f5f6f8; }
+    .provider-picker-row input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--accent);
+    }
+    .provider-picker-source {
+      min-width: 0;
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .provider-picker-cost {
+      display: inline-flex;
+      width: 58px;
+      height: 23px;
+      max-width: 100%;
+      border-radius: 7px;
+      padding: 0 8px;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 800;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .provider-picker-cost.free {
+      background: #eef1f6;
+      color: var(--ink2);
+      border-color: var(--line2);
+    }
+    .provider-picker-desc {
+      min-width: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 767px) {
+      .provider-picker-note {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .provider-picker-table {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .provider-picker-head { display: none; }
+      .provider-picker-row {
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        gap: 7px 10px;
+        align-items: start;
+        min-height: 0;
+        padding: 12px 4px;
+      }
+      .provider-picker-row input { margin-top: 2px; }
+      .provider-picker-desc { grid-column: 2 / 4; }
+    }
+
   </style>
   <script>
     window.JHUI_TOKENS = <%- JSON.stringify(getClientUiTokens()) %>;
@@ -876,16 +976,17 @@
 
   <!-- Schedule Provider Picker (used when provider options do not fit inline) -->
   <div id="schedule-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
-    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-sm md:rounded-2xl md:shadow-2xl md:overflow-hidden">
+    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-2xl md:shadow-2xl md:overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <div>
-          <h2 class="font-semibold text-gray-900">Select providers</h2>
+          <h2 class="font-semibold text-gray-900">Select job sources</h2>
           <p id="sched-provider-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
         </div>
         <button type="button" onclick="closeSchedProviderPicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
+      <p class="provider-picker-note flex-shrink-0">Choose job sources. Paid have better coverage. Total cost includes fetching jobs + AI analysis.</p>
       <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllSchedProviders(true)"
                 class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
@@ -896,7 +997,7 @@
           Clear
         </button>
       </div>
-      <div id="sched-provider-picker-list" class="flex-1 overflow-y-auto px-6 py-3 space-y-1">
+      <div id="sched-provider-picker-list" class="provider-picker-table flex-1 overflow-y-auto">
       </div>
       <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
         <button type="button" onclick="closeSchedProviderPicker()"
@@ -1059,16 +1160,17 @@
 
   <!-- Run Once Provider Picker -->
   <div id="run-provider-picker" class="hidden fixed inset-0 z-[60] bg-white md:items-center md:justify-center md:bg-black/40">
-    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-sm md:rounded-2xl md:shadow-2xl md:overflow-hidden">
+    <div class="h-full bg-white flex flex-col md:h-auto md:max-h-[80vh] md:w-full md:max-w-2xl md:rounded-2xl md:shadow-2xl md:overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <div>
-          <h2 class="font-semibold text-gray-900">Select providers</h2>
+          <h2 class="font-semibold text-gray-900">Select job sources</h2>
           <p id="run-provider-picker-count" class="text-xs text-gray-500 mt-0.5"></p>
         </div>
         <button type="button" onclick="closeRunProviderPicker()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
+      <p class="provider-picker-note flex-shrink-0">Choose job sources. Paid have better coverage. Total cost includes fetching jobs + AI analysis.</p>
       <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
         <button type="button" onclick="setAllRunProviders(true)"
                 class="flex-1 px-3 py-2 text-sm font-medium text-ds-accent bg-ds-accent-soft hover:bg-ds-accent-border rounded-lg transition-colors">
@@ -1079,7 +1181,7 @@
           Clear
         </button>
       </div>
-      <div id="run-provider-picker-list" class="flex-1 overflow-y-auto px-6 py-3 space-y-1">
+      <div id="run-provider-picker-list" class="provider-picker-table flex-1 overflow-y-auto">
       </div>
       <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
         <button type="button" onclick="closeRunProviderPicker()"
@@ -1105,15 +1207,40 @@
 
     const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const SCHED_PROVIDER_OPTIONS = [
-      { value: 'harvestapi', label: 'LinkedIn: harvestapi' },
-      { value: 'valig', label: 'LinkedIn: valig' },
-      { value: 'indeed', label: 'Indeed: valig' },
-      { value: 'stepstone', label: 'StepStone: valig' },
-      { value: 'greenhouse', label: 'Greenhouse' },
-      { value: 'ashby', label: 'Ashby' },
-      { value: 'lever', label: 'Lever' },
-      { value: 'telegram', label: 'Telegram' },
+      {
+        value: 'harvestapi',
+        label: 'LinkedIn: harvestapi',
+        pickerLabel: 'LinkedIn: harvestapi',
+        costPerThousand: '$1',
+        description: 'Costs less if all keywords and locations are in one role; better with UK-based jobs.',
+      },
+      {
+        value: 'valig',
+        label: 'LinkedIn: valig',
+        pickerLabel: 'LinkedIn: valig',
+        costPerThousand: '$0.36',
+        description: 'If you want one provider, choose this.',
+      },
+      {
+        value: 'indeed',
+        label: 'Indeed: valig',
+        pickerLabel: 'Indeed: valig',
+        costPerThousand: '$0.09',
+        description: 'Less valuable than LinkedIn, but cheaper.',
+      },
+      {
+        value: 'stepstone',
+        label: 'StepStone: valig',
+        pickerLabel: 'StepStone: valig',
+        costPerThousand: '$0.36',
+        description: 'Useful for some German jobs only.',
+      },
+      { value: 'greenhouse', label: 'Greenhouse', pickerLabel: 'Greenhouse', costPerThousand: 'free', description: '' },
+      { value: 'ashby', label: 'Ashby', pickerLabel: 'Ashby', costPerThousand: 'free', description: '' },
+      { value: 'lever', label: 'Lever', pickerLabel: 'Lever', costPerThousand: 'free', description: '' },
+      { value: 'telegram', label: 'Telegram', pickerLabel: 'Telegram', costPerThousand: 'free', description: '' },
     ];
+    const DEFAULT_PROVIDER_VALUES = ['valig', 'greenhouse', 'ashby', 'lever', 'telegram'];
 
     function escHtml(str) {
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1326,7 +1453,7 @@
     }
 
     function renderSchedProviders(selectedValues) {
-      const selected = selectedValues || ['harvestapi', 'valig'];
+      const selected = selectedValues || DEFAULT_PROVIDER_VALUES;
       _schedProviders = SCHED_PROVIDER_OPTIONS.map(p => ({
         ...p,
         checked: selected.includes(p.value),
@@ -1336,10 +1463,12 @@
 
     function renderSchedProviderRow(provider, inputClass, onChange) {
       return `
-        <label class="flex items-center gap-2.5 cursor-pointer py-1">
-          <input type="checkbox" class="${inputClass} w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        <label class="provider-picker-row">
+          <input type="checkbox" class="${inputClass} rounded border-gray-300 focus:ring-[var(--accent)]"
                  value="${provider.value}" ${provider.checked ? 'checked' : ''} onchange="${onChange}">
-          <span class="text-sm text-gray-700 min-w-0 truncate">${escHtml(provider.label)}</span>
+          <span class="provider-picker-source">${escHtml(provider.pickerLabel || provider.label)}</span>
+          <span class="provider-picker-cost ${provider.costPerThousand === 'free' ? 'free' : ''}">${escHtml(provider.costPerThousand || '')}</span>
+          <span class="provider-picker-desc">${escHtml(provider.description || '')}</span>
         </label>`;
     }
 
@@ -1372,9 +1501,16 @@
 
     function renderSchedProviderPicker() {
       document.getElementById('sched-provider-picker-count').textContent = getSchedProviderSummaryText();
-      document.getElementById('sched-provider-picker-list').innerHTML = _schedProviders.map(p =>
-        renderSchedProviderRow(p, 'sched-provider-picker-check', 'onSchedProviderPickerToggle(this)')
-      ).join('');
+      document.getElementById('sched-provider-picker-list').innerHTML = `
+        <div class="provider-picker-head" aria-hidden="true">
+          <span></span>
+          <span>Source: provider</span>
+          <span>Fetch / 1k</span>
+          <span>Description</span>
+        </div>
+        ${_schedProviders.map(p =>
+          renderSchedProviderRow(p, 'sched-provider-picker-check', 'onSchedProviderPickerToggle(this)')
+        ).join('')}`;
     }
 
     function openSchedProviderPicker() {
@@ -1440,13 +1576,13 @@
         renderSchedGroups(data.groups || []);
 
         // Pre-fill provider checkboxes
-        const savedSchedProviders = data.scraping_providers || ['harvestapi', 'valig'];
+        const savedSchedProviders = data.scraping_providers || DEFAULT_PROVIDER_VALUES;
         renderSchedProviders(savedSchedProviders);
       }).catch(() => {
         setSchedDateRange('24h');
         setSchedFrequency('daily');
         document.getElementById('sched-modal-groups').innerHTML = '<span class="text-sm text-red-500">Failed to load roles.</span>';
-        renderSchedProviders(['harvestapi', 'valig']);
+        renderSchedProviders(DEFAULT_PROVIDER_VALUES);
       });
     }
 
@@ -1585,7 +1721,7 @@
 
         // Providers display
         const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig', indeed: 'Indeed: valig', stepstone: 'StepStone: valig', greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever', telegram: 'Telegram' };
-        const statusProviders = _scheduleData.scraping_providers || ['harvestapi', 'valig'];
+        const statusProviders = _scheduleData.scraping_providers || DEFAULT_PROVIDER_VALUES;
         document.getElementById('sched-status-providers').textContent =
           statusProviders.map(p => providerLabels[p] || p).join(', ');
       }
@@ -1723,7 +1859,7 @@
     }
 
     function renderRunProviders(selectedValues) {
-      const selected = selectedValues || SCHED_PROVIDER_OPTIONS.map(p => p.value);
+      const selected = selectedValues || DEFAULT_PROVIDER_VALUES;
       _runProviders = SCHED_PROVIDER_OPTIONS.map(p => ({
         ...p,
         checked: selected.includes(p.value),
@@ -1733,10 +1869,12 @@
 
     function renderRunProviderRow(provider, inputClass, onChange) {
       return `
-        <label class="flex items-center gap-2.5 cursor-pointer py-1">
-          <input type="checkbox" class="${inputClass} w-4 h-4 rounded border-gray-300 text-[var(--green)] focus:ring-[var(--green)]"
+        <label class="provider-picker-row">
+          <input type="checkbox" class="${inputClass} rounded border-gray-300 focus:ring-[var(--accent)]"
                  value="${provider.value}" ${provider.checked ? 'checked' : ''} onchange="${onChange}">
-          <span class="text-sm text-gray-700 min-w-0 truncate">${escHtml(provider.label)}</span>
+          <span class="provider-picker-source">${escHtml(provider.pickerLabel || provider.label)}</span>
+          <span class="provider-picker-cost ${provider.costPerThousand === 'free' ? 'free' : ''}">${escHtml(provider.costPerThousand || '')}</span>
+          <span class="provider-picker-desc">${escHtml(provider.description || '')}</span>
         </label>`;
     }
 
@@ -1769,9 +1907,16 @@
 
     function renderRunProviderPicker() {
       document.getElementById('run-provider-picker-count').textContent = getRunProviderSummaryText();
-      document.getElementById('run-provider-picker-list').innerHTML = _runProviders.map(p =>
-        renderRunProviderRow(p, 'run-provider-picker-check', 'onRunProviderPickerToggle(this)')
-      ).join('');
+      document.getElementById('run-provider-picker-list').innerHTML = `
+        <div class="provider-picker-head" aria-hidden="true">
+          <span></span>
+          <span>Source: provider</span>
+          <span>Fetch / 1k</span>
+          <span>Description</span>
+        </div>
+        ${_runProviders.map(p =>
+          renderRunProviderRow(p, 'run-provider-picker-check', 'onRunProviderPickerToggle(this)')
+        ).join('')}`;
     }
 
     function openRunProviderPicker() {
@@ -1829,7 +1974,7 @@
         } catch (_) {}
       }
       setRunDateRange(runDateRange);
-      renderRunProviders(savedProviders || SCHED_PROVIDER_OPTIONS.map(p => p.value));
+      renderRunProviders(savedProviders || DEFAULT_PROVIDER_VALUES);
 
       if (groupsRes.status === 'fulfilled') {
         try { renderRunGroups((await groupsRes.value.json()).groups || []); }

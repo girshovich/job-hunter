@@ -1,7 +1,7 @@
 import * as path from 'path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
-import { getDb, getMatchesCount } from './db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount } from './db';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -246,7 +246,7 @@ async function start(): Promise<void> {
   }>;
   for (const row of activeSchedules) {
     const groupIds: number[] = row.schedule_group_ids ? JSON.parse(row.schedule_group_ids) : [];
-    const providers: string[] = row.scraping_providers ? JSON.parse(row.scraping_providers) : ['harvestapi'];
+    const providers: string[] = row.scraping_providers ? JSON.parse(row.scraping_providers) : JSON.parse(DEFAULT_PROVIDER_SELECTION_JSON);
     startSchedule(row.profile_id, row.cron_schedule, row.timezone || 'UTC', (row.schedule_date_range as '24h' | '7d' | 'month') || '24h', groupIds, providers);
   }
   if (activeSchedules.length > 0) {

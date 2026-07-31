@@ -19,7 +19,7 @@ import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { enqueue } from '../pipeline/runQueue';
-import { getDb, getMatchesCount, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, type ProfileRow } from '../db';
+import { getDb, getMatchesCount, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -367,10 +367,11 @@ router.post('/profiles', (req: Request, res: Response) => {
     db.prepare(`
       INSERT INTO settings (
         profile_id, email_recipient, email_send_time, updated_at,
-        ai_model, ai_model_hard, summary_prompt, dedup_system_prompt, cv_comparison_prompt
+        ai_model, ai_model_hard, summary_prompt, dedup_system_prompt, cv_comparison_prompt,
+        scraping_providers, run_providers
       )
-      VALUES (?, ?, '07:00', ?, ?, ?, ?, ?, ?)
-    `).run(newId, email, now, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT);
+      VALUES (?, ?, '07:00', ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(newId, email, now, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION_JSON, DEFAULT_PROVIDER_SELECTION_JSON);
   }
 
   res.json({ success: true, profile: { id: newId, email, is_admin: 0, created_at: now } });
@@ -419,8 +420,8 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
       return;
     }
 
-    const providers = JSON.parse(settings.scraping_providers || '["harvestapi"]') as string[];
-    const scrapingProvider = providers[0] || 'harvestapi';
+    const providers = JSON.parse(settings.scraping_providers || DEFAULT_PROVIDER_SELECTION_JSON) as string[];
+    const scrapingProvider = providers[0] || DEFAULT_PROVIDER_SELECTION[0];
 
     // /fetch-preview awaits a queue slot; under a full queue the HTTP request waits (acceptable for a preview action)
     const result = await enqueue(async () => {
@@ -502,9 +503,9 @@ router.get('/schedule/status', (req: Request, res: Response) => {
     timezone: settings?.timezone || 'Asia/Yerevan',
     schedule_date_range: settings?.schedule_date_range || '24h',
     schedule_group_ids: savedGroupIds,
-    scraping_providers: JSON.parse(settings?.scraping_providers || '["harvestapi"]'),
+    scraping_providers: JSON.parse(settings?.scraping_providers || DEFAULT_PROVIDER_SELECTION_JSON),
     run_date_range: settings?.run_date_range || '24h',
-    run_providers: JSON.parse(settings?.run_providers || '["harvestapi"]'),
+    run_providers: JSON.parse(settings?.run_providers || DEFAULT_PROVIDER_SELECTION_JSON),
     groups,
   });
 });
@@ -536,7 +537,7 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   const rawSchedProviders = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validSchedProviders.includes(p))
     : [];
-  const schedProviders = rawSchedProviders.length > 0 ? rawSchedProviders : ['harvestapi'];
+  const schedProviders = rawSchedProviders.length > 0 ? rawSchedProviders : [...DEFAULT_PROVIDER_SELECTION];
 
   const updates: string[] = [];
   const params: unknown[] = [];

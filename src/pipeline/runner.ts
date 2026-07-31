@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
 import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
@@ -239,7 +239,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     const { groupIds, dateRange = '24h', providers: providersOverride } = options;
     const providers = (providersOverride && providersOverride.length > 0)
       ? providersOverride
-      : JSON.parse(settings.scraping_providers || '["harvestapi"]') as string[];
+      : JSON.parse(settings.scraping_providers || DEFAULT_PROVIDER_SELECTION_JSON) as string[];
 
     console.log(`[runner] Starting pipeline (${trigger}) — ${groups.length} group(s), ${blacklist.length} blacklisted company(ies), ${providers.length} provider(s)`);
 
