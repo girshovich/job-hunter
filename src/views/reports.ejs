@@ -111,30 +111,6 @@ const anyFilterActive = !!(filterSource || filterVerdict || filterCompany);
     </div>
   </summary>
 
-  <!-- cost breakdown popup -->
-  <div id="cost-popup-<%= run.id %>" class="hidden" style="position:fixed;z-index:70;background:#fff;border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 32px -8px rgba(16,24,40,.28);padding:12px;font-size:12px;min-width:180px">
-    <% if (run.job_source || run.scraping_provider) { %>
-    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
-      <span>Source</span>
-      <span style="font-weight:600;color:var(--ink2)"><%= formatSourceLabel(run.job_source || run.scraping_provider) %></span>
-    </div>
-    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
-      <span>Provider</span>
-      <span style="font-weight:600;color:var(--ink2)"><%= run.scraping_provider ? formatSourceLabel(run.scraping_provider) : '—' %></span>
-    </div>
-    <% } %>
-    <div style="display:flex;justify-content:space-between;gap:24px;padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
-      <span style="font-weight:700;color:var(--ink2)">Total</span>
-      <span style="font-weight:800;color:var(--ink)"><%= formatRunCost(totalCost) %></span>
-    </div>
-    <% if (run.cost_apify_usd != null) { %>
-    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted)"><span>Fetch</span><span style="font-weight:600;color:var(--ink)"><%= formatRunCost(run.cost_apify_usd) %></span></div>
-    <% } %>
-    <% if (run.cost_openai_usd != null) { %>
-    <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);margin-top:6px"><span>AI</span><span style="font-weight:600;color:var(--ink)"><%= formatRunCost(run.cost_openai_usd) %></span></div>
-    <% } %>
-  </div>
-
   <!-- expanded -->
   <div style="border-top:1px solid #eef0f4">
     <% if (run.error_log) { %>
@@ -152,6 +128,32 @@ const anyFilterActive = !!(filterSource || filterVerdict || filterCompany);
     </div>
   </div>
 </details>
+
+<!-- Cost breakdown popup. Must live OUTSIDE <details>: a closed <details> does not render its
+     non-summary children, and the trigger preventDefaults so the row never opens on a cost click.
+     position:fixed, so its place in the DOM does not affect where it lands on screen. -->
+<div id="cost-popup-<%= run.id %>" class="hidden" style="position:fixed;z-index:70;background:#fff;border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 32px -8px rgba(16,24,40,.28);padding:12px;font-size:12px;min-width:180px">
+  <% if (run.job_source || run.scraping_provider) { %>
+  <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
+    <span>Source</span>
+    <span style="font-weight:600;color:var(--ink2)"><%= formatSourceLabel(run.job_source || run.scraping_provider) %></span>
+  </div>
+  <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
+    <span>Provider</span>
+    <span style="font-weight:600;color:var(--ink2)"><%= run.scraping_provider ? formatSourceLabel(run.scraping_provider) : '—' %></span>
+  </div>
+  <% } %>
+  <div style="display:flex;justify-content:space-between;gap:24px;padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f6">
+    <span style="font-weight:700;color:var(--ink2)">Total</span>
+    <span style="font-weight:800;color:var(--ink)"><%= formatRunCost(totalCost) %></span>
+  </div>
+  <% if (run.cost_apify_usd != null) { %>
+  <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted)"><span>Fetch</span><span style="font-weight:600;color:var(--ink)"><%= formatRunCost(run.cost_apify_usd) %></span></div>
+  <% } %>
+  <% if (run.cost_openai_usd != null) { %>
+  <div style="display:flex;justify-content:space-between;gap:24px;color:var(--muted);margin-top:6px"><span>AI</span><span style="font-weight:600;color:var(--ink)"><%= formatRunCost(run.cost_openai_usd) %></span></div>
+  <% } %>
+</div>
 <% }); %>
 </div>
 <% } %>
