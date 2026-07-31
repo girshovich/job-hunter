@@ -919,8 +919,9 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
   db.prepare('UPDATE run_job_logs SET ai_verdict = ? WHERE id = ?').run(verdict, logId);
 
   const now = new Date().toISOString();
+  const logJobSource = log.job_source || 'LinkedIn';
   const existingJob = db.prepare('SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = ?')
-    .get(log.linkedin_job_id, 'LinkedIn') as { id: number } | undefined;
+    .get(log.linkedin_job_id, logJobSource) as { id: number } | undefined;
   let internalJobId: number;
   if (existingJob) {
     db.prepare(`
@@ -932,10 +933,10 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
     db.prepare(`
       INSERT OR IGNORE INTO jobs
         (linkedin_job_id, job_source, provider, title, company, location, description, url, fetched_at)
-      VALUES (?, 'LinkedIn', 'unknown', ?, ?, ?, '', ?, ?)
-    `).run(log.linkedin_job_id, log.title, log.company, log.location, log.url, log.logged_at);
-    const { id: jobId } = db.prepare(`SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = 'LinkedIn'`)
-      .get(log.linkedin_job_id) as { id: number };
+      VALUES (?, ?, 'unknown', ?, ?, ?, '', ?, ?)
+    `).run(log.linkedin_job_id, logJobSource, log.title, log.company, log.location, log.url, log.logged_at);
+    const { id: jobId } = db.prepare(`SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = ?`)
+      .get(log.linkedin_job_id, logJobSource) as { id: number };
     db.prepare(`
       INSERT OR IGNORE INTO job_profile_states
         (job_id, profile_id, group_id, fetched_at, ai_score, ai_verdict, original_ai_verdict,

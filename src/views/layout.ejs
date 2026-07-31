@@ -758,7 +758,7 @@
         </div>
         <!-- Providers -->
         <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
+          <div class="text-sm font-medium text-gray-700 mb-2">Job sources</div>
           <div id="sched-provider-options" class="space-y-1.5">
             <span class="text-sm text-gray-400">Loading…</span>
           </div>
@@ -982,7 +982,7 @@
         </div>
         <!-- Providers -->
         <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">Scraping providers</div>
+          <div class="text-sm font-medium text-gray-700 mb-2">Job sources</div>
           <div id="run-provider-options" class="space-y-1.5">
             <span class="text-sm text-gray-400">Loading…</span>
           </div>
@@ -1106,12 +1106,12 @@
     const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const SCHED_PROVIDER_OPTIONS = [
       { value: 'harvestapi', label: 'LinkedIn: harvestapi' },
-      { value: 'valig', label: 'LinkedIn: valig (L)' },
-      { value: 'indeed', label: 'Indeed: valig (I)' },
-      { value: 'stepstone', label: 'StepStone: valig (S)' },
-      { value: 'greenhouse', label: 'Greenhouse (ATS)' },
-      { value: 'ashby', label: 'Ashby (ATS)' },
-      { value: 'lever', label: 'Lever (ATS)' },
+      { value: 'valig', label: 'LinkedIn: valig' },
+      { value: 'indeed', label: 'Indeed: valig' },
+      { value: 'stepstone', label: 'StepStone: valig' },
+      { value: 'greenhouse', label: 'Greenhouse' },
+      { value: 'ashby', label: 'Ashby' },
+      { value: 'lever', label: 'Lever' },
       { value: 'telegram', label: 'Telegram' },
     ];
 
@@ -1584,7 +1584,7 @@
         }
 
         // Providers display
-        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig (L)', indeed: 'Indeed: valig (I)', stepstone: 'StepStone: valig (S)', greenhouse: 'Greenhouse (ATS)', ashby: 'Ashby (ATS)', lever: 'Lever (ATS)', telegram: 'Telegram' };
+        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig', indeed: 'Indeed: valig', stepstone: 'StepStone: valig', greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever', telegram: 'Telegram' };
         const statusProviders = _scheduleData.scraping_providers || ['harvestapi', 'valig'];
         document.getElementById('sched-status-providers').textContent =
           statusProviders.map(p => providerLabels[p] || p).join(', ');

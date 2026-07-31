@@ -84,12 +84,12 @@ const VERDICT_TONES: Record<string, string> = {
 
 const SOURCE_LABELS: Record<string, string> = {
   harvestapi: 'LinkedIn: harvestapi',
-  valig: 'LinkedIn: valig (L)',
-  indeed: 'Indeed: valig (I)',
-  stepstone: 'StepStone: valig (S)',
-  greenhouse: 'Greenhouse (ATS)',
-  ashby: 'Ashby (ATS)',
-  lever: 'Lever (ATS)',
+  valig: 'LinkedIn: valig',
+  indeed: 'Indeed: valig',
+  stepstone: 'StepStone: valig',
+  greenhouse: 'Greenhouse',
+  ashby: 'Ashby',
+  lever: 'Lever',
   telegram: 'Telegram',
   LinkedIn: 'LinkedIn',
   Indeed: 'Indeed',
@@ -412,7 +412,7 @@ const RUN_TALLY_COLORS: Record<string, string> = {
   no_match: '#b42318',
   duplicate: '#6941c6',
   filtered: '#8a91a0',
-  blacklisted: '#b42318',
+  blacklisted: '#8a91a0',
 };
 
 export function renderRunStatusCounts(run: Record<string, unknown>): string {

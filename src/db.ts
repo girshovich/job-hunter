@@ -2626,6 +2626,7 @@ export interface RunJobLogRow {
   run_id: number;
   group_id: number | null;
   linkedin_job_id: string;
+  job_source: string;
   title: string;
   company: string;
   location: string | null;

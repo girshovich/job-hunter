@@ -165,7 +165,7 @@ router.get('/', (req: Request, res: Response) => {
        ORDER BY scraping_provider`,
     )
     .all(profileId) as Array<{ scraping_provider: string }>)
-    .map((r) => ({ value: r.scraping_provider, label: uiHelpers.formatSourceName(r.scraping_provider) }));
+    .map((r) => ({ value: r.scraping_provider, label: uiHelpers.formatSourceLabel(r.scraping_provider) }));
 
   // Single query: run summaries + aggregate verdict counts (no N+1)
   const runsSql =
