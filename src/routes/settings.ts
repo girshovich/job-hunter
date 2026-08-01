@@ -12,6 +12,7 @@ import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailCha
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { emailFrame } from '../pipeline/emailReport';
 import { hashToken } from './auth';
+import { COMPANY_ENRICHMENT_PROMPT } from '../pipeline/companyEnrichment';
 
 const router = Router();
 
@@ -103,6 +104,7 @@ router.get('/', (req: Request, res: Response) => {
     profileEmail: req.profile.email,
     pendingEmailChange: getPendingEmailChange(db, profileId),
     locationCountries,
+    companyEnrichmentPrompt: COMPANY_ENRICHMENT_PROMPT,
     pageMaxWidth: '48rem',
   });
 });

@@ -25,6 +25,8 @@ import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
 import { config } from '../config';
 import { checkOpenAiBalance } from '../utils/openaiBalance';
+import { companyKey } from '../uiHelpers';
+import { getCompanyProfile, getCompanyUserContext, buildCompanyLinks } from './company';
 import OpenAI from 'openai';
 
 const router = Router();
@@ -967,9 +969,37 @@ router.patch('/jobs/:id/applied', (req: Request, res: Response) => {
   res.json({ success: true, matchesCount: getMatchesCount(req.profile.id) });
 });
 
+// GET /api/company?name=... — everything the company details modal renders.
+// Basics are shared across profiles; context is always scoped to the caller's profile.
+router.get('/company', (req: Request, res: Response) => {
+  const raw = String(req.query.name || '').trim();
+  const key = companyKey(raw);
+  if (!key) { res.status(400).json({ success: false, error: 'Company name required.' }); return; }
+  const basics = getCompanyProfile(key);
+  res.json({
+    success: true,
+    key,
+    basics,
+    context: getCompanyUserContext(req.profile.id, key),
+    links: buildCompanyLinks(basics?.display_name || raw),
+  });
+});
+
+// POST /api/company/retry-enrichment — clears a failed enrichment so the next run retries it.
+// Deliberately does not call the LLM from a web request.
+router.post('/company/retry-enrichment', (req: Request, res: Response) => {
+  const b = req.body as Record<string, unknown>;
+  const key = companyKey(String(b.company || ''));
+  if (!key) { res.status(400).json({ success: false, error: 'Company name required.' }); return; }
+  getDb().prepare(
+    `UPDATE companies SET enrich_status = NULL, enrich_attempted_at = NULL WHERE company = ?`,
+  ).run(key);
+  res.json({ success: true, enrich_status: null });
+});
+
 // GET /api/company-notes?company=... — fetch note for a company
 router.get('/company-notes', (req: Request, res: Response) => {
-  const company = String(req.query.company || '').trim();
+  const company = companyKey(String(req.query.company || ''));
   if (!company) { res.json({ note: '' }); return; }
   const db = getDb();
   const row = db.prepare('SELECT note FROM company_notes WHERE profile_id = ? AND company = ?').get(req.profile.id, company) as { note: string } | undefined;
@@ -979,7 +1009,7 @@ router.get('/company-notes', (req: Request, res: Response) => {
 // PATCH /api/company-notes — upsert note for a company
 router.patch('/company-notes', (req: Request, res: Response) => {
   const b = req.body as Record<string, unknown>;
-  const company = String(b.company || '').trim();
+  const company = companyKey(String(b.company || ''));
   const note = String(b.note ?? '').trim().slice(0, 5000);
   if (!company) { res.status(400).json({ success: false, error: 'Company name required.' }); return; }
   const db = getDb();

@@ -14,6 +14,15 @@ export function providerToSource(provider: string): JobSource {
   return 'LinkedIn';
 }
 
+// Company facts a provider ships alongside the job. Fed to company enrichment; absent for
+// providers that expose no company object (Greenhouse, Ashby, Lever, StepStone, Telegram).
+export interface ProviderCompanyData {
+  description?: string;
+  employeeCount?: number;
+  employeeRange?: string;   // "11-50", an open-ended "10001+", or a raw band like "10,000+"
+  website?: string;         // the company's real site — a far better favicon domain than a guess
+}
+
 export interface JobPosting {
   jobId: string;
   title: string;
@@ -28,6 +37,7 @@ export interface JobPosting {
   provider: string;
   jobSource: JobSource;
   logoUrl?: string;
+  companyData?: ProviderCompanyData;
 }
 
 export interface SearchFilters {

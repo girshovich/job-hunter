@@ -171,7 +171,7 @@
       <div class="flex items-center gap-4 px-6 py-4">
         <div class="flex-1 min-w-0">
           <div class="stg-h2">Customize AI prompts</div>
-          <p class="stg-sub">Scoring, duplicate checks, CV comparison — 4 advanced prompts.</p>
+          <p class="stg-sub">Scoring, duplicate checks, CV comparison — 5 advanced prompts.</p>
         </div>
         <button type="button" onclick="openPromptsModal()"
                 class="stg-btn stg-btn-secondary stg-btn-sm" style="min-width:5.5rem">
@@ -224,6 +224,10 @@
             <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="3" onclick="pickPrompt(3)">
               <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">4</span>
               <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">CV Comparison</span><span class="block text-[11px] text-gray-500 mt-0.5">CV vs. job description</span></span>
+            </button>
+            <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="4" onclick="pickPrompt(4)">
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">5</span>
+              <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Company Enrichment</span><span class="block text-[11px] text-gray-500 mt-0.5">One call per new company</span></span>
             </button>
           </div>
 
@@ -496,6 +500,58 @@ Description: {description — up to 1,500 chars each}
                 </button>
               </div>
             </form>
+
+            <!-- COMPANY ENRICHMENT PANEL — read-only; this prompt is not user-editable -->
+            <div class="pm-panel flex-col h-full" data-pi="4">
+              <div class="pm-head flex items-start gap-2 px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+                <button type="button" class="pm-back items-center text-blue-600 mt-0.5" onclick="backPrompts()" aria-label="Back">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-900">Company Enrichment</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">One call per company you haven't seen before, during a run. Fills the shared company details shown in the company modal.</p>
+                </div>
+              </div>
+              <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+                <div>
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <p class="text-xs font-medium text-gray-600">Instruction</p>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
+                  </div>
+                  <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed"><%= companyEnrichmentPrompt %></pre>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <p class="text-xs font-medium text-gray-600">Sent with it</p>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
+                  </div>
+                  <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed">Company name: Acme Analytics
+
+&lt;PROVIDER_COMPANY_DATA&gt;
+{
+  "description": "Acme Analytics — dissecting operational risk across the energy value chain.",
+  "employeeCount": 34,
+  "employeeRange": "11-50"
+}
+&lt;/PROVIDER_COMPANY_DATA&gt;</pre>
+                  <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">About the block above: only LinkedIn (harvestapi) and Indeed send company data. For other sources it reads <code class="font-mono">(none available)</code> and the model uses its own knowledge.</p>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <p class="text-xs font-medium text-gray-600">Required response format</p>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
+                  </div>
+                  <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed">JSON schema (strict: true):
+{
+  "short_description": string | null
+  "employee_count":    integer | null
+  "employee_range":    string | null
+  "is_agency":         boolean | null
+  "source_note":       string
+}</pre>
+                </div>
+              </div>
+            </div>
 
           </div><!-- /pm-editor -->
         </div><!-- /master-detail body -->

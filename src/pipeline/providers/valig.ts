@@ -18,7 +18,7 @@ interface ValigJob {
   url?: string;
   title?: string;
   location?: string;
-  companyName?: string;
+  companyName?: string; // actor returns no company object — nothing to feed company enrichment
   applyUrl?: string;
   postedDate?: string; // "YYYY-MM-DD"
   description?: string;

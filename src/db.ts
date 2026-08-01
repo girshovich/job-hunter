@@ -1070,6 +1070,134 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_credits failed (non-fatal):', (err as Error).message);
   }
 
+  // v_company_enrich: shared company basics for the company details modal.
+  // fetched_at stays the logo-fetch date (bumped on every logo upsert); enriched_at is the
+  // separate "company info saved" date shown in the modal.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(companies)`).all() as Array<{ name: string }>;
+    const have = new Set(cols.map((c) => c.name));
+    const adds: Array<[string, string]> = [
+      ['display_name', 'TEXT'],
+      ['short_description', 'TEXT'],
+      ['employee_count', 'INTEGER'],
+      ['employee_range', 'TEXT'],
+      ['is_agency', 'INTEGER'],
+      ['source_note', 'TEXT'],
+      ['enrich_status', 'TEXT'],
+      ['enrich_attempted_at', 'TEXT'],
+      ['enriched_at', 'TEXT'],
+    ];
+    for (const [name, type] of adds) {
+      if (!have.has(name)) {
+        db.exec(`ALTER TABLE companies ADD COLUMN ${name} ${type}`);
+        console.log(`[db] Migration v_company_enrich: companies.${name} added`);
+      }
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_company_enrich failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_company_logo_attempt: explicit "we already tried to fetch a logo" marker.
+  // companyLogos.ts used to infer this from the companies row merely existing, which broke once
+  // enrichment started creating that row first — every ATS company was then skipped forever.
+  // Backfilled from rows that already have a logo, so past successes are not re-fetched.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(companies)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'logo_attempted_at')) {
+      db.exec(`ALTER TABLE companies ADD COLUMN logo_attempted_at TEXT`);
+      db.exec(`UPDATE companies SET logo_attempted_at = fetched_at WHERE logo_url IS NOT NULL`);
+      console.log('[db] Migration v_company_logo_attempt: companies.logo_attempted_at added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_company_logo_attempt failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_company_website: the company's real domain, straight from the provider. The favicon
+  // fallback otherwise guesses it from the name, which fails for half of all companies.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(companies)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'website')) {
+      db.exec(`ALTER TABLE companies ADD COLUMN website TEXT`);
+      console.log('[db] Migration v_company_website: companies.website added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_company_website failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_company_key: canonicalize company-scoped keys to trim+lowercase and merge collisions,
+  // so "Citi", "citi" and "Citi " share one record and one note per profile.
+  // jobs.company and blacklisted_companies.company_name are left alone on purpose: job rows keep
+  // their original display text, and blacklist matching already lowercases at compare time.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_company_key'`).get();
+    if (!done) {
+      // Must stay identical to companyKey() in uiHelpers.ts (ASCII-only, matching SQL LOWER()).
+      const key = (name: unknown) => String(name || '').trim().replace(/[A-Z]/g, (c) => c.toLowerCase());
+      db.transaction(() => {
+        // --- companies ---
+        type CompanyRow = { company: string; logo_url: string | null; fetched_at: string; enriched_at: string | null };
+        const cRows = db.prepare(`SELECT company, logo_url, fetched_at, enriched_at FROM companies`).all() as CompanyRow[];
+        const cGroups = new Map<string, CompanyRow[]>();
+        for (const row of cRows) {
+          const k = key(row.company);
+          if (!k) continue;
+          const list = cGroups.get(k);
+          if (list) list.push(row); else cGroups.set(k, [row]);
+        }
+        const cDel = db.prepare(`DELETE FROM companies WHERE company = ?`);
+        const cUpd = db.prepare(`UPDATE companies SET company = ?, logo_url = ?, display_name = ? WHERE company = ?`);
+        let cMerged = 0;
+        for (const [k, list] of cGroups) {
+          // Prefer an already-enriched row, then the most recently fetched one.
+          const sorted = list.slice().sort((a, b) => {
+            const ea = a.enriched_at ? 1 : 0, eb = b.enriched_at ? 1 : 0;
+            if (ea !== eb) return eb - ea;
+            return String(b.fetched_at || '').localeCompare(String(a.fetched_at || ''));
+          });
+          const winner = sorted[0];
+          const logo = sorted.map((r) => r.logo_url).find((u) => u) ?? null;
+          for (const loser of sorted.slice(1)) cDel.run(loser.company);
+          cUpd.run(k, logo, winner.company, winner.company);
+          if (list.length > 1) cMerged++;
+        }
+
+        // --- company_notes (per profile) ---
+        type NoteRow = { id: number; profile_id: number; company: string; note: string; updated_at: string };
+        const nRows = db.prepare(`SELECT id, profile_id, company, note, updated_at FROM company_notes`).all() as NoteRow[];
+        const nGroups = new Map<string, NoteRow[]>();
+        for (const row of nRows) {
+          const k = key(row.company);
+          if (!k) continue;
+          // NUL separator, not a space: company keys contain spaces, so a space-joined
+          // key would split back as "quik" instead of "quik hire staffing".
+          const g = `${row.profile_id}\u0000${k}`;
+          const list = nGroups.get(g);
+          if (list) list.push(row); else nGroups.set(g, [row]);
+        }
+        const nDel = db.prepare(`DELETE FROM company_notes WHERE id = ?`);
+        const nUpd = db.prepare(`UPDATE company_notes SET company = ?, note = ?, updated_at = ? WHERE id = ?`);
+        let nMerged = 0;
+        for (const [g, list] of nGroups) {
+          const k = g.split('\u0000')[1];
+          // Oldest first, so concatenation reads chronologically and the newest wins the timestamp.
+          const sorted = list.slice().sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')));
+          const filled = sorted.filter((r) => String(r.note || '').trim());
+          const winner = filled.length ? filled[filled.length - 1] : sorted[sorted.length - 1];
+          const note = filled.map((r) => String(r.note).trim()).join('\n\n');
+          for (const loser of sorted) if (loser.id !== winner.id) nDel.run(loser.id);
+          nUpd.run(k, note, winner.updated_at, winner.id);
+          if (list.length > 1) nMerged++;
+        }
+
+        db.exec(`INSERT INTO _migrations VALUES ('v_company_key')`);
+        console.log(`[db] Migration v_company_key: keys lowercased (${cMerged} company merges, ${nMerged} note merges)`);
+      });
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_company_key failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
@@ -2307,7 +2435,18 @@ function initSchema(db: Database): void {
     CREATE TABLE IF NOT EXISTS companies (
       company    TEXT PRIMARY KEY,
       logo_url   TEXT,
-      fetched_at TEXT NOT NULL
+      fetched_at TEXT NOT NULL,
+      display_name        TEXT,
+      short_description   TEXT,
+      employee_count      INTEGER,
+      employee_range      TEXT,
+      is_agency           INTEGER,
+      source_note         TEXT,
+      enrich_status       TEXT,
+      enrich_attempted_at TEXT,
+      enriched_at         TEXT,
+      logo_attempted_at   TEXT,
+      website             TEXT
     );
 
     CREATE TABLE IF NOT EXISTS job_postings (

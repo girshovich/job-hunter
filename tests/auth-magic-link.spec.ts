@@ -1,67 +1,123 @@
 /**
  * E2E: OTP magic-link login flow (GET /welcome/verify).
  *
- * The test needs a running server with a known DB state. It:
- * 1. Reads the OTP code directly from the DB (avoids real email delivery).
- * 2. Visits the magic-link URL — expects redirect to dashboard.
- * 3. Confirms the same code can't be reused (single-use).
+ * Runs against the real DB and the real running app. It mints its own OTP row directly in
+ * `otp_codes` — the same pattern matches-badge-live.spec.ts uses to mint its own session —
+ * so no email is sent and the app needs no test-only endpoint. Both the OTP row and the
+ * session the login creates are deleted by exact id/token in afterAll, even if an assertion
+ * fails midway.
  *
- * Prerequisites: start the app with TEST_DB_PATH pointing to a fresh DB that
- * already has one profile seeded (e-mail: test@example.com).
- * The test sets up the OTP row itself via a helper endpoint or direct DB manipulation.
+ * Covers: a valid link logs in and lands on the dashboard; the same link cannot be reused;
+ * a bad code is rejected. It deliberately does NOT cover POST /welcome/request, because that
+ * path sends a real email through Resend.
  *
- * Because we cannot easily seed the DB without running the server, this test
- * uses the existing POST /welcome/request → inspect DB pattern via a small
- * helper script. For CI, run: npm run dev &, then npx playwright test.
+ * Safety: the OTP it mints is a genuine login for profile 1 while it exists, so the code is
+ * random per run and valid for two minutes, and the row is deleted in afterAll. Because
+ * verifyOtp() only ever considers the newest unused row for an address, do not run this while
+ * someone is actually logging in with that email — their pending code would be shadowed.
+ *
+ * Prerequisite: the app running on http://localhost:3000 against data/jobs.db.
  */
 
 import { test, expect } from '@playwright/test';
 import * as crypto from 'crypto';
+import * as path from 'path';
+import { DatabaseSync } from 'node:sqlite';
 
 const BASE_URL = 'http://localhost:3000';
+const DB_PATH = path.join(__dirname, '..', 'data', 'jobs.db');
 
-// Helper: request an OTP code by posting to /welcome/request, then read it
-// from the DB via a test-only API endpoint. In production the endpoint is
-// absent, so this test only runs when the server exposes GET /api/test/otp.
+const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA busy_timeout = 5000');
+
+// The codes minted here are briefly valid logins for a real account, so they must not be a
+// guessable constant: random per run, and short-lived (see mintOtp's validity window).
+const CODE = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+const otpIds: number[] = [];
+const sessionHashes: string[] = [];
+let email = '';
+
+function sha256(v: string): string {
+  return crypto.createHash('sha256').update(v).digest('hex');
+}
+
+// verifyOtp() takes the newest unused row for the address, so each test inserts a fresh one.
+function mintOtp(code = CODE, minutesValid = 2): void {
+  const now = new Date();
+  const res = db.prepare(
+    'INSERT INTO otp_codes (email, code, attempts, created_at, expires_at, used) VALUES (?, ?, 0, ?, ?, 0)',
+  ).run(email, code, now.toISOString(), new Date(now.getTime() + minutesValid * 60000).toISOString());
+  otpIds.push(Number(res.lastInsertRowid));
+}
+
+test.beforeAll(() => {
+  const profile = db.prepare('SELECT email FROM profiles WHERE id = 1').get() as { email: string } | undefined;
+  if (!profile) throw new Error('No profile with id 1 — cannot run magic-link e2e');
+  email = profile.email;
+});
+
+test.afterAll(() => {
+  // Delete ONLY the rows this run created — never a broad email/profile sweep.
+  for (const id of otpIds) db.prepare('DELETE FROM otp_codes WHERE id = ?').run(id);
+  for (const h of sessionHashes) db.prepare('DELETE FROM sessions WHERE token = ?').run(h);
+});
+
+function linkFor(code: string): string {
+  return `${BASE_URL}/welcome/verify?email=${encodeURIComponent(email)}&code=${code}`;
+}
+
 test.describe('magic-link login (GET /welcome/verify)', () => {
-  test('clicking magic link logs in and lands on dashboard', async ({ page, request }) => {
-    // Step 1: check if the test helper endpoint is available
-    const statusRes = await request.get(`${BASE_URL}/api/test/otp-peek`);
-    test.skip(statusRes.status() === 404, 'Test helper endpoint not available — skipping magic-link e2e');
+  test('clicking the magic link logs in and lands on the dashboard', async ({ page }) => {
+    mintOtp();
+    await page.goto(linkFor(CODE));
 
-    // Step 2: request an OTP for the test account
-    const email = 'test@example.com';
-    const requestRes = await request.post(`${BASE_URL}/welcome/request`, {
-      data: { email },
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      form: { email },
-    });
-    expect(requestRes.ok()).toBeTruthy();
+    await expect(page).toHaveURL(`${BASE_URL}/`);
 
-    // Step 3: read the OTP from the test helper
-    const peekRes = await request.get(`${BASE_URL}/api/test/otp-peek?email=${encodeURIComponent(email)}`);
-    expect(peekRes.ok()).toBeTruthy();
-    const { code } = await peekRes.json() as { code: string };
-    expect(code).toMatch(/^\d{6}$/);
+    const cookie = (await page.context().cookies()).find((c) => c.name === 'jh_session');
+    expect(cookie?.value).toBeTruthy();
+    sessionHashes.push(sha256(cookie!.value));
 
-    // Step 4: visit the magic-link URL in a fresh browser context (no session cookie)
-    const loginUrl = `${BASE_URL}/welcome/verify?email=${encodeURIComponent(email)}&code=${code}`;
-    await page.goto(loginUrl);
+    // The session is real: a guarded page renders instead of bouncing to /welcome.
+    await page.goto(`${BASE_URL}/jobs`);
+    await expect(page).toHaveURL(new RegExp('/jobs'));
 
-    // Should land on dashboard, not on /welcome
-    await expect(page).not.toHaveURL(/\/welcome/);
-    await expect(page).toHaveURL('/');
-
-    // Step 5: the same code must be rejected (single-use)
-    const reusePage = await page.context().newPage();
-    await reusePage.goto(loginUrl);
-    await expect(reusePage).toHaveURL(/\/welcome/);
-    await reusePage.close();
+    // And the code is now spent.
+    const row = db.prepare('SELECT used FROM otp_codes WHERE id = ?').get(otpIds.at(-1)) as { used: number };
+    expect(row.used).toBe(1);
   });
 
-  test('invalid magic link redirects to /welcome with error', async ({ page }) => {
-    const badUrl = `${BASE_URL}/welcome/verify?email=nobody@example.com&code=000000`;
-    await page.goto(badUrl);
-    await expect(page).toHaveURL(/\/welcome/);
+  test('the same link cannot be used twice', async ({ browser }) => {
+    mintOtp();
+    const first = await browser.newContext();
+    await first.newPage().then((p) => p.goto(linkFor(CODE)));
+    const used = (await first.cookies()).find((c) => c.name === 'jh_session');
+    if (used) sessionHashes.push(sha256(used.value));
+    await first.close();
+
+    // Fresh context: no session cookie, so /welcome renders instead of redirecting to /.
+    const second = await browser.newContext();
+    const page = await second.newPage();
+    await page.goto(linkFor(CODE));
+    await expect(page).toHaveURL(/\/welcome\?error=/);
+    expect((await second.cookies()).find((c) => c.name === 'jh_session')).toBeUndefined();
+    await second.close();
+  });
+
+  test('a wrong code is rejected', async ({ browser }) => {
+    mintOtp();
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(linkFor('000000'));
+    await expect(page).toHaveURL(/\/welcome\?error=/);
+    expect((await ctx.cookies()).find((c) => c.name === 'jh_session')).toBeUndefined();
+    await ctx.close();
+  });
+
+  test('invalid magic link redirects to /welcome with error', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE_URL}/welcome/verify?email=&code=`);
+    await expect(page).toHaveURL(/\/welcome\?error=invalid-link/);
+    await ctx.close();
   });
 });

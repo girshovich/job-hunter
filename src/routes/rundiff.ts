@@ -91,7 +91,7 @@ router.get('/', (req: Request, res: Response) => {
     FROM run_job_logs rjl
     LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = rjl.job_source
     LEFT JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
-    LEFT JOIN companies c ON c.company = rjl.company
+    LEFT JOIN companies c ON c.company = LOWER(TRIM(rjl.company))
     WHERE rjl.run_id = ?`;
 
   const rawNewer = db.prepare(logQuery).all(profileId, runNewer.id) as LogEntry[];

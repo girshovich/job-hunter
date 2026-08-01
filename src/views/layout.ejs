@@ -825,6 +825,254 @@
     </div>
   </div>
 
+  <!-- Company details modal — lives here, not in the job-detail partial: that partial is
+       re-injected as raw HTML on every selection change, which would duplicate these IDs. -->
+  <div id="jh-company-modal" class="hidden fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="JHCompanyModal.close()"></div>
+    <div class="relative bg-white w-full max-w-lg overflow-hidden flex flex-col"
+         style="border-radius:16px 16px 0 0;box-shadow:var(--shadow-modal);max-height:88vh">
+      <style>@media (min-width:768px){#jh-company-modal > div:last-child{border-radius:var(--radius-modal)!important}}</style>
+
+      <div style="display:flex;align-items:flex-start;gap:11px;padding:16px 20px;border-bottom:1px solid var(--line)">
+        <div id="cm-logo" style="flex:none"></div>
+        <div style="flex:1;min-width:0">
+          <h2 id="cm-name" style="font-size:15px;font-weight:800;color:var(--ink);line-height:1.3;word-break:break-word"></h2>
+          <p id="cm-sub" style="font-size:12px;color:var(--faint);margin-top:2px"></p>
+        </div>
+        <button type="button" onclick="JHCompanyModal.close()" aria-label="Close"
+                style="flex:none;border:0;background:none;cursor:pointer;color:var(--faintest);padding:2px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+
+      <div id="cm-body" class="jh-scroll" style="flex:1;min-height:0;overflow-y:auto;padding:16px 20px 20px;display:flex;flex-direction:column;gap:18px">
+        <!-- Shared basics -->
+        <div>
+          <div style="font-size:11px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Company info</div>
+          <div id="cm-basics"></div>
+        </div>
+
+        <!-- Stats — one sentence, each figure a link -->
+        <p id="cm-stats" style="font-size:13px;color:var(--ink2);line-height:1.6"></p>
+
+        <!-- Note — Save is a text link in the label row, matching "Notes about the job" -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+            <div style="font-size:11px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em">My note</div>
+            <button type="button" id="cm-note-save" onclick="JHCompanyModal.saveNote()"
+                    style="font-size:12px;font-weight:700;color:var(--accent);background:transparent;border:0;cursor:pointer">Save</button>
+          </div>
+          <textarea id="cm-note" rows="3" maxlength="5000" placeholder="Add notes about this company…"
+                    style="width:100%;font-size:13px;color:var(--ink2);border:1px solid var(--line2);border-radius:9px;padding:9px 11px;resize:vertical;outline:none;line-height:1.5"></textarea>
+          <p id="cm-note-status" class="hidden" style="font-size:11px;color:var(--faintest);margin-top:6px"></p>
+        </div>
+
+        <!-- Blacklist — the action opens a confirm step; nothing is written on the first click -->
+        <div style="border-top:1px solid var(--line);padding-top:15px">
+          <div id="cm-blacklist"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  window.JHCompanyModal = (function(){
+    const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    let _name = '', _key = '', _display = '';
+
+    function el(id){ return document.getElementById(id); }
+
+    function stat(value, label, href){
+      const n = Number(value) || 0;
+      const text = n + ' ' + esc(label);
+      // A zero stat is muted, non-clickable text — never a link to an empty page.
+      if (!n) return '<span style="color:var(--faintest);font-weight:700">' + text + '</span>';
+      return '<a href="' + esc(href) + '" style="color:var(--accent);font-weight:700;text-decoration:none">' + text + '</a>';
+    }
+
+    function renderBasics(b){
+      const box = el('cm-basics');
+      const status = b && b.enrich_status;
+      if (!b || !status || status === 'pending') {
+        box.innerHTML = '<p style="font-size:13px;color:var(--faint);line-height:1.6">Company details haven\'t been collected yet. They are filled in during the next run that sees this company.</p>';
+        return;
+      }
+      if (status === 'failed') {
+        box.innerHTML = '<p style="font-size:13px;color:var(--faint);line-height:1.6;margin-bottom:9px">We couldn\'t collect details for this company last time.</p>'
+          + '<button type="button" onclick="JHCompanyModal.retry()" id="cm-retry" style="font-size:12px;font-weight:700;background:#fff;color:var(--accent);border:1px solid var(--accent-border);padding:6px 13px;border-radius:9px;cursor:pointer">Retry enrichment</button>';
+        return;
+      }
+      const rows = [];
+      const size = b.employee_count != null ? String(b.employee_count) + ' employees'
+                 : b.employee_range ? esc(b.employee_range) + ' employees' : null;
+      if (size) rows.push(['Size', size]);
+      rows.push(['Recruiting agency', b.is_agency == null ? 'Unknown' : (b.is_agency ? 'Yes' : 'No')]);
+
+      let html = '';
+      if (b.short_description) {
+        html += '<p style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:10px">' + esc(b.short_description) + '</p>';
+      }
+      html += '<div style="display:flex;flex-direction:column;gap:5px">' + rows.map(function(r){
+        return '<div style="display:flex;gap:8px;font-size:12.5px"><span style="color:var(--faint);font-weight:600;min-width:118px">' + esc(r[0]) + '</span><span style="color:var(--ink2);font-weight:700">' + r[1] + '</span></div>';
+      }).join('') + '</div>';
+
+      const savedOn = b.enriched_at ? new Date(b.enriched_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null;
+      const prov = [];
+      if (savedOn) prov.push('Company info saved ' + savedOn);
+      if (b.source_note) prov.push(esc(b.source_note));
+      if (prov.length) html += '<p style="font-size:11.5px;color:var(--faintest);line-height:1.5;margin-top:11px">' + prov.join(' · ') + '</p>';
+      box.innerHTML = html;
+    }
+
+    const ROLES_LINK = '<a href="/settings?tab=roles" style="color:var(--accent);font-weight:700;text-decoration:none">Roles settings</a>';
+    const BL_NOTE = 'Blacklisting only affects future runs — jobs already saved stay in your lists.';
+
+    // Control and its explanation as two columns, so the text wraps against its own left edge
+    // instead of running back under the control. Stacks below ~200px of text width.
+    function blRow(controlHtml, textHtml){
+      return '<div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">'
+        + '<div style="flex:none">' + controlHtml + '</div>'
+        + '<p style="flex:1 1 200px;min-width:0;font-size:12px;color:var(--faint);line-height:1.5">' + textHtml + '</p>'
+        + '</div>';
+    }
+
+    function renderBlacklist(ctx){
+      el('cm-blacklist').innerHTML = ctx.blacklisted
+        ? blRow('<span style="display:inline-flex;align-items:center;height:32px;padding:0 11px;border-radius:8px;font-size:12px;font-weight:700;background:var(--red-soft);color:var(--red-ink)">Blacklisted</span>',
+                'Future runs skip this company. Jobs already saved stay in your lists. Manage the list in ' + ROLES_LINK + '.')
+        : blRow('<button type="button" id="cm-bl-btn" onclick="JHCompanyModal.askBlacklist()" style="font-size:12.5px;font-weight:700;background:#fff;color:var(--red-ink);border:1px solid var(--red-border);padding:7px 14px;border-radius:9px;cursor:pointer">Blacklist this company</button>',
+                BL_NOTE + ' Manage the list in ' + ROLES_LINK + '.');
+    }
+
+    // Two-step: the first click only opens this form, so nothing is written until Confirm.
+    function renderBlacklistConfirm(){
+      el('cm-blacklist').innerHTML =
+        '<div style="border:1px solid var(--red-border);background:var(--red-soft);border-radius:11px;padding:12px 13px">'
+        + '<div style="font-size:13px;font-weight:800;color:var(--red-ink)">Blacklist ' + esc(_display) + '?</div>'
+        + '<p style="font-size:12px;color:var(--faint);margin:6px 0 9px;line-height:1.5">' + BL_NOTE + '</p>'
+        + '<input id="cm-bl-note" type="text" maxlength="500" placeholder="Why? (optional)" '
+        + 'onkeydown="if(event.key===\'Enter\')JHCompanyModal.confirmBlacklist();if(event.key===\'Escape\'){event.stopPropagation();JHCompanyModal.cancelBlacklist();}" '
+        + 'style="width:100%;font-size:13px;color:var(--ink2);border:1px solid var(--line2);border-radius:9px;padding:8px 11px;outline:none;background:#fff">'
+        + '<div style="display:flex;align-items:center;gap:9px;margin-top:10px">'
+        + '<button type="button" id="cm-bl-confirm" onclick="JHCompanyModal.confirmBlacklist()" style="font-size:12.5px;font-weight:700;background:var(--red);color:#fff;border:0;padding:7px 14px;border-radius:9px;cursor:pointer">Blacklist</button>'
+        + '<button type="button" onclick="JHCompanyModal.cancelBlacklist()" style="font-size:12.5px;font-weight:700;background:transparent;color:var(--muted);border:0;padding:7px 4px;cursor:pointer">Cancel</button>'
+        + '<span id="cm-bl-status" style="font-size:12px;color:var(--red-ink);font-weight:600"></span>'
+        + '</div></div>';
+      const input = el('cm-bl-note');
+      if (input) setTimeout(function(){ input.focus(); }, 30);
+    }
+
+    function fill(data){
+      _key = data.key;
+      const b = data.basics;
+      _display = (b && b.display_name) || _name;
+      el('cm-name').textContent = _display;
+      el('cm-logo').innerHTML = '<span style="display:inline-flex;width:34px;height:34px;border-radius:9px;background:var(--line3, #f2f4f7);align-items:center;justify-content:center;overflow:hidden">'
+        + (b && b.logo_url
+            ? '<img src="' + esc(b.logo_url) + '" style="width:34px;height:34px;object-fit:contain;background:#fff" alt="" onerror="this.style.display=\'none\'">'
+            : '<span style="font-size:14px;font-weight:800;color:var(--faint)">' + esc((_name || 'U').charAt(0).toUpperCase()) + '</span>')
+        + '</span>';
+      el('cm-sub').textContent = 'Company details';
+      const c = data.context;
+      el('cm-stats').innerHTML = 'Jobs from this company: '
+        + stat(c.allJobs, 'total', data.links.allJobs) + ', '
+        + stat(c.strongMatches, Number(c.strongMatches) === 1 ? 'match' : 'matches', data.links.strongMatches) + ', '
+        + stat(c.applications, 'applied', data.links.applications) + '.';
+      el('cm-note').value = data.context.note || '';
+      el('cm-note-status').classList.add('hidden');
+      renderBasics(b);
+      renderBlacklist(data.context);
+    }
+
+    return {
+      async open(name){
+        _name = String(name || '');
+        _display = _name;
+        if (!_name) return;
+        const m = el('jh-company-modal');
+        el('cm-name').textContent = _name;
+        el('cm-sub').textContent = 'Loading…';
+        el('cm-stats').innerHTML = '';
+        el('cm-basics').innerHTML = '';
+        el('cm-blacklist').innerHTML = '';
+        el('cm-note').value = '';
+        m.classList.remove('hidden');
+        try {
+          const res = await fetch('/api/company?name=' + encodeURIComponent(_name));
+          const data = await res.json();
+          if (data.success) fill(data);
+          else el('cm-sub').textContent = 'Could not load company details';
+        } catch {
+          el('cm-sub').textContent = 'Could not load company details';
+        }
+      },
+      close(){ el('jh-company-modal').classList.add('hidden'); },
+      async saveNote(){
+        const btn = el('cm-note-save'), status = el('cm-note-status'), note = el('cm-note').value;
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+          const res = await fetch('/api/company-notes', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company: _name, note }),
+          });
+          const data = await res.json();
+          status.textContent = data.success ? 'Saved' : 'Could not save — try again';
+          status.classList.remove('hidden');
+          // Keep the job-detail header's inline note line in sync without a reload.
+          if (data.success && typeof window.onCompanyNoteSaved === 'function') window.onCompanyNoteSaved(note.trim());
+        } catch {
+          // Leave the textarea as-is so nothing the user typed is lost.
+          status.textContent = 'Could not save — try again';
+          status.classList.remove('hidden');
+        }
+        btn.disabled = false; btn.textContent = 'Save';
+      },
+      askBlacklist(){ renderBlacklistConfirm(); },
+      cancelBlacklist(){ renderBlacklist({ blacklisted: false }); },
+      async confirmBlacklist(){
+        const btn = el('cm-bl-confirm'), status = el('cm-bl-status');
+        const notes = (el('cm-bl-note') || {}).value || '';
+        btn.disabled = true; btn.textContent = 'Blacklisting…';
+        try {
+          const res = await fetch('/api/blacklist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company_name: _name, notes: notes.trim() }),
+          });
+          const data = await res.json();
+          // "already blacklisted" is information, not an error — same end state either way.
+          if (data.success || /already blacklisted/i.test(data.error || '')) { renderBlacklist({ blacklisted: true }); return; }
+          status.textContent = data.error || 'Could not blacklist — try again';
+        } catch {
+          status.textContent = 'Could not blacklist — try again';
+        }
+        btn.disabled = false; btn.textContent = 'Blacklist';
+      },
+      async retry(){
+        const btn = el('cm-retry');
+        btn.disabled = true; btn.textContent = 'Queued…';
+        try {
+          await fetch('/api/company/retry-enrichment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company: _name }),
+          });
+          el('cm-basics').innerHTML = '<p style="font-size:13px;color:var(--faint);line-height:1.6">Queued — details will be collected on the next run that sees this company.</p>';
+        } catch {
+          btn.disabled = false; btn.textContent = 'Retry enrichment';
+        }
+      },
+    };
+  })();
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') {
+      const m = document.getElementById('jh-company-modal');
+      if (m && !m.classList.contains('hidden')) JHCompanyModal.close();
+    }
+  });
+  </script>
+
   <!-- Verdict dropdown -->
   <div id="verdict-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
     <div class="py-1">

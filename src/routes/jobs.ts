@@ -8,6 +8,7 @@ import { Router, type Request, type Response } from 'express';
 import { getDb, type JobWithState, type SettingsRow } from '../db';
 import { getPreferredCountries, lookupCountry } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
+import { companyKey } from '../uiHelpers';
 
 const router = Router();
 const PAGE_DATES = 10; // number of distinct run-dates shown per page
@@ -51,7 +52,12 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   const rolesParam = q.roles ? String(q.roles).split(',').filter(Boolean) : [];
   const roleIds = rolesParam.filter((r) => r !== 'other').map((r) => parseInt(r, 10)).filter((n) => !Number.isNaN(n));
   const roleOther = rolesParam.includes('other');
+  // One company filter with an operator: bare text is a substring search, "quoted text" is an
+  // exact whole-name match (what the company modal's stat links use). Both are case-insensitive —
+  // SQLite LIKE already folds ASCII case, and the exact form folds both sides explicitly.
   const company = q.company ? String(q.company).trim() : '';
+  const companyIsExact = company.length >= 2 && company.startsWith('"') && company.endsWith('"');
+  const companyTerm = companyIsExact ? company.slice(1, -1).trim() : company;
   const countries = q.country ? String(q.country).split(',').filter(Boolean) : [];
   const statusParam = q.status ? String(q.status) : '';
   const status = statusParam in STATUS_MAP ? STATUS_MAP[statusParam] : null;
@@ -81,7 +87,10 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     }
     where.push('(' + parts.join(' OR ') + ')');
   }
-  if (company) { where.push('j.company LIKE ?'); params.push('%' + company + '%'); }
+  if (companyTerm) {
+    if (companyIsExact) { where.push('LOWER(TRIM(j.company)) = ?'); params.push(companyKey(companyTerm)); }
+    else { where.push('j.company LIKE ?'); params.push('%' + companyTerm + '%'); }
+  }
   // Country: match against the multi-country list (job_countries) so a job open in several
   // countries is found under any of them; values are stored lowercase.
   if (countries.length) {
@@ -122,7 +131,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     jobs = db.prepare(`
       SELECT ${COLS}
       FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-      LEFT JOIN companies c ON c.company = j.company
+      LEFT JOIN companies c ON c.company = LOWER(TRIM(j.company))
       WHERE ${whereSql} AND DATE(jps.fetched_at) IN (${ph})
       ORDER BY DATE(jps.fetched_at) DESC, ${opts.withinDaySort}, j.id DESC
     `).all(...params, ...pageDates) as JobWithState[];

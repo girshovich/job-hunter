@@ -129,6 +129,16 @@ function humanizeToken(value: unknown, fallback: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+// Canonical key for company-scoped data (companies, company_notes, modal stats).
+// Case + whitespace only — deliberately NOT normalizeCompany() from runner.ts, which
+// strips legal suffixes and would merge distinct legal entities irreversibly.
+// ASCII-only lowering on purpose: the same key is compared in SQL as LOWER(TRIM(jobs.company)),
+// and SQLite's LOWER() only folds A-Z. JS toLowerCase() would fold accented capitals too and
+// then silently fail to match its own rows.
+export function companyKey(name: string): string {
+  return String(name || '').trim().replace(/[A-Z]/g, (c) => c.toLowerCase());
+}
+
 export function escapeHtml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -514,6 +524,7 @@ export function getClientUiTokens() {
 
 export const uiHelpers = {
   escapeHtml,
+  companyKey,
   formatVerdictLabel,
   getVerdictTone,
   isVerdictEditable,

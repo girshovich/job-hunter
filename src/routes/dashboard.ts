@@ -63,7 +63,7 @@ router.get('/', (req: Request, res: Response) => {
     ? (db.prepare(`
         SELECT j.*, jps.*, c.logo_url
         FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
-        LEFT JOIN companies c ON c.company = j.company
+        LEFT JOIN companies c ON c.company = LOWER(TRIM(j.company))
         WHERE jps.profile_id = ? AND jps.fetched_at >= ? AND jps.is_duplicate = 0 AND jps.ai_verdict = 'STRONG_MATCH'
         ORDER BY jps.ai_score DESC
       `).all(profileId, lastRunAt) as JobWithState[])

@@ -4,7 +4,7 @@
  */
 
 import { ApifyClient } from 'apify-client';
-import type { JobPosting, SearchFilters, DateRange, FetchResult } from '../types';
+import type { JobPosting, SearchFilters, DateRange, FetchResult, ProviderCompanyData } from '../types';
 import { parsePostedDate, filterByTimeWindow } from '../types';
 
 interface HarvestJobLocation {
@@ -17,7 +17,14 @@ interface HarvestJob {
   jobId?: string;
   title?: string;
   companyName?: string;
-  company?: { name?: string } | string;
+  company?: {
+    name?: string;
+    description?: string;
+    employeeCount?: number;
+    employeeCountRange?: { start?: number; end?: number };
+    logo?: string;
+    website?: string;
+  } | string;
   location?: HarvestJobLocation | string;
   workplaceType?: string;
   descriptionText?: string;
@@ -44,6 +51,36 @@ function getCompanyName(item: HarvestJob): string {
   if (typeof item.company === 'string') return item.company;
   if (item.company?.name) return item.company.name;
   return 'Unknown Company';
+}
+
+// The actor nests the logo under `company`, not at the top level. Reading `item.logo` silently
+// returned undefined on every job, which is why no LinkedIn logo ever reached the DB.
+function getCompanyLogo(item: HarvestJob): string | undefined {
+  const c = item.company;
+  if (c && typeof c === 'object' && c.logo) return c.logo;
+  return item.logo || undefined;
+}
+
+// The actor's top band is open-ended (`{ start: 10001 }` with no `end`), so a both-bounds-only
+// rule would silently drop the size of every enterprise company.
+function formatEmployeeRange(range: { start?: number; end?: number } | undefined): string | undefined {
+  if (!range) return undefined;
+  if (range.start != null && range.end != null) return `${range.start}-${range.end}`;
+  if (range.start != null) return `${range.start}+`;
+  if (range.end != null) return `1-${range.end}`;
+  return undefined;
+}
+
+function getCompanyData(item: HarvestJob): ProviderCompanyData | undefined {
+  const c = item.company;
+  if (!c || typeof c === 'string') return undefined;
+  const data: ProviderCompanyData = {
+    description: c.description ? c.description.substring(0, 2000) : undefined,
+    employeeCount: typeof c.employeeCount === 'number' ? c.employeeCount : undefined,
+    employeeRange: formatEmployeeRange(c.employeeCountRange),
+    website: c.website || undefined,
+  };
+  return (data.description || data.employeeCount || data.employeeRange || data.website) ? data : undefined;
 }
 
 function getLocationText(loc: HarvestJobLocation | string | undefined): string {
@@ -75,7 +112,8 @@ function mapToJobPosting(item: HarvestJob): JobPosting {
     description: description.substring(0, 20_000),
     provider: 'harvestapi',
     jobSource: 'LinkedIn',
-    logoUrl: item.logo || undefined,
+    logoUrl: getCompanyLogo(item),
+    companyData: getCompanyData(item),
   };
 }
 
@@ -101,10 +139,11 @@ function mapEmploymentTypes(jobTypes: string[]): string[] {
   return [...new Set(jobTypes.flatMap((t) => EMPLOYMENT_TYPE_MAP[t] || []))];
 }
 
+// Actor enum is exactly "1h" | "24h" | "week" | "month" — anything else is a 400 on run start.
 function getPostedLimit(dateRange: DateRange): string {
   if (dateRange === '24h') return '24h';
   if (dateRange === '7d') return 'week';
-  return '1 month';
+  return 'month';
 }
 
 const FETCH_MAX_ATTEMPTS = 3;

@@ -6,7 +6,7 @@
  */
 
 import { ApifyClient } from 'apify-client';
-import type { JobPosting, SearchFilters, DateRange, FetchResult } from '../types';
+import type { JobPosting, SearchFilters, DateRange, FetchResult, ProviderCompanyData } from '../types';
 import { filterByTimeWindow } from '../types';
 import { resolveCountries } from '../locationNormalizer';
 
@@ -92,7 +92,7 @@ interface IndeedJob {
   title?: string;
   datePublished?: string;
   location?: { city?: string; admin1Code?: string; countryName?: string };
-  employer?: { name?: string };
+  employer?: { name?: string; briefDescription?: string; employeesCount?: string };
   attributes?: Record<string, string>;
   description?: { text?: string; html?: string };
   logoUrl?: string;
@@ -112,6 +112,18 @@ function buildLocation(loc: IndeedJob['location']): string {
   if (!loc) return '';
   const parts = [loc.city, loc.admin1Code, loc.countryName].filter(Boolean);
   return parts.join(', ');
+}
+
+// employeesCount arrives as a band string ("10,000+"), never an exact number — map it to
+// employeeRange so enrichment doesn't report it as a precise headcount.
+function getCompanyData(item: IndeedJob): ProviderCompanyData | undefined {
+  const e = item.employer;
+  if (!e) return undefined;
+  const data: ProviderCompanyData = {
+    description: e.briefDescription ? e.briefDescription.substring(0, 2000) : undefined,
+    employeeRange: e.employeesCount || undefined,
+  };
+  return (data.description || data.employeeRange) ? data : undefined;
 }
 
 function mapToJobPosting(item: IndeedJob): JobPosting | null {
@@ -136,6 +148,7 @@ function mapToJobPosting(item: IndeedJob): JobPosting | null {
     provider: 'indeed',
     jobSource: 'Indeed',
     logoUrl: item.logoUrl || undefined,
+    companyData: getCompanyData(item),
   };
 }
 

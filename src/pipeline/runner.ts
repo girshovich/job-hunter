@@ -13,11 +13,13 @@ import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { providerToSource, parseJobTypes } from './types';
 import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
+import { enrichCompanies } from './companyEnrichment';
+import { companyKey } from '../uiHelpers';
 import { resolveLocationString, lookupCountry, expandRegionToCountries } from './locationNormalizer';
 import { groupOrDrop } from './locationGrouping';
 import pLimit from 'p-limit';
 import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
-import { fetchClearbitLogosForAts } from './companyLogos';
+import { fetchCompanyLogos } from './companyLogos';
 import { enqueue } from './runQueue';
 
 const lastRateLimitAlert = new Map<string, number>(); // recipient email → last alert timestamp
@@ -277,10 +279,11 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     `);
 
     const upsertCompanyLogo = db.prepare(`
-      INSERT INTO companies (company, logo_url, fetched_at) VALUES (?, ?, ?)
+      INSERT INTO companies (company, display_name, logo_url, fetched_at) VALUES (?, ?, ?, ?)
       ON CONFLICT(company) DO UPDATE SET
-        logo_url   = COALESCE(excluded.logo_url, companies.logo_url),
-        fetched_at = excluded.fetched_at
+        logo_url     = COALESCE(excluded.logo_url, companies.logo_url),
+        display_name = COALESCE(companies.display_name, excluded.display_name),
+        fetched_at   = excluded.fetched_at
     `);
 
     const insertJobLog = db.prepare(`
@@ -556,6 +559,21 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         });
       }
 
+      // 3d. Company enrichment — first-seen companies only. Runs on the post-dedup set, so
+      // filtered/blacklisted/duplicate jobs never trigger a call. Never aborts the run; its
+      // tokens fold into the existing AI cost line.
+      if (newJobsToScore.length > 0) {
+        throwIfStopped(profileId);
+        try {
+          const enr = await enrichCompanies(db, newJobsToScore, settings, openAiKey);
+          totalInputTokens       += enr.tokenUsage.inputTokens;
+          totalCachedInputTokens += enr.tokenUsage.cachedInputTokens;
+          totalOutputTokens      += enr.tokenUsage.outputTokens;
+        } catch (e) {
+          console.error('[runner] Company enrichment failed (non-fatal):', (e as Error).message);
+        }
+      }
+
       // 4. Score all new jobs (Call 1: scoring)
       const scoringSettings: SettingsRow = {
         ...settings,
@@ -753,7 +771,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               0, null, 0, null,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
-            if (job.logoUrl) upsertCompanyLogo.run(job.company, job.logoUrl, now);
+            if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${blacklistedJobs.length} blacklisted job(s).`);
@@ -792,7 +810,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               isDuplicate ? 1 : 0, isDuplicate ? now : null,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
-            if (job.logoUrl) upsertCompanyLogo.run(job.company, job.logoUrl, now);
+            if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
           }
           // Store URL-duplicate jobs (cross-source reposts) — canonical entry written, state marked duplicate
           for (const { job, duplicateOfId } of urlDuplicates) {
@@ -814,20 +832,20 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               1, duplicateOfId, 1, now,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
-            if (job.logoUrl) upsertCompanyLogo.run(job.company, job.logoUrl, now);
+            if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${jobResults.length} jobs.`);
 
-        // Fire-and-forget Clearbit logo fetch for ATS jobs (Greenhouse/Ashby provide no logo)
-        const atsForClearbit = [
+        // Fire-and-forget favicon fallback. Every source, not just ATS: only harvestapi returns
+        // a real logo, and fetchCompanyLogos skips anything that already has one.
+        const companiesNeedingLogos = [
           ...jobResults.map(({ scored }) => scored.job),
           ...urlDuplicates.map(({ job }) => job),
           ...blacklistedJobs,
-        ].filter((j) => j.jobSource === 'Greenhouse' || j.jobSource === 'Ashby' || j.jobSource === 'Lever')
-          .map((j) => ({ company: j.company, ats: j.jobSource.toLowerCase() }));
-        if (atsForClearbit.length > 0) {
-          fetchClearbitLogosForAts(db, atsForClearbit).catch(() => {});
+        ].map((j) => ({ company: j.company, ats: j.jobSource.toLowerCase() }));
+        if (companiesNeedingLogos.length > 0) {
+          fetchCompanyLogos(db, companiesNeedingLogos).catch(() => {});
         }
 
         // Collect non-duplicate STRONG_MATCHes for hard-model re-scoring after all groups finish
