@@ -10,3 +10,4 @@ logs/
 lever_companies.csv
 lever_slugs_raw.csv
 src/public/css/tailwind.css
+.DS_Store
