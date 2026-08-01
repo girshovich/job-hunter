@@ -243,7 +243,10 @@
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
                 </button>
                 <div>
-                  <h3 class="text-sm font-semibold text-gray-900">Scoring &amp; Summary</h3>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-gray-900">Scoring &amp; Summary</h3>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Easy model + Hard on re-scoring</span>
+                  </div>
                   <p class="text-xs text-gray-500 mt-0.5">One call per new job — rates it 0–100, assigns a verdict + rationale, and generates a summary for Strong Matches.</p>
                 </div>
               </div>
@@ -384,15 +387,17 @@ For summary: if score is >70 —</pre>
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
                 </button>
                 <div>
-                  <h3 class="text-sm font-semibold text-gray-900">De-dup Candidates</h3>
-                  <p class="text-xs text-gray-500 mt-0.5">Titles-only pass — narrows duplicate candidates before the full dedup check. Uses the easy tasks model.</p>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-gray-900">De-dup Candidates</h3>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Easy model</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-0.5">Titles-only pass — narrows duplicate candidates before the full dedup check.</p>
                 </div>
               </div>
               <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
                 <div class="flex items-center gap-2 mb-1">
                   <p class="text-xs font-medium text-gray-600">System prompt</p>
                   <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
-                  <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Easy model</span>
                 </div>
                 <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed">You are a job deduplication pre-filter. Given a new job title and a list of existing job titles from the same company, return the IDs of any existing jobs that could plausibly be the same role — same seniority, same domain, same scope. Be liberal: include anything that might be a duplicate. Return only the IDs.</pre>
               </div>
@@ -407,8 +412,11 @@ For summary: if score is >70 —</pre>
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
                 </button>
                 <div>
-                  <h3 class="text-sm font-semibold text-gray-900">Duplicate Check</h3>
-                  <p class="text-xs text-gray-500 mt-0.5">Only runs for Strong Matches when the same company + title already exists in the DB — detects if the job is a repost. Uses the hard tasks model.</p>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-gray-900">Duplicate Check</h3>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Hard model</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-0.5">Only runs for Strong Matches when the same company + title already exists in the DB — detects if the job is a repost.</p>
                 </div>
               </div>
               <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
@@ -479,7 +487,10 @@ Description: {description — up to 1,500 chars each}
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
                 </button>
                 <div>
-                  <h3 class="text-sm font-semibold text-gray-900">CV Comparison</h3>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-gray-900">CV Comparison</h3>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Hard model</span>
+                  </div>
                   <p class="text-xs text-gray-500 mt-0.5">On-demand — triggered manually from a job detail page. Compares your CV against the job description and answers your questions.</p>
                 </div>
               </div>
@@ -508,7 +519,10 @@ Description: {description — up to 1,500 chars each}
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
                 </button>
                 <div>
-                  <h3 class="text-sm font-semibold text-gray-900">Company Enrichment</h3>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-gray-900">Company Enrichment</h3>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">Easy model</span>
+                  </div>
                   <p class="text-xs text-gray-500 mt-0.5">One call per company you haven't seen before, during a run. Fills the shared company details shown in the company modal.</p>
                 </div>
               </div>
