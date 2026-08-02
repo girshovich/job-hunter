@@ -195,12 +195,15 @@ interface ScoringLlmOutput {
 
 function buildScoringUserMessage(job: JobPosting, summaryPrompt: string, sparse = false): string {
   const summaryInstruction = summaryPrompt?.trim() || DEFAULT_SUMMARY_PROMPT;
+  // Only the providers that return compensation set this; omit the line entirely otherwise, so the
+  // model never reads a blank as "unpaid" or "not disclosed".
+  const salaryLine = job.salary ? `Salary: ${job.salary}\n` : '';
   return `<JOB_POSTING>
 Title: ${job.title}
 Company: ${job.company}
 Location: ${sparse ? '(not specified)' : job.location}
 Work Mode: ${job.workMode}
-Description:
+${salaryLine}Description:
 ${trimBoilerplate(stripHtml(job.description)).substring(0, 8_000)}
 </JOB_POSTING>
 

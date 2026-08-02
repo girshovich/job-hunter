@@ -1124,6 +1124,19 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v_company_website failed (non-fatal):', (err as Error).message);
   }
 
+  // v_job_salary: the provider's stated pay, as one display-ready line. Only valig, harvestapi and
+  // indeed return compensation at all; every other source leaves it NULL. Not backfillable — the
+  // field is written when a posting is first stored, so existing rows stay NULL until re-fetched.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'salary')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN salary TEXT`);
+      console.log('[db] Migration v_job_salary: jobs.salary added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_job_salary failed (non-fatal):', (err as Error).message);
+  }
+
   // v_company_key: canonicalize company-scoped keys to trim+lowercase and merge collisions,
   // so "Citi", "citi" and "Citi " share one record and one note per profile.
   // jobs.company and blacklisted_companies.company_name are left alone on purpose: job rows keep
@@ -2225,6 +2238,7 @@ function initSchema(db: Database): void {
       company               TEXT    NOT NULL,
       location              TEXT,
       work_mode             TEXT,
+      salary                TEXT,
       description           TEXT    NOT NULL,
       url                   TEXT,
       posted_date           TEXT,
@@ -2647,6 +2661,7 @@ export interface JobRow {
   company: string;
   location: string | null;
   work_mode: string | null;
+  salary: string | null;
   description: string;
   url: string | null;
   apply_url: string | null;

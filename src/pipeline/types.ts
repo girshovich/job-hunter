@@ -38,6 +38,10 @@ export interface JobPosting {
   jobSource: JobSource;
   logoUrl?: string;
   companyData?: ProviderCompanyData;
+  // Display text only — each provider ships a different shape (valig a raw string, harvestapi and
+  // indeed structured amounts), so it is normalized to one loosely-formatted line at the mapper.
+  // Absent for every source that returns no compensation data.
+  salary?: string;
 }
 
 export interface SearchFilters {

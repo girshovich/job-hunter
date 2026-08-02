@@ -24,6 +24,7 @@ interface ValigJob {
   description?: string;
   descriptionHtml?: string;
   logo?: string;
+  salary?: string; // already display-ready, e.g. "$250,000.00/yr - $800,000.00/yr"
 }
 
 function getDatePosted(dateRange: DateRange): string {
@@ -53,6 +54,7 @@ function mapToJobPosting(item: ValigJob): JobPosting {
     provider: 'valig',
     jobSource: 'LinkedIn',
     logoUrl: item.logo || undefined,
+    salary: item.salary?.trim().substring(0, 100) || undefined,
   };
 }
 

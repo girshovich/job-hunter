@@ -96,6 +96,7 @@ interface IndeedJob {
   attributes?: Record<string, string>;
   description?: { text?: string; html?: string };
   logoUrl?: string;
+  baseSalary?: { min?: number; max?: number; unitOfWork?: string; currencyCode?: string };
 }
 
 function toIndeedLocation(location: string): string {
@@ -126,6 +127,27 @@ function getCompanyData(item: IndeedJob): ProviderCompanyData | undefined {
   return (data.description || data.employeeRange) ? data : undefined;
 }
 
+// Indeed ships amounts only, so the display line is assembled here. Either bound can be missing and
+// a fixed figure arrives as min === max, so both collapse to a single amount rather than a range.
+// unitOfWork is an enum (YEAR/MONTH/…) — spelled out to match the other providers' salary lines.
+// Note the actor exposes no employer-provided flag, so an Indeed figure may be Indeed's own estimate.
+const UNIT_OF_WORK_LABEL: Record<string, string> = {
+  YEAR: 'year', MONTH: 'month', WEEK: 'week', DAY: 'day', HOUR: 'hour',
+};
+
+function getSalary(item: IndeedJob): string | undefined {
+  const s = item.baseSalary;
+  if (!s) return undefined;
+  const amounts = [s.min, s.max].filter((n): n is number => typeof n === 'number');
+  const unique = [...new Set(amounts)];
+  if (unique.length === 0) return undefined;
+  const parts = [unique.map((n) => n.toLocaleString('en-US')).join(' - ')];
+  if (s.currencyCode) parts.push(s.currencyCode);
+  const unit = UNIT_OF_WORK_LABEL[(s.unitOfWork || '').toUpperCase()];
+  if (unit) parts.push(`/ ${unit}`);
+  return parts.join(' ').substring(0, 100);
+}
+
 function mapToJobPosting(item: IndeedJob): JobPosting | null {
   const jobId = item.key || '';
   if (!jobId) return null;
@@ -149,6 +171,7 @@ function mapToJobPosting(item: IndeedJob): JobPosting | null {
     jobSource: 'Indeed',
     logoUrl: item.logoUrl || undefined,
     companyData: getCompanyData(item),
+    salary: getSalary(item),
   };
 }
 

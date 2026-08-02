@@ -37,6 +37,7 @@ interface HarvestJob {
   postedDate?: string;
   listedAt?: string | number;
   logo?: string;
+  salary?: { text?: string; payPeriod?: string };
 }
 
 function normalizeWorkMode(raw: string | undefined): string {
@@ -83,6 +84,21 @@ function getCompanyData(item: HarvestJob): ProviderCompanyData | undefined {
   return (data.description || data.employeeCount || data.employeeRange || data.website) ? data : undefined;
 }
 
+// `salary.text` already carries the amounts and currency ("80,000 - 85,000 USD"); only the period
+// is missing from it. payPeriod is an enum — YEARLY/MONTHLY/HOURLY/… — so it is spelled out rather
+// than shown shouting. No text means no salary line: the structured amounts alone are not worth
+// re-assembling into a second format.
+const PAY_PERIOD_LABEL: Record<string, string> = {
+  YEARLY: 'year', MONTHLY: 'month', WEEKLY: 'week', DAILY: 'day', HOURLY: 'hour',
+};
+
+function getSalary(item: HarvestJob): string | undefined {
+  const text = item.salary?.text?.trim();
+  if (!text) return undefined;
+  const period = PAY_PERIOD_LABEL[(item.salary?.payPeriod || '').toUpperCase()];
+  return (period ? `${text} / ${period}` : text).substring(0, 100);
+}
+
 function getLocationText(loc: HarvestJobLocation | string | undefined): string {
   if (!loc) return '';
   if (typeof loc === 'string') return loc;
@@ -114,6 +130,7 @@ function mapToJobPosting(item: HarvestJob): JobPosting {
     jobSource: 'LinkedIn',
     logoUrl: getCompanyLogo(item),
     companyData: getCompanyData(item),
+    salary: getSalary(item),
   };
 }
 

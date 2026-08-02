@@ -273,6 +273,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
       company: 'Acme Corp',
       location: 'London, UK (Hybrid)',
       work_mode: 'hybrid',
+      salary: null,
       description: '',
       url: 'https://linkedin.com',
       apply_url: null,

@@ -248,9 +248,9 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     // Prepared statements (shared across groups and providers)
     const insertCanonicalJob = db.prepare(`
       INSERT OR IGNORE INTO jobs (
-        linkedin_job_id, job_source, provider, title, company, location, country, work_mode,
+        linkedin_job_id, job_source, provider, title, company, location, country, work_mode, salary,
         description, url, apply_url, posted_date, fetched_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)
     `);
 
     const selectJobId = db.prepare(
@@ -276,6 +276,14 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     const updateApplyUrl = db.prepare(`
       UPDATE jobs SET apply_url = ?
       WHERE linkedin_job_id = ? AND job_source = ? AND apply_url IS NULL
+    `);
+
+    // The canonical insert is INSERT OR IGNORE, so a job first stored before salary was captured
+    // (or by a source that returns none) would keep a NULL forever. Patch it the next time a
+    // provider does supply one; never overwrite a value we already have.
+    const updateSalary = db.prepare(`
+      UPDATE jobs SET salary = ?
+      WHERE linkedin_job_id = ? AND job_source = ? AND salary IS NULL
     `);
 
     const upsertCompanyLogo = db.prepare(`
@@ -758,6 +766,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,
+              job.salary || null,
               job.url || null, job.applyUrl || null,
               job.postedDate || null, now,
             );
@@ -771,6 +780,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               0, null, 0, null,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+            if (job.salary) updateSalary.run(job.salary, job.jobId, jobSource);
             if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
           }
         });
@@ -789,6 +799,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,
+              job.salary || null,
               job.url || null, job.applyUrl || null,
               job.postedDate || null, now,
             );
@@ -810,6 +821,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               isDuplicate ? 1 : 0, isDuplicate ? now : null,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+            if (job.salary) updateSalary.run(job.salary, job.jobId, jobSource);
             if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
           }
           // Store URL-duplicate jobs (cross-source reposts) — canonical entry written, state marked duplicate
@@ -819,6 +831,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,
+              job.salary || null,
               job.url || null, job.applyUrl || null,
               job.postedDate || null, now,
             );
@@ -832,6 +845,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               1, duplicateOfId, 1, now,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+            if (job.salary) updateSalary.run(job.salary, job.jobId, jobSource);
             if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
           }
         });
