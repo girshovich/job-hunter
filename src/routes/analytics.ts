@@ -151,6 +151,45 @@ router.get('/', (req: Request, res: Response) => {
     ORDER BY month
   `).all(profileId) as StrongQualityMonthRow[];
 
+  // Daily costs — last 14 days. Bucketed in the profile's timezone (not UTC) so a
+  // run lands on the same calendar day here as it does in Run Logs (reports.ts:25).
+  const tzRow = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?')
+    .get(profileId) as { timezone: string } | undefined;
+  const timezone = tzRow?.timezone || 'UTC';
+  const dayKey = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: timezone });
+
+  // Civil-date arithmetic in UTC so a DST transition can't duplicate or skip a day.
+  const [ty, tm, td] = dayKey(new Date()).split('-').map(Number);
+  const todayUtc = Date.UTC(ty, tm - 1, td);
+  const costDays: string[] = [];
+  for (let i = 13; i >= 0; i--) costDays.push(new Date(todayUtc - i * 86400000).toISOString().slice(0, 10));
+
+  // -15 days of UTC rows so timezone shifting can't drop a run at either edge.
+  interface RunCostRow { ran_at: string; cost_apify_usd: number | null; cost_openai_usd: number | null }
+  const runCosts = db.prepare<RunCostRow>(`
+    SELECT ran_at, cost_apify_usd, cost_openai_usd
+    FROM search_runs
+    WHERE profile_id = ? AND date(ran_at) >= date('now', '-15 days')
+  `).all(profileId) as RunCostRow[];
+
+  const costMap = new Map<string, { fetch: number; ai: number }>();
+  for (const run of runCosts) {
+    const key = dayKey(new Date(run.ran_at));
+    if (!costMap.has(key)) costMap.set(key, { fetch: 0, ai: 0 });
+    const entry = costMap.get(key)!;
+    entry.fetch += run.cost_apify_usd ?? 0;
+    entry.ai += run.cost_openai_usd ?? 0;
+  }
+
+  // Long shape ({day, category, count}) so the chart renderer is shared with the quality charts.
+  const dailyCostRaw: { day: string; category: string; count: number }[] = [];
+  for (const day of costDays) {
+    const entry = costMap.get(day);
+    if (!entry) continue;
+    if (entry.fetch > 0) dailyCostRaw.push({ day, category: 'fetch', count: entry.fetch });
+    if (entry.ai > 0) dailyCostRaw.push({ day, category: 'ai', count: entry.ai });
+  }
+
   res.render('analytics', {
     totals,
     statusBreakdown,
@@ -158,6 +197,8 @@ router.get('/', (req: Request, res: Response) => {
     countryStats,
     strongQualityRaw,
     strongQualityMonthlyRaw,
+    dailyCostRaw,
+    costDays,
     groups,
     title: 'Stats',
   });

@@ -236,9 +236,21 @@
   </div>
 </div>
 
+<!-- ── Daily costs — last 14 days ── -->
+<div class="sp-card sp-pad" style="margin-top:20px">
+  <div class="sp-title">Daily costs — last 14 days</div>
+  <div class="sp-sub">Fetch and AI spend per day</div>
+  <div id="cost-legend" class="sp-qlegend"></div>
+  <div style="overflow-x:auto" class="jh-scroll">
+    <div id="cost-chart" style="display:flex;align-items:flex-end;gap:6px;"></div>
+  </div>
+</div>
+
 <script>
 const QUALITY_RAW         = <%- JSON.stringify(strongQualityRaw) %>;
 const QUALITY_MONTHLY_RAW = <%- JSON.stringify(strongQualityMonthlyRaw) %>;
+const COST_RAW            = <%- JSON.stringify(dailyCostRaw) %>;
+const COST_DAYS           = <%- JSON.stringify(costDays) %>;
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -280,67 +292,82 @@ function _moveTip(e) {
 function hideTip() { if (_tip) _tip.style.display = 'none'; }
 document.addEventListener('mousemove', _moveTip);
 
-// ── Quality chart shared renderer (used for both daily and monthly) ────────────
-const Q_ORDER  = ['kept', 'promoted', 'demoted'];
-const Q_CONFIG = {
-  kept:     { label: 'AI strong — kept',    color: 'var(--green)' },
-  promoted: { label: 'Promoted to strong',  color: 'var(--amber)' },
-  demoted:  { label: 'Demoted from strong', color: 'var(--red)' },
+// ── Stacked chart shared renderer (quality daily/monthly, costs daily) ────────
+// A spec supplies the categories, how a value is written, and the tooltip suffix.
+const QUALITY_SPEC = {
+  order:  ['kept', 'promoted', 'demoted'],
+  config: {
+    kept:     { label: 'AI strong — kept',    color: 'var(--green)' },
+    promoted: { label: 'Promoted to strong',  color: 'var(--amber)' },
+    demoted:  { label: 'Demoted from strong', color: 'var(--red)' },
+  },
+  fmt: v => String(v),
+  tipSuffix: ' strong matches',
+  colW: 36,
+};
+// order[0] renders as the topmost segment — AI above, Fetch below.
+const COST_SPEC = {
+  order:  ['ai', 'fetch'],
+  config: {
+    ai:    { label: 'AI',    color: 'var(--sky-ink)' },
+    fetch: { label: 'Fetch', color: 'var(--sky-border)' },
+  },
+  fmt: v => '$' + v.toFixed(3),
+  tipSuffix: '',
+  colW: 46,   // a "$0.302" label needs more room than a count before it collides when scrolled
 };
 
-function renderQualityChart(containerId, legendId, rawData, periods, getLabel, getKey) {
+function renderStackedChart(containerId, legendId, rawData, periods, getLabel, getKey, spec) {
+  const ORDER = spec.order, CFG = spec.config;
   const dataMap = {};
-  for (const p of periods) { dataMap[p] = { kept: 0, promoted: 0, demoted: 0 }; }
+  for (const p of periods) { dataMap[p] = {}; ORDER.forEach(c => { dataMap[p][c] = 0; }); }
   for (const row of rawData) {
     const key = getKey(row);
-    if (dataMap[key] !== undefined && Q_CONFIG[row.category]) {
+    if (dataMap[key] !== undefined && CFG[row.category]) {
       dataMap[key][row.category] += row.count;
     }
   }
 
   const BAR_H = 96;
-  const presentCats = new Set();
-  const maxTotal = Math.max(...periods.map(p => {
-    const total = Q_ORDER.reduce((s,c) => s + dataMap[p][c], 0);
-    Q_ORDER.forEach(c => { if (dataMap[p][c] > 0) presentCats.add(c); });
-    return total;
-  }), 1);
+  const rawMax = Math.max(...periods.map(p => ORDER.reduce((s,c) => s + dataMap[p][c], 0)));
+  // Guard division by zero only — a fixed floor of 1 would scale dollar bars against $1.00.
+  const maxTotal = rawMax > 0 ? rawMax : 1;
 
   const container = document.getElementById(containerId);
   container.style.height = (BAR_H + 46) + 'px';
-  container.style.minWidth = (periods.length * 36 + (periods.length - 1) * 6) + 'px';
+  container.style.minWidth = (periods.length * spec.colW + (periods.length - 1) * 6) + 'px';
   container.innerHTML = periods.map(p => {
     const cats = dataMap[p];
-    const total = Q_ORDER.reduce((s,c) => s + cats[c], 0);
+    const total = ORDER.reduce((s,c) => s + cats[c], 0);
     const totalH = total > 0 ? Math.max(Math.round(total / maxTotal * BAR_H), 4) : 0;
     let segs = '', remaining = totalH;
-    const present = Q_ORDER.filter(c => cats[c] > 0);
+    const present = ORDER.filter(c => cats[c] > 0);
     for (let i = 0; i < present.length; i++) {
       const c = present[i];
       const segH = i === present.length - 1 ? remaining : Math.round(cats[c] / total * totalH);
       remaining -= segH;
-      segs += `<div style="width:100%;height:${segH}px;background:${Q_CONFIG[c].color};flex-shrink:0;"></div>`;
+      segs += `<div style="width:100%;height:${segH}px;background:${CFG[c].color};flex-shrink:0;"></div>`;
     }
-    const tipLines = Q_ORDER.filter(c => cats[c] > 0).map(c =>
-      `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${Q_CONFIG[c].color};margin-right:5px;vertical-align:middle;"></span>${Q_CONFIG[c].label}: <b>${cats[c]}</b>`
+    const tipLines = ORDER.filter(c => cats[c] > 0).map(c =>
+      `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CFG[c].color};margin-right:5px;vertical-align:middle;"></span>${CFG[c].label}: <b>${spec.fmt(cats[c])}</b>`
     ).join('<br>');
     const label = getLabel(p);
-    const tipData = JSON.stringify({ label, total, lines: tipLines });
+    const tipData = JSON.stringify({ label, totalText: spec.fmt(total) + spec.tipSuffix, lines: tipLines });
     const safeData = tipData.replace(/"/g,'&quot;');
     return `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:30px;">
       <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;cursor:default;"
            data-qtip="${safeData}" onmouseenter="showQTip(event,this)" onmouseleave="hideTip()">
         <div style="width:100%;height:${totalH}px;display:flex;flex-direction:column;border-radius:2px 2px 0 0;overflow:hidden;">${segs}</div>
-        ${total > 0 ? `<span style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${total}</span>` : ''}
+        ${total > 0 ? `<span style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${spec.fmt(total)}</span>` : ''}
       </div>
       <span style="font-size:10px;color:#6b7280;text-align:center;display:block;position:absolute;bottom:0;left:0;right:0;">${label}</span>
     </div>`;
   }).join('');
 
-  document.getElementById(legendId).innerHTML = Q_ORDER.map(c =>
+  document.getElementById(legendId).innerHTML = ORDER.map(c =>
     `<div style="display:flex;align-items:center;gap:4px;">
-       <div style="width:10px;height:10px;border-radius:2px;background:${Q_CONFIG[c].color};flex-shrink:0;"></div>
-       <span style="font-size:11px;color:#6b7280;">${Q_CONFIG[c].label}</span>
+       <div style="width:10px;height:10px;border-radius:2px;background:${CFG[c].color};flex-shrink:0;"></div>
+       <span style="font-size:11px;color:#6b7280;">${CFG[c].label}</span>
      </div>`
   ).join('');
 }
@@ -348,27 +375,37 @@ function renderQualityChart(containerId, legendId, rawData, periods, getLabel, g
 function showQTip(e, el) {
   _ensureTip();
   const d = JSON.parse(el.dataset.qtip);
-  _tip.innerHTML = `<div style="font-weight:700;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:4px;">${d.label} &mdash; ${d.total} strong matches</div>${d.lines}`;
+  _tip.innerHTML = `<div style="font-weight:700;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:4px;">${d.label} &mdash; ${d.totalText}</div>${d.lines}`;
   _tip.style.display = 'block';
   _moveTip(e);
 }
 
 
-renderQualityChart(
+renderStackedChart(
   'quality-chart', 'quality-legend', QUALITY_RAW,
   getLastNDays(14),
   d => { const p = d.split('-'); return MN[parseInt(p[1])-1] + ' ' + parseInt(p[2]); },
-  row => row.day
+  row => row.day,
+  QUALITY_SPEC
 );
-renderQualityChart(
+renderStackedChart(
   'quality-monthly-chart', 'quality-monthly-legend', QUALITY_MONTHLY_RAW,
   getLastNMonths(12),
   m => MN[parseInt(m.slice(5))-1] + '<br>\'' + m.slice(2,4),
-  row => row.month
+  row => row.month,
+  QUALITY_SPEC
+);
+// Days come from the server, already in the profile's timezone.
+renderStackedChart(
+  'cost-chart', 'cost-legend', COST_RAW,
+  COST_DAYS,
+  d => { const p = d.split('-'); return MN[parseInt(p[1])-1] + ' ' + parseInt(p[2]); },
+  row => row.day,
+  COST_SPEC
 );
 
 // Scroll charts to show the most recent (rightmost) data on load
-['quality-chart', 'quality-monthly-chart'].forEach(id => {
+['quality-chart', 'quality-monthly-chart', 'cost-chart'].forEach(id => {
   const el = document.getElementById(id);
   if (el && el.parentElement) el.parentElement.scrollLeft = el.parentElement.scrollWidth;
 });
