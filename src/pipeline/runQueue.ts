@@ -1,4 +1,4 @@
-// Global in-process concurrency gate for pipeline + fetch-preview work.
+// Global in-process concurrency gate for pipeline work.
 // One chokepoint so no trigger path can exceed the cap. Swap internals for
 // BullMQ/Redis later without touching callers.
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT_RUNS) || 6;

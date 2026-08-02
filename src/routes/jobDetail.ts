@@ -24,7 +24,8 @@ export function loadJobDetail(profileId: number, id: number): JobDetailLocals | 
   const db = getDb();
 
   const jobRow = db.prepare(`
-    SELECT j.*, jps.*, c.logo_url, COALESCE(jd.description_text, j.description) AS description_text
+    SELECT j.*, jps.*, c.logo_url, c.is_agency, c.employee_count, c.employee_range,
+           COALESCE(jd.description_text, j.description) AS description_text
     FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
     LEFT JOIN job_descriptions jd ON jd.job_id = j.id
     LEFT JOIN companies c ON c.company = LOWER(TRIM(j.company))

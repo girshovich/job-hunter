@@ -6,8 +6,7 @@ import { Router, type Request, type Response } from 'express';
 import { runPipeline, getIsRunning, getRunStatus, requestStop, isStopRequested, type RunOptions } from '../pipeline/runner';
 import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail, sendTopUpRequest } from '../pipeline/emailReport';
-import { fetchJobs } from '../pipeline/fetcher';
-import { parseJobTypes, JOB_TYPES } from '../pipeline/types';
+import { JOB_TYPES } from '../pipeline/types';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
 import { runDiscovery } from '../pipeline/atsDiscovery';
 import { runLeverDiscovery } from '../pipeline/leverDiscovery';
@@ -18,7 +17,6 @@ import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipe
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
-import { enqueue } from '../pipeline/runQueue';
 import { getDb, getMatchesCount, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
@@ -402,53 +400,6 @@ router.post('/profiles/:id/delete', (req: Request, res: Response) => {
   db.prepare('DELETE FROM profiles WHERE id = ?').run(targetId);
 
   res.json({ success: true });
-});
-
-// Fetch-only preview — runs the Apify actor for all groups, returns raw job list, no scoring/storage
-router.post('/fetch-preview', async (req: Request, res: Response) => {
-  const profileId = req.profile.id;
-  if (getIsRunning(profileId)) {
-    res.status(409).json({ success: false, error: 'Pipeline is already running.' });
-    return;
-  }
-
-  try {
-    const db = getDb();
-    const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
-    const apifyToken = settings.apify_api_token || config.apifyApiToken;
-    const groups = db.prepare('SELECT * FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as SearchGroupRow[];
-    if (groups.length === 0) {
-      res.json({ success: true, count: 0, jobs: [] });
-      return;
-    }
-
-    const providers = JSON.parse(settings.scraping_providers || DEFAULT_PROVIDER_SELECTION_JSON) as string[];
-    const scrapingProvider = providers[0] || DEFAULT_PROVIDER_SELECTION[0];
-
-    // /fetch-preview awaits a queue slot; under a full queue the HTTP request waits (acceptable for a preview action)
-    const result = await enqueue(async () => {
-      const allJobs: Array<{ title: string; company: string; url: string }> = [];
-
-      for (const group of groups) {
-        if (!group.is_active) continue;
-
-        const keywords: string[] = JSON.parse(group.keywords);
-        const locations: string[] = JSON.parse(group.locations);
-        const workModes: string[] = JSON.parse(group.work_modes);
-
-        const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: parseJobTypes(group.job_type) }, apifyToken, '24h', scrapingProvider);
-        for (const j of jobs) {
-          allJobs.push({ title: j.title, company: j.company, url: j.url });
-        }
-      }
-
-      return { count: allJobs.length, jobs: allJobs };
-    });
-
-    res.json({ success: true, ...result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: (err as Error).message });
-  }
 });
 
 // Stats summary for dashboard polling

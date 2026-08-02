@@ -368,6 +368,32 @@ export function renderCompanyLogo(company: string, logoUrl?: string | null): str
     `</span>`;
 }
 
+/**
+ * Company chips (DS §5.1 metrics, §5.5 neutral pair — company facts are information, not a verdict,
+ * so they never borrow a verdict tone). Both are inline-level for the detail header's inline flow.
+ * `is_agency` NULL means unknown and renders nothing — never "not an agency".
+ */
+const COMPANY_CHIP_STYLE = 'display:inline-flex;align-items:center;height:22px;padding:0 8px;'
+  + 'border-radius:7px;font-size:11.5px;font-weight:700;background:#eef1f6;color:var(--ink2);border:1px solid var(--line2);';
+
+function companyChip(text: string): string {
+  return `<span style="${COMPANY_CHIP_STYLE}">${escapeHtml(text)}</span>`;
+}
+
+/** List cards: the agency flag only. Empty string when the company isn't a known agency. */
+export function renderAgencyChip(job: { is_agency?: number | null }): string {
+  return job.is_agency === 1 ? companyChip('agency') : '';
+}
+
+/** Detail header: the agency flag, else the headcount, else nothing. Range shown as stored. */
+export function renderCompanyChip(job: { is_agency?: number | null; employee_count?: number | null; employee_range?: string | null }): string {
+  const agency = renderAgencyChip(job);
+  if (agency) return agency;
+  if (job.employee_count != null) return companyChip(`${job.employee_count} employees`);
+  if (job.employee_range) return companyChip(`${job.employee_range} employees`);
+  return '';
+}
+
 export type LocationPreference = { preferred?: Set<string>; currentLocation?: string };
 
 /**
@@ -569,4 +595,6 @@ export const uiHelpers = {
   getClientUiTokens,
   countryToFlag,
   renderCompanyLogo,
+  renderAgencyChip,
+  renderCompanyChip,
 };

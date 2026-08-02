@@ -482,57 +482,6 @@ function resetRunBtn(progress) {
   }, 3000);
 }
 
-async function fetchPreview(btn) {
-  const label = document.getElementById('fetch-preview-label');
-  btn.disabled = true;
-  btn.classList.add('opacity-60', 'cursor-not-allowed');
-  label.textContent = '…';
-  try {
-    const res = await fetch('/api/fetch-preview', { method: 'POST' });
-    const data = await res.json();
-    if (!data.success) { alert('Error: ' + (data.error || 'Unknown error')); return; }
-    showFetchPreviewModal(data.count, data.jobs);
-  } catch (e) {
-    alert('Network error: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('opacity-60', 'cursor-not-allowed');
-    label.textContent = 'P';
-  }
-}
-
-function showFetchPreviewModal(count, jobs) {
-  const existing = document.getElementById('fetch-preview-modal');
-  if (existing) existing.remove();
-  const rows = jobs.map(j => `
-    <tr class="border-b border-gray-100 hover:bg-gray-50">
-      <td class="py-2.5 pr-4 text-sm text-gray-700 font-medium whitespace-nowrap">${escHtml(j.company)}</td>
-      <td class="py-2.5 pr-4 text-sm text-gray-900">${escHtml(j.title)}</td>
-      <td class="py-2.5 text-sm">${j.url ? `<a href="${escHtml(j.url)}" target="_blank" class="text-blue-600 hover:underline whitespace-nowrap">View →</a>` : '<span class="text-gray-400">—</span>'}</td>
-    </tr>`).join('');
-  const modal = document.createElement('div');
-  modal.id = 'fetch-preview-modal';
-  modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
-  modal.innerHTML = `
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="document.getElementById('fetch-preview-modal').remove()"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-        <div><h2 class="font-semibold text-gray-900 text-lg">Fetch Preview</h2>
-        <p class="text-sm text-gray-500 mt-0.5"><span class="font-semibold text-blue-600">${count}</span> job${count !== 1 ? 's' : ''} fetched</p></div>
-        <button onclick="document.getElementById('fetch-preview-modal').remove()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="overflow-y-auto flex-1 px-6 py-2">
-        ${count === 0 ? '<p class="text-center text-gray-400 py-8">No jobs found.</p>' :
-          `<table class="w-full"><thead><tr class="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
-            <th class="pb-2 pr-4 text-left font-medium">Company</th><th class="pb-2 pr-4 text-left font-medium">Title</th><th class="pb-2 text-left font-medium">Link</th>
-          </tr></thead><tbody>${rows}</tbody></table>`}
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-}
-
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

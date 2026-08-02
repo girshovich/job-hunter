@@ -95,50 +95,6 @@ document.addEventListener('change', e => {
   if (field) { field.disabled = !cb.checked; if (cb.checked) field.focus(); }
 });
 
-// ---- Preview Fetch ----
-
-async function fetchPreview(btn) {
-  const label = document.getElementById('fetch-preview-label');
-  btn.disabled = true; label.textContent = 'Fetching…';
-  try {
-    const res = await fetch('/api/fetch-preview', { method: 'POST' });
-    const data = await res.json();
-    showFetchPreviewModal(data.count, data.jobs);
-  } catch (e) {
-    alert('Preview fetch failed: ' + e.message);
-  } finally {
-    btn.disabled = false; label.textContent = 'Preview Fetch';
-  }
-}
-
-function showFetchPreviewModal(count, jobs) {
-  const existing = document.getElementById('fetch-preview-modal');
-  if (existing) existing.remove();
-  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const rows = (jobs || []).map(j => `
-    <tr class="border-b border-gray-100 last:border-0">
-      <td class="py-2 pr-4 text-sm text-gray-800 font-medium">${esc(j.title)}</td>
-      <td class="py-2 pr-4 text-sm text-gray-500">${esc(j.company)}</td>
-      <td class="py-2 text-sm text-gray-400">${esc(j.location || '—')}</td>
-    </tr>`).join('');
-  const modal = document.createElement('div');
-  modal.id = 'fetch-preview-modal';
-  modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
-  modal.innerHTML = `
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="document.getElementById('fetch-preview-modal').remove()"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        <div><h2 class="font-semibold text-gray-900">Fetch Preview</h2>
-        <p class="text-xs text-gray-400 mt-0.5">${count} job${count !== 1 ? 's' : ''} fetched (no AI scoring)</p></div>
-        <button onclick="document.getElementById('fetch-preview-modal').remove()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">✕</button>
-      </div>
-      <div class="overflow-y-auto px-6 py-4">
-        <table class="w-full">${rows || '<tr><td class="py-4 text-center text-gray-400 text-sm">No jobs found.</td></tr>'}</table>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-}
-
 // ---- Global settings helpers ----
 
 function toggleEye(inputId, btn) {

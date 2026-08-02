@@ -88,13 +88,8 @@
       <div id="bl-compact-view" style="font-size:13px;color:var(--faintest)">Loading…</div>
     </div>
 
-    <!-- Roles tab footer: Preview Fetch + last saved -->
+    <!-- Roles tab footer: last saved -->
     <div class="stg-saverow">
-      <button type="button" id="fetch-preview-btn" onclick="fetchPreview(this)"
-              title="Fetch jobs without AI scoring — for testing your search configuration"
-              class="stg-btn stg-btn-ghost">
-        <span id="fetch-preview-label">Preview Fetch</span>
-      </button>
       <p class="stg-saved-note">Last saved: <%= rolesLastSaved ? new Date(rolesLastSaved).toLocaleString('en-GB') : 'Never' %></p>
     </div>
 

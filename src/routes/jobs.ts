@@ -124,7 +124,8 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   // ── Fetch jobs for this page's dates (sort: day DESC, then Score DESC within a day — Q8) ──
   const COLS = `j.id, j.title, j.company, j.location, j.country, j.url, j.apply_url, j.job_source,
                 jps.ai_score, jps.ai_verdict, jps.is_duplicate, jps.ai_summary,
-                jps.fetched_at, jps.applied, jps.user_notes, c.logo_url`;
+                jps.fetched_at, jps.applied, jps.user_notes, c.logo_url,
+                c.is_agency, c.employee_count, c.employee_range`;
   let jobs: JobWithState[] = [];
   if (pageDates.length > 0) {
     const ph = pageDates.map(() => '?').join(',');
