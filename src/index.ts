@@ -1,4 +1,6 @@
 import * as path from 'path';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
 import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount } from './db';
@@ -36,6 +38,15 @@ app.use(express.json());
 
 // Static files served before auth gate
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Chrome and Safari keep favicons in their own caches, keyed by icon URL and immune to a
+// normal reload — a replaced icon.ico is only picked up if the URL changes with it. Hash the
+// file once at boot and hang the digest off every <link rel="icon"> as ?v=.
+app.locals.iconVersion = crypto
+  .createHash('md5')
+  .update(fs.readFileSync(path.join(__dirname, 'public', 'icon.ico')))
+  .digest('hex')
+  .slice(0, 8);
 
 // ── Auth routes (unprotected) ──
 app.use('/', authRouter);
