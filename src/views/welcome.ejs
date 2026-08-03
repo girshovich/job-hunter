@@ -96,9 +96,20 @@
     /* company row — DS §6: logo, accent name, trailing info glyph, inline */
     .sc1-co{display:flex;align-items:center;gap:7px;min-width:0}
     .sc1-co img{width:22px;height:22px;border-radius:6px;flex:none;border:1px solid var(--line3)}
+    /* stand-in brand mark, so its red is a literal rather than the semantic ramp */
+    .sc1-co .co-mark{width:22px;height:22px;border-radius:6px;flex:none;background:#f5222d;color:#fff;
+                     display:grid;place-items:center;font-size:13px;font-weight:800;line-height:1}
     .sc1-co b{font-size:12.5px;font-weight:700;color:var(--accent);white-space:nowrap;
               overflow:hidden;text-overflow:ellipsis}
     .sc1-co svg{flex:none;color:var(--accent)}
+    /* on a phone the card is full width, so the caption runs on from the chip as one
+       wrapping line instead of sitting on its own row below it */
+    @media(max-width:767px){
+      .sc1-fact{line-height:1.45}
+      .sc1-fact p{display:inline;margin:0}
+      .sc1-fact .chip{vertical-align:middle;margin-right:5px}
+      .sc1-fact .sc1-co{display:inline-flex;vertical-align:middle;margin-right:3px}
+    }
 
     /* Step tiles */
     .sc1-row{display:grid;gap:14px;grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -281,13 +292,13 @@
           </div>
 
           <div class="sc1-facts">
-            <div class="sc1-fact"><span class="chip chip-score">87</span><p>Every job scored 0&ndash;100 against your own profile.</p></div>
+            <div class="sc1-fact"><span class="chip chip-score">87</span><p>Jobs scored 0&ndash;100 against your profile.</p></div>
             <div class="sc1-fact"><span class="chip chip-strong">Strong</span><p>Pros and cons written out. Disagree? Change the verdict.</p></div>
             <div class="sc1-fact"><span class="chip chip-applied">Applied</span><p>Mark what you sent, so nothing gets applied to twice.</p></div>
             <div class="sc1-fact">
               <div class="sc1-co">
-                <img src="/screens/company.webp" width="66" height="66" alt="">
-                <b>Freenow by Lyft</b>
+                <span class="co-mark" aria-hidden="true">C</span>
+                <b>Companyname</b>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
               </div>
               <p>Click the company for its size, whether it's an agency, everything else it has posted, and your notes on it.</p>
