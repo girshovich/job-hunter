@@ -18,7 +18,7 @@ interface RunStats {
 
 // DS v2 email constants (literal hex — mail clients don't resolve CSS vars).
 const EMAIL_FONT = "'Plus Jakarta Sans',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const BRAND_FUCHSIA = '#F0398A'; // logo.PNG "Job Search" wordmark
+const BRAND_FUCHSIA = '#F0398A'; // logo.webp "Job Search" wordmark
 
 function cadenceHeading(trigger: string, cronSchedule: string): string {
   if (trigger === 'manual') return 'Latest matches';
