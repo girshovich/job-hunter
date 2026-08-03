@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,13 +8,16 @@
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     /* ── Welcome (standalone, DS v2 light) ── */
-    html,body{margin:0;height:100%;overflow:hidden}
+    html,body{margin:0;padding:0}
     body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
     input::placeholder{color:#9aa1ad}
-    .shell{display:flex;height:100dvh;width:100%;overflow:hidden}
+    a{text-decoration:none}
+    :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+    .shell{display:flex;min-height:100dvh;width:100%}
 
     /* ---- Sidebar (locked preview) ---- */
-    .sb{width:236px;flex:none;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;height:100%;position:relative}
+    .sb{width:236px;flex:none;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;
+        position:sticky;top:0;height:100dvh;align-self:flex-start}
     .sb-brand{display:flex;align-items:center;gap:9px;padding:18px 18px 6px;position:relative;z-index:11}
     .sb-nav{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
     .sb-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:var(--muted);font-size:13.5px;font-weight:600;background:transparent;border:0;width:100%;text-align:left}
@@ -41,10 +44,8 @@
     .lock-pill{background:#fff;border:1px solid var(--line2);border-radius:10px;padding:9px 15px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 20px -8px rgba(16,24,40,.25);font-size:12px;color:var(--muted);font-weight:600}
 
     /* ---- Main ---- */
-    .main{flex:1;min-width:0;height:100%;overflow-y:auto}
-    .page{max-width:1120px;padding:26px 16px 44px;display:flex;flex-direction:column;gap:16px}
-    .w-h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
-    .w-crumb{font-size:13px;color:var(--faint);margin-top:3px;font-weight:600}
+    .main{flex:1;min-width:0}
+    .page{max-width:1120px;padding:8px 16px 44px;display:flex;flex-direction:column;gap:16px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-card)}
 
     .field{display:block;width:100%;padding:12px 14px;font-size:13.5px;color:var(--ink);border:1px solid var(--line2);border-radius:11px;background:#fff;outline:none}
@@ -53,27 +54,107 @@
     .btn-accent:hover{background:var(--accent-hover)}
     .link-ghost{color:var(--accent);font-weight:600}
 
-    .steps{display:flex;flex-direction:column;gap:14px}
-    @media(min-width:760px){ .steps{flex-direction:row;align-items:flex-start;gap:0} }
-    .step{display:flex;align-items:flex-start;gap:12px;flex:1}
-    @media(min-width:760px){ .step{flex-direction:column;align-items:center;text-align:center} }
-    .step-ico{border-radius:16px;padding:13px;flex:none;display:grid;place-items:center}
-    .step-arrow{display:none;color:#d4d7de;margin-top:16px;padding:0 4px}
-    @media(min-width:760px){ .step-arrow{display:flex} }
-
     .hero{display:flex;flex-direction:column;gap:16px}
     @media(min-width:900px){ .hero{flex-direction:row;align-items:stretch} }
     .hero-right{display:flex;flex-direction:column;gap:16px;width:100%}
     @media(min-width:900px){ .hero-right{width:384px;flex:none} }
-
-    .preview-wrap{display:none}
-    @media(min-width:900px){ .preview-wrap{display:block} }
-    .prev-lock{position:absolute;inset:0;background:rgba(243,244,247,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:16px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+    .letter-row{display:flex;gap:16px}
+    .letter p{margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify}
+    .letter p:last-child{margin-bottom:16px}
+    /* on a phone the letter runs under the portrait instead of beside it */
+    @media(max-width:767px){
+      .letter-row{display:block}
+      .letter-row > img{float:left;margin-right:14px;margin-bottom:8px}
+    }
 
     @media(max-width:899px){ .sb{display:none} }
+
+    /* ══════════ What you get · How it works · FAQ ══════════ */
+    .sc-h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.015em;color:var(--ink);line-height:normal}
+
+    /* Hero shot */
+    .sc1-hero{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}
+    @media(min-width:1000px){ .sc1-hero{grid-template-columns:minmax(0,1fr) minmax(228px,264px);gap:22px} }
+    .sc1-left{display:flex;flex-direction:column;gap:10px;min-width:0}
+    .sc-frame{display:block;width:100%;border:1px solid #d6dae2;border-radius:14px;
+              background:#fff;overflow:hidden;box-shadow:var(--shadow-card)}
+    .sc-frame img{display:block;width:100%;height:auto}
+    .sc1-cap{margin:0;font-size:12px;color:var(--faint);line-height:1.5}
+
+    /* Annotations beside the hero shot */
+    .sc1-facts{display:flex;flex-direction:column;gap:9px;min-width:0}
+    /* the only inline child is a fixed-height chip, so a unit line-height drops the
+       strut and the row is exactly the chip's height (Tailwind sets one app-wide) */
+    .sc1-fact{background:#fbfcfe;border:1px solid var(--line2);border-radius:12px;padding:11px 13px;line-height:1}
+    .sc1-fact p{margin:7px 0 0;font-size:12px;color:var(--muted);line-height:1.45}
+    .chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:7px;
+          font-size:11.5px;font-weight:700}
+    .chip-score{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;background:var(--green-soft);color:var(--green2)}
+    .chip-strong{background:var(--green-soft);color:var(--green2)}
+    .chip-applied{background:var(--green);color:#fff}
+    .chip-note{background:#eef1f6;color:var(--ink2);border:1px solid var(--line2)}
+    /* company row — DS §6: logo, accent name, trailing info glyph, inline */
+    .sc1-co{display:flex;align-items:center;gap:7px;min-width:0}
+    .sc1-co img{width:22px;height:22px;border-radius:6px;flex:none;border:1px solid var(--line3)}
+    .sc1-co b{font-size:12.5px;font-weight:700;color:var(--accent);white-space:nowrap;
+              overflow:hidden;text-overflow:ellipsis}
+    .sc1-co svg{flex:none;color:var(--accent)}
+
+    /* Step tiles */
+    .sc1-row{display:grid;gap:14px;grid-template-columns:repeat(2,minmax(0,1fr))}
+    @media(min-width:720px){
+      .sc1-row-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+      .sc1-row-b{grid-template-columns:repeat(3,minmax(0,1fr))}
+    }
+    .sc1-tile{min-width:0;display:flex;flex-direction:column;gap:8px}
+    .sc1-shot{--tileh:190px;position:relative;height:var(--tileh);border:1px solid #d6dae2;
+              border-radius:12px;background:#fff;overflow:hidden;box-shadow:var(--shadow-card)}
+    .sc1-row-b .sc1-shot{--tileh:165px}
+    .sc1-shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:top center}
+    /* the Schedule dialog is 1:1.9 — show it whole on the grey rather than crop a slice.
+       Sized off --tileh: a percentage height on a replaced grid item doesn't resolve here. */
+    .sc1-shot-fit{background:var(--bg);display:grid;place-items:center;padding:5px 12px}
+    .sc1-shot-fit img{width:auto;height:auto;max-width:100%;max-height:calc(var(--tileh) - 10px);
+                      object-fit:contain;border-radius:7px;
+                      box-shadow:0 0 0 1px var(--line3), 0 4px 14px -8px rgba(16,24,40,.3)}
+    /* the step is named before it is shown. Titles wrap to 1-3 lines when the tiles
+       go two-up, so the row shares its tracks and the shots still line up. */
+    .sc1-head{display:flex;align-items:center;gap:8px;min-width:0;order:-1}
+    @supports (grid-template-rows: subgrid){
+      .sc1-tile{display:grid;grid-template-rows:subgrid;grid-row:span 2;gap:8px}
+      .sc1-head{grid-row:1}
+      .sc1-shot{grid-row:2}
+    }
+    .sc1-num{width:20px;height:20px;flex:none;border-radius:50%;background:var(--accent-soft);
+             border:1px solid var(--accent-border);color:var(--accent);display:grid;place-items:center;
+             font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums}
+    .sc1-t{margin:0;font-size:13px;font-weight:700;color:var(--ink);line-height:1.25}
+    .sc1-phase{display:flex;flex-direction:column;gap:11px}
+
+    /* two-up on a phone: a portrait frame crops a landscape screen down its sides,
+       so the frame goes square and keeps more of each shot */
+    @media(max-width:719px){
+      .sc1-shot{height:auto;aspect-ratio:1}
+      .sc1-shot-fit{padding:0}
+      .sc1-shot-fit img{width:100%;height:100%;max-width:none;max-height:none;
+                        object-fit:contain;box-sizing:border-box;padding:12px}
+      /* the odd tile out takes the whole row rather than leaving a hole.
+         2.1:1 is one column's width over its height once the 14px gap is taken out —
+         so the wide tile is exactly as tall as the square ones beside it */
+      .sc1-row-b .sc1-tile:last-child{grid-column:1 / -1}
+      .sc1-row-b .sc1-tile:last-child .sc1-shot{aspect-ratio:2.1}
+    }
+
+    /* FAQ: plain text, no boxes */
+    .sc1-faq{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:900px){ .sc1-faq{grid-template-columns:repeat(3,minmax(0,1fr));gap:26px} }
+    .sc1-faq p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.55}
+    /* the question is a signpost, not a headline — it shouldn't outrank the section titles */
+    .sc1-faq strong{font-weight:700;color:var(--ink2)}
+    .sc1-faq b{font-weight:700;color:var(--ink2)}
   </style>
 </head>
-<body class="h-full font-sans antialiased">
+<body class="font-sans antialiased">
 <div class="shell">
 
   <!-- ============ SIDEBAR (locked preview) ============ -->
@@ -117,14 +198,8 @@
   </aside>
 
   <!-- ============ MAIN ============ -->
-  <main class="main jh-scroll">
+  <main class="main">
     <div class="page">
-
-      <!-- header -->
-      <div>
-        <h1 class="w-h1">Welcome</h1>
-        <p class="w-crumb"><%= new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></p>
-      </div>
 
       <% if (typeof error !== 'undefined' && error) { %>
       <div style="padding:12px 14px;border-radius:11px;background:var(--red-soft);border:1px solid var(--red-border);font-size:13px;color:var(--red-ink)"><%= error %></div>
@@ -138,17 +213,15 @@
 
         <!-- Letter -->
         <div class="card" style="padding:26px;flex:1;min-width:0">
-          <h2 style="margin:0 0 20px;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.25;color:var(--ink)">Save 30 minutes a day on your job hunt.</h2>
-          <div style="display:flex;gap:16px">
+          <h2 style="margin:0 0 20px;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.25;color:var(--ink);text-wrap:balance">Save 30 minutes a day on your job hunt.</h2>
+          <div class="letter-row">
             <img src="/misha.jpg" alt="Misha" style="width:64px;height:64px;border-radius:50%;object-fit:cover;flex:none;margin-top:2px">
             <div style="flex:1;min-width:0">
-              <!-- Mobile: shortened text -->
-              <p class="md:hidden" style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Hi, I'm Misha, a product guy. I built Job Search to save myself time searching jobs. Turned out useful, so I'm sharing it for free. Fork it, or run it with your own API keys for free, or ask me if you could use mine with some sort of compensation. Welcome aboard!</p>
-              <!-- Desktop: full text -->
-              <p class="hidden md:block" style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Hi, I'm Misha, a product guy. I built Job Search to save myself time searching jobs. Turned out useful, so I'm sharing it for free.</p>
-              <p class="hidden md:block" style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">If you're hunting jobs across countries, scrolling hundreds of reposts from companies you don't even like - virtual hug. Job Search knows what you want. It scans same sites you do, kills reposts, and scores the rest against your criteria - showing only jobs you'd actually pick. It won't apply for you (I believe final call should be human), but it gets you there and writes a cover letter.</p>
-              <p class="hidden md:block" style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Fork it, or run it with your own API keys for free, or ask me if you could use mine with some sort of compensation.</p>
-              <p class="hidden md:block" style="margin:0 0 16px;font-size:13.5px;color:var(--ink2);line-height:1.65;text-align:justify">Welcome aboard!</p>
+              <div class="letter">
+                <p>Hi, I'm Misha, a product guy. I built yet another job search app to save myself time. Turned out useful, so I decided to share it with friends for <b>free</b>. Count yourself invited!</p>
+                <p>It's not another catalog of jobs you scroll. It <b>gets you few curated jobs</b> you would have picked yourself. It scans job sites, groups reposts, and scores jobs against your criteria. It won't apply for you (I believe final call should be human), but it gets you there and writes a cover letter.</p>
+                <p>It's a <b>non-commercial</b> personal project. Use your own API keys, ask to use mine for some contribution, or just copy it. Welcome aboard!</p>
+              </div>
               <p style="margin:0;font-size:13px;color:var(--faint);text-align:right">Cheers, Misha</p>
             </div>
           </div>
@@ -193,96 +266,93 @@
         </div>
       </div>
 
-      <!-- How it works -->
+      <!-- ============ What you get ============ -->
       <div class="card" style="padding:24px">
-        <h2 style="margin:0 0 20px;font-size:16px;font-weight:800;letter-spacing:-.01em;color:var(--ink)">How it works</h2>
-        <div class="steps">
-          <div class="step">
-            <div class="step-ico" style="background:#f3f0ff"><svg width="26" height="26" fill="none" stroke="#6d5efc" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
-            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Describe yourself</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">You, roles, locations and what you care about.</p></div>
+        <h2 class="sc-h2" style="margin-bottom:18px">What you get</h2>
+
+        <div class="sc1-hero">
+          <div class="sc1-left">
+            <div class="sc-frame">
+              <img src="/screens/matches.jpg" width="1600" height="1006" alt="The Matches screen: a scored list of jobs on the left, the selected job's details, AI analysis and full description on the right.">
+            </div>
+            <p class="sc1-cap">Matches &mdash; the shortlist, newest first, with the full posting and the AI's reasoning beside it.</p>
           </div>
-          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
-          <div class="step">
-            <div class="step-ico" style="background:#eaf5ff"><svg width="26" height="26" fill="none" stroke="#2e86de" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1.001.43-1.563A6 6 0 1121.75 8.25z"/></svg></div>
-            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Set API keys</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Add your Apify and LLM keys, or use mine.</p></div>
-          </div>
-          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
-          <div class="step">
-            <div class="step-ico" style="background:#fff6e5"><svg width="26" height="26" fill="none" stroke="var(--amber)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 8.5l5.5 3.5L10 15.5v-7z"/></svg></div>
-            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Schedule job search</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Get the latest jobs from top job platforms.</p></div>
-          </div>
-          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
-          <div class="step">
-            <div class="step-ico" style="background:#f4f0ff"><svg width="26" height="26" fill="none" stroke="var(--purple-strong)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg></div>
-            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Wait for AI scoring</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Each job scored vs your profile. No duplicates.</p></div>
-          </div>
-          <div class="step-arrow"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></div>
-          <div class="step">
-            <div class="step-ico" style="background:var(--green-soft)"><svg width="26" height="26" fill="none" stroke="var(--green)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
-            <div><p style="margin:0;font-size:13.5px;font-weight:700;color:var(--ink)">Get job matches</p><p style="margin:3px 0 0;font-size:12px;color:var(--faint);line-height:1.45">Email digest with the gems. Open. Apply. Done.</p></div>
+
+          <div class="sc1-facts">
+            <div class="sc1-fact"><span class="chip chip-score">87</span><p>Every job scored 0&ndash;100 against your own profile.</p></div>
+            <div class="sc1-fact"><span class="chip chip-strong">Strong</span><p>Pros and cons written out. Disagree? Change the verdict.</p></div>
+            <div class="sc1-fact"><span class="chip chip-applied">Applied</span><p>Mark what you sent, so nothing gets applied to twice.</p></div>
+            <div class="sc1-fact">
+              <div class="sc1-co">
+                <img src="/screens/company.png" width="112" height="112" alt="">
+                <b>Freenow by Lyft</b>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </div>
+              <p>Click the company for its size, whether it's an agency, everything else it has posted, and your notes on it.</p>
+            </div>
+            <div class="sc1-fact"><span class="chip chip-note">Notes</span><p>Your own notes, saved against the job.</p></div>
           </div>
         </div>
       </div>
 
-      <!-- Product preview (frosted) -->
-      <div class="preview-wrap">
-        <div style="position:relative;background:var(--bg);border:1px solid var(--line);border-radius:16px">
-          <div style="padding:20px">
-            <!-- Search for Jobs bar -->
-            <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px">
-              <div>
-                <div style="font-size:16px;font-weight:800;color:var(--ink)">Search for Jobs</div>
-                <div style="font-size:12.5px;color:var(--muted2);margin-top:2px">Fetch jobs from your sources, score with AI, send the email digest.</div>
-              </div>
-              <div style="display:flex;gap:8px;flex:none">
-                <span style="display:inline-flex;align-items:center;gap:6px;background:#eef1f6;color:#3a4250;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Schedule</span>
-                <span style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>Run Once</span>
-              </div>
+      <!-- ============ How it works ============ -->
+      <div class="card" style="padding:24px">
+        <h2 class="sc-h2" style="margin-bottom:18px">How it works</h2>
+
+        <div class="sc1-phase">
+          <div class="sc1-row sc1-row-4">
+
+            <div class="sc1-tile">
+              <div class="sc1-shot"><img src="/screens/profile.jpg" width="720" height="602" alt="Settings: Profile — login email, timezone, country, languages and a profile description."></div>
+              <div class="sc1-head"><span class="sc1-num">1</span><p class="sc1-t">Describe yourself</p></div>
             </div>
-            <!-- two-col -->
-            <div style="display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start">
-              <!-- Last Session -->
-              <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                  <span style="font-size:14px;font-weight:800;color:var(--ink)">Last Session</span>
-                  <span style="background:var(--green-soft);color:var(--green2);font-size:11px;font-weight:700;padding:2px 9px;border-radius:7px">success</span>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:12px">
-                  <div style="background:#f6f7f9;border:1px solid var(--line);border-radius:9px;padding:9px 6px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--ink);line-height:1" class="tnum">88</div><div style="font-size:10.5px;color:var(--fainter);margin-top:2px">Fetched</div></div>
-                  <div style="background:var(--green-soft);border:1px solid var(--green-border);border-radius:9px;padding:9px 6px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--green2);line-height:1" class="tnum">6</div><div style="font-size:10.5px;color:var(--fainter);margin-top:2px">Strong</div></div>
-                  <div style="background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:9px;padding:9px 6px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--amber-ink);line-height:1" class="tnum">8</div><div style="font-size:10.5px;color:var(--fainter);margin-top:2px">Weak</div></div>
-                </div>
-                <div style="font-size:11px;color:var(--fainter)">15 May 2026 14:59 · 193s</div>
-              </div>
-              <!-- Strong matches -->
-              <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                  <span style="font-size:14px;font-weight:800;color:var(--ink)">Last Session — Strong Matches</span>
-                  <span style="font-size:12.5px;color:var(--accent);font-weight:600;display:inline-flex;align-items:center;gap:4px">6 View all →</span>
-                </div>
-                <div>
-                  <% [
-                    { i:'R',  bg:'#dc2626', title:'Senior Product Manager, B2B Marketplace (m/f/d)', company:'Redcare Pharmacy', flag:'🇩🇪', loc:'Berlin, Germany', score:88 },
-                    { i:'DH', bg:'#ef4444', title:'Group Product Manager — Logistics, Routing & Disp…', company:'Delivery Hero', flag:'🇩🇪', loc:'Berlin, Germany', score:88 },
-                    { i:'P',  bg:'#2f6bff', title:'Senior Product Manager, Flights', company:'Priceline', flag:'🇩🇪', loc:'Berlin, Germany', score:84 }
-                  ].forEach(function(j, idx, arr){ %>
-                  <div style="display:flex;align-items:center;gap:10px;padding:9px 0;<%= idx < arr.length-1 ? 'border-bottom:1px solid rgba(16,24,40,.06);' : '' %>">
-                    <div style="width:32px;height:32px;border-radius:8px;background:<%= j.bg %>;display:grid;place-items:center;color:#fff;font-weight:800;font-size:11px;flex:none"><%= j.i %></div>
-                    <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#131722;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= j.title %></div>
-                    <div style="font-size:11px;color:#9aa1ad;margin-top:1px"><%= j.company %> · <%= j.flag %> <%= j.loc %></div></div>
-                    <div style="display:flex;align-items:center;gap:6px;flex:none">
-                      <span style="background:var(--green-soft);color:var(--green2);font-size:11px;font-weight:700;padding:3px 8px;border-radius:7px;display:inline-flex;align-items:center;gap:3px">Strong<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
-                      <span style="background:var(--green);color:#fff;font-size:12px;font-weight:800;padding:3px 8px;border-radius:7px" class="tnum"><%= j.score %></span>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2f6bff" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M7 7h10v10"/></svg>
-                    </div>
-                  </div>
-                  <% }); %>
-                </div>
-              </div>
+
+            <div class="sc1-tile">
+              <div class="sc1-shot"><img src="/screens/roles.jpg" width="800" height="1063" alt="The Edit Role dialog: desired titles, job type, work modes, priority and rejected industries, and rejection rules."></div>
+              <div class="sc1-head"><span class="sc1-num">2</span><p class="sc1-t">Describe the role you seek</p></div>
             </div>
+
+            <div class="sc1-tile">
+              <div class="sc1-shot"><img src="/screens/aisetup.jpg" width="720" height="712" alt="Settings: AI Setup — pay with credits or your own keys, Apify and OpenAI API key fields, LLM models."></div>
+              <div class="sc1-head"><span class="sc1-num">3</span><p class="sc1-t">Add keys or credits</p></div>
+            </div>
+
+            <div class="sc1-tile">
+              <div class="sc1-shot sc1-shot-fit"><img src="/screens/schedule.jpg" width="640" height="1215" alt="The Run Schedule dialog: role toggles, job sources, run time, frequency and search period."></div>
+              <div class="sc1-head"><span class="sc1-num">4</span><p class="sc1-t">Set schedule or start now</p></div>
+            </div>
+
           </div>
-          <!-- frosted lock -->
-          <div class="prev-lock"><div class="lock-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Sign in to unlock</div></div>
+        </div>
+
+        <div class="sc1-phase" style="margin-top:20px">
+          <div class="sc1-row sc1-row-b">
+
+            <div class="sc1-tile">
+              <div class="sc1-shot"><img src="/screens/mail.jpg" width="720" height="670" alt="The daily email digest: today's counts for fetched, strong, weak, no match, duplicate, filtered and blacklisted, then a card per strong match."></div>
+              <div class="sc1-head"><span class="sc1-num">5</span><p class="sc1-t">Start getting digests</p></div>
+            </div>
+
+            <div class="sc1-tile">
+              <div class="sc1-shot"><img src="/screens/matches.jpg" width="1600" height="1006" alt="The Matches screen again, this time as the outcome of a run."></div>
+              <div class="sc1-head"><span class="sc1-num">6</span><p class="sc1-t">Check matches and apply&nbsp;&#128081;</p></div>
+            </div>
+
+            <div class="sc1-tile">
+              <div class="sc1-shot"><img src="/screens/stats.jpg" width="820" height="728" alt="The Stats page: applied count, strong matches, total jobs saved, results by status, and breakdowns by role and country."></div>
+              <div class="sc1-head"><span class="sc1-num">7</span><p class="sc1-t">Check basic stats</p></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ FAQ ============ -->
+      <div class="card" style="padding:22px 24px">
+        <div class="sc1-faq">
+          <p><strong>Does it cover many jobs?</strong> ~LinkedIn-level coverage, mostly from ATS like Greenhouse and Ashby, Telegram, and some more.</p>
+          <p><strong>What does it cost?</strong> Bring your own Apify and OpenAI keys, or ask me for credits. Spend from <b>~$5/month</b> in your tokens.</p>
+          <p><strong>Is it safe to use my keys?</strong> Your keys are stored and used only for your runs. Or you could self-host from GitHub.</p>
         </div>
       </div>
 
