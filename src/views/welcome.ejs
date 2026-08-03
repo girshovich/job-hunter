@@ -140,8 +140,10 @@
                         object-fit:contain;box-sizing:border-box;padding:12px}
       /* the odd tile out takes the whole row rather than leaving a hole.
          2.1:1 is one column's width over its height once the 14px gap is taken out —
-         so the wide tile is exactly as tall as the square ones beside it */
-      .sc1-row-b .sc1-tile:last-child{grid-column:1 / -1}
+         so the wide tile is exactly as tall as the square ones beside it.
+         WebKit won't grow the grid row for an aspect-ratio box in a full-width subgrid
+         item, so the shot spills out of the card — the lone tile leaves subgrid instead */
+      .sc1-row-b .sc1-tile:last-child{grid-column:1 / -1;display:flex;grid-row:auto}
       .sc1-row-b .sc1-tile:last-child .sc1-shot{aspect-ratio:2.1}
     }
 
