@@ -48,6 +48,14 @@ app.locals.iconVersion = crypto
   .digest('hex')
   .slice(0, 8);
 
+// Link scrapers (LinkedIn et al.) fetch og:image from their own servers, so it has to be an
+// absolute URL. Behind nginx the original scheme only survives in X-Forwarded-Proto.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
+  res.locals.baseUrl = `${proto}://${req.get('host')}`;
+  next();
+});
+
 // ── Auth routes (unprotected) ──
 app.use('/', authRouter);
 app.use('/', publicAnonymousRouter);

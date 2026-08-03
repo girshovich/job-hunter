@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Job Search</title>
   <link rel="icon" href="/icon.ico?v=<%= iconVersion %>">
+  <!-- Link preview (LinkedIn et al.). og-image.png is a standalone 1200x627 asset — not used
+       by any page — because the in-page logo.webp is neither a format nor a size scrapers take. -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Save 30 minutes a day on your job hunt">
+  <meta property="og:url" content="<%= baseUrl %>/welcome">
+  <meta property="og:image" content="<%= baseUrl %>/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="627">
+  <meta property="og:image:alt" content="Yet Another Job Search">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="/css/tailwind.css">
   <style>
     /* ── Welcome (standalone, DS v2 light) ── */
