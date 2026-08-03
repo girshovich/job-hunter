@@ -21,7 +21,7 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v5c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/><path d="M4 11v5c0 1.66 3.58 3 8 3s8-1.34 8-3v-5"/></svg>
             </span>
             <span>
-              <span class="block text-gray-900" style="font-size:13.5px;font-weight:700;margin-bottom:2px">Buy JH credits</span>
+              <span class="block text-gray-900" style="font-size:13.5px;font-weight:700;margin-bottom:2px">Use Misha's credits</span>
               <span class="block text-xs text-gray-600 leading-snug">I run on my keys and deduct from your balance.</span>
               <span class="jh-choice-badge">Easy setup</span>
             </span>
@@ -677,9 +677,9 @@ Description: {description — up to 1,500 chars each}
         if (!dirty) return;
         saveBtn.disabled = false;
         var useJh = inp.value === '1';
-        saveLabel.textContent = useJh ? 'Use JH credits' : 'Use my keys';
+        saveLabel.textContent = useJh ? "Use Misha's credits" : 'Use my keys';
         saveHint.textContent = useJh
-          ? 'Runs will be billed to your JH balance.'
+          ? 'Scoring will use your credits balance.'
           : 'Runs will use your Apify and OpenAI keys.';
       }
       window.refreshKeysSave = refreshKeysSave;
