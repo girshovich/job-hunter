@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
-import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady } from './db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, TOPUP_ENABLED } from './db';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -134,6 +134,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.locals.canRun = isPaymentReady(s);
   res.locals.useJhCredits = (s?.use_jh_credits ?? 1) === 1;
   res.locals.creditsBalance = s?.credits_balance ?? 0;
+  res.locals.topupEnabled = TOPUP_ENABLED;
   res.locals.matchesCount = getMatchesCount(pid);
   next();
 });

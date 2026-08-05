@@ -20,6 +20,13 @@ export const DEFAULT_PROVIDER_SELECTION_JSON = JSON.stringify(DEFAULT_PROVIDER_S
 /** Minimum credit balance `/api/run` will start a run on. */
 export const MIN_RUN_CREDITS = 0.5;
 
+/**
+ * Temporarily off since Aug 6, 2026: the top-up request flow is disabled, not removed. The modal
+ * shows a notice instead of the form, and `POST /api/topup-request` refuses. Flip to `true` to
+ * restore both — nothing about balances, deduction or `MIN_RUN_CREDITS` depends on this.
+ */
+export const TOPUP_ENABLED = false;
+
 // Minimal type surface for node:sqlite
 interface NodeSQLiteStatement {
   run(...params: unknown[]): { lastInsertRowid: number; changes: number };

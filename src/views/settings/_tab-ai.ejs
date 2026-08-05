@@ -580,13 +580,23 @@ Description: {description — up to 1,500 chars each}
         <div class="flex items-start justify-between gap-3 px-6 pt-5">
           <div>
             <h3 class="text-base font-semibold text-gray-900">Top up credits</h3>
+            <% if (locals.topupEnabled !== false) { %>
             <p class="text-xs text-gray-500 mt-1">Let me know how much you need and where are you from, and I'll see what I can do.</p>
+            <% } %>
           </div>
           <button type="button" onclick="closeTopUp()" class="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Close">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
+        <% if (locals.topupEnabled === false) { %>
+        <!-- Top-ups temporarily off (db.ts TOPUP_ENABLED). The request form below is kept intact
+             and simply not rendered — flipping the flag restores it as-is. -->
+        <div id="topup-disabled" class="mx-6 mb-5 mt-4 rounded-xl border px-3 py-3 text-sm"
+             style="border-color:var(--line2);background:#fbfcfe;color:var(--ink);line-height:1.6;">
+          UPD Aug 6: Top-ups are temporarily off, please try setting your own API keys instead.
+        </div>
+        <% } else { %>
         <div id="topup-body">
           <div class="px-6 pt-4">
             <textarea id="topup-message" rows="4"
@@ -612,6 +622,7 @@ Description: {description — up to 1,500 chars each}
           <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
           Sent. I'll get back to you by email.
         </div>
+        <% } %>
       </div>
     </div>
 
@@ -703,11 +714,15 @@ Description: {description — up to 1,500 chars each}
     })();
 
     // ---- Top-up request ----
+    const topupEnabled = <%= locals.topupEnabled === false ? 'false' : 'true' %>;
+
     function openTopUp() {
+      document.getElementById('topup-modal').classList.remove('hidden');
+      // Notice-only modal: no form to reset or focus.
+      if (!topupEnabled) return;
       document.getElementById('topup-body').classList.remove('hidden');
       document.getElementById('topup-success').classList.add('hidden');
       document.getElementById('topup-error').classList.add('hidden');
-      document.getElementById('topup-modal').classList.remove('hidden');
       if (window.autoGrowField) autoGrowField(document.getElementById('topup-message'));
       document.getElementById('topup-message').focus();
     }

@@ -18,7 +18,7 @@ import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipe
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
-import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, isPaymentReady, resolveSpendKeys, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
+import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, TOPUP_ENABLED, isPaymentReady, resolveSpendKeys, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -222,6 +222,10 @@ router.post('/test-email', async (req: Request, res: Response) => {
 // Top-up request — user asks for credits; the message is emailed to the operator.
 router.post('/topup-request', async (req: Request, res: Response) => {
   try {
+    // The modal no longer offers the form, but the endpoint stays reachable — refuse here too.
+    if (!TOPUP_ENABLED) {
+      return res.status(403).json({ success: false, error: 'Top-ups are temporarily off.' });
+    }
     const message = String(req.body.message || '').trim();
     if (!message) {
       return res.status(400).json({ success: false, error: 'Please write a message before sending.' });
