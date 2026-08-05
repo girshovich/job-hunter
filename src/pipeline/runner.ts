@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, resolveSpendKeys, PaymentError, MIN_RUN_CREDITS, type Database, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
 import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
@@ -44,7 +44,7 @@ const OPENAI_PRICING: Record<string, { input: number; cachedInput: number; outpu
   'gpt-3.5-turbo': { input: 0.50,  cachedInput: 0.25,  output: 1.50  },
 };
 
-function calcOpenAiCost(model: string, inputTokens: number, cachedInputTokens: number, outputTokens: number): number | null {
+export function calcOpenAiCost(model: string, inputTokens: number, cachedInputTokens: number, outputTokens: number): number | null {
   const key = Object.keys(OPENAI_PRICING)
     .sort((a, b) => b.length - a.length)
     .find((k) => model.startsWith(k));
@@ -82,6 +82,27 @@ const stopRequestedSet = new Set<number>();
 /** Thrown at a checkpoint when the user asked to stop the run. Not a failure. */
 export class RunStoppedError extends Error {
   constructor() { super('Run stopped by user'); this.name = 'RunStoppedError'; }
+}
+
+/** Thrown when the balance runs out partway through a run — see `checkCreditsMidRun`. */
+class CreditsExhaustedError extends Error {
+  constructor() { super('Run halted: credits exhausted mid-run.'); this.name = 'CreditsExhaustedError'; }
+}
+
+/**
+ * Stop a profile's schedule **and persist it**. `stopSchedule` alone only cancels the in-memory cron
+ * node-cron holds; `index.ts` re-registers every row with `schedule_active = 1` on the next boot, so
+ * without the column write a restart silently resurrected a schedule we had deliberately stopped.
+ *
+ * Dynamic import keeps the scheduler → runner → scheduler cycle from becoming a static one.
+ */
+function stopScheduleAndPersist(db: Database, profileId: number): void {
+  import('./scheduler').then(({ stopSchedule }) => stopSchedule(profileId)).catch(() => {});
+  try {
+    db.prepare('UPDATE settings SET schedule_active = 0 WHERE profile_id = ?').run(profileId);
+  } catch (err) {
+    console.warn('[runner] Failed to persist schedule_active = 0:', (err as Error).message);
+  }
 }
 
 /** Returns false if there is no run to stop. */
@@ -210,27 +231,11 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
     if (!settings) throw new Error(`Settings not found for profile ${profileId}`);
 
-    // Resolve API keys based on credit mode
+    // Resolve API keys through the single chokepoint. It enforces the balance floor in credits mode
+    // and refuses the `config.*` fallback in own-keys mode, so a scheduled run — which never passes
+    // through `/api/run` — is gated on exactly the same rule as a manual one.
     const useJhCredits = (settings.use_jh_credits ?? 1) !== 0;
-    let apifyToken: string;
-    let openAiKey: string;
-    if (useJhCredits) {
-      const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
-      const adminSettings = adminProfile
-        ? db.prepare('SELECT openai_api_key, apify_api_token FROM settings WHERE profile_id = ?').get(adminProfile.id) as { openai_api_key: string; apify_api_token: string } | undefined
-        : undefined;
-      apifyToken = adminSettings?.apify_api_token?.trim() || config.apifyApiToken || '';
-      openAiKey = adminSettings?.openai_api_key?.trim() || config.openAiKey || '';
-    } else {
-      // Own-keys mode uses the profile's own keys only — see the note in routes/api.ts. A scheduled
-      // run does not pass through that preflight, so the emptiness is checked here rather than
-      // failing later inside a provider call.
-      apifyToken = settings.user_apify_api_token?.trim() || '';
-      openAiKey = settings.user_openai_api_key?.trim() || '';
-      if (!openAiKey || !apifyToken) {
-        throw new Error('Own API keys are not set. Add your OpenAI key and Apify token in Settings → AI Setup, or switch to credits.');
-      }
-    }
+    const { openAiKey, apifyToken } = resolveSpendKeys(db, profileId);
     const resendApiKey = settings.resend_api_key || config.resendApiKey;
     const emailFrom = settings.email_from || config.emailFrom;
 
@@ -325,6 +330,21 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     let totalRunCostOpenAiUsd = 0;
     let totalRunCostApifyUsd = 0;
 
+    // Credits are only deducted once, in the outer `finally`, so the stored balance stays at its
+    // opening value for the whole run. Bound the damage by comparing that opening balance against
+    // what the run has cost so far, at every seam where more money is about to be spent.
+    //
+    // Granularity is per-provider: `accountProviderCost()` folds a provider's tokens into the
+    // running totals only when that provider finishes, so a single provider can still overshoot.
+    // Tightening that further means restructuring the cost accounting itself — deliberately out of
+    // scope; see the residual-risk note in MONEYLEAK.md.
+    const checkCreditsMidRun = (): void => {
+      if (!useJhCredits) return;
+      const row = db.prepare('SELECT credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { credits_balance: number } | undefined;
+      const remaining = (row?.credits_balance ?? 0) - (totalRunCostOpenAiUsd + totalRunCostApifyUsd);
+      if (remaining <= 0) throw new CreditsExhaustedError();
+    };
+
     // Deduct JH credits for all providers combined. Called from the outer `finally`, so a run that
     // was stopped or that died on a fatal error still pays for the work it already did.
     let creditsDeducted = false;
@@ -336,11 +356,17 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       const row = db.prepare('SELECT credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { credits_balance: number } | undefined;
       const currentBalance = row?.credits_balance ?? 0;
       const newBalance = Math.max(0, currentBalance - totalCost);
-      db.prepare('UPDATE settings SET credits_balance = ? WHERE profile_id = ?').run(newBalance, profileId);
+      // The clamp above is load-bearing for the UI and the low-credits email, both of which assume a
+      // non-negative figure — so the shortfall is banked separately instead of being discarded.
+      const overspend = Math.max(0, totalCost - currentBalance);
+      db.prepare('UPDATE settings SET credits_balance = ?, credits_overspent_usd = credits_overspent_usd + ? WHERE profile_id = ?')
+        .run(newBalance, overspend, profileId);
       console.log(`[runner] Deducted $${totalCost.toFixed(4)} from credits. New balance: $${newBalance.toFixed(4)}`);
-      if (newBalance < 0.5) {
-        // Cancel schedule — use dynamic import to avoid circular dep with scheduler
-        import('./scheduler').then(({ stopSchedule }) => stopSchedule(profileId)).catch(() => {});
+      if (overspend > 0) {
+        console.warn(`[runner] OVERSPEND: profile ${profileId} incurred $${overspend.toFixed(4)} beyond its balance.`);
+      }
+      if (newBalance < MIN_RUN_CREDITS) {
+        stopScheduleAndPersist(db, profileId);
         const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
         const recipientEmail = profileEmailRow?.email || '';
         if (recipientEmail && resendApiKey && emailFrom) {
@@ -412,6 +438,8 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       }> = [];
 
       try {
+        checkCreditsMidRun();   // never start another provider on money that is already gone
+
         // Pre-compute targeted groups for progress tracking.
         // When groupIds are specified (e.g. schedule snapshot), run those IDs regardless of is_active —
         // deleted groups are naturally absent from `groups` and will be silently skipped.
@@ -451,6 +479,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       }
 
       throwIfStopped(profileId);   // before this role's first fetch
+      checkCreditsMidRun();        // and before it can spend anything more
 
       const keywords: string[] = JSON.parse(group.keywords);
       const locations: string[] = JSON.parse(group.locations);
@@ -987,12 +1016,18 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         // Bill what this provider spent before it died — on BOTH the error and the stop path.
         accountProviderCost();
 
-        const stopped = err instanceof RunStoppedError;
+        // A credits halt is recorded like a stop — the work already done is real and must keep its
+        // job counts and cost columns, or it vanishes from the Stats chart. Unlike a user stop it
+        // keeps an error_log, so Run Logs can say why the run ended instead of looking like a cancel.
+        const outOfCredits = err instanceof CreditsExhaustedError;
+        const stopped = err instanceof RunStoppedError || outOfCredits;
         const durationMs = Date.now() - startedAt;
         const errorMsg = (err instanceof Error)
           ? (err.message || err.constructor.name || String(err))
           : String(err);
-        if (stopped) console.log(`[runner] Stopped by user during provider ${scrapingProvider}.`);
+        const stoppedLog = outOfCredits ? errorMsg : null;
+        if (outOfCredits) console.warn(`[runner] Credits exhausted during provider ${scrapingProvider}; halting run.`);
+        else if (stopped) console.log(`[runner] Stopped by user during provider ${scrapingProvider}.`);
         else console.error(`[runner] Provider pipeline error (${scrapingProvider}):`, err);
 
         try {
@@ -1004,7 +1039,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
                  cost_openai_usd = ?, cost_apify_usd = ?
                WHERE id = ?`
             ).run(
-              stopped ? 'stopped' : 'failed', stopped ? null : errorMsg, durationMs,
+              stopped ? 'stopped' : 'failed', stopped ? stoppedLog : errorMsg, durationMs,
               jobsFetched, jobsScored, jobsStrongMatch, jobsWeakMatch, jobsNoMatch, jobsDuplicate,
               costOpenAiUsd, costApifyUsd,
               runId,
@@ -1014,7 +1049,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
                 jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
               VALUES (?, ?, 0, 0, 0, 0, 0, 0, ?, ?, ?, ?, ?)
-            `).run(profileId, ranAt, stopped ? 'stopped' : 'failed', stopped ? null : errorMsg, durationMs, trigger, sessionId);
+            `).run(profileId, ranAt, stopped ? 'stopped' : 'failed', stopped ? stoppedLog : errorMsg, durationMs, trigger, sessionId);
           }
         } catch (_) { /* ignore DB logging failure */ }
 
@@ -1027,7 +1062,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           jobsNoMatch: stopped ? jobsNoMatch : 0,
           jobsDuplicate: stopped ? jobsDuplicate : 0,
           status: stopped ? 'stopped' : 'failed',
-          errorLog: stopped ? null : errorMsg,
+          errorLog: stopped ? stoppedLog : errorMsg,
           trigger,
         };
         lastResult = result;
@@ -1091,15 +1126,43 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
 
   } catch (err) {
     const durationMs = Date.now() - overallStart;
-    const stopped = err instanceof RunStoppedError;
+    const outOfCredits = err instanceof CreditsExhaustedError;
+    const stopped = err instanceof RunStoppedError || outOfCredits;
+    const refused = err instanceof PaymentError;
     const errorMsg = (err instanceof Error)
       ? (err.message || err.constructor.name || String(err))
       : String(err);
-    if (stopped) console.log('[runner] Pipeline stopped by user.');
+    const stoppedLog = outOfCredits ? errorMsg : null;
+    if (outOfCredits) console.warn('[runner] Pipeline halted: credits exhausted mid-run.');
+    else if (stopped) console.log('[runner] Pipeline stopped by user.');
+    else if (refused) console.warn(`[runner] Run refused for profile ${profileId}: ${errorMsg}`);
     else console.error('[runner] Fatal pipeline error:', err);
 
     try {
       const db = getDb();
+
+      // A refused run never spent anything, so `deductCredits` — which is where the low-credits
+      // auto-stop lives — returns early and the schedule would otherwise re-fire every night,
+      // failing identically and silently. Stop it here instead, and say why.
+      if ((refused || outOfCredits) && trigger === 'scheduled') {
+        stopScheduleAndPersist(db, profileId);
+        const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
+        const recipientEmail = profileEmailRow?.email || '';
+        const balanceRow = db.prepare('SELECT credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { credits_balance: number } | undefined;
+        const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+        const adminSettings = adminProfile
+          ? db.prepare('SELECT resend_api_key, email_from FROM settings WHERE profile_id = ?').get(adminProfile.id) as { resend_api_key: string; email_from: string } | undefined
+          : undefined;
+        const key  = adminSettings?.resend_api_key || config.resendApiKey;
+        const from = adminSettings?.email_from     || config.emailFrom;
+        // Stopping the schedule in the same breath means this can only fire once — no cooldown needed.
+        if (recipientEmail && key && from) {
+          sendLowCreditsEmail(recipientEmail, balanceRow?.credits_balance ?? 0, key, from).catch((e) => {
+            console.warn('[runner] Failed to send low credits email:', (e as Error).message);
+          });
+        }
+      }
+
       if (stopped) {
         // The provider row was already marked 'stopped' by the provider catch. This covers a stop
         // that landed outside a provider (e.g. while the run was still queued): mark anything left
@@ -1111,8 +1174,8 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           db.prepare(`
             INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
               jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger, session_id)
-            VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'stopped', NULL, ?, ?, ?)
-          `).run(profileId, overallRanAt, durationMs, trigger, sessionId);
+            VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'stopped', ?, ?, ?, ?)
+          `).run(profileId, overallRanAt, stoppedLog, durationMs, trigger, sessionId);
         }
       } else {
         db.prepare(`
@@ -1127,7 +1190,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     const result: PipelineResult = (stopped && lastResult) ? lastResult : {
       ranAt: overallRanAt, durationMs, jobsFetched: 0, jobsScored: 0,
       jobsStrongMatch: 0, jobsWeakMatch: 0, jobsNoMatch: 0, jobsDuplicate: 0,
-      status: stopped ? 'stopped' : 'failed', errorLog: stopped ? null : errorMsg, trigger,
+      status: stopped ? 'stopped' : 'failed', errorLog: stopped ? stoppedLog : errorMsg, trigger,
     };
     lastRunResultMap.set(profileId, result);
     return result;

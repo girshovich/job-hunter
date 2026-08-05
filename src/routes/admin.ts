@@ -23,13 +23,21 @@ router.get('/', (req: Request, res: Response) => {
   const validTabs = ['general', 'sources', 'locations'];
   const adminTab = validTabs.includes(String(req.query.tab)) ? String(req.query.tab) : 'general';
 
+  // has_own_keys is a storage fact, not a mode: it says both BYO columns are filled, not that the
+  // profile runs on them — `use_jh_credits` decides that, and a profile (the admin's typically) can
+  // have keys saved while spending credits. The app stores no validation result either, so the badge
+  // cannot claim the keys work. credits_overspent_usd is the leak alarm: anything above zero is
+  // spend that reached the operator's keys unpaid (see MONEYLEAK.md).
   const allProfiles = db.prepare(`
     SELECT p.id, p.email, p.is_admin, p.created_at,
-           COALESCE(s.credits_balance, 0) AS credits_balance
+           COALESCE(s.credits_balance, 0) AS credits_balance,
+           COALESCE(s.credits_overspent_usd, 0) AS credits_overspent_usd,
+           (TRIM(COALESCE(s.user_openai_api_key, '')) != ''
+            AND TRIM(COALESCE(s.user_apify_api_token, '')) != '') AS has_own_keys
     FROM profiles p
     LEFT JOIN settings s ON s.profile_id = p.id
     ORDER BY p.id ASC
-  `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; credits_balance: number }>;
+  `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; credits_balance: number; credits_overspent_usd: number; has_own_keys: number }>;
 
   res.render('admin', {
     title: 'Admin',

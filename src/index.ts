@@ -129,6 +129,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return 'todo';
   });
   res.locals.onboarding = { states, completedCount: done.filter(Boolean).length };
+  // The sidebar Run/Schedule controls live in the layout, so they render on every page and cannot
+  // read the home page's own `canRun`. Same rule, exposed once here, so the two cannot disagree.
+  res.locals.canRun = isPaymentReady(s);
   res.locals.useJhCredits = (s?.use_jh_credits ?? 1) === 1;
   res.locals.creditsBalance = s?.credits_balance ?? 0;
   res.locals.matchesCount = getMatchesCount(pid);

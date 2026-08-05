@@ -161,8 +161,19 @@
           </div>
           <div class="min-w-0 flex-1">
             <p class="text-sm text-gray-900 font-medium truncate"><%= p.email.split('@')[0] %></p>
-            <p class="text-xs text-gray-400 truncate"><%= p.email %></p>
+            <p class="text-xs text-gray-400 truncate"><span class="font-mono">#<%= p.id %></span> · <%= p.email %></p>
           </div>
+          <% if (p.credits_overspent_usd > 0) { %>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium flex-shrink-0"
+                title="Spend that exceeded this profile's balance — investigate.">over $<%= Number(p.credits_overspent_usd).toFixed(2) %></span>
+          <% } %>
+          <% if (p.has_own_keys) { %>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium flex-shrink-0"
+                title="Own OpenAI + Apify keys are saved on this profile. Saved, not validated — and not necessarily in use: the payment mode decides that.">keys saved</span>
+          <% } else { %>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 font-medium flex-shrink-0"
+                title="No own API keys saved on this profile — it spends the operator's keys whenever it is on credits.">no keys saved</span>
+          <% } %>
           <% if (p.is_admin) { %>
           <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium flex-shrink-0">admin</span>
           <% } %>

@@ -173,7 +173,7 @@ router.get('/', (req: Request, res: Response) => {
        (SELECT COUNT(*) FROM run_job_logs WHERE run_id = sr.id AND ai_verdict = 'FILTERED')   AS filtered_count,
        (SELECT COUNT(*) FROM run_job_logs WHERE run_id = sr.id AND ai_verdict = 'BLACKLISTED') AS blacklisted_count
      FROM search_runs sr
-     WHERE sr.profile_id = ?${source ? ' AND sr.scraping_provider = ?' : ''}
+     WHERE sr.profile_id = ? AND sr.trigger != 'cv'${source ? ' AND sr.scraping_provider = ?' : ''}
      ORDER BY sr.ran_at DESC
      LIMIT 30`;
   let runs = db

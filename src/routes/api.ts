@@ -2,8 +2,9 @@
  * API Routes — Manual run trigger, test email, status, group CRUD.
  */
 
+import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import { runPipeline, getIsRunning, getRunStatus, requestStop, isStopRequested, type RunOptions } from '../pipeline/runner';
+import { runPipeline, getIsRunning, getRunStatus, requestStop, isStopRequested, calcOpenAiCost, type RunOptions } from '../pipeline/runner';
 import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail, sendTopUpRequest } from '../pipeline/emailReport';
 import { JOB_TYPES } from '../pipeline/types';
@@ -17,7 +18,7 @@ import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipe
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
-import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, isPaymentReady, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
+import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, isPaymentReady, resolveSpendKeys, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -43,16 +44,15 @@ router.get('/preflight', (req: Request, res: Response) => {
 
     const useJhCredits = (settings?.use_jh_credits ?? 1) !== 0;
     if (useJhCredits) {
-      const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
-      const adminSettings = adminProfile
-        ? db.prepare('SELECT openai_api_key, apify_api_token FROM settings WHERE profile_id = ?').get(adminProfile.id) as { openai_api_key: string; apify_api_token: string } | undefined
-        : undefined;
-      const openAiKey = adminSettings?.openai_api_key?.trim() || config.openAiKey?.trim();
-      const apifyKey  = adminSettings?.apify_api_token?.trim() || config.apifyApiToken?.trim();
-      if (!openAiKey) errors.push('Global OpenAI API key is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
-      if (!apifyKey)  errors.push('Global Apify API token is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
-      const credits = settings?.credits_balance ?? 0;
-      if (credits < MIN_RUN_CREDITS) errors.push(`Insufficient credits ($${credits.toFixed(2)}). Please top up to at least $${MIN_RUN_CREDITS.toFixed(2)} to run.`);
+      // Resolving through the chokepoint keeps this advisory check on exactly the same rule the
+      // runner enforces, so the UI can never green-light a run the pipeline will refuse.
+      try {
+        const { openAiKey, apifyToken } = resolveSpendKeys(db, profileId);
+        if (!openAiKey)  errors.push('Global OpenAI API key is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
+        if (!apifyToken) errors.push('Global Apify API token is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
+      } catch (err) {
+        errors.push((err as Error).message);
+      }
     } else {
       // No config.* fallback here: own-keys means the profile's own keys. Falling back to the
       // instance env vars let a profile run the pipeline on the operator's accounts, unmetered —
@@ -183,9 +183,10 @@ router.get('/status', (req: Request, res: Response) => {
       GROUP_CONCAT(error_log, '\n') AS error_log
     FROM search_runs
     WHERE profile_id = ?
+      AND trigger != 'cv'
       AND COALESCE(session_id, CAST(id AS TEXT)) = (
         SELECT COALESCE(session_id, CAST(id AS TEXT))
-        FROM search_runs WHERE profile_id = ? AND status != 'running'
+        FROM search_runs WHERE profile_id = ? AND status != 'running' AND trigger != 'cv'
         ORDER BY ran_at DESC LIMIT 1
       )
       AND status != 'running'
@@ -420,9 +421,10 @@ router.get('/stats', (req: Request, res: Response) => {
       GROUP_CONCAT(error_log, '\n') AS error_log
     FROM search_runs
     WHERE profile_id = ?
+      AND trigger != 'cv'
       AND COALESCE(session_id, CAST(id AS TEXT)) = (
         SELECT COALESCE(session_id, CAST(id AS TEXT))
-        FROM search_runs WHERE profile_id = ? AND status != 'running'
+        FROM search_runs WHERE profile_id = ? AND status != 'running' AND trigger != 'cv'
         ORDER BY ran_at DESC LIMIT 1
       )
       AND status != 'running'
@@ -457,6 +459,21 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
   const b = req.body as Record<string, unknown>;
+
+  // Layer 1 already refuses an unfunded run at fire time; this only turns a silent 3am failure into
+  // an immediate error. Same wording as POST /api/run so the two gates cannot read differently.
+  const paySettings = db.prepare('SELECT use_jh_credits, credits_balance, user_openai_api_key, user_apify_api_token FROM settings WHERE profile_id = ?').get(profileId) as
+    { use_jh_credits: number; credits_balance: number; user_openai_api_key: string; user_apify_api_token: string } | undefined;
+  if (!isPaymentReady(paySettings)) {
+    const balance = paySettings?.credits_balance ?? 0;
+    res.status(402).json({
+      success: false,
+      error: (paySettings?.use_jh_credits ?? 1) !== 0
+        ? `Insufficient credits ($${balance.toFixed(2)}). Please top up to at least $${MIN_RUN_CREDITS.toFixed(2)} to run.`
+        : 'Own API keys are not set. Add your OpenAI key and Apify token in Settings → AI Setup, or switch to credits.',
+    });
+    return;
+  }
 
   const emailSendTime = String(b.email_send_time || '').trim() || null;
   const timezone = String(b.timezone || '').trim() || null;
@@ -976,11 +993,17 @@ router.patch('/jobs/:id/notes', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-// GET /api/check-openai-balance — check remaining OpenAI credit for the configured key
+// GET /api/check-openai-balance — remaining credit on the profile's OWN OpenAI key.
+// Own-keys mode only: on credits the relevant figure is the JH credits balance, and answering with
+// the operator's OpenAI account standing would expose it to every signed-in user.
 router.get('/check-openai-balance', async (req: Request, res: Response) => {
   const db = getDb();
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(req.profile.id) as SettingsRow | undefined;
-  const apiKey = settings?.openai_api_key || config.openAiKey;
+  if ((settings?.use_jh_credits ?? 1) !== 0) {
+    res.json({ success: false, error: 'Not applicable on credits — see your credits balance.' });
+    return;
+  }
+  const apiKey = settings?.user_openai_api_key?.trim();
   if (!apiKey) {
     res.json({ success: false, error: 'No OpenAI API key configured in Settings.' });
     return;
@@ -1107,7 +1130,16 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   if (!cv) { res.status(404).json({ error: 'CV not found.' }); return; }
 
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow;
-  const openaiKey = settings?.openai_api_key?.trim() || config.openAiKey?.trim();
+
+  // Metered like a pipeline run. This call used to fall back to the instance's env key with no
+  // balance check and no deduction, which made it a free proxy onto the operator's OpenAI account.
+  let openaiKey: string;
+  try {
+    ({ openAiKey: openaiKey } = resolveSpendKeys(db, profileId));
+  } catch (err) {
+    res.status(err instanceof PaymentError ? 402 : 400).json({ error: (err as Error).message });
+    return;
+  }
   if (!openaiKey) { res.status(400).json({ error: 'OpenAI API key not configured.' }); return; }
 
   const prompt = settings?.cv_comparison_prompt?.trim() || DEFAULT_CV_COMPARISON_PROMPT;
@@ -1117,6 +1149,7 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   try {
     const client = new OpenAI({ apiKey: openaiKey });
     let responseText: string;
+    let usage: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } | undefined;
 
     if (cv.mime_type === 'application/pdf') {
       // PDF: send as base64 file input
@@ -1140,6 +1173,7 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
         ],
       });
       responseText = response.output_text;
+      usage = response.usage;
     } else {
       // Text-based CV
       const cvText = Buffer.from(cv.content_b64, 'base64').toString('utf-8');
@@ -1153,16 +1187,61 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
         ],
       });
       responseText = response.output_text;
+      usage = response.usage;
     }
 
     if (!responseText) throw new Error('Empty response from OpenAI');
 
     db.prepare('UPDATE job_profile_states SET cv_assessment = ? WHERE job_id = ? AND profile_id = ?').run(responseText, jobId, profileId);
+    recordCvCompareCost(db, profileId, model, usage);
     res.json({ ok: true, assessment: responseText });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
 });
+
+/**
+ * Bill a CV comparison into the same AI cost line the pipeline uses: a `search_runs` row with
+ * `trigger = 'cv'`. The Stats cost chart aggregates that table without filtering on trigger, so the
+ * spend appears in the existing AI series for free; the three surfaces that list *runs* exclude the
+ * trigger explicitly so these rows never masquerade as pipeline runs.
+ *
+ * Deduction mirrors the runner: clamp the balance at zero and bank any shortfall separately.
+ * Best-effort — a failure here must not lose the assessment the user already paid for.
+ */
+function recordCvCompareCost(
+  db: ReturnType<typeof getDb>,
+  profileId: number,
+  model: string,
+  usage: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } | undefined,
+): void {
+  try {
+    const cost = calcOpenAiCost(
+      model,
+      usage?.input_tokens ?? 0,
+      usage?.input_tokens_details?.cached_tokens ?? 0,
+      usage?.output_tokens ?? 0,
+    ) ?? 0;
+    if (cost <= 0) return;
+
+    db.prepare(`
+      INSERT INTO search_runs (profile_id, ran_at, jobs_fetched, jobs_scored, jobs_strong_match,
+        jobs_weak_match, jobs_no_match, jobs_duplicate, status, error_log, duration_ms, trigger,
+        session_id, cost_openai_usd, cost_apify_usd)
+      VALUES (?, ?, 0, 0, 0, 0, 0, 0, 'success', NULL, NULL, 'cv', ?, ?, 0)
+    `).run(profileId, new Date().toISOString(), randomUUID(), cost);
+
+    const s = db.prepare('SELECT use_jh_credits, credits_balance FROM settings WHERE profile_id = ?').get(profileId) as
+      { use_jh_credits: number; credits_balance: number } | undefined;
+    if ((s?.use_jh_credits ?? 1) === 0) return;   // own keys — nothing to deduct
+
+    const balance = s?.credits_balance ?? 0;
+    db.prepare('UPDATE settings SET credits_balance = ?, credits_overspent_usd = credits_overspent_usd + ? WHERE profile_id = ?')
+      .run(Math.max(0, balance - cost), Math.max(0, cost - balance), profileId);
+  } catch (err) {
+    console.warn('[api] Failed to record CV comparison cost:', (err as Error).message);
+  }
+}
 
 // ── ATS Board Discovery & Validation (admin-only) ──
 

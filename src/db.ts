@@ -1069,6 +1069,14 @@ function runMigrations(db: Database): void {
       db.exec(`ALTER TABLE settings ADD COLUMN credits_balance REAL NOT NULL DEFAULT 0.0`);
       console.log('[db] Migration v_credits: settings.credits_balance added');
     }
+    // Running total of spend a run incurred but the balance could not cover. `credits_balance`
+    // stays clamped at zero (the UI and the low-credits email both assume a non-negative figure),
+    // so without this column an overspend left no trace anywhere. Any row above zero is spend that
+    // reached the operator's keys without being paid for — treat it as an alarm, not a metric.
+    if (!cols.some((c) => c.name === 'credits_overspent_usd')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN credits_overspent_usd REAL NOT NULL DEFAULT 0.0`);
+      console.log('[db] Migration v_credits: settings.credits_overspent_usd added');
+    }
   } catch (err) {
     console.warn('[db] Migration v_credits failed (non-fatal):', (err as Error).message);
   }
@@ -2691,6 +2699,72 @@ export function isPaymentReady(s: {
   return (s?.credits_balance ?? 0) >= MIN_RUN_CREDITS;
 }
 
+/**
+ * Thrown by `resolveSpendKeys` when a profile cannot pay for the work it is asking for. Callers
+ * distinguish it from a genuine failure: an HTTP handler answers 402, and the pipeline stops the
+ * schedule rather than retrying the same refusal every night.
+ */
+export class PaymentError extends Error {
+  constructor(message: string) { super(message); this.name = 'PaymentError'; }
+}
+
+/** The operator's global keys: admin's saved settings, falling back to the env vars (PRD §7.12). */
+function adminKeys(db: Database): { openAiKey: string; apifyToken: string } {
+  const admin = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+  const s = admin
+    ? db.prepare('SELECT openai_api_key, apify_api_token FROM settings WHERE profile_id = ?').get(admin.id) as
+        { openai_api_key: string; apify_api_token: string } | undefined
+    : undefined;
+  return {
+    openAiKey:  s?.openai_api_key?.trim()  || config.openAiKey     || '',
+    apifyToken: s?.apify_api_token?.trim() || config.apifyApiToken || '',
+  };
+}
+
+/**
+ * **The only code permitted to return the operator's keys.** Every path that spends money on a
+ * profile's behalf resolves through here, so the balance check cannot be forgotten by a handler
+ * added later — which is exactly how `/api/jobs/:id/cv-compare` and the scheduled-run path both
+ * ended up spending the operator's keys unmetered. See MONEYLEAK.md.
+ *
+ * Credits mode returns the operator's keys, but only above `MIN_RUN_CREDITS`. Own-keys mode returns
+ * the profile's own keys and deliberately never falls back to `config.*` (PRD §7.12) — that fallback
+ * is what let any profile run on the instance's keys with the spend recorded nowhere.
+ *
+ * `telegramIngest.ts` is intentionally not a caller: it is a system cron with no profile, reads the
+ * admin key directly, and carries no `config.*` fallback to relocate.
+ *
+ * Throws `PaymentError`; callers must not treat that as a transient failure.
+ */
+export function resolveSpendKeys(db: Database, profileId: number): { openAiKey: string; apifyToken: string } {
+  const s = db.prepare(`
+    SELECT use_jh_credits, credits_balance, user_openai_api_key, user_apify_api_token
+    FROM settings WHERE profile_id = ?
+  `).get(profileId) as {
+    use_jh_credits: number; credits_balance: number;
+    user_openai_api_key: string; user_apify_api_token: string;
+  } | undefined;
+
+  if ((s?.use_jh_credits ?? 1) === 0) {
+    const openAiKey  = s?.user_openai_api_key?.trim() || '';
+    const apifyToken = s?.user_apify_api_token?.trim() || '';
+    if (!openAiKey || !apifyToken) {
+      throw new PaymentError(
+        'Own API keys are not set. Add your OpenAI key and Apify token in Settings → AI Setup, or switch to credits.',
+      );
+    }
+    return { openAiKey, apifyToken };
+  }
+
+  const balance = s?.credits_balance ?? 0;
+  if (balance < MIN_RUN_CREDITS) {
+    throw new PaymentError(
+      `Insufficient credits ($${balance.toFixed(2)}). Please top up to at least $${MIN_RUN_CREDITS.toFixed(2)} to run.`,
+    );
+  }
+  return adminKeys(db);
+}
+
 // ---- Row types ----
 
 export interface ProfileRow {
@@ -2846,6 +2920,7 @@ export interface SettingsRow {
   user_apify_api_token: string;    // user-specific Apify key (used when use_jh_credits = 0)
   user_openai_api_key: string;     // user-specific OpenAI key (used when use_jh_credits = 0)
   credits_balance: number;         // USD balance when using JH credits
+  credits_overspent_usd: number;   // running total of spend the balance could not cover
   app_url: string;                 // deployment base URL used in email links (e.g. https://hunter.example.com)
   telegram_ingest_enabled: number;
   telegram_extract_prompt: string;

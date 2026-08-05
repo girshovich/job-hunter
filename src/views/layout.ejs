@@ -164,10 +164,13 @@
     }
     .sb-run-primary:hover { background: #e6f3ec; }
     .sb-run-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .sb-run-primary:disabled:hover { background: var(--green-soft); }
     .sb-run-secondary {
       background: #eef1f6; color: var(--ink2);
     }
     .sb-run-secondary:hover { background: #e6eaf1; }
+    .sb-run-secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .sb-run-secondary:disabled:hover { background: #eef1f6; }
     .sb-run-danger {
       border: 1px solid var(--red-border);
       background: var(--red-soft); color: var(--red-ink);
@@ -610,15 +613,18 @@
       <!-- Footer -->
       <div class="sb-footer">
         <div class="sb-run-group">
-          <!-- Run once -->
-          <button id="sidebar-run-btn" onclick="openRunModal()" class="sb-run sb-run-primary">
+          <!-- Run once. Disabled until the profile can actually pay for a run — same isPaymentReady
+               rule the home page and POST /api/run use, so all three agree. -->
+          <button id="sidebar-run-btn" onclick="openRunModal()" class="sb-run sb-run-primary"
+                  <% if (locals.canRun === false) { %>disabled title="Add credits or your own API keys in Settings → AI Setup to run."<% } %>>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>
             <span id="sidebar-run-label">Run once</span>
           </button>
 
           <!-- Schedule inactive -->
           <div id="schedule-inactive" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? 'hidden' : '' %>">
-            <button onclick="openScheduleModal()" class="sb-run sb-run-secondary">
+            <button onclick="openScheduleModal()" class="sb-run sb-run-secondary"
+                    <% if (locals.canRun === false) { %>disabled title="Add credits or your own API keys in Settings → AI Setup to run."<% } %>>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
               Schedule
             </button>
@@ -2625,9 +2631,14 @@
     (function () {
       let poller = null;
 
+      // Rendered disabled when the profile cannot pay for a run; that lock outranks the
+      // run-in-progress state, which must never re-enable the button on the next poll.
+      const paymentLocked = <%= locals.canRun === false ? 'true' : 'false' %>;
+
       function apply(isRunning) {
         const btn = document.getElementById('sidebar-run-btn');
         if (!btn) return;
+        if (paymentLocked) return;
         btn.disabled = isRunning;
         btn.title = isRunning ? 'Run in progress — open Start to stop it' : '';
         document.getElementById('sidebar-run-label').textContent = isRunning ? 'Running…' : 'Run once';
