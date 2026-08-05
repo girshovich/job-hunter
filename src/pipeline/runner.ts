@@ -222,8 +222,14 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       apifyToken = adminSettings?.apify_api_token?.trim() || config.apifyApiToken || '';
       openAiKey = adminSettings?.openai_api_key?.trim() || config.openAiKey || '';
     } else {
-      apifyToken = settings.user_apify_api_token?.trim() || config.apifyApiToken || '';
-      openAiKey = settings.user_openai_api_key?.trim() || config.openAiKey || '';
+      // Own-keys mode uses the profile's own keys only — see the note in routes/api.ts. A scheduled
+      // run does not pass through that preflight, so the emptiness is checked here rather than
+      // failing later inside a provider call.
+      apifyToken = settings.user_apify_api_token?.trim() || '';
+      openAiKey = settings.user_openai_api_key?.trim() || '';
+      if (!openAiKey || !apifyToken) {
+        throw new Error('Own API keys are not set. Add your OpenAI key and Apify token in Settings → AI Setup, or switch to credits.');
+      }
     }
     const resendApiKey = settings.resend_api_key || config.resendApiKey;
     const emailFrom = settings.email_from || config.emailFrom;

@@ -17,6 +17,9 @@ import ALL_COUNTRIES from './pipeline/countries.json';
 export const DEFAULT_PROVIDER_SELECTION = ['valig', 'greenhouse', 'ashby', 'lever', 'telegram'] as const;
 export const DEFAULT_PROVIDER_SELECTION_JSON = JSON.stringify(DEFAULT_PROVIDER_SELECTION);
 
+/** Minimum credit balance `/api/run` will start a run on. */
+export const MIN_RUN_CREDITS = 0.5;
+
 // Minimal type surface for node:sqlite
 interface NodeSQLiteStatement {
   run(...params: unknown[]): { lastInsertRowid: number; changes: number };
@@ -2211,6 +2214,20 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_gpt56_models failed (non-fatal):', (err as Error).message);
   }
+
+  // v_otp_new_account: flags a code as sent to an address that had no profile at send time, feeding
+  // the new-account send cap in routes/auth.ts. Stamped on insert rather than derived later — sign-up
+  // creates the profile on verify, so a retroactive join against `profiles` would stop counting a
+  // code the moment its owner got in, and the cap would silently drift upward.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(otp_codes)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'for_new_account')) {
+      db.exec(`ALTER TABLE otp_codes ADD COLUMN for_new_account INTEGER NOT NULL DEFAULT 0`);
+      console.log('[db] Migration v_otp_new_account: otp_codes.for_new_account added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_otp_new_account failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -2613,6 +2630,67 @@ function seedSettings(db: Database): void {
   }
 }
 
+/**
+ * Create a profile and its settings row. Shared by the admin "create profile" endpoint
+ * (routes/api.ts) and self-service sign-up (routes/auth.ts) so the two can never seed a new account
+ * differently. No Role is created — a new account starts with an empty onboarding checklist.
+ *
+ * Seeds the three editable AI prompts (Settings → AI) so a new profile starts with the same
+ * working text the app ships, not blank boxes. `ai_system_prompt` is deliberately left empty —
+ * the scorer rebuilds it per run (buildScoringSystemPrompt) and never reads the stored value.
+ * `ai_model` and `ai_model_hard` are written explicitly for the reason given at
+ * DEFAULT_AI_MODEL — the column defaults still read 'gpt-5.4' on migrated schemas. Everything
+ * else (thresholds, cron, timezone) comes from the column defaults.
+ *
+ * `use_jh_credits = 0` overrides that column's default of 1: a new account starts on its own API
+ * keys, so it can never spend the operator's balance before anyone decided to fund it.
+ *
+ * Throws on a duplicate email — `profiles.email` is UNIQUE, so callers that can race must catch it.
+ */
+export function createProfile(db: Database, email: string): { id: number; createdAt: string } {
+  const now = new Date().toISOString();
+  const result = db.prepare('INSERT INTO profiles (email, is_admin, created_at) VALUES (?, 0, ?)').run(email, now);
+  const newId = result.lastInsertRowid as number;
+
+  const settingsExist = db.prepare('SELECT id FROM settings WHERE profile_id = ?').get(newId);
+  if (!settingsExist) {
+    db.prepare(`
+      INSERT INTO settings (
+        profile_id, email_recipient, email_send_time, updated_at,
+        ai_model, ai_model_hard, summary_prompt, dedup_system_prompt, cv_comparison_prompt,
+        scraping_providers, run_providers, use_jh_credits
+      )
+      VALUES (?, ?, '07:00', ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(newId, email, now, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION_JSON, DEFAULT_PROVIDER_SELECTION_JSON);
+  }
+
+  return { id: newId, createdAt: now };
+}
+
+/**
+ * True when a profile's chosen payment mode can actually pay for a run: both own keys saved, or a
+ * balance clearing the floor `/api/run` enforces. **Choosing a mode is not readiness** — that
+ * conflation is what let the onboarding checklist tick "Add or buy API keys" on a fresh account and
+ * the Run button offer runs the server then refused.
+ *
+ * Own-keys deliberately ignores the `config.*` env fallback: on an instance that sets those vars
+ * every account would read as ready without saving anything.
+ *
+ * Shared by the onboarding checklist (index.ts) and the Run button (dashboard.ts) so the two cannot
+ * drift apart again. `/api/run` keeps its own per-key checks — it needs to name which key is missing.
+ */
+export function isPaymentReady(s: {
+  use_jh_credits?: number;
+  credits_balance?: number;
+  user_openai_api_key?: string;
+  user_apify_api_token?: string;
+} | undefined): boolean {
+  if ((s?.use_jh_credits ?? 1) === 0) {
+    return !!(s?.user_openai_api_key?.trim() && s?.user_apify_api_token?.trim());
+  }
+  return (s?.credits_balance ?? 0) >= MIN_RUN_CREDITS;
+}
+
 // ---- Row types ----
 
 export interface ProfileRow {
@@ -2639,6 +2717,7 @@ export interface OtpCodeRow {
   created_at: string;
   expires_at: string;
   used: number;  // 0 = active, 1 = consumed/invalidated
+  for_new_account: number;  // 1 = the address had no profile when this code was sent
 }
 
 export interface EmailChangeRequestRow {

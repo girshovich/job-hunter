@@ -1,12 +1,22 @@
 import * as crypto from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import { Resend } from 'resend';
-import { getDb, type ProfileRow, type OtpCodeRow, type SessionRow, type EmailChangeRequestRow } from '../db';
+import { getDb, createProfile, type ProfileRow, type OtpCodeRow, type SessionRow, type EmailChangeRequestRow } from '../db';
 
 export const SESSION_COOKIE = 'jh_session';
 export const SESSION_DAYS = 30;
 
 const OTP_MINUTES = 15;
+
+// Sign-up codes go to addresses that have asked for nothing yet, so they are the one part of login
+// an outsider can trigger at will. Resend's free tier is 100 emails/day shared with the digests, so
+// new-account sends are capped well below it: abuse can burn a day of sign-ups, but never the
+// digests and never an existing user's ability to log in.
+const NEW_ACCOUNT_DAILY_CAP = 40;
+
+// Shown when the cap refuses a send. Deliberately vague and never mentions accounts — see the
+// enumeration note at the call site.
+const GENERIC_SEND_FAILURE = "Couldn't send a code right now — please try again later.";
 
 function generateOtp(): string {
   return String(crypto.randomInt(100000, 1000000));
@@ -66,10 +76,41 @@ function verifyOtp(db: ReturnType<typeof getDb>, email: string, code: string): {
   }
 
   db.prepare('UPDATE otp_codes SET used = 1 WHERE id = ?').run(otpRow.id);
-  const profile = db.prepare('SELECT * FROM profiles WHERE email = ?').get(email) as ProfileRow | undefined;
-  if (!profile) return { ok: false, error: 'Account not found.' };
 
-  return { ok: true, profileId: profile.id };
+  // A correct code proves the address receives mail, so a first-time sender gets their account here
+  // rather than at request time — addresses that never verify never reach `profiles`. Both callers
+  // land here, so the magic link completes a sign-up just as the typed code does. That also means a
+  // mail scanner prefetching the link creates the account before the human clicks; such a profile
+  // has no Role, no keys and no credits, so it does nothing but occupy a row.
+  return { ok: true, profileId: findOrCreateProfile(db, email) };
+}
+
+// `profiles.email` is UNIQUE, so two verifications racing — the typed code and a prefetched magic
+// link, say — cannot create two accounts: the loser's INSERT throws and we take the row that won.
+function findOrCreateProfile(db: ReturnType<typeof getDb>, email: string): number {
+  const existing = db.prepare('SELECT id FROM profiles WHERE email = ?').get(email) as { id: number } | undefined;
+  if (existing) return existing.id;
+
+  try {
+    const { id } = createProfile(db, email);
+    console.log(`[auth] Created profile ${id} for ${email} on first verified sign-in`);
+    return id;
+  } catch (err) {
+    const raced = db.prepare('SELECT id FROM profiles WHERE email = ?').get(email) as { id: number } | undefined;
+    if (raced) return raced.id;
+    throw err;
+  }
+}
+
+// Rolling 24h count of codes sent to addresses that had no profile at the time. Reads the flag
+// stamped on the row rather than re-checking `profiles`, because sign-up creates the profile on
+// verify — a retroactive join would stop counting a code the moment its owner got in, letting the
+// cap drift upward by exactly the number of successful sign-ups.
+function newAccountSendsToday(db: ReturnType<typeof getDb>): number {
+  const dayAgo = new Date(Date.now() - 86400000).toISOString();
+  return (db.prepare(
+    'SELECT COUNT(*) as c FROM otp_codes WHERE for_new_account = 1 AND created_at > ?'
+  ).get(dayAgo) as { c: number }).c;
 }
 
 // Returns true if this email is currently rate-limited for OTP sends.
@@ -137,9 +178,18 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
     return res.json({ ok: true, redirect: '/' });
   }
 
-  const profile = db.prepare('SELECT * FROM profiles WHERE email = ?').get(email) as ProfileRow | undefined;
-  if (!profile) {
-    return res.json({ ok: false, error: 'No account with this email.' });
+  // An unknown address is a sign-up, not an error: the code is sent either way and the profile is
+  // created on verify (verifyOtp). Only the cap distinguishes the two cases, and it answers with
+  // GENERIC_SEND_FAILURE so the wording never confirms whether an account exists. Note the residual:
+  // while the cap is saturated an unknown address fails where a known one still succeeds, so the
+  // success/failure split remains observable — narrowed to an abnormal window an attacker must burn
+  // NEW_ACCOUNT_DAILY_CAP sends to open, not closed outright.
+  const existing = db.prepare('SELECT id FROM profiles WHERE email = ?').get(email) as { id: number } | undefined;
+  const isNewAccount = !existing;
+
+  if (isNewAccount && newAccountSendsToday(db) >= NEW_ACCOUNT_DAILY_CAP) {
+    console.warn(`[auth] New-account code cap reached (${NEW_ACCOUNT_DAILY_CAP}/24h) — refused sign-up send to ${email}`);
+    return res.json({ ok: false, error: GENERIC_SEND_FAILURE });
   }
 
   if (isResendRateLimited(db, email)) {
@@ -160,7 +210,7 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
   const otpExpiry = new Date(Date.now() + OTP_MINUTES * 60000).toISOString();
 
   db.prepare('UPDATE otp_codes SET used = 1 WHERE email = ? AND used = 0').run(email);
-  db.prepare('INSERT INTO otp_codes (email, code, attempts, created_at, expires_at, used) VALUES (?, ?, 0, ?, ?, 0)').run(email, otp, now, otpExpiry);
+  db.prepare('INSERT INTO otp_codes (email, code, attempts, created_at, expires_at, used, for_new_account) VALUES (?, ?, 0, ?, ?, 0, ?)').run(email, otp, now, otpExpiry, isNewAccount ? 1 : 0);
 
   const loginLink = `${req.protocol}://${req.get('host')}/welcome/verify?email=${encodeURIComponent(email)}&code=${otp}`;
   try {

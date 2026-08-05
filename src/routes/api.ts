@@ -17,7 +17,7 @@ import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipe
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
-import { getDb, getMatchesCount, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
+import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, isPaymentReady, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -52,10 +52,13 @@ router.get('/preflight', (req: Request, res: Response) => {
       if (!openAiKey) errors.push('Global OpenAI API key is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
       if (!apifyKey)  errors.push('Global Apify API token is not configured — ask admin to add it in Settings → Admin → Global API Keys.');
       const credits = settings?.credits_balance ?? 0;
-      if (credits < 0.5) errors.push(`Insufficient credits ($${credits.toFixed(2)}). Please top up to at least $0.50 to run.`);
+      if (credits < MIN_RUN_CREDITS) errors.push(`Insufficient credits ($${credits.toFixed(2)}). Please top up to at least $${MIN_RUN_CREDITS.toFixed(2)} to run.`);
     } else {
-      const openAiKey = settings?.user_openai_api_key?.trim() || config.openAiKey?.trim();
-      const apifyKey  = settings?.user_apify_api_token?.trim() || config.apifyApiToken?.trim();
+      // No config.* fallback here: own-keys means the profile's own keys. Falling back to the
+      // instance env vars let a profile run the pipeline on the operator's accounts, unmetered —
+      // credit deduction only happens in credits mode, so that spend left no trace anywhere.
+      const openAiKey = settings?.user_openai_api_key?.trim();
+      const apifyKey  = settings?.user_apify_api_token?.trim();
       if (!openAiKey) errors.push('OpenAI API key is not set — add it in Settings → AI Setup → Use my own API keys.');
       if (!apifyKey)  errors.push('Apify API token is not set — add it in Settings → AI Setup → Use my own API keys.');
     }
@@ -114,15 +117,21 @@ router.post('/run', async (req: Request, res: Response) => {
   const resolvedProviders = providers?.length ? providers : undefined;
   const runOptions: RunOptions = { groupIds, dateRange, providers: resolvedProviders };
 
-  // Check credits if user is on JH credits mode
+  // Check the profile can pay for this run: credits above the floor, or its own keys actually
+  // saved. The own-keys arm is what stops a profile running the pipeline on the instance's env
+  // keys — `GET /preflight` only advises the UI, so this handler is the gate. runner.ts repeats
+  // the check because a scheduled run never passes through here.
   const db = getDb();
-  const settings = db.prepare('SELECT use_jh_credits, credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { use_jh_credits: number; credits_balance: number } | undefined;
+  const settings = db.prepare('SELECT use_jh_credits, credits_balance, user_openai_api_key, user_apify_api_token FROM settings WHERE profile_id = ?').get(profileId) as { use_jh_credits: number; credits_balance: number; user_openai_api_key: string; user_apify_api_token: string } | undefined;
   if ((settings?.use_jh_credits ?? 1) !== 0) {
     const balance = settings?.credits_balance ?? 0;
-    if (balance < 0.5) {
-      res.status(402).json({ success: false, error: `Insufficient credits ($${balance.toFixed(2)}). Please top up to at least $0.50 to run.` });
+    if (balance < MIN_RUN_CREDITS) {
+      res.status(402).json({ success: false, error: `Insufficient credits ($${balance.toFixed(2)}). Please top up to at least $${MIN_RUN_CREDITS.toFixed(2)} to run.` });
       return;
     }
+  } else if (!isPaymentReady(settings)) {
+    res.status(402).json({ success: false, error: 'Own API keys are not set. Add your OpenAI key and Apify token in Settings → AI Setup, or switch to credits.' });
+    return;
   }
 
   // Persist Run Once date range + provider selection as defaults for next time
@@ -353,28 +362,9 @@ router.post('/profiles', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'A profile with this email already exists.' });
   }
 
-  const now = new Date().toISOString();
-  const result = db.prepare('INSERT INTO profiles (email, is_admin, created_at) VALUES (?, 0, ?)').run(email, now);
-  const newId = result.lastInsertRowid as number;
+  const { id: newId, createdAt } = createProfile(db, email);
 
-  const settingsExist = db.prepare('SELECT id FROM settings WHERE profile_id = ?').get(newId);
-  if (!settingsExist) {
-    // Seed the three editable AI prompts (Settings → AI) so a new profile starts with the same
-    // working text the app ships, not blank boxes. `ai_system_prompt` is deliberately left empty —
-    // the scorer rebuilds it per run (buildScoringSystemPrompt) and never reads the stored value.
-    // `ai_model` and `ai_model_hard` are written explicitly for the reason given at
-    // DEFAULT_AI_MODEL — the column defaults still read 'gpt-5.4' on migrated schemas.
-    db.prepare(`
-      INSERT INTO settings (
-        profile_id, email_recipient, email_send_time, updated_at,
-        ai_model, ai_model_hard, summary_prompt, dedup_system_prompt, cv_comparison_prompt,
-        scraping_providers, run_providers
-      )
-      VALUES (?, ?, '07:00', ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(newId, email, now, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION_JSON, DEFAULT_PROVIDER_SELECTION_JSON);
-  }
-
-  res.json({ success: true, profile: { id: newId, email, is_admin: 0, created_at: now } });
+  res.json({ success: true, profile: { id: newId, email, is_admin: 0, created_at: createdAt } });
 });
 
 // ── Admin: delete profile ──

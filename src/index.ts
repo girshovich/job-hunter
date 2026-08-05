@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
-import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount } from './db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady } from './db';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -107,8 +107,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const pid = req.profile.id;
   const db  = getDb();
   const s = db.prepare(
-    'SELECT profile_description, schedule_group_ids, use_jh_credits, credits_balance FROM settings WHERE profile_id = ?'
-  ).get(pid) as { profile_description: string; schedule_group_ids: string; use_jh_credits: number; credits_balance: number } | undefined;
+    'SELECT profile_description, schedule_group_ids, use_jh_credits, credits_balance, user_openai_api_key, user_apify_api_token FROM settings WHERE profile_id = ?'
+  ).get(pid) as { profile_description: string; schedule_group_ids: string; use_jh_credits: number; credits_balance: number; user_openai_api_key: string; user_apify_api_token: string } | undefined;
   const hasRole = !!db.prepare(
     'SELECT 1 FROM search_groups WHERE profile_id = ? LIMIT 1'
   ).get(pid);
@@ -118,7 +118,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const done = [
     !!(s?.profile_description?.trim()),
     hasRole,
-    (s?.credits_balance ?? 0) > 0 || (s?.use_jh_credits ?? 1) === 0,
+    isPaymentReady(s),  // "Add or buy API keys" — picking a mode is not progress
     hasRun,
     !!(s?.schedule_group_ids?.trim()),
   ];

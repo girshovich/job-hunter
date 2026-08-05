@@ -57,7 +57,7 @@ npm install
 
 **2. Create `.env`**
 ```env
-# Optional — API keys can also be set in the dashboard UI
+# Apify/OpenAI here serve hosted-credits mode only — see the note below
 APIFY_API_TOKEN=
 OPENAI_API_KEY=
 RESEND_API_KEY=
@@ -65,7 +65,11 @@ EMAIL_FROM=jobs@yourdomain.com
 PORT=3000
 ```
 
-Resend is required for login (email OTP) as well as digests. All API keys can be entered in the Settings page instead of `.env`.
+Resend is required for login (email OTP) as well as digests, and is read from `.env` or Settings.
+
+> **Self-hosting: put your Apify and OpenAI keys in Settings, not `.env`.**
+> Each profile picks a payment mode in **Settings → AI Setup**. On **"Use your own API keys"** — the normal choice when self-hosting — those two keys are read **only** from that profile's saved settings; `.env` is not consulted. If a run is refused with *"Own API keys are not set"*, paste them there.
+> The `.env` values back **hosted-credits** mode instead, where one operator's keys are shared and billed against a credit balance.
 
 **3. Build and run**
 ```bash

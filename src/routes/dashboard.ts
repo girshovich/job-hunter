@@ -3,7 +3,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type JobWithState, type SearchRunRow, type SettingsRow } from '../db';
+import { getDb, isPaymentReady, type JobWithState, type SearchRunRow, type SettingsRow } from '../db';
 import { getScheduleStatus } from '../pipeline/scheduler';
 import { getPreferredCountries } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
@@ -126,7 +126,7 @@ router.get('/', (req: Request, res: Response) => {
     hasSchedule: !!(settings?.cron_schedule),
   };
   const checklistDone = Object.values(checklist).every(Boolean);
-  const canRun = (settings?.use_jh_credits === 0) || ((settings?.credits_balance ?? 0) > 0);
+  const canRun = isPaymentReady(settings);
 
   const scheduleStatus = getScheduleStatus(profileId);
   res.render('home', {
