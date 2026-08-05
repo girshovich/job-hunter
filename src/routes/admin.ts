@@ -5,7 +5,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type SettingsRow } from '../db';
+import { getDb, type SettingsRow, type DeletedProfileRow } from '../db';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { getAtsSchedules } from '../pipeline/atsScheduler';
 
@@ -39,12 +39,22 @@ router.get('/', (req: Request, res: Response) => {
     ORDER BY p.id ASC
   `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; credits_balance: number; credits_overspent_usd: number; has_own_keys: number }>;
 
+  // Tombstones of deleted accounts (`/api/profiles/:id/delete`). They carry no email, so they cannot
+  // render as rows in the list above — they exist so the total-ever count stays answerable and so the
+  // money a deleted profile spent is still attributable. `profiles.id` is AUTOINCREMENT, so a deleted
+  // id is never handed out again and the two lists cannot collide.
+  const deletedProfiles = db.prepare(`
+    SELECT profile_id, deleted_at, final_credits_balance, final_credits_overspent_usd, lifetime_cost_usd
+    FROM deleted_profiles ORDER BY deleted_at DESC
+  `).all() as DeletedProfileRow[];
+
   res.render('admin', {
     title: 'Admin',
     adminTab,
     saved: req.query.saved === '1',
     settings,
     allProfiles,
+    deletedProfiles,
     locationCountries: getCanonicalCountries(),
     atsSchedules: getAtsSchedules(),
     pageMaxWidth: '48rem',

@@ -2243,6 +2243,26 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_otp_new_account failed (non-fatal):', (err as Error).message);
   }
+
+  // v_deleted_profiles: the tombstone left behind when an admin deletes a non-admin profile
+  // (`POST /api/profiles/:id/delete`). Deletion erases every profile-scoped row, so without this the
+  // account leaves no trace at all and "how many accounts has this instance ever had?" becomes
+  // unanswerable. It deliberately holds **no email and no personal data** — just the id, when it went,
+  // and the three money figures, which are the operator's own books rather than the user's: without
+  // them a profile could overspend on the operator's keys and have the evidence deleted with it
+  // (MONEYLEAK.md — `credits_overspent_usd` is the leak alarm). No FK to `profiles`: the row it
+  // describes is gone by design.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS deleted_profiles (
+      profile_id                  INTEGER PRIMARY KEY,
+      deleted_at                  TEXT NOT NULL,
+      final_credits_balance       REAL NOT NULL DEFAULT 0,
+      final_credits_overspent_usd REAL NOT NULL DEFAULT 0,
+      lifetime_cost_usd           REAL NOT NULL DEFAULT 0
+    )`);
+  } catch (err) {
+    console.warn('[db] Migration v_deleted_profiles failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -2779,6 +2799,15 @@ export interface ProfileRow {
   email: string;
   is_admin: number;   // 1 = admin, 0 = regular
   created_at: string;
+}
+
+/** Tombstone for a deleted profile — no email, no personal data (migration `v_deleted_profiles`). */
+export interface DeletedProfileRow {
+  profile_id: number;
+  deleted_at: string;
+  final_credits_balance: number;
+  final_credits_overspent_usd: number;
+  lifetime_cost_usd: number;
 }
 
 export interface SessionRow {

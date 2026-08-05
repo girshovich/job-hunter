@@ -373,6 +373,24 @@ router.post('/profiles', (req: Request, res: Response) => {
 });
 
 // ── Admin: delete profile ──
+// Erases every profile-scoped row and leaves only a `deleted_profiles` tombstone. Three things make
+// this more than a loop of DELETEs:
+//
+//  1. **Order is forced by foreign keys.** `PRAGMA foreign_keys = ON` (db.ts), and `search_groups(id)`
+//     is referenced NO ACTION by `job_profile_states.group_id`, `run_job_logs.group_id` and
+//     `jobs.group_id` — so the roles must go *after* the rows pointing at them or SQLite raises
+//     "FOREIGN KEY constraint failed". One transaction, because a throw halfway through used to leave
+//     a shredded account that could still log in.
+//  2. **`otp_codes` is keyed by email, not profile_id**, and nothing else in the app ever prunes it.
+//     It is the only table that would still hold the address after the profile row is gone.
+//  3. **The schedule outlives the row twice over** — `stopSchedule` cancels the in-memory node-cron
+//     entry, and dropping the `settings` row stops `index.ts` re-registering it on the next boot from
+//     `WHERE schedule_active = 1` (that query never joined `profiles`, so a deleted profile's cron
+//     used to come back on every restart and spend against the operator's keys).
+//
+// Canonical shared data stays: `jobs`, `job_descriptions`, `companies`, locations/regions, the ATS
+// pool and Telegram tables carry no per-profile meaning. Jobs only this profile ever matched are left
+// unclaimed; the daily pool cleanup already reaps unclaimed pool rows after 30 days.
 router.post('/profiles/:id/delete', (req: Request, res: Response) => {
   if (!req.profile.isAdmin) {
     return res.status(403).json({ success: false, error: 'Admin only.' });
@@ -390,10 +408,49 @@ router.post('/profiles/:id/delete', (req: Request, res: Response) => {
   if (target.is_admin === 1) {
     return res.status(400).json({ success: false, error: 'Cannot delete the admin account.' });
   }
+  // A run in flight re-inserts search_runs/run_job_logs rows after the transaction commits, and its
+  // profile lookups start returning undefined. Refuse rather than race it.
+  if (getIsRunning(targetId)) {
+    return res.status(409).json({ success: false, error: 'This profile has a run in progress. Stop it first, then delete.' });
+  }
 
-  db.prepare('DELETE FROM sessions WHERE profile_id = ?').run(targetId);
-  db.prepare('DELETE FROM profiles WHERE id = ?').run(targetId);
+  stopSchedule(targetId);
 
+  db.transaction(() => {
+    const settings = db.prepare(
+      'SELECT credits_balance, credits_overspent_usd FROM settings WHERE profile_id = ?',
+    ).get(targetId) as { credits_balance: number; credits_overspent_usd: number } | undefined;
+    const spend = db.prepare(`
+      SELECT COALESCE(SUM(COALESCE(cost_openai_usd, 0) + COALESCE(cost_apify_usd, 0)), 0) AS total
+      FROM search_runs WHERE profile_id = ?
+    `).get(targetId) as { total: number };
+
+    db.prepare('DELETE FROM run_job_logs WHERE run_id IN (SELECT id FROM search_runs WHERE profile_id = ?)').run(targetId);
+    db.prepare('DELETE FROM search_runs WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM job_profile_states WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM search_groups WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM settings WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM cvs WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM blacklisted_companies WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM company_notes WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM email_change_requests WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM sessions WHERE profile_id = ?').run(targetId);
+    db.prepare('DELETE FROM otp_codes WHERE email = ?').run(target.email);
+
+    // Pre-vMT snapshot of `jobs`, still carrying that migration's per-profile columns. Absent only if
+    // the vMT block itself failed, which its own catch swallows.
+    const hasBackup = db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'jobs_backup_vMT'`).get();
+    if (hasBackup) db.prepare('DELETE FROM jobs_backup_vMT WHERE profile_id = ?').run(targetId);
+
+    db.prepare('DELETE FROM profiles WHERE id = ?').run(targetId);
+    db.prepare(`
+      INSERT INTO deleted_profiles
+        (profile_id, deleted_at, final_credits_balance, final_credits_overspent_usd, lifetime_cost_usd)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(targetId, new Date().toISOString(), settings?.credits_balance ?? 0, settings?.credits_overspent_usd ?? 0, spend.total);
+  });
+
+  console.log(`[admin] Profile ${targetId} deleted by admin ${req.profile.id}; tombstone written.`);
   res.json({ success: true });
 });
 

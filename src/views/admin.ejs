@@ -149,7 +149,12 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-base font-semibold text-gray-900">Profiles</h2>
-        <p class="text-xs text-gray-500 mt-0.5">Manage accounts that can log into this app.</p>
+        <p class="text-xs text-gray-500 mt-0.5">
+          Manage accounts that can log into this app.
+          <span class="text-gray-400">·</span>
+          <%= allProfiles.length %> active<% if (deletedProfiles.length > 0) { %> ·
+          <%= deletedProfiles.length %> deleted · <%= allProfiles.length + deletedProfiles.length %> total ever<% } %>
+        </p>
       </div>
     </div>
     <div class="space-y-2 mb-4" id="profiles-list">
@@ -207,6 +212,35 @@
       </button>
     </div>
     <p id="profiles-msg" class="text-xs mt-2 hidden"></p>
+
+    <%# Deleted accounts. A tombstone has no email and nothing left to administer, so it renders as an
+        inert line rather than a peer of the rows above — every control there would be dead. The money
+        figures are the only reason the record is kept beyond the count. %>
+    <% if (deletedProfiles.length > 0) { %>
+    <details class="mt-4 border-t border-gray-200 pt-3">
+      <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-700 select-none">
+        <%= deletedProfiles.length %> deleted account<%= deletedProfiles.length === 1 ? '' : 's' %>
+      </summary>
+      <div class="mt-2 space-y-1">
+        <% deletedProfiles.forEach(function(d) { %>
+        <div class="flex items-center justify-between gap-3 px-3 py-1.5 text-xs text-gray-400">
+          <span class="flex items-center gap-2 min-w-0">
+            <span class="font-mono">#<%= d.profile_id %></span>
+            <span class="truncate">deleted <%= formatDateTimeToMinutes(d.deleted_at, settings.timezone || 'UTC') %></span>
+          </span>
+          <span class="flex items-center gap-2 flex-shrink-0 font-mono">
+            <span title="Total run cost this profile incurred before deletion.">spent $<%= Number(d.lifetime_cost_usd).toFixed(2) %></span>
+            <% if (d.final_credits_overspent_usd > 0) { %>
+            <span class="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium"
+                  title="Spend that exceeded this profile's balance and reached the operator's keys unpaid.">over $<%= Number(d.final_credits_overspent_usd).toFixed(2) %></span>
+            <% } %>
+            <span title="Credits balance left unspent at deletion.">left $<%= Number(d.final_credits_balance).toFixed(2) %></span>
+          </span>
+        </div>
+        <% }); %>
+      </div>
+    </details>
+    <% } %>
   </div>
 
   </div><!-- end admin-pane-general -->
@@ -1309,7 +1343,7 @@ async function createProfile() {
 }
 
 async function deleteProfile(id, email) {
-  if (!confirm(`Delete profile "${email}"? Their data will not be erased but they will lose access.`)) return;
+  if (!confirm(`Permanently delete "${email}"?\n\nThis erases everything tied to the account — roles, run history, CV, matches, notes, blacklist, saved keys and credits. It cannot be undone.\n\nOnly an anonymous record (#${id}, the deletion date and the spend figures) is kept.`)) return;
   const msgEl = document.getElementById('profiles-msg');
   try {
     const res = await fetch(`/api/profiles/${id}/delete`, { method: 'POST' });
@@ -1320,7 +1354,9 @@ async function deleteProfile(id, email) {
       msgEl.classList.remove('hidden');
       return;
     }
-    document.getElementById('profile-row-' + id)?.remove();
+    // Reload rather than patch the DOM: the counts line and the tombstone list both change, and the
+    // row this handler could remove is the least of it.
+    location.reload();
   } catch (e) {
     msgEl.textContent = 'Network error.';
     msgEl.className = 'text-xs mt-2 text-red-600';
