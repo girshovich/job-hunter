@@ -9,10 +9,14 @@ export const SESSION_DAYS = 30;
 const OTP_MINUTES = 15;
 
 // Sign-up codes go to addresses that have asked for nothing yet, so they are the one part of login
-// an outsider can trigger at will. Resend's free tier is 100 emails/day shared with the digests, so
-// new-account sends are capped well below it: abuse can burn a day of sign-ups, but never the
-// digests and never an existing user's ability to log in.
-const NEW_ACCOUNT_DAILY_CAP = 40;
+// an outsider can trigger at will. The mail plan is billed monthly with no daily ceiling, which
+// makes a burst the dangerous shape: unthrottled it would exhaust the month in hours and take the
+// digests down with it for weeks. So the cap is sized by arithmetic rather than by the quota —
+// even 30 days of continuous saturation (500 × 30 = 15 000) stays a minority of the monthly
+// allowance, leaving the digests and every existing user's login untouched.
+// Counts **sends, not people**: a resend re-posts to /welcome/request while the address is still
+// unknown, so it burns a slot too.
+const NEW_ACCOUNT_DAILY_CAP = 500;
 
 // Shown when the cap refuses a send. Deliberately vague and never mentions accounts — see the
 // enumeration note at the call site.
