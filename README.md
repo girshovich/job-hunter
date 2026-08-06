@@ -51,11 +51,16 @@ Resource use per run varies by provider selection, number of roles, location bre
 **1. Clone and install**
 ```bash
 git clone https://github.com/girshovich/job-hunter.git
-cd job-hunter/linkedin-job-hunter
+cd job-hunter/
 npm install
 ```
 
 **2. Create `.env`**
+
+You can copy and edit .env.example file by
+```
+cp .env.example .env
+```
 ```env
 # Apify/OpenAI here serve hosted-credits mode only — see the note below
 APIFY_API_TOKEN=
