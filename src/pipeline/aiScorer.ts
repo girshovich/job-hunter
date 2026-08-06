@@ -268,6 +268,62 @@ async function callScoringLlm(
   };
 }
 
+// ── Rate limits ──────────────────────────────────────────────────────────────
+// A 429 means "you are sending these too fast", not "this request is malformed", so the remedy is to
+// wait and send the *same* request again. Retrying instantly — or shrinking the description first,
+// which is the cure for a context-length error — spends the one retry in milliseconds and drops the
+// job, which is how a throttled account silently loses postings and reports `partial_error`.
+// OpenAI states the wait it wants on every 429; honour it.
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const RATE_LIMIT_MAX_WAIT_MS  = 60_000;
+
+function isRateLimit(err: unknown): boolean {
+  return (err as { status?: number } | null)?.status === 429;
+}
+
+/** Prefer the server's own hint — headers first, then the message text — before falling back. */
+function rateLimitWaitMs(err: unknown, attempt: number): number {
+  const e = err as { headers?: Record<string, string>; message?: string } | null;
+
+  const ms = Number(e?.headers?.['retry-after-ms']);
+  if (Number.isFinite(ms) && ms > 0) return Math.min(ms, RATE_LIMIT_MAX_WAIT_MS);
+
+  const secs = Number(e?.headers?.['retry-after']);
+  if (Number.isFinite(secs) && secs > 0) return Math.min(secs * 1000, RATE_LIMIT_MAX_WAIT_MS);
+
+  const hint = /try again in ([\d.]+)\s*(ms|s)\b/i.exec(e?.message ?? '');
+  if (hint) {
+    const value = parseFloat(hint[1]);
+    return Math.min(hint[2].toLowerCase() === 'ms' ? value : value * 1000, RATE_LIMIT_MAX_WAIT_MS);
+  }
+
+  return Math.min(1_000 * 2 ** attempt, RATE_LIMIT_MAX_WAIT_MS);
+}
+
+/**
+ * The same call, retried on 429 only. Every other error propagates on the first throw, so the
+ * caller's truncated-description retry still covers context-length failures.
+ */
+async function callScoringLlmWithBackoff(
+  systemPrompt: string,
+  userMessage: string,
+  model: string,
+  openAiKey: string,
+): Promise<{ result: ScoringLlmOutput; usage: TokenUsage }> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callScoringLlm(systemPrompt, userMessage, model, openAiKey);
+    } catch (err) {
+      if (!isRateLimit(err) || attempt >= RATE_LIMIT_MAX_ATTEMPTS - 1) throw err;
+      // Jitter matters: the SCORING_CONCURRENCY workers are throttled in lockstep, so without it
+      // they all wake on the same hinted deadline and trip the same limit together.
+      const wait = rateLimitWaitMs(err, attempt) + Math.random() * 500;
+      console.warn(`[aiScorer] Rate limited (429) — waiting ${Math.round(wait)}ms, retry ${attempt + 1}/${RATE_LIMIT_MAX_ATTEMPTS - 1}`);
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
+}
+
 export async function scoreJobs(
   jobs: JobPosting[],
   settings: SettingsRow,
@@ -293,24 +349,33 @@ export async function scoreJobs(
       : settings.ai_system_prompt;
 
     try {
-      callResult = await callScoringLlm(
+      callResult = await callScoringLlmWithBackoff(
         systemPrompt,
         buildScoringUserMessage(job, settings.summary_prompt, isSparse),
         settings.ai_model,
         openAiKey,
       );
-    } catch {
+    } catch (err) {
+      // A 429 that reaches here has already exhausted the backoff. Truncating cannot lift a rate
+      // limit, and re-sending would only deepen it — so stop, and let the run report the loss.
+      if (isRateLimit(err)) {
+        rateLimited = true;
+        failed++;
+        if (!firstError) firstError = (err as Error).message;
+        console.error(`[aiScorer] Scoring failed for job ${job.jobId} after ${RATE_LIMIT_MAX_ATTEMPTS} rate-limited attempts:`, (err as Error).message);
+        return null;
+      }
       console.warn(`[aiScorer] First attempt failed for "${job.title}" at "${job.company}". Retrying with truncated description.`);
       try {
         const truncated = { ...job, description: trimBoilerplate(stripHtml(job.description)).substring(0, 3_000) };
-        callResult = await callScoringLlm(
+        callResult = await callScoringLlmWithBackoff(
           systemPrompt,
           buildScoringUserMessage(truncated, settings.summary_prompt, isSparse),
           settings.ai_model,
           openAiKey,
         );
       } catch (retryErr) {
-        if ((retryErr as { status?: number })?.status === 429) rateLimited = true;
+        if (isRateLimit(retryErr)) rateLimited = true;
         failed++;
         if (!firstError) firstError = (retryErr as Error).message;
         console.error(`[aiScorer] Scoring failed for job ${job.jobId}:`, (retryErr as Error).message);
