@@ -12,11 +12,11 @@ const OTP_MINUTES = 15;
 // an outsider can trigger at will. The mail plan is billed monthly with no daily ceiling, which
 // makes a burst the dangerous shape: unthrottled it would exhaust the month in hours and take the
 // digests down with it for weeks. So the cap is sized by arithmetic rather than by the quota —
-// even 30 days of continuous saturation (500 × 30 = 15 000) stays a minority of the monthly
+// even 30 days of continuous saturation (750 × 30 = 22 500) stays a minority of the monthly
 // allowance, leaving the digests and every existing user's login untouched.
 // Counts **sends, not people**: a resend re-posts to /welcome/request while the address is still
 // unknown, so it burns a slot too.
-const NEW_ACCOUNT_DAILY_CAP = 500;
+const NEW_ACCOUNT_DAILY_CAP = 750;
 
 // Shown when the cap refuses a send. Deliberately vague and never mentions accounts — see the
 // enumeration note at the call site.

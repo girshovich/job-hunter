@@ -9,6 +9,7 @@
 import { getDb } from '../../db';
 import type { JobPosting, SearchFilters, DateRange, FetchResult } from '../types';
 import { resolveCountriesFromCache } from '../locationNormalizer';
+import { hydrateBoards } from './hydrate';
 
 interface JobRow {
   linkedin_job_id: string;
@@ -40,7 +41,7 @@ async function hydrateDescriptions(rows: JobRow[]): Promise<JobRow[]> {
     }
   }
 
-  await Promise.all([...bySlug.entries()].map(async ([slug, slugRows]) => {
+  const { hydrated, total } = await hydrateBoards([...bySlug.entries()], async ([slug, slugRows]) => {
     let res: Response;
     try {
       res = await fetch(
@@ -60,7 +61,11 @@ async function hydrateDescriptions(rows: JobRow[]): Promise<JobRow[]> {
     for (const row of slugRows) {
       row.description = descriptions.get(row.linkedin_job_id) || row.description;
     }
-  }));
+  });
+
+  if (hydrated < total) {
+    console.warn(`[lever] Description hydration incomplete: ${hydrated}/${total} boards before the deadline`);
+  }
 
   return rows;
 }
