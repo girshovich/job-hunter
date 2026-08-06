@@ -906,10 +906,10 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Show upload button only when a file is chosen
+// Enable upload button only when a file is chosen
 function toggleUploadBtn(input) {
   const btn = document.getElementById('cv-upload-btn');
-  if (btn) btn.classList.toggle('hidden', !input.files || input.files.length === 0);
+  if (btn) btn.disabled = !input.files || input.files.length === 0;
 }
 
 // CV delete
@@ -942,6 +942,7 @@ let _formSnapshots = {};
 let _pendingTabSwitch = null;
 let _pendingNav = null;  // destination URL for a sidebar/nav click deferred by the unsaved guard
 let _pendingClose = null;  // set when the AI-prompts modal is closed while a prompt is dirty
+let _saving = false;  // true while the Profile form posts — its own navigation must not trip the unload guard
 
 function promptUnsaved() {
   document.getElementById('unsaved-tab-name').textContent = _activeTab === 'profile' ? 'Profile' : 'AI Setup';
@@ -1095,6 +1096,7 @@ async function unsavedSave() {
     if (target) activateTab(target);
     return;
   }
+  _saving = true;  // .submit() fires no submit event, so flag the unload guard here
   document.getElementById(_activeTab + '-form').submit();
 }
 
@@ -1179,6 +1181,10 @@ function initSettings(activeTab, initialGroups) {
     });
   });
 
+  // The Profile form posts natively; its own navigation is a save, not a leave.
+  const profileForm = document.getElementById('profile-form');
+  if (profileForm) profileForm.addEventListener('submit', function() { _saving = true; });
+
   if (Array.isArray(initialGroups)) {
     _groups = initialGroups;
     renderGroups();
@@ -1206,7 +1212,7 @@ function initSettings(activeTab, initialGroups) {
   // Backstop (R12): hard reload / tab close / any navigation not caught above still
   // warns when a Profile or AI Setup form has unsaved edits (native browser prompt).
   window.addEventListener('beforeunload', function(e) {
-    if ((_activeTab === 'profile' || _activeTab === 'ai') && isFormDirty(_activeTab)) {
+    if (!_saving && (_activeTab === 'profile' || _activeTab === 'ai') && isFormDirty(_activeTab)) {
       e.preventDefault();
       e.returnValue = '';
     }

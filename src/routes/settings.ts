@@ -18,7 +18,7 @@ const router = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
   fileFilter: (_req, file, cb) => {
     const allowedMimes = ['application/pdf', 'text/plain', 'text/markdown'];
     const ext = path.extname(file.originalname).toLowerCase();

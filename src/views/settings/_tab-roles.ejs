@@ -62,7 +62,7 @@
       <form method="post" action="/settings/cvs/upload" enctype="multipart/form-data" style="display:flex;align-items:center;gap:12px">
         <input type="file" name="cv_file" accept=".pdf,.txt,.md" onchange="toggleUploadBtn(this)"
                class="block text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-gray-200 file:text-xs file:font-medium file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 cursor-pointer" />
-        <button type="submit" id="cv-upload-btn" class="hidden stg-btn stg-btn-secondary stg-btn-sm" style="flex:none">
+        <button type="submit" id="cv-upload-btn" disabled class="stg-btn stg-btn-secondary stg-btn-sm" style="flex:none">
           <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
           Upload
         </button>
