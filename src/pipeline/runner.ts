@@ -289,6 +289,14 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       WHERE linkedin_job_id = ? AND job_source = ? AND apply_url IS NULL
     `);
 
+    // A provider duplicate is discarded whole — no jobs row, no posting, no state row — so a link
+    // only it returned exists nowhere. `insertPosting` is INSERT OR IGNORE and cannot backfill the
+    // posting the first provider already created, which is what feeds `filterDuplicatesByUrl`.
+    const updatePostingApplyUrl = db.prepare(`
+      UPDATE job_postings SET apply_url = ?
+      WHERE job_source = ? AND posting_job_id = ? AND apply_url IS NULL
+    `);
+
     // The canonical insert is INSERT OR IGNORE, so a job first stored before salary was captured
     // (or by a source that returns none) would keep a NULL forever. Patch it the next time a
     // provider does supply one; never overwrite a value we already have.
@@ -304,6 +312,22 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         display_name = COALESCE(companies.display_name, excluded.display_name),
         fetched_at   = excluded.fetched_at
     `);
+
+    // A duplicate is discarded without being stored, but it may carry fields the provider that
+    // stored this job first could not supply — valig returns no apply link and no logo at all,
+    // so a valig-created LinkedIn job stays linkless however often harvestapi sees it. Identity is
+    // (job_source, jobId): the same posting on the same source, so this is an exact match and not
+    // a heuristic. Every statement fills a NULL only, so the first real value still wins, and a
+    // dupe whose job has not been stored yet (same batch) is a harmless no-op.
+    const healFromDuplicate = (job: JobPosting, at: string): void => {
+      const jobSource = job.jobSource ?? 'LinkedIn';
+      if (job.applyUrl) {
+        updateApplyUrl.run(job.applyUrl, job.jobId, jobSource);
+        updatePostingApplyUrl.run(job.applyUrl, jobSource, job.jobId);
+      }
+      if (job.salary) updateSalary.run(job.salary, job.jobId, jobSource);
+      if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, at);
+    };
 
     const insertJobLog = db.prepare(`
       INSERT INTO run_job_logs (
@@ -565,6 +589,13 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       if (withinRunDupes.length > 0) {
         console.log(`[runner] Group ${group.id}: ${withinRunDupes.length} within-run duplicate(s) skipped`);
         jobsDuplicate += withinRunDupes.length;
+        // This is the layer a second LinkedIn provider actually lands in: providers run in series
+        // and each stores its jobs before the next starts, so provider 2's copy is filtered here,
+        // by `seenInRunJobIds`, and never reaches the provider-level dedup below.
+        const healedAt = new Date().toISOString();
+        db.transaction(() => {
+          for (const job of withinRunDupes) healFromDuplicate(job, healedAt);
+        });
       }
 
       // 3b. Provider-level dedup — filter jobs already stored in DB from previous runs
@@ -581,6 +612,9 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
               job.location || null, job.url || null,
               null, 'DUPLICATE', null, null, loggedAt,
             );
+            // Cross-run counterpart of the within-run healing above: a provider enabled later, or
+            // re-fetching an older posting, still tops up what the first provider could not give.
+            healFromDuplicate(job, loggedAt);
           }
         });
       }
