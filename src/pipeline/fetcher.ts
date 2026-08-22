@@ -6,7 +6,7 @@
 export type { JobPosting, SearchFilters, DateRange, FetchResult } from './types';
 import type { SearchFilters, DateRange, FetchResult } from './types';
 import { fetchWithHarvestApi } from './providers/harvestapi';
-import { fetchWithValig }      from './providers/valig';
+import { fetchWithValig, type ValigFetchOptions } from './providers/valig';
 import { fetchWithStepStone }  from './providers/stepstone';
 import { fetchWithIndeed }     from './providers/indeed';
 import { fetchWithGreenhouse } from './providers/greenhouse';
@@ -19,8 +19,9 @@ export async function fetchJobs(
   apifyToken: string,
   dateRange: DateRange = '24h',
   provider = 'harvestapi',
+  valigOptions: ValigFetchOptions = {},
 ): Promise<FetchResult> {
-  if (provider === 'valig')      return fetchWithValig(filters, apifyToken, dateRange);
+  if (provider === 'valig')      return fetchWithValig(filters, apifyToken, dateRange, valigOptions);
   if (provider === 'indeed')     return fetchWithIndeed(filters, apifyToken, dateRange);
   if (provider === 'stepstone')  return fetchWithStepStone(filters, apifyToken, dateRange);
   if (provider === 'greenhouse') return fetchWithGreenhouse(filters, apifyToken, dateRange);

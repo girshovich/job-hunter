@@ -124,6 +124,35 @@ function throwIfStopped(profileId: number): void {
   if (stopRequestedSet.has(profileId)) throw new RunStoppedError();
 }
 
+// Kill switch: unset the feature and valig reverts to one parallel batch with no skipJobId.
+const VALIG_SKIP_ENABLED = process.env.VALIG_SKIP_JOB_IDS !== '0';
+
+/**
+ * LinkedIn ids this role can safely not fetch again, newest first (valig caps the array it
+ * sends). Read from `run_job_logs`, not from stored jobs: blacklisted and title-filtered
+ * postings are logged there too and are the bulk of what valig would otherwise re-bill for.
+ *
+ * Profile-scoped through `search_runs` — one user's run must never suppress another's.
+ *
+ * **`FILTERED` is scoped to the asking role as well**, because `title_filter` is per role: a
+ * posting one role discarded may be exactly what another wants (group 4's filter is group 1's
+ * plus `Chief Product, CPO`). Every other verdict is profile-wide — a stored, duplicate or
+ * blacklisted job is dropped for every role anyway, so skipping it costs no coverage.
+ */
+function recentLinkedInJobIds(profileId: number, groupId: number): string[] {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const rows = getDb().prepare<{ linkedin_job_id: string }>(`
+    SELECT l.linkedin_job_id
+    FROM run_job_logs l
+    JOIN search_runs r ON r.id = l.run_id
+    WHERE r.profile_id = ? AND l.job_source = 'LinkedIn' AND r.ran_at >= ?
+      AND (l.ai_verdict <> 'FILTERED' OR l.group_id = ?)
+    GROUP BY l.linkedin_job_id
+    ORDER BY MAX(l.id) DESC
+  `).all(profileId, cutoff, groupId);
+  return rows.map((r) => r.linkedin_job_id);
+}
+
 interface StageInfo {
   text: string; pct: number; totalSections: number;
   providerIdx?: number; providerCount?: number; providerName?: string;
@@ -524,7 +553,10 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           locations,
           workModes,
           jobType: parseJobTypes(group.job_type),
-        }, apifyToken, dateRange, scrapingProvider);
+        }, apifyToken, dateRange, scrapingProvider,
+        scrapingProvider === 'valig' && VALIG_SKIP_ENABLED
+          ? { skipJobIds: recentLinkedInJobIds(profileId, group.id), onWaveBoundary: () => throwIfStopped(profileId) }
+          : {});
         allFetched = fetchResult.jobs;
         if (fetchResult.apifyCostUsd != null) {
           totalApifyCostUsd += fetchResult.apifyCostUsd;

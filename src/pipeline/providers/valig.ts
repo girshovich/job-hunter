@@ -10,6 +10,8 @@ import { filterByTimeWindow } from '../types';
 
 const ACTOR_ID = 'valig/linkedin-jobs-scraper';
 const LIMIT_PER_CALL = 1000;
+// Largest skipJobId array verified against the actor (63.6 KB of input JSON, accepted).
+const MAX_SKIP_IDS = 5000;
 const FETCH_MAX_ATTEMPTS = 3;
 const FETCH_RETRY_DELAY_MS = 5_000;
 
@@ -85,6 +87,16 @@ function mapContractTypes(jobTypes: string[]): string[] {
   return [...new Set(jobTypes.flatMap((t) => CONTRACT_TYPE_MAP[t] || []))];
 }
 
+export interface ValigFetchOptions {
+  /**
+   * LinkedIn ids this profile already fetched. Omit to keep the pre-wave behaviour: one
+   * parallel batch of every keyword × location, no `skipJobId` sent.
+   */
+  skipJobIds?: string[];
+  /** Run at each wave boundary, so a stopped run ends between calls instead of after all of them. */
+  onWaveBoundary?: () => void;
+}
+
 async function runSingleCall(
   client: ApifyClient,
   keyword: string,
@@ -92,6 +104,7 @@ async function runSingleCall(
   datePosted: string,
   remote: string[],
   contractType: string[],
+  skipJobIds: string[] | undefined,
 ): Promise<{ items: ValigJob[]; costUsd: number | null }> {
   const actorInput: Record<string, unknown> = {
     title: `"${keyword}"`,
@@ -101,6 +114,9 @@ async function runSingleCall(
   };
   if (remote.length > 0) actorInput.remote = remote;
   if (contractType.length > 0) actorInput.contractType = contractType;
+  // Filtered out before the actor pushes them, so they are never billed (charging is per
+  // dataset item). Verified: 5000 ids accepted, zero leakage, the call runs slightly faster.
+  if (skipJobIds && skipJobIds.length > 0) actorInput.skipJobId = skipJobIds;
 
   let lastErr: unknown;
   for (let attempt = 1; attempt <= FETCH_MAX_ATTEMPTS; attempt++) {
@@ -128,38 +144,70 @@ export async function fetchWithValig(
   filters: SearchFilters,
   apifyToken: string,
   dateRange: DateRange,
+  options: ValigFetchOptions = {},
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
   const datePosted = getDatePosted(dateRange);
   const remote = mapWorkModes(filters.workModes);
   const contractType = mapContractTypes(filters.jobType);
 
-  const calls: Array<{ keyword: string; location: string }> = [];
-  for (const keyword of filters.keywords) {
-    for (const location of filters.locations) {
-      calls.push({ keyword, location });
-    }
-  }
+  // One wave per keyword, the locations still parallel inside it. Cross-keyword overlap is the
+  // only overlap there is — the same job is never returned for two locations — so each wave can
+  // skip what the earlier ones returned. Without a seed list there is nothing to skip against on
+  // the first wave and splitting would be pure slowdown, so it stays a single wave.
+  const seeded = options.skipJobIds;
+  const waves: string[][] = seeded ? filters.keywords.map((k) => [k]) : [filters.keywords];
 
-  console.log(`[valig] ${calls.length} actor call(s) — ${filters.keywords.length} keywords × ${filters.locations.length} locations`);
-
-  const results = await Promise.all(
-    calls.map(({ keyword, location }) => runSingleCall(client, keyword, location, datePosted, remote, contractType)),
+  console.log(
+    `[valig] ${filters.keywords.length * filters.locations.length} actor call(s) in ${waves.length} wave(s)` +
+    ` — ${filters.keywords.length} keywords × ${filters.locations.length} locations`,
   );
 
   let totalCost = 0;
   let hasCost = false;
   const seen = new Set<string>();
   const jobs: JobPosting[] = [];
+  // Every id the actor handed back, including ones the time-window filter drops: refetching
+  // those next wave would be billed and discarded again.
+  const returnedIds = new Set<string>();
 
-  for (const { items, costUsd } of results) {
-    if (costUsd != null) { totalCost += costUsd; hasCost = true; }
-    for (const item of items) {
-      const job = mapToJobPosting(item);
-      if (job.jobId && !seen.has(job.jobId) && filterByTimeWindow(job, dateRange)) {
-        seen.add(job.jobId);
-        jobs.push(job);
+  for (const [waveIdx, waveKeywords] of waves.entries()) {
+    options.onWaveBoundary?.();
+
+    // This run's ids first — they are the ones this grid is actually colliding with — then the
+    // seeded history, truncated to what the actor is known to accept.
+    const skipJobIds = seeded
+      ? [...returnedIds, ...seeded.filter((id) => !returnedIds.has(id))].slice(0, MAX_SKIP_IDS)
+      : undefined;
+
+    const calls = waveKeywords.flatMap((keyword) =>
+      filters.locations.map((location) => ({ keyword, location })));
+
+    const results = await Promise.all(
+      calls.map(({ keyword, location }) =>
+        runSingleCall(client, keyword, location, datePosted, remote, contractType, skipJobIds)),
+    );
+
+    let waveItems = 0;
+    for (const { items, costUsd } of results) {
+      if (costUsd != null) { totalCost += costUsd; hasCost = true; }
+      waveItems += items.length;
+      for (const item of items) {
+        const job = mapToJobPosting(item);
+        if (!job.jobId) continue;
+        returnedIds.add(job.jobId);
+        if (!seen.has(job.jobId) && filterByTimeWindow(job, dateRange)) {
+          seen.add(job.jobId);
+          jobs.push(job);
+        }
       }
+    }
+
+    if (seeded) {
+      console.log(
+        `[valig] wave ${waveIdx + 1}/${waves.length} "${waveKeywords.join(', ')}": ` +
+        `sent ${skipJobIds!.length} skipJobId(s), ${waveItems} item(s) billed`,
+      );
     }
   }
 
