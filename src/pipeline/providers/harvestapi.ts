@@ -6,6 +6,7 @@
 import { ApifyClient } from 'apify-client';
 import type { JobPosting, SearchFilters, DateRange, FetchResult, ProviderCompanyData } from '../types';
 import { parsePostedDate, filterByTimeWindow } from '../types';
+import { apifyGate } from './apifyGate';
 
 interface HarvestJobLocation {
   linkedinText?: string;
@@ -196,7 +197,10 @@ export async function fetchWithHarvestApi(
   let lastErr: unknown;
   for (let attempt = 1; attempt <= FETCH_MAX_ATTEMPTS; attempt++) {
     try {
-      const run = await client.actor('harvestapi/linkedin-job-search').call(actorInput, { waitSecs: 900 });
+      // Gate the call only, not the retry loop — one call to schedule, so holding a slot through
+      // a retry sleep would buy nothing.
+      const run = await apifyGate(apifyToken, () =>
+        client.actor('harvestapi/linkedin-job-search').call(actorInput, { waitSecs: 900 }));
 
       console.log(`[harvestapi] Actor run complete (${run.id}), fetching dataset items…`);
 

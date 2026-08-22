@@ -1,12 +1,13 @@
 /**
  * Valig LinkedIn jobs scraper provider.
  * Actor: valig/linkedin-jobs-scraper
- * Makes one call per keyword × location, runs all in parallel.
+ * Makes one call per keyword × location, runs them in parallel under the account-wide Apify gate.
  */
 
 import { ApifyClient } from 'apify-client';
-import type { JobPosting, SearchFilters, DateRange, FetchResult } from '../types';
+import type { JobPosting, SearchFilters, DateRange, FetchResult, FetchOptions } from '../types';
 import { filterByTimeWindow } from '../types';
+import { apifyGate, apifyOutstandingCount, APIFY_CONCURRENCY_LIMIT } from './apifyGate';
 
 const ACTOR_ID = 'valig/linkedin-jobs-scraper';
 const LIMIT_PER_CALL = 1000;
@@ -87,16 +88,6 @@ function mapContractTypes(jobTypes: string[]): string[] {
   return [...new Set(jobTypes.flatMap((t) => CONTRACT_TYPE_MAP[t] || []))];
 }
 
-export interface ValigFetchOptions {
-  /**
-   * LinkedIn ids this profile already fetched. Omit to keep the pre-wave behaviour: one
-   * parallel batch of every keyword × location, no `skipJobId` sent.
-   */
-  skipJobIds?: string[];
-  /** Run at each wave boundary, so a stopped run ends between calls instead of after all of them. */
-  onWaveBoundary?: () => void;
-}
-
 async function runSingleCall(
   client: ApifyClient,
   keyword: string,
@@ -144,7 +135,7 @@ export async function fetchWithValig(
   filters: SearchFilters,
   apifyToken: string,
   dateRange: DateRange,
-  options: ValigFetchOptions = {},
+  options: FetchOptions = {},
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
   const datePosted = getDatePosted(dateRange);
@@ -172,7 +163,7 @@ export async function fetchWithValig(
   const returnedIds = new Set<string>();
 
   for (const [waveIdx, waveKeywords] of waves.entries()) {
-    options.onWaveBoundary?.();
+    options.checkAborted?.();
 
     // This run's ids first — they are the ones this grid is actually colliding with — then the
     // seeded history, truncated to what the actor is known to accept.
@@ -183,10 +174,21 @@ export async function fetchWithValig(
     const calls = waveKeywords.flatMap((keyword) =>
       filters.locations.map((location) => ({ keyword, location })));
 
-    const results = await Promise.all(
-      calls.map(({ keyword, location }) =>
-        runSingleCall(client, keyword, location, datePosted, remote, contractType, skipJobIds)),
-    );
+    const outstanding = apifyOutstandingCount(apifyToken);   // read before enqueueing
+
+    const promises = calls.map(({ keyword, location }) =>
+      apifyGate(apifyToken, () => {
+        // Stopped while queued: never starts, never bills.
+        options.checkAborted?.();
+        return runSingleCall(client, keyword, location, datePosted, remote, contractType, skipJobIds);
+      }));
+
+    const queued = Math.max(0, outstanding + calls.length - APIFY_CONCURRENCY_LIMIT);
+    if (queued > 0) {
+      console.log(`[valig] gate: ${queued} of ${calls.length} call(s) queued (limit ${APIFY_CONCURRENCY_LIMIT})`);
+    }
+
+    const results = await Promise.all(promises);
 
     let waveItems = 0;
     for (const { items, costUsd } of results) {

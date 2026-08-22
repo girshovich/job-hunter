@@ -553,16 +553,23 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           locations,
           workModes,
           jobType: parseJobTypes(group.job_type),
-        }, apifyToken, dateRange, scrapingProvider,
-        scrapingProvider === 'valig' && VALIG_SKIP_ENABLED
-          ? { skipJobIds: recentLinkedInJobIds(profileId, group.id), onWaveBoundary: () => throwIfStopped(profileId) }
-          : {});
+        }, apifyToken, dateRange, scrapingProvider, {
+          // Every gated provider gets the abort check: a call still queued for an Apify slot when
+          // the user stops must not start. The skip list stays valig-only.
+          checkAborted: () => throwIfStopped(profileId),
+          ...(scrapingProvider === 'valig' && VALIG_SKIP_ENABLED
+            ? { skipJobIds: recentLinkedInJobIds(profileId, group.id) }
+            : {}),
+        });
         allFetched = fetchResult.jobs;
         if (fetchResult.apifyCostUsd != null) {
           totalApifyCostUsd += fetchResult.apifyCostUsd;
           apifyRunCount++;
         }
       } catch (err) {
+        // A Stop is not a fetch failure: recording it here would report the user's own action as
+        // an error on their run and carry on to the next role instead of unwinding.
+        if (err instanceof RunStoppedError) throw err;
         const msg = `Group ${group.id} fetch error: ${(err as Error).message}`;
         console.error('[runner]', msg);
         errors.push(msg);

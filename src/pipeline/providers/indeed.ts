@@ -6,9 +6,10 @@
  */
 
 import { ApifyClient } from 'apify-client';
-import type { JobPosting, SearchFilters, DateRange, FetchResult, ProviderCompanyData } from '../types';
+import type { JobPosting, SearchFilters, DateRange, FetchResult, FetchOptions, ProviderCompanyData } from '../types';
 import { filterByTimeWindow } from '../types';
 import { resolveCountries } from '../locationNormalizer';
+import { apifyGate, apifyOutstandingCount, APIFY_CONCURRENCY_LIMIT } from './apifyGate';
 
 const ACTOR_ID = 'valig/indeed-jobs-scraper';
 
@@ -179,6 +180,7 @@ export async function fetchWithIndeed(
   filters: SearchFilters,
   apifyToken: string,
   dateRange: DateRange,
+  options: FetchOptions = {},
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
   const datePosted = datePostedParam(dateRange);
@@ -200,7 +202,11 @@ export async function fetchWithIndeed(
   }
   console.log(`[indeed] ${calls.length} actor call(s)`);
 
-  const results = await Promise.all(calls.map(async ({ keyword, location, country }) => {
+  const outstanding = apifyOutstandingCount(apifyToken);   // read before enqueueing
+
+  const promises = calls.map(({ keyword, location, country }) => apifyGate(apifyToken, async () => {
+    // Stopped while queued: never starts, never bills.
+    options.checkAborted?.();
     const actorLocation = toIndeedLocation(location);
     console.log(`[indeed] Searching: "${keyword}" in "${actorLocation}" (${country})`);
     const run = await client.actor(ACTOR_ID).call({
@@ -213,6 +219,13 @@ export async function fetchWithIndeed(
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
     return items as IndeedJob[];
   }));
+
+  const queued = Math.max(0, outstanding + calls.length - APIFY_CONCURRENCY_LIMIT);
+  if (queued > 0) {
+    console.log(`[indeed] gate: ${queued} of ${calls.length} call(s) queued (limit ${APIFY_CONCURRENCY_LIMIT})`);
+  }
+
+  const results = await Promise.all(promises);
 
   const seen = new Set<string>();
   const jobs: JobPosting[] = [];

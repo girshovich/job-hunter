@@ -76,6 +76,20 @@ export interface FetchResult {
   apifyCostUsd: number | null;
 }
 
+export interface FetchOptions {
+  /**
+   * **valig only.** LinkedIn ids this profile already fetched. Omit to keep the pre-wave
+   * behaviour: one parallel batch of every keyword × location, no `skipJobId` sent.
+   */
+  skipJobIds?: string[];
+  /**
+   * Throws to abort. Called as each gated call dequeues — so a call still waiting for an Apify
+   * slot when the user stops is never started and never billed — and, for valig, at every wave
+   * boundary as well. Any provider that queues behind the gate must call it.
+   */
+  checkAborted?: () => void;
+}
+
 export function parsePostedDate(raw: string | number | undefined): { date: string | null; confidence: 'HIGH' | 'LOW' } {
   if (!raw) return { date: null, confidence: 'LOW' };
   const ts = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
