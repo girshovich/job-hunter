@@ -435,10 +435,24 @@ function scheduleLocationHints() {
   }, 600);
 }
 
+// Mirrors WORK_MODE_WORDS in routes/api.ts — a bare work-mode word is not a place and
+// leaves the ATS providers with no country to search.
+const WORK_MODE_WORDS = new Set([
+  'remote', 'hybrid', 'onsite', 'on-site', 'on site',
+  'office', 'in-office', 'in office', 'wfh', 'work from home',
+]);
+
 async function fetchLocationHints(locationsStr) {
   const warnEl = document.getElementById('location-warning');
   const locations = locationsStr.split(',').map(s => s.trim()).filter(Boolean);
   if (!locations.length) { warnEl.classList.add('hidden'); return; }
+
+  const workModeLocation = locations.find(l => WORK_MODE_WORDS.has(l.toLowerCase()));
+  if (workModeLocation) {
+    warnEl.innerHTML = `&#9888; <strong>${workModeLocation}</strong> is a work mode, not a location &mdash; set it under Work mode and enter a country or city here.`;
+    warnEl.classList.remove('hidden');
+    return;
+  }
 
   try {
     const res = await fetch('/api/resolve-locations', {
@@ -599,6 +613,9 @@ function checkDisqDependency(cb) {
 function firstModalProblem(v) {
   if (v.locations.length === 0)
     return { message: 'Add at least one location.', focus: 'modal-locations' };
+  const workModeLocation = v.locations.find(l => WORK_MODE_WORDS.has(l.toLowerCase()));
+  if (workModeLocation)
+    return { message: `"${workModeLocation}" is a work mode, not a location. Set it under Work mode and enter a country or city here.`, focus: 'modal-locations' };
   if (v.keywords.length === 0)
     return { message: 'Add at least one search keyword.', focus: 'modal-keywords' };
 

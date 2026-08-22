@@ -615,6 +615,14 @@ interface GroupBody {
   score_strong_match_min: number;
 }
 
+// A bare work-mode word is not a place: it never resolves to a country, so the ATS providers
+// throw at fetch time (greenhouse/lever/ashby) and the whole run lands as partial_error. Work
+// mode has its own field. Qualified forms like "Remote US" still resolve and stay allowed.
+const WORK_MODE_WORDS = new Set([
+  'remote', 'hybrid', 'onsite', 'on-site', 'on site',
+  'office', 'in-office', 'in office', 'wfh', 'work from home',
+]);
+
 function parseGroupBody(body: unknown): GroupBody {
   const b = body as Record<string, unknown>;
 
@@ -643,6 +651,10 @@ function parseGroupBody(body: unknown): GroupBody {
   const useMainProfile = (b.use_main_profile_description === 1 || b.use_main_profile_description === true || b.use_main_profile_description === '1') ? 1 : 0;
 
   if (locations.length === 0) throw new Error('At least one location is required.');
+  const workModeLocation = locations.find((l) => WORK_MODE_WORDS.has(l.toLowerCase()));
+  if (workModeLocation) {
+    throw new Error(`"${workModeLocation}" is a work mode, not a location. Set it under Work mode and enter a country or city here.`);
+  }
   if (keywords.length === 0)  throw new Error('At least one keyword is required.');
   if (!useMainProfile && !String(b.profile_description || '').trim()) throw new Error('A profile description is required.');
   if (!String(b.scoring_criteria || '').trim()) throw new Error('A role scoring guide is required.');
