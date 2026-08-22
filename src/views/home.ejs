@@ -5,7 +5,8 @@ function formatDate(iso) {
 }
 // DS v2 run-status pill tone (local — the shared getRunStatusTone was retired with its last consumer).
 function statusTone(s) {
-  if (s === 'success' || s === 'partial_error') return 'background:var(--green-soft);color:var(--green2);border:1px solid var(--green-border)';
+  if (s === 'success') return 'background:var(--green-soft);color:var(--green2);border:1px solid var(--green-border)';
+  if (s === 'partial_error') return 'background:var(--amber-soft);color:var(--amber-ink);border:1px solid var(--amber-border)';
   if (s === 'stopped') return 'background:#eef1f6;color:#3a4250;border:1px solid var(--line2)';
   if (s === 'running') return 'background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border)';
   return 'background:var(--red-soft);color:var(--red-ink);border:1px solid var(--red-border)'; // failed / error
@@ -436,23 +437,25 @@ function startPolling() {
         updateProgress({ pct: 100 });
         const r = data.lastRun;
         const stopped = r.status === 'stopped';
-        const ok = r.status === 'success' || r.status === 'partial_error';
+        const success = r.status === 'success';
         const tookSec = r.duration_ms ? ` · ${(r.duration_ms / 1000).toFixed(0)}s` : '';
         const errLine = r.error_log ? r.error_log.split('\n')[0] : 'unknown error';
+        // lastRun is the in-memory PipelineResult (camelCase) for a just-finished run,
+        // or the aggregated DB row (snake_case) after a reload.
+        const scored = r.jobs_scored ?? r.jobsScored ?? 0;
         if (stopped) {
-          // lastRun is the in-memory PipelineResult (camelCase) for a just-finished run,
-          // or the aggregated DB row (snake_case) after a reload.
-          const kept = r.jobs_scored ?? r.jobsScored ?? 0;
-          showRunResult(`Run stopped${tookSec} · ${kept} job${kept === 1 ? '' : 's'} scored and kept · <a href="/">Refresh to see them</a>`, 'neutral');
+          showRunResult(`Run stopped${tookSec} · ${scored} job${scored === 1 ? '' : 's'} scored and kept · <a href="/">Refresh to see them</a>`, 'neutral');
+        } else if (success) {
+          showRunResult(`Done${tookSec} · <a href="/">Refresh to see new jobs</a>`, 'success');
+        } else if (r.status === 'partial_error') {
+          // Not a success: some sources errored, and the reason is the first line of the log.
+          showRunResult(`Finished with errors${tookSec} · ${scored} job${scored === 1 ? '' : 's'} scored · ${errLine} · <a href="/reports">View log</a>`, 'warning');
         } else {
-          showRunResult(
-            ok ? `Done${tookSec} · <a href="/">Refresh to see new jobs</a>`
-               : `Run failed${tookSec} · ${errLine} · <a href="/reports">View log</a>`,
-            ok ? 'success' : 'error',
-          );
+          showRunResult(`Run failed${tookSec} · ${errLine} · <a href="/reports">View log</a>`, 'error');
         }
         resetRunBtn(progress);
-        if (ok) setTimeout(() => location.reload(), 3000);
+        // Only a clean run reloads — a reload would wipe a warning or failure before it is read.
+        if (success) setTimeout(() => location.reload(), 3000);
       }
     } catch (_) {}
   }, 2000);
@@ -468,7 +471,7 @@ function startHomeProgress() {
 }
 
 function showRunResult(msg, tone) {
-  const color = tone === 'success' ? 'var(--green2)' : tone === 'neutral' ? 'var(--muted)' : 'var(--red-ink)';
+  const color = tone === 'success' ? 'var(--green2)' : tone === 'warning' ? 'var(--amber-ink)' : tone === 'neutral' ? 'var(--muted)' : 'var(--red-ink)';
   const el = document.getElementById('home-run-result');
   el.innerHTML = `<span style="color:${color}">${msg}</span>`;
   el.classList.remove('hidden');
