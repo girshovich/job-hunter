@@ -6,6 +6,7 @@
 import { getDb } from '../../db';
 import { resolveCountriesFromCache } from '../locationNormalizer';
 import type { JobPosting, SearchFilters, DateRange, FetchResult } from '../types';
+import { buildKeywordClause, matchesKeywords } from './poolKeywords';
 
 interface JobRow {
   linkedin_job_id: string;
@@ -32,8 +33,8 @@ export async function fetchWithTelegram(
   cutoff.setUTCHours(cutoff.getUTCHours() - bufferHours);
   const cutoffISO = cutoff.toISOString();
 
-  const keywordClauses = filters.keywords.map(() => `(LOWER(j.title) LIKE ? OR LOWER(j.description) LIKE ?)`).join(' OR ');
-  const keywordParams  = filters.keywords.flatMap((k) => [`%${k.toLowerCase()}%`, `%${k.toLowerCase()}%`]);
+  const { clause: keywordClauses, params: keywordParams } =
+    buildKeywordClause(filters.keywords, ['LOWER(j.title)', 'LOWER(j.description)']);
 
   // Work mode filter — mirrors Ashby/Lever. Empty (none selected) → no clause → all modes.
   const workModes = filters.workModes.map((m) => m.toLowerCase()).filter(Boolean);
@@ -76,7 +77,12 @@ export async function fetchWithTelegram(
       ${locationClause}
   `;
 
-  const rows = db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[];
+  // The SQL clause matches words anywhere in the field ("head" also hits "overhead").
+  // Title and description are checked separately, so a keyword is never satisfied by
+  // words split across the two.
+  const rows = (db.prepare(sql)
+    .all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[])
+    .filter((r) => matchesKeywords([r.title, r.description], filters.keywords));
 
   const jobs: JobPosting[] = rows.map((row) => ({
     jobId:                row.linkedin_job_id,

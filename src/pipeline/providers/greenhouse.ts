@@ -10,6 +10,7 @@ import { getDb } from '../../db';
 import type { JobPosting, SearchFilters, DateRange, FetchResult } from '../types';
 import { resolveCountriesFromCache } from '../locationNormalizer';
 import { hydrateBoards } from './hydrate';
+import { buildKeywordClause, matchesKeywords } from './poolKeywords';
 
 interface JobRow {
   linkedin_job_id: string;
@@ -123,8 +124,8 @@ export async function fetchWithGreenhouse(
   cutoff.setUTCHours(cutoff.getUTCHours() - bufferHours);
   const cutoffISO = cutoff.toISOString();
 
-  const keywordClauses = filters.keywords.map(() => `LOWER(j.title) LIKE ?`).join(' OR ');
-  const keywordParams  = filters.keywords.map((k) => `%${k.toLowerCase()}%`);
+  const { clause: keywordClauses, params: keywordParams } =
+    buildKeywordClause(filters.keywords, ['LOWER(j.title)']);
 
   // Primary: match via job_countries (expanded region members included).
   // Fallback: LIKE on raw location text for any target country — also covers
@@ -156,9 +157,12 @@ export async function fetchWithGreenhouse(
       ${locationClause}
   `;
 
-  const rows = await hydrateDescriptions(
-    db.prepare(sql).all(cutoffISO, ...keywordParams, ...locationParams) as JobRow[],
-  );
+  // The SQL clause matches words anywhere in the title ("head" also hits "overhead");
+  // drop those partial-word rows before paying to hydrate their boards.
+  const matched = (db.prepare(sql).all(cutoffISO, ...keywordParams, ...locationParams) as JobRow[])
+    .filter((r) => matchesKeywords([r.title], filters.keywords));
+
+  const rows = await hydrateDescriptions(matched);
   const jobs = rows.map(rowToPosting);
 
   console.log(`[greenhouse] ${jobs.length} pool jobs matched via SQL (${filters.keywords.join(', ')} / ${filters.locations.join(', ')})`);

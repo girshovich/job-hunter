@@ -10,6 +10,7 @@ import { getDb } from '../../db';
 import type { JobPosting, SearchFilters, DateRange, FetchResult } from '../types';
 import { resolveCountriesFromCache } from '../locationNormalizer';
 import { hydrateBoards } from './hydrate';
+import { buildKeywordClause, matchesKeywords } from './poolKeywords';
 
 interface JobRow {
   linkedin_job_id: string;
@@ -111,8 +112,8 @@ export async function fetchWithLever(
   cutoff.setUTCHours(cutoff.getUTCHours() - bufferHours);
   const cutoffISO = cutoff.toISOString();
 
-  const keywordClauses = filters.keywords.map(() => `LOWER(j.title) LIKE ?`).join(' OR ');
-  const keywordParams  = filters.keywords.map((k) => `%${k.toLowerCase()}%`);
+  const { clause: keywordClauses, params: keywordParams } =
+    buildKeywordClause(filters.keywords, ['LOWER(j.title)']);
 
   const workModes = filters.workModes.map((m) => m.toLowerCase()).filter(Boolean);
   const workModeClause = workModes.length > 0
@@ -147,9 +148,13 @@ export async function fetchWithLever(
       ${locationClause}
   `;
 
-  const rows = await hydrateDescriptions(
-    db.prepare(sql).all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[],
-  );
+  // The SQL clause matches words anywhere in the title ("head" also hits "overhead");
+  // drop those partial-word rows before paying to hydrate their boards.
+  const matched = (db.prepare(sql)
+    .all(cutoffISO, ...keywordParams, ...workModes, ...locationParams) as JobRow[])
+    .filter((r) => matchesKeywords([r.title], filters.keywords));
+
+  const rows = await hydrateDescriptions(matched);
   const jobs = rows.map(rowToPosting);
 
   console.log(`[lever] ${jobs.length} pool jobs matched via SQL (${filters.keywords.join(', ')} / ${filters.locations.join(', ')})`);
