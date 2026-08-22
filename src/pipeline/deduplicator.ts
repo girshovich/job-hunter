@@ -13,11 +13,14 @@ export interface UrlDuplicate {
 }
 
 /**
- * Filters out jobs already recorded in job_postings by (job_source, posting_job_id).
- * Global dedup so folded/new-country postings are not re-scored on every run.
+ * Filters out jobs this profile has already processed, by (job_source, posting_job_id).
+ * Scoped per profile: `jobs` is a shared catalogue and the decision lives in
+ * job_profile_states, so a posting another profile stored is still new to this one and
+ * must be scored for it. Keying on the state row rather than on job_postings alone also
+ * keeps unscored ATS-pool rows visible — they carry no state row, by design (`db.ts`).
  * Returns new (unseen) jobs and the provider-level duplicates separately.
  */
-export function filterNewJobs(jobs: JobPosting[], _profileId: number): { newJobs: JobPosting[]; providerDupes: JobPosting[] } {
+export function filterNewJobs(jobs: JobPosting[], profileId: number): { newJobs: JobPosting[]; providerDupes: JobPosting[] } {
   if (jobs.length === 0) return { newJobs: [], providerDupes: [] };
 
   const db = getDb();
@@ -33,8 +36,11 @@ export function filterNewJobs(jobs: JobPosting[], _profileId: number): { newJobs
   for (const [source, group] of bySource) {
     const placeholders = group.map(() => '?').join(',');
     const rows = db.prepare<{ posting_job_id: string }>(
-      `SELECT posting_job_id FROM job_postings WHERE job_source = ? AND posting_job_id IN (${placeholders})`,
-    ).all(source, ...group.map((j) => j.jobId));
+      `SELECT jp.posting_job_id
+         FROM job_postings jp
+         JOIN job_profile_states jps ON jps.job_id = jp.job_id AND jps.profile_id = ?
+        WHERE jp.job_source = ? AND jp.posting_job_id IN (${placeholders})`,
+    ).all(profileId, source, ...group.map((j) => j.jobId));
     for (const row of rows) existingIds.add(`${source}::${row.posting_job_id}`);
   }
 
@@ -42,7 +48,7 @@ export function filterNewJobs(jobs: JobPosting[], _profileId: number): { newJobs
   const providerDupes = jobs.filter((j) =>  existingIds.has(`${j.jobSource ?? 'LinkedIn'}::${j.jobId}`));
 
   if (providerDupes.length > 0) {
-    console.log(`[deduplicator] Skipped ${providerDupes.length} already-stored jobs (provider-level dedup, source-scoped).`);
+    console.log(`[deduplicator] Skipped ${providerDupes.length} already-processed jobs (provider-level dedup, profile-scoped).`);
   }
   return { newJobs, providerDupes };
 }
@@ -50,8 +56,8 @@ export function filterNewJobs(jobs: JobPosting[], _profileId: number): { newJobs
 /**
  * URL-level dedup — checks whether a job's url or applyUrl matches any existing job
  * that this profile has already encountered.  Runs after provider-level dedup so the
- * new job's jobId is guaranteed to be unique; the URL match indicates a cross-source
- * repost (e.g. same job on LinkedIn and Greenhouse).
+ * new job's jobId is one this profile has not processed before; the URL match indicates
+ * a cross-source repost (e.g. same job on LinkedIn and Greenhouse).
  */
 export function filterDuplicatesByUrl(
   jobs: JobPosting[],
