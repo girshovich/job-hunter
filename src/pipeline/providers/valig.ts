@@ -98,7 +98,7 @@ async function runSingleCall(
   skipJobIds: string[] | undefined,
 ): Promise<{ items: ValigJob[]; costUsd: number | null }> {
   const actorInput: Record<string, unknown> = {
-    title: `"${keyword}"`,
+    keywords: `"${keyword}"`,
     location,
     datePosted,
     limit: LIMIT_PER_CALL,
