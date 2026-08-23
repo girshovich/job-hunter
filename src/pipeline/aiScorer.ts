@@ -198,12 +198,14 @@ function buildScoringUserMessage(job: JobPosting, summaryPrompt: string, sparse 
   // Only the providers that return compensation set this; omit the line entirely otherwise, so the
   // model never reads a blank as "unpaid" or "not disclosed".
   const salaryLine = job.salary ? `Salary: ${job.salary}\n` : '';
+  // Same reasoning for the sources that store no work mode (Indeed, Greenhouse, valig): omit the
+  // line rather than send a blank the model could read as a stated absence.
+  const workModeLine = job.workMode ? `Work Mode: ${job.workMode}\n` : '';
   return `<JOB_POSTING>
 Title: ${job.title}
 Company: ${job.company}
 Location: ${sparse ? '(not specified)' : job.location}
-Work Mode: ${job.workMode}
-${salaryLine}Description:
+${workModeLine}${salaryLine}Description:
 ${trimBoilerplate(stripHtml(job.description)).substring(0, 8_000)}
 </JOB_POSTING>
 

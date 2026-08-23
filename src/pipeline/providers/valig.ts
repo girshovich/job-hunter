@@ -65,17 +65,6 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Actor's `remote` filter codes: 1 = On-site, 2 = Remote, 3 = Hybrid
-const WORK_MODE_MAP: Record<string, string> = {
-  onsite: '1',
-  remote: '2',
-  hybrid: '3',
-};
-
-function mapWorkModes(workModes: string[]): string[] {
-  return workModes.map((m) => WORK_MODE_MAP[m]).filter(Boolean);
-}
-
 // Actor `contractType` codes (verified schema enum): F=Full-time, P=Part-time, C=Contract,
 // T=Temporary, I=Internship, O=Other. Our "fixedterm" bucket = contract + temporary.
 const CONTRACT_TYPE_MAP: Record<string, string[]> = {
@@ -93,7 +82,6 @@ async function runSingleCall(
   keyword: string,
   location: string,
   datePosted: string,
-  remote: string[],
   contractType: string[],
   skipJobIds: string[] | undefined,
 ): Promise<{ items: ValigJob[]; costUsd: number | null }> {
@@ -103,7 +91,6 @@ async function runSingleCall(
     datePosted,
     limit: LIMIT_PER_CALL,
   };
-  if (remote.length > 0) actorInput.remote = remote;
   if (contractType.length > 0) actorInput.contractType = contractType;
   // Filtered out before the actor pushes them, so they are never billed (charging is per
   // dataset item). Verified: 5000 ids accepted, zero leakage, the call runs slightly faster.
@@ -139,7 +126,6 @@ export async function fetchWithValig(
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
   const datePosted = getDatePosted(dateRange);
-  const remote = mapWorkModes(filters.workModes);
   const contractType = mapContractTypes(filters.jobType);
 
   // One wave per keyword, the locations still parallel inside it. Cross-keyword overlap is the
@@ -180,7 +166,7 @@ export async function fetchWithValig(
       apifyGate(apifyToken, () => {
         // Stopped while queued: never starts, never bills.
         options.checkAborted?.();
-        return runSingleCall(client, keyword, location, datePosted, remote, contractType, skipJobIds);
+        return runSingleCall(client, keyword, location, datePosted, contractType, skipJobIds);
       }));
 
     const queued = Math.max(0, outstanding + calls.length - APIFY_CONCURRENCY_LIMIT);
