@@ -83,6 +83,14 @@ export interface FetchOptions {
    */
   skipJobIds?: string[];
   /**
+   * **valig only.** The role's Desired Titles, one entry per `title_filter` line. The actor keeps a
+   * job when every word of any one entry is present in the title — whole words, any order,
+   * case-insensitive, leading/trailing punctuation trimmed — which is the same rule
+   * `matchesTitleFilter` applies afterwards. Filtered jobs are never pushed to the dataset, so they
+   * are never billed. Omit when the role has no title filter; never send an empty array.
+   */
+  titleInclude?: string[];
+  /**
    * Throws to abort. Called as each gated call dequeues — so a call still waiting for an Apify
    * slot when the user stops is never started and never billed — and, for valig, at every wave
    * boundary as well. Any provider that queues behind the gate must call it.

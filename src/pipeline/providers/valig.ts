@@ -84,14 +84,23 @@ async function runSingleCall(
   datePosted: string,
   contractType: string[],
   skipJobIds: string[] | undefined,
+  titleInclude: string[] | undefined,
 ): Promise<{ items: ValigJob[]; costUsd: number | null }> {
   const actorInput: Record<string, unknown> = {
-    keywords: `"${keyword}"`,
+    // Unquoted: the exact-phrase form existed to hold the billed volume down, and `titleInclude`
+    // now does that after the search. A loose keyword buys reach instead of junk.
+    keywords: keyword,
     location,
     datePosted,
     limit: LIMIT_PER_CALL,
   };
   if (contractType.length > 0) actorInput.contractType = contractType;
+  // Applied after the LinkedIn search, before the actor pushes — so the titles our own filter would
+  // have dropped are never billed. Verified live 2026-08-23: `["lead product"]` returns
+  // "Product Lead, Platform & Enterprise" and "(Lead) Expert …", so punctuation around a word is
+  // trimmed, matching `matchesTitleFilter`. Replaying two roles' logs: 867→73 and 338→116 items,
+  // every strong/weak match retained.
+  if (titleInclude && titleInclude.length > 0) actorInput.titleInclude = titleInclude;
   // Filtered out before the actor pushes them, so they are never billed (charging is per
   // dataset item). Verified: 5000 ids accepted, zero leakage, the call runs slightly faster.
   if (skipJobIds && skipJobIds.length > 0) actorInput.skipJobId = skipJobIds;
@@ -137,7 +146,8 @@ export async function fetchWithValig(
 
   console.log(
     `[valig] ${filters.keywords.length * filters.locations.length} actor call(s) in ${waves.length} wave(s)` +
-    ` — ${filters.keywords.length} keywords × ${filters.locations.length} locations`,
+    ` — ${filters.keywords.length} keywords × ${filters.locations.length} locations` +
+    (options.titleInclude?.length ? `, titleInclude: ${options.titleInclude.join(' | ')}` : ''),
   );
 
   let totalCost = 0;
@@ -166,7 +176,7 @@ export async function fetchWithValig(
       apifyGate(apifyToken, () => {
         // Stopped while queued: never starts, never bills.
         options.checkAborted?.();
-        return runSingleCall(client, keyword, location, datePosted, contractType, skipJobIds);
+        return runSingleCall(client, keyword, location, datePosted, contractType, skipJobIds, options.titleInclude);
       }));
 
     const queued = Math.max(0, outstanding + calls.length - APIFY_CONCURRENCY_LIMIT);

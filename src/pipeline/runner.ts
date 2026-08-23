@@ -66,6 +66,11 @@ function normalizeCompany(name: string): string {
     .toLowerCase();
 }
 
+/** The Desired Titles as separate entries — what valig's `titleInclude` expects. */
+function titleFilterEntries(filter: string | null | undefined): string[] {
+  return (filter || '').split(',').map((l) => l.trim()).filter(Boolean);
+}
+
 function matchesTitleFilter(title: string, filter: string): boolean {
   const titleWords = new Set(title.toLowerCase().split(/\W+/).filter(Boolean));
   return filter
@@ -537,6 +542,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       const keywords: string[] = JSON.parse(group.keywords);
       const locations: string[] = JSON.parse(group.locations);
       const workModes: string[] = JSON.parse(group.work_modes);
+      const titleInclude = titleFilterEntries(group.title_filter);
 
       console.log(
         `[runner] Group ${group.id} [${locations.join(', ')}]: ${keywords.length} keywords × ${locations.length} locations`,
@@ -560,6 +566,10 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           ...(scrapingProvider === 'valig' && VALIG_SKIP_ENABLED
             ? { skipJobIds: recentLinkedInJobIds(profileId, group.id) }
             : {}),
+          // Push the Desired Titles down to the actor: it matches them the same way step 2 does,
+          // and drops the rest before they are billed. An empty filter sends nothing, so a role
+          // without Desired Titles keeps fetching everything rather than nothing.
+          ...(scrapingProvider === 'valig' && titleInclude.length > 0 ? { titleInclude } : {}),
         });
         allFetched = fetchResult.jobs;
         if (fetchResult.apifyCostUsd != null) {
