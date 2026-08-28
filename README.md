@@ -39,7 +39,7 @@ Resource use per run varies by provider selection, number of roles, location bre
 - **Runtime** — Node.js 22.5+ / TypeScript
 - **Web** — Express 4 + EJS + Tailwind CSS
 - **Database** — SQLite via built-in `node:sqlite`
-- **AI** — OpenAI Responses API (soft model: `gpt-5.4-mini`; hard model: `gpt-5.4`; both configurable)
+- **AI** — OpenAI Responses API (soft model: `gpt-5.4-mini`; hard model: `gpt-5.6-terra`; both configurable per profile)
 - **Job sources** — HarvestAPI, Valig, Indeed, StepStone, Greenhouse, Ashby, Lever, Telegram
 - **Email** — Resend (OTP login + digests)
 - **Scheduler** — node-cron (in-process, survives restarts)
@@ -51,11 +51,14 @@ Resource use per run varies by provider selection, number of roles, location bre
 **1. Clone and install**
 ```bash
 git clone https://github.com/girshovich/job-hunter.git
-cd job-hunter/linkedin-job-hunter
+cd job-hunter
 npm install
 ```
 
 **2. Create `.env`**
+```bash
+cp .env.example .env
+```
 ```env
 # Apify/OpenAI here serve hosted-credits mode only — see the note below
 APIFY_API_TOKEN=
@@ -63,9 +66,16 @@ OPENAI_API_KEY=
 RESEND_API_KEY=
 EMAIL_FROM=jobs@yourdomain.com
 PORT=3000
+DATABASE_PATH=./data/jobs.db   # created on first boot
 ```
 
-Resend is required for login (email OTP) as well as digests, and is read from `.env` or Settings.
+> `.env.example` still lists `DASHBOARD_USER` / `DASHBOARD_PASS`. Basic auth was replaced by
+> email OTP — those two are read by nothing and can be deleted.
+
+Resend is required for login as well as digests, but the two resolve differently: **digests** read
+`settings.resend_api_key` and fall back to `.env`; **login OTP** reads the *admin profile's* saved
+Resend key only, with **no `.env` fallback**. Save it in Settings or nobody but the first account
+can sign in.
 
 > **Self-hosting: put your Apify and OpenAI keys in Settings, not `.env`.**
 > Each profile picks a payment mode in **Settings → AI Setup**. On **"Use your own API keys"** — the normal choice when self-hosting — those two keys are read **only** from that profile's saved settings; `.env` is not consulted. If a run is refused with *"Own API keys are not set"*, paste them there.
@@ -82,7 +92,40 @@ node dist/index.js
 > node --experimental-sqlite dist/index.js
 > ```
 
-Open `http://localhost:3000` — first login bootstraps your admin account.
+Or `npm start` (same thing) / `npm run dev` for ts-node without a build.
+
+Open `http://localhost:3000`. The **first** email entered on `/welcome` becomes profile 1 with
+`is_admin = 1` and is signed in immediately — no OTP, no Resend key needed for that one login.
+Every later sign-in, including the admin's own, goes through an emailed code.
+
+**4. Fill the free job pool (otherwise 4 of the 5 default sources return nothing)**
+
+Greenhouse, Ashby, Lever and Telegram do not call an API during a run — they query a shared pool
+that global admin crons populate, and on a fresh install that pool is empty. In **Admin → General**
+save the global Apify/OpenAI/Resend keys, then in **Admin → Sources → ATS Job Pool Fill** run
+discovery and "Fetch now" per source, and enable the crons you want. All cron toggles default to
+**off**.
+
+Cron times (admin timezone): Greenhouse/Ashby discovery `30 0 1 * *`, Lever discovery `0 2 1 * *`,
+board validation `0 4 * * 0`, then daily pool fills at `05:00` Greenhouse, `05:15` Ashby,
+`05:30` Telegram ingest, `05:45` Lever. Pool cleanup runs `03:00` daily and is always on.
+
+**Lever discovery needs Python.** It spawns `build_lever_company_base.py` (repo root) to pull a
+HuggingFace dataset. It looks for `uv` first — `uv run --with duckdb --with pandas --with aiohttp
+--with tqdm` — then falls back to bare `python3`, which needs those four packages installed
+yourself. Override with `LEVER_PYTHON_CMD`, `UV_PATH`, or `LEVER_SCRIPT_PATH`.
+
+### Optional tuning
+
+| Variable | Default | Effect |
+|---|---|---|
+| `SCORING_CONCURRENCY` | `5` | Parallel OpenAI scoring calls. Lower it on 429s. |
+| `APIFY_CONCURRENCY` | `24` | Account-wide cap on concurrent Apify actor runs (free tier allows 25). `0` falls through to the default — to loosen it, set a large number. |
+| `MAX_CONCURRENT_RUNS` | `6` | Pipelines in flight at once. |
+| `VALIG_SKIP_JOB_IDS` | on | Set `0` to stop sending already-seen job ids to the valig actor. Does not disable the `titleInclude` filter. |
+
+Both limiters are **in-process** — a second Node process (pm2 cluster mode, blue/green overlap) gets
+its own budget.
 
 ---
 
@@ -102,6 +145,18 @@ npm install -g pm2
 pm2 start ecosystem.config.js
 pm2 save
 ```
+
+> **Upgrading a deployment made before the `job-hunter` rename:** the pm2 app was called
+> `linkedin-job-hunter`, and pm2 identifies apps by name — `pm2 start ecosystem.config.js` would
+> launch a *second* app that then crash-loops on `EADDRINUSE`. Retire the old entry once:
+> ```bash
+> pm2 delete linkedin-job-hunter
+> pm2 start ecosystem.config.js
+> pm2 save
+> ```
+> `pm2 save` matters: without it the old name is still in `~/.pm2/dump.pm2` and comes back on the
+> next reboot. Log files are unaffected — the paths in `ecosystem.config.js` are explicit, not
+> derived from the app name.
 
 ---
 
@@ -127,7 +182,7 @@ pm2 save
 - **Work mode & job type filters** — filter by remote/hybrid/onsite and full/part/fixed-term, honored per provider (some sources skip filters they can't support)
 - **Title word filter** — narrow results without changing search keywords
 - **Company blacklist** — permanently skip companies across all Roles
-- **Company logos** — automatically fetched and cached for Greenhouse, Ashby, and Lever listings
+- **Company logos** — HarvestAPI supplies real logos; every other source falls back to a cached Google favicon lookup
 - **Country flags** — location strings are resolved to country labels and shown alongside listing data
 - **Matches** — two-pane list + detail; review strong matches, mark Applied, add notes, fix AI verdicts inline
 - **Multi-country jobs** — the same role in several countries is grouped into one opportunity, with duplicates folded

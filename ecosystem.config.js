@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'linkedin-job-hunter',
+      name: 'job-hunter',
       script: 'dist/index.js',
       cwd: __dirname,
       env: {

@@ -1,7 +1,7 @@
 {
-  "name": "linkedin-job-hunter",
+  "name": "job-hunter",
   "version": "1.0.0",
-  "description": "Self-hosted AI-curated LinkedIn job hunter",
+  "description": "Self-hosted AI-curated job hunter",
   "private": true,
   "main": "dist/index.js",
   "scripts": {
