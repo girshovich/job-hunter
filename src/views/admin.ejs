@@ -788,7 +788,7 @@
           <% srcRows.forEach(function (r) { %>
           <span style="flex:<%= r[1] %> 0 0;background:<%= fillFor(r[0]) %>"
                 data-qtip="<%= JSON.stringify({ label: r[0], totalText: r[1].toLocaleString('en-US') + ' runs', lines: '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:' + fillFor(r[0]) + ';margin-right:5px;vertical-align:middle"></span>' + (srcTotal > 0 ? Math.round(r[1] / srcTotal * 100) : 0) + '% of all fetches in range' }) %>"
-                onmouseenter="showQTip(event,this)" onmouseleave="hideTip()"><b><%= r[1].toLocaleString('en-US') %></b></span>
+                onmouseenter="showQTip(event,this)" onmouseleave="hideTip()"><b><%= srcTotal > 0 ? Math.round(r[1] / srcTotal * 100) : 0 %>%</b></span>
           <% }); %>
         </div>
         <div class="sp-stack-legend">
@@ -796,8 +796,7 @@
           <span class="sp-slg">
             <span class="sp-slg-dot" style="background:<%= fillFor(r[0]) %>"></span>
             <%= r[0] %>
-            <span class="sp-slg-n"><%= r[1].toLocaleString('en-US') %></span>
-            <span class="sp-slg-p"><%= srcTotal > 0 ? Math.round(r[1] / srcTotal * 100) : 0 %>%</span>
+            <span class="sp-slg-n"><%= srcTotal > 0 ? Math.round(r[1] / srcTotal * 100) : 0 %>%</span>
           </span>
           <% }); %>
         </div>
@@ -805,11 +804,11 @@
     </div>
   </div>
 
-  <!-- When runs start -->
+  <!-- Runs hourly distribution -->
   <div class="sp-card">
     <div class="sp-hd">
       <div>
-        <div class="sp-title">When runs start</div>
+        <div class="sp-title">Runs hourly distribution</div>
         <div class="sp-sub">Every run in the range, by hour of the day in <%= daily.timezone %>. Scheduled runs cluster at whatever hours users picked.</div>
       </div>
     </div>
@@ -869,6 +868,7 @@
     order: ['sch', 'usr'],
     config: { sch: { label: 'Scheduled', color: 'var(--sky-ink)' }, usr: { label: 'User-started', color: '#5aaed9' } },
     fmt: v => String(v), tipSuffix: ' runs', colW: 36,
+    tipLabel: d => spLabel(d),
   };
 
   // The bar carries "nines" — -log10 of the failure rate — so a move from 99.5% to 99.7% is a
@@ -879,6 +879,7 @@
     config: { ok: { label: 'Finished cleanly', color: 'var(--green)' } },
     fmt: v => ((1 - Math.pow(10, -v)) * 100).toFixed(1) + '%',
     tipSuffix: '', colW: 36,
+    tipLabel: d => spLabel(d),
   };
   function spNines(ok, total) {
     if (!total) return null;
@@ -890,6 +891,7 @@
     order: ['n'],
     config: { n: { label: 'Runs', color: 'var(--sky-ink)' } },
     fmt: v => String(v), tipSuffix: ' runs', colW: 34,
+    tipLabel: h => h + ':00',
   };
 
   const spLabel = d => { const p = d.split('-'); return MN[parseInt(p[1]) - 1] + ' ' + parseInt(p[2]); };
@@ -1021,7 +1023,7 @@
     const hourRaw = [];
     SP_HOURS.forEach((n, h) => { if (n > 0) hourRaw.push({ key: hourKeys[h], category: 'n', count: n }); });
     spChart('sp-hour-chart', 'sp-hour-legend', hourRaw, hourKeys,
-      spThin(hourKeys, k => k, false), SP_HOUR_SPEC, 'No runs in this range.');
+      spThin(hourKeys, k => k + ':00', false), SP_HOUR_SPEC, 'No runs in this range.');
 
     // Dates: open on the newest column (DS §6.1). Hours: open at 00 — the shape of the day is
     // the point, and scrolling past midnight would hide the morning.

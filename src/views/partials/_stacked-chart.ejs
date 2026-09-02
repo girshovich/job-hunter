@@ -48,7 +48,8 @@ function hideTip() { if (_tip) _tip.style.display = 'none'; }
 if (!window.__jhTipMove) { window.__jhTipMove = true; document.addEventListener('mousemove', _moveTip); }
 
 // ── Stacked chart shared renderer ─────────────────────────────────────────────
-// A spec supplies the categories, how a value is written, and the tooltip suffix.
+// A spec supplies the categories, how a value is written, the tooltip suffix, and optionally a
+// `tipLabel(period)` for when the axis label is thinned away.
 // The specs themselves live in the page that owns the chart.
 function renderStackedChart(containerId, legendId, rawData, periods, getLabel, getKey, spec) {
   const ORDER = spec.order, CFG = spec.config;
@@ -81,11 +82,15 @@ function renderStackedChart(containerId, legendId, rawData, periods, getLabel, g
       remaining -= segH;
       segs += `<div style="width:100%;height:${segH}px;background:${CFG[c].color};flex-shrink:0;"></div>`;
     }
-    const tipLines = ORDER.filter(c => cats[c] > 0).map(c =>
+    // With one category the head already states it — a row beneath would just repeat itself.
+    const tipLines = (ORDER.length === 1 ? [] : ORDER.filter(c => cats[c] > 0)).map(c =>
       `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CFG[c].color};margin-right:5px;vertical-align:middle;"></span>${CFG[c].label}: <b>${spec.fmt(cats[c])}</b>`
     ).join('<br>');
     const label = getLabel(p);
-    const tipData = JSON.stringify({ label, totalText: spec.fmt(total) + spec.tipSuffix, lines: tipLines });
+    // The axis may be thinned to stop labels colliding, so the tooltip takes its own label when
+    // the spec supplies one — otherwise a hidden axis label would mean a headless tooltip.
+    const tipLabel = spec.tipLabel ? spec.tipLabel(p) : label;
+    const tipData = JSON.stringify({ label: tipLabel, totalText: spec.fmt(total) + spec.tipSuffix, lines: tipLines });
     const safeData = tipData.replace(/"/g,'&quot;');
     return `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:30px;">
       <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;cursor:default;"
