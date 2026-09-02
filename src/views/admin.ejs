@@ -769,6 +769,19 @@
       <div id="sp-ok-legend" style="display:none"></div>
       <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x" style="padding-bottom:4px"><div id="sp-ok-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div></div>
     </div>
+    <div class="sp-fa">
+      <div class="sp-fa-h">Top-3 users with failed runs (with &ge;&nbsp;5 runs)</div>
+      <% if (!daily.topFailers.length) { %>
+        <div class="sp-fa-empty">Every run finished cleanly in this range.</div>
+      <% } else { daily.topFailers.forEach(function (f) { %>
+        <div class="sp-fa-row">
+          <span class="sp-fa-id">#<%= f.id %></span>
+          <span class="sp-fa-who" title="<%= f.email %>"><%= f.email %></span>
+          <span class="sp-fa-share"><%= f.share %>%</span>
+          <span class="sp-fa-own"><b class="<%= f.ownRate < 80 ? 'bad' : '' %>"><%= f.ownRate.toFixed(1) %>%</b> own success</span>
+        </div>
+      <% }); } %>
+    </div>
   </div>
 
   <!-- Job sources -->
@@ -909,6 +922,30 @@
     return out;
   }
 
+  // A whole day should fit on a desktop screen when it can. Widen the columns to fill the card
+  // if 24 of them still leave a usable bar; below that, keep the default and scroll.
+  function spHourColW(chartId) {
+    const wrap = document.getElementById(chartId).parentElement;
+    const fit = Math.floor((wrap.clientWidth - 23 * 6) / 24);
+    return fit >= 22 ? Math.min(fit, 44) : 34;
+  }
+
+  // Values sit above the bars only while they fit the column they label. Measured against the
+  // real font, since the fallback is narrower than Plus Jakarta Sans.
+  function spFitColValues(chartId) {
+    const el = document.getElementById(chartId);
+    const col = el.querySelector(':scope > div');
+    if (!col) return;
+    const labels = [...el.querySelectorAll('.jh-colv')];
+    if (!labels.length) return;
+    el.classList.remove('sp-novals');
+    const cvs = spFitColValues._c || (spFitColValues._c = document.createElement('canvas'));
+    const ctx = cvs.getContext('2d');
+    ctx.font = getComputedStyle(labels[0]).font || '700 11px sans-serif';
+    const widest = Math.max(...labels.map(l => ctx.measureText(l.textContent).width));
+    if (widest + 4 > col.clientWidth) el.classList.add('sp-novals');
+  }
+
   // ── (2) Fade whichever edge still has content off-screen ──
   function spEdges(wrap) {
     const more = wrap.scrollWidth - wrap.clientWidth;
@@ -1022,6 +1059,7 @@
     const hourKeys = SP_HOURS.map((_, h) => String(h).padStart(2, '0'));
     const hourRaw = [];
     SP_HOURS.forEach((n, h) => { if (n > 0) hourRaw.push({ key: hourKeys[h], category: 'n', count: n }); });
+    SP_HOUR_SPEC.colW = spHourColW('sp-hour-chart');
     spChart('sp-hour-chart', 'sp-hour-legend', hourRaw, hourKeys,
       spThin(hourKeys, k => k + ':00', false), SP_HOUR_SPEC, 'No runs in this range.');
 
@@ -1034,6 +1072,7 @@
         if (el && el.parentElement) el.parentElement.scrollLeft = el.parentElement.scrollWidth;
       });
       ['sp-runs-chart', 'sp-ok-chart', 'sp-hour-chart'].forEach(spWatchEdges);
+      ['sp-runs-chart', 'sp-ok-chart', 'sp-hour-chart'].forEach(spFitColValues);
     });
   }
 
@@ -1076,6 +1115,8 @@
   // label measured against the fallback can fit and then overflow.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(spFitSourceLabels);
   window.addEventListener('resize', spFitSourceLabels);
+  let _spRz;
+  window.addEventListener('resize', () => { clearTimeout(_spRz); _spRz = setTimeout(spRender, 150); });
 
   spRender();
   </script>

@@ -96,7 +96,7 @@ function renderStackedChart(containerId, legendId, rawData, periods, getLabel, g
       <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;cursor:default;"
            data-qtip="${safeData}" onmouseenter="showQTip(event,this)" onmouseleave="hideTip()">
         <div style="width:100%;height:${totalH}px;display:flex;flex-direction:column;border-radius:2px 2px 0 0;overflow:hidden;">${segs}</div>
-        ${total > 0 ? `<span style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${spec.fmt(total)}</span>` : ''}
+        ${total > 0 ? `<span class="jh-colv" style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${spec.fmt(total)}</span>` : ''}
       </div>
       <span style="font-size:10px;color:#6b7280;text-align:center;display:block;position:absolute;bottom:0;left:0;right:0;">${label}</span>
     </div>`;

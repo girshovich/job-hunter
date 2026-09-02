@@ -59,6 +59,16 @@ export interface AdminDaily {
   headline: { hit: number; den: number; pct: number }[];   // index 0/1/2 = day 0/1/2
   bySource: [string, number][];
   byHour: number[];                                        // 24 entries, admin-local hour
+  topFailers: TopFailer[];
+}
+
+export interface TopFailer {
+  id: number;
+  email: string;
+  failed: number;      // this profile's runs that finished without success
+  finished: number;    // this profile's runs that reached an outcome
+  share: number;       // % of every failed run in the window
+  ownRate: number;     // % of this profile's own runs that succeeded
 }
 
 /** `profiles.created_at` holds two formats: ISO-Z from app code, and the SQLite
@@ -282,6 +292,50 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
     src.set(key, (src.get(key) ?? 0) + r.c);
   }
 
+  // Who the failed runs belonged to. One grouped scan capped at three rows, so the cost is
+  // bounded by profile count rather than run volume.
+  //
+  // "Failed" here means finished-but-not-success, which is the same definition the success-rate
+  // chart above uses — the two must agree, since they sit in one card. That does sweep in
+  // `stopped`, which is usually a user pressing Stop or a credits halt rather than a fault.
+  //
+  // MIN_RUNS keeps the list off single-run trivia: without it one profile with one failed run
+  // tops a quiet range. The header states the floor, so the reader knows who is eligible.
+  const MIN_RUNS = 5;
+  const windowClause = shift !== null
+    ? `date(datetime(r.ran_at, ?)) BETWEEN ? AND ?`
+    : `date(r.ran_at) >= date(?, '-1 day') AND date(r.ran_at) <= date(?, '+1 day')`;
+  const windowArgs = shift !== null
+    ? [`${shift >= 0 ? '+' : '-'}${Math.abs(shift)} minutes`, from, to]
+    : [from, to];
+
+  const failerRows = db.prepare(`
+    SELECT r.profile_id AS id, p.email AS email,
+           SUM(CASE WHEN r.status != 'success' THEN 1 ELSE 0 END) AS failed,
+           COUNT(*) AS finished
+    FROM search_runs r JOIN profiles p ON p.id = r.profile_id
+    WHERE p.is_admin = 0 AND r.trigger != 'cv' AND r.status != 'running'
+      AND ${windowClause}
+    GROUP BY 1, 2
+    HAVING failed > 0 AND finished >= ${MIN_RUNS}
+    ORDER BY failed DESC, finished DESC
+    LIMIT 3
+  `).all(...windowArgs) as { id: number; email: string; failed: number; finished: number }[];
+
+  // The share denominator is every failure in the window, including profiles under the floor —
+  // so three rows showing 41/23/14 correctly means the rest is spread elsewhere.
+  let allFailed = 0;
+  for (const row of byDay.values()) allFailed += row.runs - row.ok;
+
+  const topFailers: TopFailer[] = failerRows.map((r) => ({
+    id: r.id,
+    email: r.email,
+    failed: r.failed,
+    finished: r.finished,
+    share: allFailed > 0 ? Math.round((r.failed / allFailed) * 100) : 0,
+    ownRate: r.finished > 0 ? ((r.finished - r.failed) / r.finished) * 100 : 0,
+  }));
+
   // Headline D0/D1/D2 — a cohort leaves the denominator until its window closes.
   const headline = [0, 1, 2].map((k) => {
     let den = 0;
@@ -302,5 +356,6 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
     headline,
     bySource: [...src.entries()].sort((a, b) => b[1] - a[1]),
     byHour,
+    topFailers,
   };
 }

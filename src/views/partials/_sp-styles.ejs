@@ -123,6 +123,10 @@
      overflow at all. Anything that must actually scroll has to say so; analytics.ejs does it
      with an inline style. This is that, as a class. */
   .sp-scroll-x{overflow-x:auto}
+  /* Columns narrow enough to fit a whole day on screen can be too narrow for the number above
+     them. Rather than let labels collide, drop them all and let the tooltip carry the value —
+     hiding only some would read as arbitrary when every column is the same width. */
+  .sp-novals .jh-colv{display:none}
 
   /* Scroll affordance. A wide chart already scrolled, but clipped at the card edge it reads as
      broken rather than scrollable. The fades sit on a non-scrolling wrapper and are toggled by
@@ -135,6 +139,28 @@
   .sp-scrollwrap.can-left::before{opacity:1}
   .sp-scrollwrap.can-right::after{opacity:1}
   @media (prefers-reduced-motion:reduce){.sp-scrollwrap::before,.sp-scrollwrap::after{transition:none}}
+  /* Top-3 users with failed runs. No bars: with three rows and the figure printed beside it, a
+     bar only re-drew a number already there against a track whose remainder meant nothing. The
+     name column is capped rather than 1fr, so the figures sit beside the address instead of
+     being flung to the card's far edge. */
+  .sp-fa{border-top:1px solid var(--line);padding:12px 20px 16px}
+  .sp-fa-h{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:8px}
+  .sp-fa-row{display:grid;grid-template-columns:30px minmax(0,248px) 42px auto;align-items:baseline;
+    justify-content:start;gap:14px;height:25px}
+  .sp-fa-id{font-size:11.5px;font-weight:700;color:var(--faintest);font-variant-numeric:tabular-nums}
+  .sp-fa-who{font-size:12.5px;font-weight:600;color:var(--ink2);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-fa-share{font-size:13px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+  .sp-fa-own{font-size:11.5px;font-weight:600;color:var(--faintest);font-variant-numeric:tabular-nums;
+    white-space:nowrap;text-align:right;min-width:96px}
+  .sp-fa-own b{font-weight:800;color:var(--muted)}
+  .sp-fa-own b.bad{color:var(--red-ink)}
+  .sp-fa-empty{font-size:12.5px;font-weight:600;color:var(--fainter)}
+  @media(max-width:640px){
+    .sp-fa-row{grid-template-columns:28px minmax(0,1fr) 40px;height:auto;padding:4px 0;gap:10px}
+    .sp-fa-own{grid-column:2 / -1;text-align:left;min-width:0;margin-top:-3px}
+  }
   .sp-chart-empty{padding:26px 0 6px;text-align:center;font-size:13.5px;font-weight:600;color:var(--faint)}
   .sp-daily-h{font-size:15px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-right:4px}
   .sp-partial{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--amber-ink);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:999px;padding:1px 6px}
