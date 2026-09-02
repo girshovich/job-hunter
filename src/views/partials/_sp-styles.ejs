@@ -105,12 +105,36 @@
      StepStone and Telegram are stepped one apart because the badge set has two identical
      oranges and a grey that reads as no-colour once it is a fill rather than a chip. */
   .sp-stack{display:flex;height:34px;border-radius:9px;overflow:hidden;gap:2px;background:#eef0f4}
-  .sp-stack>span{min-width:3px;display:block}
+  /* flex-basis 0 + min-width: the width is the share of the total, never the width of the
+     label inside it. With basis:auto the label became the base size and small sources rendered
+     wider than their data. */
+  .sp-stack>span{min-width:3px;display:flex;align-items:center;justify-content:center;cursor:default;overflow:hidden}
+  /* The value sits inside its segment, but only where it actually fits — a clipped number is
+     worse than none. A script measures each one and hides the ones that would truncate. */
+  .sp-stack>span>b{font-size:11.5px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;
+    white-space:nowrap;padding:0 6px;visibility:hidden;flex:0 0 auto}
+  .sp-stack>span>b.fits{visibility:visible}
   .sp-stack-legend{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:16px}
   .sp-slg{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
   .sp-slg-dot{width:10px;height:10px;border-radius:3px;flex:none}
   .sp-slg-n{font-weight:800;color:var(--ink2);font-variant-numeric:tabular-nums}
   .sp-slg-p{color:var(--faintest);font-weight:700;font-variant-numeric:tabular-nums}
+  /* DS §1.5's .jh-scroll is a scrollbar SKIN only — it sets scrollbar-width/colour and no
+     overflow at all. Anything that must actually scroll has to say so; analytics.ejs does it
+     with an inline style. This is that, as a class. */
+  .sp-scroll-x{overflow-x:auto}
+
+  /* Scroll affordance. A wide chart already scrolled, but clipped at the card edge it reads as
+     broken rather than scrollable. The fades sit on a non-scrolling wrapper and are toggled by
+     JS, so they only appear on the side that actually has more content. */
+  .sp-scrollwrap{position:relative}
+  .sp-scrollwrap::before,.sp-scrollwrap::after{content:'';position:absolute;top:0;bottom:0;width:34px;
+    pointer-events:none;opacity:0;transition:opacity .15s;z-index:2}
+  .sp-scrollwrap::before{left:0;background:linear-gradient(to right,var(--card) 20%,rgba(255,255,255,0))}
+  .sp-scrollwrap::after{right:0;background:linear-gradient(to left,var(--card) 20%,rgba(255,255,255,0))}
+  .sp-scrollwrap.can-left::before{opacity:1}
+  .sp-scrollwrap.can-right::after{opacity:1}
+  @media (prefers-reduced-motion:reduce){.sp-scrollwrap::before,.sp-scrollwrap::after{transition:none}}
   .sp-chart-empty{padding:26px 0 6px;text-align:center;font-size:13.5px;font-weight:600;color:var(--faint)}
   .sp-daily-h{font-size:15px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-right:4px}
   .sp-partial{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--amber-ink);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:999px;padding:1px 6px}
