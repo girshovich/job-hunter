@@ -246,6 +246,7 @@ function renderList(){
 </div>
 
 <script>
+<%- include('partials/_date-cal') %>
 window.__dateFilter = { df: '<%= f.df %>', dt: '<%= f.dt %>' };
 window.__selectedJobId = <%= selectedJobId || 'null' %>;
 window.__fromKey = '<%= fromKey %>';
@@ -274,8 +275,9 @@ window.JH = (function(){
     window.location.href = u.pathname + '?' + u.searchParams.toString();
   }
   const di = window.__dateFilter || {};
-  const _cal = { from: di.df || null, to: di.dt || null, y: 0, m: 0 };
-  (function(){ const base = (_cal.to || _cal.from) ? new Date((_cal.to || _cal.from) + 'T12:00:00') : new Date(); _cal.y = base.getFullYear(); _cal.m = base.getMonth(); })();
+  // Date range uses the shared JHCal (partials/_date-cal). No cap here — Matches/All Jobs may
+  // filter over any span; only Admin Stats caps its window.
+  let _cal = null;
   // Pending (un-applied) multi-select state; applied on menu close (not per checkbox click).
   const _pending = {
     roles: <%- JSON.stringify(f.roleIds.map(String).concat(f.roleOther ? ['other'] : [])) %>,
@@ -403,47 +405,22 @@ window.JH = (function(){
     setStatus(s){ nav({ status: s || null }); },
     setCompany(val){ nav({ company: (val||'').trim() || null }); },
     navDates(df, dt){ nav({ df: df || null, dt: dt || null }); },
-    calDay(ds){
-      if (!_cal.from || (_cal.from && _cal.to)) { _cal.from = ds; _cal.to = null; }
-      else if (ds < _cal.from) { _cal.from = ds; }
-      else { _cal.to = ds; }
-      this.renderCal();
-    },
-    calPrev(){ _cal.m--; if (_cal.m < 0){ _cal.m = 11; _cal.y--; } this.renderCal(); },
-    calNext(){ _cal.m++; if (_cal.m > 11){ _cal.m = 0; _cal.y++; } this.renderCal(); },
-    calApply(){ this.navDates(_cal.from, _cal.to || _cal.from); },
+    calDay(ds){ if (_cal) _cal.day(ds); },
+    calPrev(){ if (_cal) _cal.prev(); },
+    calNext(){ if (_cal) _cal.next(); },
+    calApply(){ if (_cal) _cal.apply(); },
     clearDates(){ this.navDates(null, null); },
     renderCal(){
-      const MN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-      const pad = n => String(n).padStart(2,'0');
-      const ymd = (y,m,d) => y + '-' + pad(m+1) + '-' + pad(d);
-      const first = new Date(_cal.y, _cal.m, 1);
-      const startDow = (first.getDay() + 6) % 7; // Monday-first
-      const days = new Date(_cal.y, _cal.m + 1, 0).getDate();
-      let cells = '';
-      for (let i=0;i<startDow;i++) cells += '<div></div>';
-      for (let d=1; d<=days; d++){
-        const ds = ymd(_cal.y, _cal.m, d);
-        const isEnd = ds === _cal.from || ds === _cal.to;
-        const inRange = _cal.from && _cal.to && ds > _cal.from && ds < _cal.to;
-        const bg = isEnd ? 'var(--accent)' : inRange ? 'var(--accent-soft)' : 'transparent';
-        const col = isEnd ? '#fff' : 'var(--ink)';
-        cells += '<div onclick="event.stopPropagation();JH.calDay(\''+ds+'\')" style="height:30px;display:grid;place-items:center;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;background:'+bg+';color:'+col+'">'+d+'</div>';
+      if (!_cal) {
+        const root = document.querySelector('.date-cal');
+        if (!root) return;
+        _cal = JHCal.attach({
+          root, from: di.df || null, to: di.dt || null,
+          onApply: (f, t) => JH.navDates(f, t),
+          onClear: () => JH.navDates(null, null),
+        });
       }
-      const dows = ['Mo','Tu','We','Th','Fr','Sa','Su'].map(w => '<div style="height:22px;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--faintest)">'+w+'</div>').join('');
-      const html =
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-          + '<button type="button" onclick="event.stopPropagation();JH.calPrev()" style="width:26px;height:26px;display:grid;place-items:center;border:0;background:transparent;border-radius:7px;cursor:pointer;color:var(--muted)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 6-6 6 6 6"/></svg></button>'
-          + '<span style="font-size:12.5px;font-weight:800;color:var(--ink)">'+MN[_cal.m]+' '+_cal.y+'</span>'
-          + '<button type="button" onclick="event.stopPropagation();JH.calNext()" style="width:26px;height:26px;display:grid;place-items:center;border:0;background:transparent;border-radius:7px;cursor:pointer;color:var(--muted)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></button>'
-        + '</div>'
-        + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">'+dows+'</div>'
-        + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">'+cells+'</div>'
-        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
-          + '<button type="button" onclick="event.stopPropagation();JH.clearDates()" style="font-size:12px;font-weight:700;color:var(--muted);background:transparent;border:0;cursor:pointer">Clear</button>'
-          + '<button type="button" onclick="event.stopPropagation();JH.calApply()" style="padding:6px 14px;font-size:12px;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:9px;cursor:pointer">Apply</button>'
-        + '</div>';
-      document.querySelectorAll('.date-cal').forEach(c => c.innerHTML = html);
+      _cal.render();
     },
     clearAll(){ window.location.href = '<%= basePath %>'; },
     gotoPage(p){ nav({ page: p }, { resetPage: false, keepSelected: true }); },

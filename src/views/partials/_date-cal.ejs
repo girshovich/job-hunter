@@ -1,0 +1,126 @@
+// DS v2 §4 date range — ONE calendar, shared. Extracted from views/jobs.ejs, where it was
+// private to that page's filter module; Admin Stats is the second caller. Adding a range
+// picker means calling JHCal.attach, never writing a second calendar.
+//
+// Include inside a <script> tag. Each caller creates its own instance:
+//
+//   const cal = JHCal.attach({
+//     root:    document.querySelector('.date-cal'),   // where the grid is drawn
+//     from, to,                                       // initial range (ISO, may be null)
+//     maxSpan: 30,                                    // optional cap, in days, inclusive
+//     allowFuture: true,                              // optional: future dates selectable
+//                                                     // (default: they are greyed out)
+//     onApply(from, to) { ... },                      // Apply pressed
+//     onClear()         { ... },                      // Clear pressed
+//   });
+//   cal.render();   // call when the popover opens
+// Assigned to window and guarded, not `const`: this file is included by more than one page,
+// and the job-detail pane re-executes injected <script> tags (PRD §11). A bare `const` would
+// throw "already declared" the first time anyone included this in a re-injected fragment.
+window.JHCal = window.JHCal || (function () {
+  const MN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DAY = 86400000;
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (y, m, d) => y + '-' + pad(m + 1) + '-' + pad(d);
+  const span = (a, b) => (Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / DAY + 1;
+
+  let seq = 0;
+  const instances = {};
+
+  function attach(opts) {
+    const id = 'c' + (++seq);
+    const base = (opts.to || opts.from) ? new Date((opts.to || opts.from) + 'T12:00:00') : new Date();
+    const st = {
+      id,
+      root: opts.root,
+      from: opts.from || null,
+      to: opts.to || null,
+      y: base.getFullYear(),
+      m: base.getMonth(),
+      maxSpan: opts.maxSpan || 0,
+      // Future dates are greyed out everywhere by default — no surface in this app has data
+      // dated ahead of today, so offering one is offering an empty result.
+      maxToday: opts.allowFuture !== true,
+      onApply: opts.onApply || function () {},
+      onClear: opts.onClear || function () {},
+    };
+    instances[id] = st;
+
+    st.day = function (ds) {
+      // A fresh click starts a new range; the second click closes it. With a maxSpan, a second
+      // click beyond the cap starts over from that day rather than silently clamping — the
+      // clamp would look like the calendar ignoring the click.
+      if (!st.from || (st.from && st.to)) { st.from = ds; st.to = null; }
+      else if (ds < st.from) { st.from = ds; }
+      else if (st.maxSpan && span(st.from, ds) > st.maxSpan) { st.from = ds; st.to = null; }
+      else { st.to = ds; }
+      st.render();
+    };
+    st.prev = function () { st.m--; if (st.m < 0) { st.m = 11; st.y--; } st.render(); };
+    st.next = function () { st.m++; if (st.m > 11) { st.m = 0; st.y++; } st.render(); };
+    st.apply = function () { st.onApply(st.from, st.to || st.from); };
+    st.clear = function () { st.from = null; st.to = null; st.onClear(); };
+    st.set = function (from, to) {
+      st.from = from || null; st.to = to || null;
+      const b = (st.to || st.from) ? new Date((st.to || st.from) + 'T12:00:00') : new Date();
+      st.y = b.getFullYear(); st.m = b.getMonth();
+    };
+
+    st.render = function () {
+      if (!st.root) return;
+      const first = new Date(st.y, st.m, 1);
+      const startDow = (first.getDay() + 6) % 7;              // Monday-first
+      const total = new Date(st.y, st.m + 1, 0).getDate();
+      const today = new Date();
+      const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate());
+
+      let cells = '';
+      for (let i = 0; i < startDow; i++) cells += '<div></div>';
+      for (let d = 1; d <= total; d++) {
+        const ds = ymd(st.y, st.m, d);
+        const isEnd = ds === st.from || ds === st.to;
+        const inRange = st.from && st.to && ds > st.from && ds < st.to;
+        // Out of reach: beyond today, or past the span cap while a start is pending.
+        const tooFar = (st.maxToday && ds > todayStr)
+          || (st.maxSpan && st.from && !st.to && ds > st.from && span(st.from, ds) > st.maxSpan);
+        const bg = isEnd ? 'var(--accent)' : inRange ? 'var(--accent-soft)' : 'transparent';
+        const col = isEnd ? '#fff' : tooFar ? 'var(--faintest)' : 'var(--ink)';
+        const click = tooFar ? '' : 'onclick="event.stopPropagation();JHCal.day(\'' + st.id + '\',\'' + ds + '\')"';
+        cells += '<div ' + click + ' style="height:30px;display:grid;place-items:center;border-radius:7px;'
+          + (tooFar ? 'cursor:default;' : 'cursor:pointer;')
+          + 'font-size:12px;font-weight:600;background:' + bg + ';color:' + col + '">' + d + '</div>';
+      }
+      const dows = ['Mo','Tu','We','Th','Fr','Sa','Su'].map((w) =>
+        '<div style="height:22px;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--faintest)">' + w + '</div>').join('');
+      const navBtn = (dir, path) =>
+        '<button type="button" onclick="event.stopPropagation();JHCal.' + dir + '(\'' + st.id + '\')" '
+        + 'style="width:26px;height:26px;display:grid;place-items:center;border:0;background:transparent;border-radius:7px;cursor:pointer;color:var(--muted)">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + path + '"/></svg></button>';
+
+      st.root.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+          + navBtn('prev', 'm15 6-6 6 6 6')
+          + '<span style="font-size:12.5px;font-weight:800;color:var(--ink)">' + MN[st.m] + ' ' + st.y + '</span>'
+          + navBtn('next', 'm9 6 6 6-6 6')
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">' + dows + '</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">' + cells + '</div>'
+        + (st.maxSpan ? '<div style="font-size:11px;color:var(--faintest);font-weight:600;margin-top:9px">Up to ' + st.maxSpan + ' days at a time.</div>' : '')
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
+          + '<button type="button" onclick="event.stopPropagation();JHCal.clear(\'' + st.id + '\')" style="font-size:12px;font-weight:700;color:var(--muted);background:transparent;border:0;cursor:pointer">Clear</button>'
+          + '<button type="button" onclick="event.stopPropagation();JHCal.apply(\'' + st.id + '\')" style="padding:6px 14px;font-size:12px;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:9px;cursor:pointer">Apply</button>'
+        + '</div>';
+    };
+
+    return st;
+  }
+
+  return {
+    attach,
+    day:   (id, ds) => instances[id] && instances[id].day(ds),
+    prev:  (id) => instances[id] && instances[id].prev(),
+    next:  (id) => instances[id] && instances[id].next(),
+    apply: (id) => instances[id] && instances[id].apply(),
+    clear: (id) => instances[id] && instances[id].clear(),
+  };
+})();

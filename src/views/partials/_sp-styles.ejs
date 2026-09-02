@@ -1,0 +1,130 @@
+<!-- Stats kit (DS v2) — the .sp-* namespace, shared by Stats (/analytics) and Admin → Stats.
+     Extracted from views/analytics.ejs so the two surfaces cannot drift. Page-specific rules
+     stay in the page that owns them. -->
+<style>
+  /* ── Stats page (DS v2) — namespaced under .sp- to avoid global collisions ── */
+  .sp-h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+  .sp-date{font-size:13px;color:var(--faint);margin-top:3px;font-weight:600}
+  .sp-card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-card)}
+  .sp-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+  .sp-kpi{padding:20px;text-align:center}
+  .sp-kpi-n{font-size:30px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+  .sp-kpi-l{font-size:12px;color:var(--faint);font-weight:700;margin-top:6px}
+  .sp-kpi-sub{font-size:11px;color:var(--fainter);font-weight:500;margin-top:3px}
+  .sp-pad{padding:22px 24px}
+  .sp-hd{padding:16px 20px 14px;border-bottom:1px solid var(--line)}
+  .sp-title{font-size:14px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+  .sp-sub{font-size:12px;color:var(--faint);margin-top:3px;font-weight:500}
+  .sp-statbar{display:flex;height:36px;border-radius:9px;overflow:hidden;gap:1px;margin-top:18px}
+  .sp-statbar>div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700}
+  .sp-statlegend{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:16px}
+  .sp-statleg{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint);font-weight:500}
+  .sp-statdot{width:12px;height:12px;border-radius:4px;flex:none}
+  .sp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;align-items:start}
+  .sp-tbl{width:100%;border-collapse:collapse}
+  .sp-tbl thead th{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:10px 12px;background:#fafbfc;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+  .sp-tbl thead th.l{text-align:left;padding-left:20px}
+  .sp-tbl tbody td{padding:13px 12px;text-align:center;font-size:13px;border-top:1px solid #f3f4f6;color:var(--muted2)}
+  .sp-tbl tbody td.l{text-align:left;padding-left:20px;font-weight:600;color:var(--ink)}
+  .sp-tbl tbody tr:hover{background:#fafbfc}
+  .sp-t-strong{color:var(--green2);font-weight:700}
+  .sp-t-applied{color:var(--accent);font-weight:700}
+  .sp-rate-wrap{display:inline-flex;align-items:center;gap:8px}
+  .sp-rate-bar{width:60px;height:6px;background:#eef0f4;border-radius:999px;overflow:hidden}
+  .sp-rate-bar>span{display:block;height:100%;background:var(--accent);border-radius:999px}
+  .sp-rate-pct{font-size:12px;color:var(--faint);font-weight:600;width:30px;text-align:right}
+  .sp-empty{padding:40px 20px;text-align:center;font-size:13px;color:var(--fainter)}
+  .sp-clist{list-style:none;margin:0;padding:4px 20px;max-height:206px;overflow-y:auto}
+  .sp-crow{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #f3f4f6}
+  .sp-crow:first-child{border-top:0}
+  .sp-cname{font-size:13px;color:var(--ink2);width:118px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-cbar{flex:1;height:8px;background:#eef0f4;border-radius:999px;overflow:hidden}
+  .sp-cbar>span{display:block;height:100%;background:#34c77b;border-radius:999px}
+  .sp-cval{font-size:13px;font-weight:700;color:var(--ink2);width:22px;text-align:right;flex:none}
+  .sp-capp{font-size:11.5px;color:var(--accent);font-weight:700;width:66px;text-align:right;flex:none}
+  .sp-cmore{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);font-weight:600;cursor:pointer}
+  .sp-cmore:hover{background:#fafbfc;color:var(--muted)}
+  .sp-qlegend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:14px;margin-bottom:16px}
+  /* By Role: table on desktop, utility rows on phones (the 5 columns clip below ~768px) */
+  .sp-roles-mobile{display:none}
+  .sp-rolerow{padding:13px 20px;border-top:1px solid #f3f4f6}
+  .sp-rolerow:first-child{border-top:0}
+  .sp-rolename{font-size:13px;font-weight:700;color:var(--ink);line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .sp-rolemeta{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:5px;font-size:11.5px;font-weight:600;color:var(--faint)}
+  .sp-rolemeta b{font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .sp-rolemeta b.sp-t-strong{color:var(--green2)}
+  .sp-rolemeta b.sp-t-applied{color:var(--accent)}
+  .sp-rolerate{display:flex;align-items:center;gap:8px;margin-top:9px}
+  .sp-rolerate .sp-rate-bar{flex:1;width:auto}
+  @media(max-width:960px){.sp-kpi-grid{grid-template-columns:1fr}.sp-grid2{grid-template-columns:minmax(0,1fr)}}
+  @media(max-width:767px){.sp-roles-desktop{display:none}.sp-roles-mobile{display:block}}
+  /* ── Admin Stats additions ─────────────────────────────────────────────────
+     New to DS v2. Kept in the .sp-* kit so Stats and Admin → Stats share one
+     vocabulary. Colour: nothing here measures match quality, so volume takes the
+     sky family, activation share takes a sequential accent ramp (one hue,
+     monotone lightness — a share is magnitude, not identity), and run outcome
+     takes the status tones, always beside a written label. ── */
+  .sp-heat-0{background:var(--accent-tint);color:var(--ink2)}
+  .sp-heat-1{background:#e2ebff;color:var(--ink2)}
+  .sp-heat-2{background:#c3d5ff;color:var(--ink2)}
+  .sp-heat-3{background:#95b4ff;color:#1b3a86}
+  .sp-heat-4{background:var(--accent);color:#fff}
+  .sp-heat{display:inline-block;min-width:52px;padding:3px 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+  .sp-na{color:var(--faintest);font-weight:700}
+  /* Segmented switch — §3 Secondary fill as the track, active segment on the card. */
+  .sp-seg{display:inline-flex;gap:2px;background:#eef1f6;border-radius:10px;padding:3px}
+  .sp-seg button{border:0;background:none;font:inherit;font-size:12px;font-weight:700;color:var(--muted);padding:6px 15px;border-radius:8px;cursor:pointer}
+  .sp-seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10)}
+  .sp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:18px 0}
+  .sp-rangebtn{display:inline-flex;align-items:center;height:33px;padding:0 11px;background:var(--card);border:1px solid var(--line2);border-radius:9px;font:inherit;font-size:12px;font-weight:700;color:var(--muted);text-decoration:none}
+  .sp-rangebtn.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-border)}
+  .sp-scopes{margin-left:auto;display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--faintest);font-weight:600;line-height:1}
+  .sp-scopes b{color:var(--muted)}
+  /* Scope chip — §5.5 neutral pair: a scope is information, never a verdict. */
+  .sp-chip{display:inline-flex;align-items:center;gap:5px;height:23px;padding:0 9px;border-radius:7px;background:#eef1f6;color:var(--ink2);border:1px solid var(--line2);font-size:11px;font-weight:700}
+  .sp-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:800;border-radius:7px;padding:2px 7px;font-variant-numeric:tabular-nums}
+  .sp-delta.up{background:var(--green-soft);color:var(--green2)}
+  .sp-delta.down{background:var(--red-soft);color:var(--red-ink)}
+  .sp-kpi-4{grid-template-columns:repeat(4,1fr)}
+  /* Cohort grid: table on desktop, one row per day on phones — the same reflow By Role uses,
+     since six columns clip below ~768px. */
+  .sp-cohort-mobile{display:none}
+  @media(max-width:767px){.sp-cohort-desktop{display:none}.sp-cohort-mobile{display:block}}
+  .sp-cday{padding:12px 14px;border-top:1px solid var(--line)}
+  .sp-cday:first-child{border-top:0}
+  .sp-cday-h{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .sp-cday-d{font-size:13px;font-weight:700;color:var(--ink)}
+  .sp-cday-n{margin-left:auto;font-size:12px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
+  .sp-cday-g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .sp-cday-c{text-align:center}
+  .sp-cday-l{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faintest);margin-bottom:4px}
+  .sp-cday-v{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;padding:3px 0;border-radius:7px}
+  .sp-cday-tot{background:#fbfcfe;border-top:1px solid var(--line2)}
+  .sp-chart-empty{padding:26px 0 6px;text-align:center;font-size:13.5px;font-weight:600;color:var(--faint)}
+  .sp-daily-h{font-size:15px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-right:4px}
+  .sp-partial{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--amber-ink);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:999px;padding:1px 6px}
+  .sp-rangebtn svg{flex:none}
+  .sp-breakdowns{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+  @media(max-width:1000px){.sp-breakdowns{grid-template-columns:1fr 1fr}}
+  @media(max-width:700px){.sp-breakdowns{grid-template-columns:1fr}}
+  .sp-kpi-left{padding:18px;text-align:left}
+  .sp-kpi-row{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .sp-kpi-of{font-size:12.5px;font-weight:700;color:var(--faintest);font-variant-numeric:tabular-nums}
+  .sp-act{display:grid;grid-template-columns:repeat(3,1fr)}
+  .sp-actcell{padding:18px 20px;border-right:1px solid var(--line)}
+  .sp-actcell:last-child{border-right:0}
+  .sp-act-l{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .sp-act-n{font-size:27px;font-weight:800;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:7px;color:var(--accent)}
+  .sp-act-n small{font-size:14px;font-weight:700;color:var(--faintest);margin-left:2px}
+  .sp-act-bar{height:7px;border-radius:999px;background:#eef0f4;overflow:hidden;margin-top:10px}
+  .sp-act-bar>span{display:block;height:100%;background:var(--accent);border-radius:999px}
+  .sp-act-sub{font-size:11.5px;color:var(--fainter);font-weight:500;margin-top:8px;line-height:1.45}
+  .sp-note{font-size:11.5px;color:var(--fainter);font-weight:500;padding:12px 20px;border-top:1px solid var(--line);line-height:1.5;margin:0}
+  .sp-note b{color:var(--muted);font-weight:700}
+  .sp-panel-l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .sp-tbl tfoot td{padding:11px 12px;text-align:center;font-size:12.5px;font-weight:800;color:var(--ink);border-top:1px solid var(--line2);background:#fbfcfe;font-variant-numeric:tabular-nums}
+  .sp-tbl tfoot td.l{text-align:left;padding-left:20px}
+  @media(max-width:900px){.sp-act{grid-template-columns:1fr}.sp-actcell{border-right:0;border-bottom:1px solid var(--line)}.sp-actcell:last-child{border-bottom:0}}
+  @media(max-width:1100px){.sp-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.sp-kpi-grid{grid-template-columns:1fr}}
+</style>

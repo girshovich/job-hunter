@@ -2,7 +2,7 @@
 <%- include('partials/_stg-styles') %>
 <div class="adm stg-page">
 
-  <h1 class="stg-h1" style="margin-bottom:20px">Admin: <%= ({ general: 'General', sources: 'Sources', locations: 'Locations' })[adminTab] || 'General' %></h1>
+  <h1 class="stg-h1" style="margin-bottom:20px">Admin: <%= ({ general: 'General', sources: 'Sources', locations: 'Locations', stats: 'Stats' })[adminTab] || 'General' %></h1>
 
   <% if (saved) { %>
   <div class="stg-banner stg-banner-ok">
@@ -14,6 +14,7 @@
   <!-- Tab bar (mobile only — desktop navigates via the sidebar sub-items) -->
   <div class="stg-tabs md:hidden">
     <button id="admin-tab-btn-general" onclick="switchAdminTab('general')" class="stg-tab admin <%= adminTab === 'general' ? 'active' : '' %>">General</button>
+    <a href="/admin?tab=stats" id="admin-tab-btn-stats" class="stg-tab admin <%= adminTab === 'stats' ? 'active' : '' %>" style="text-decoration:none">Stats</a>
     <button id="admin-tab-btn-sources" onclick="switchAdminTab('sources')" class="stg-tab admin <%= adminTab === 'sources' ? 'active' : '' %>">Sources</button>
     <button id="admin-tab-btn-locations" onclick="switchAdminTab('locations')" class="stg-tab admin <%= adminTab === 'locations' ? 'active' : '' %>">Locations</button>
   </div>
@@ -672,6 +673,303 @@
 
   </div><!-- end admin-pane-locations -->
 
+  <!-- ==================== STATS TAB ==================== -->
+  <div id="admin-pane-stats" class="space-y-4 <%= adminTab === 'stats' ? '' : 'hidden' %>">
+  <% if (totals && daily) { %>
+  <%- include('partials/_sp-styles') %>
+  <%
+    function bars(rows, total) {
+      if (!rows.length) return '<li class="sp-crow" style="border:0;color:var(--faintest);font-size:12.5px">Nothing in this range.</li>';
+      return rows.map(function (r) {
+        const pct = total > 0 ? Math.round(r[1] / total * 100) : 0;
+        return '<li class="sp-crow">'
+          + '<span class="sp-cname" style="width:130px">' + escapeHtml(formatSourceName(r[0])) + '</span>'
+          + '<span class="sp-cbar"><span style="width:' + pct + '%;background:var(--sky-ink)"></span></span>'
+          + '<span class="sp-cval">' + r[1].toLocaleString('en-US') + '</span>'
+          + '<span class="sp-capp" style="color:var(--faintest)">' + pct + '%</span>'
+          + '</li>';
+      }).join('');
+    }
+    const srcTotal = daily.bySource.reduce((a, r) => a + r[1], 0);
+    const fmtDay = (iso) => { const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
+  %>
+
+  <!-- ── Totals: all time, no date filter ──────────────────────────────────── -->
+  <div class="sp-kpi-grid sp-kpi-4" style="margin-top:0">
+    <div class="sp-card sp-kpi-left">
+      <div class="sp-kpi-l" style="margin-top:0">Users</div>
+      <div class="sp-kpi-n"><%= totals.users.toLocaleString('en-US') %></div>
+      <div class="sp-kpi-sub">Live non-admin profiles.</div>
+    </div>
+    <div class="sp-card sp-kpi-left">
+      <div class="sp-kpi-l" style="margin-top:0">Own API keys</div>
+      <div class="sp-kpi-row">
+        <div class="sp-kpi-n"><%= totals.ownKeys.toLocaleString('en-US') %></div>
+        <% if (totals.users > 0) { %><span class="sp-kpi-of"><%= Math.round(totals.ownKeys / totals.users * 100) %>%</span><% } %>
+      </div>
+      <div class="sp-kpi-sub">Both keys saved. The rest run on JH credits.</div>
+    </div>
+    <div class="sp-card sp-kpi-left">
+      <div class="sp-kpi-l" style="margin-top:0">Activated</div>
+      <div class="sp-kpi-row">
+        <div class="sp-kpi-n"><%= totals.activated.toLocaleString('en-US') %></div>
+        <% if (totals.users > 0) { %><span class="sp-kpi-of"><%= Math.round(totals.activated / totals.users * 100) %>%</span><% } %>
+      </div>
+      <div class="sp-kpi-sub">Users who ever ran a search.</div>
+    </div>
+    <div class="sp-card sp-kpi-left">
+      <div class="sp-kpi-l" style="margin-top:0">Runs</div>
+      <div class="sp-kpi-n"><%= totals.runs.toLocaleString('en-US') %></div>
+      <div class="sp-kpi-sub">Searches ever run by users.</div>
+    </div>
+  </div>
+
+  <!-- ── Daily ─────────────────────────────────────────────────────────────── -->
+  <div class="sp-bar">
+    <div class="sp-daily-h">Daily</div>
+    <a href="/admin?tab=stats&preset=7d" class="sp-rangebtn <%= daily.days.length === 7 ? 'active' : '' %>">Last 7 days</a>
+    <a href="/admin?tab=stats&preset=30d" class="sp-rangebtn <%= daily.days.length > 7 ? 'active' : '' %>">Last 30 days</a>
+    <div style="position:relative;flex:none">
+      <button type="button" class="sp-rangebtn" id="sp-cal-btn" onclick="spToggleCal(event)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" style="margin-right:6px"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+        <%= fmtDay(daily.from) %> – <%= fmtDay(daily.to) %>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="margin-left:6px"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="sp-cal-menu" style="display:none;position:absolute;top:38px;left:0;z-index:30;background:#fff;border:1px solid #e4e6ec;border-radius:14px;box-shadow:var(--shadow-dropdown);padding:14px">
+        <div class="date-cal sp-cal" style="width:288px"></div>
+      </div>
+    </div>
+    <div class="sp-scopes">
+      <span class="sp-chip" title="Every figure excludes profiles.is_admin = 1. Admin runs are test runs, CV re-scores and the pool crons.">&times; admin accounts</span>
+      <span>days in <b><%= daily.timezone %></b></span>
+    </div>
+  </div>
+
+  <!-- Activation -->
+  <div class="sp-card">
+    <div class="sp-hd">
+      <div>
+        <div class="sp-title">Activation</div>
+        <div class="sp-sub">Of users who signed up on a given day, the share that ran a search that day, the next day, and the day after.</div>
+      </div>
+    </div>
+    <div class="sp-act">
+      <% daily.headline.forEach(function (h, k) { %>
+      <div class="sp-actcell">
+        <div class="sp-act-l">Ran on day <%= k %></div>
+        <div class="sp-act-n"><%= h.pct %><small>%</small></div>
+        <div class="sp-act-bar"><span style="width:<%= h.pct %>%"></span></div>
+        <div class="sp-act-sub"><b style="color:var(--muted);font-weight:700"><%= h.hit %></b> of <%= h.den %> users whose day-<%= k %> window has closed</div>
+      </div>
+      <% }); %>
+    </div>
+    <div class="jh-scroll sp-cohort-desktop">
+      <table class="sp-tbl">
+        <thead><tr><th class="l">Signed up on</th><th>Signed up</th><th>Ran D0</th><th>Ran D1</th><th>Ran D2</th><th>Any of D0–D2</th></tr></thead>
+        <tbody id="sp-cohort-body"></tbody>
+        <tfoot id="sp-cohort-foot"></tfoot>
+      </table>
+    </div>
+    <div class="sp-cohort-mobile" id="sp-cohort-cards"></div>
+    <p class="sp-note">
+      <b>The three days are independent, not a funnel</b> — one user can run on day 0 <em>and</em> day 1, so
+      the columns overlap and do not sum; "Any of D0–D2" counts each user once. A day whose window has not
+      closed shows <span class="sp-na">—</span> and is dropped from the figures above.
+    </p>
+  </div>
+
+  <!-- Runs per day -->
+  <div class="sp-card">
+    <div class="sp-hd"><div><div class="sp-title">Runs per day</div></div></div>
+    <div class="sp-pad">
+      <div id="sp-runs-legend" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:14px"></div>
+      <div class="jh-scroll" style="padding-bottom:4px"><div id="sp-runs-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div>
+    </div>
+  </div>
+
+  <!-- Success rate, log-scaled -->
+  <div class="sp-card">
+    <div class="sp-hd">
+      <div>
+        <div class="sp-title">How often runs finished cleanly</div>
+        <div class="sp-sub">Higher is better. Drawn on a log scale, so 99.5% and 99.7% still look different — a bar that drops is worth opening Run Logs for.</div>
+      </div>
+    </div>
+    <div class="sp-pad">
+      <div id="sp-ok-legend" style="display:none"></div>
+      <div class="jh-scroll" style="padding-bottom:4px"><div id="sp-ok-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div>
+    </div>
+  </div>
+
+  <!-- Job sources -->
+  <div class="sp-card">
+    <div class="sp-hd">
+      <div>
+        <div class="sp-title">Which job boards runs pulled from</div>
+        <div class="sp-sub">One search fetches from every board the user picked, so these add up to more than the number of searches.</div>
+      </div>
+    </div>
+    <div class="sp-pad"><ul class="sp-clist" style="padding:0;max-height:none"><%- bars(daily.bySource, srcTotal) %></ul></div>
+  </div>
+
+  <script>
+  <%- include('partials/_stacked-chart') %>
+  <%- include('partials/_date-cal') %>
+
+  const SP_DAYS = <%- JSON.stringify(daily.days) %>;
+  const SP_FROM = <%- JSON.stringify(daily.from) %>, SP_TO = <%- JSON.stringify(daily.to) %>;
+  const SP_MAXW = <%= maxWindowDays %>;
+  const SP_NINES_CAP = 4;
+
+  // Two series: over time the split an operator acts on is compute spent with nobody present vs.
+  // compute a user asked for. order[0] draws topmost. Nothing here is a verdict, so it takes the
+  // sky family — the secondary deepened one step from --sky-border, too light to read on white.
+  const SP_RUNS_SPEC = {
+    order: ['sch', 'usr'],
+    config: { sch: { label: 'Scheduled', color: 'var(--sky-ink)' }, usr: { label: 'User-started', color: '#5aaed9' } },
+    fmt: v => String(v), tipSuffix: ' runs', colW: 36,
+  };
+
+  // The bar carries "nines" — -log10 of the failure rate — so a move from 99.5% to 99.7% is a
+  // visible step rather than two bars of the same height. fmt inverts it back to a percentage,
+  // and the cap of 4 formats to "100.0%", so a clean day reads as clean.
+  const SP_OK_SPEC = {
+    order: ['ok'],
+    config: { ok: { label: 'Finished cleanly', color: 'var(--green)' } },
+    fmt: v => ((1 - Math.pow(10, -v)) * 100).toFixed(1) + '%',
+    tipSuffix: '', colW: 36,
+  };
+  function spNines(ok, total) {
+    if (!total) return null;
+    const fail = (total - ok) / total;
+    return fail <= 0 ? SP_NINES_CAP : Math.min(SP_NINES_CAP, -Math.log10(fail));
+  }
+
+  const spLabel = d => { const p = d.split('-'); return MN[parseInt(p[1]) - 1] + ' ' + parseInt(p[2]); };
+  const spPct = (n, d) => (d > 0 ? Math.round(n / d * 100) : 0);
+  const spHeat = p => 'sp-heat sp-heat-' + (p >= 55 ? 4 : p >= 40 ? 3 : p >= 25 ? 2 : p >= 12 ? 1 : 0);
+
+  // The shared renderer draws an axis even with nothing above it, which reads as a broken chart
+  // rather than an empty one. Say so in words instead.
+  function spChart(chartId, legendId, raw, periods, labels, spec, emptyMsg) {
+    const el = document.getElementById(chartId);
+    const wrap = el.parentElement;
+    const legend = document.getElementById(legendId);
+    let empty = wrap.parentElement.querySelector('.sp-chart-empty');
+    if (!raw.length) {
+      el.innerHTML = ''; el.style.minWidth = ''; legend.style.display = 'none'; wrap.style.display = 'none';
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.className = 'sp-chart-empty';
+        wrap.parentElement.appendChild(empty);
+      }
+      empty.textContent = emptyMsg;
+      return;
+    }
+    if (empty) empty.remove();
+    legend.style.display = legendId === 'sp-ok-legend' ? 'none' : '';
+    wrap.style.display = '';
+    renderStackedChart(chartId, legendId, raw, periods, k => labels[k], row => row.key, spec);
+  }
+
+  function spRender() {
+    const tot = { nu: 0, d0: 0, d1: 0, d2: 0, any: 0 };
+    document.getElementById('sp-cohort-body').innerHTML = SP_DAYS.map(r => {
+      const cells = [0, 1, 2].map(k => {
+        // Nobody signed up, or the window hasn't closed: there is no rate to state.
+        if (r.nu === 0 || r.mature < k) return '<td><span class="sp-na">—</span></td>';
+        const p = spPct(k === 0 ? r.d0 : k === 1 ? r.d1 : r.d2, r.nu);
+        return '<td><span class="' + spHeat(p) + '">' + p + '%</span></td>';
+      }).join('');
+      if (r.mature >= 2) { tot.nu += r.nu; tot.d0 += r.d0; tot.d1 += r.d1; tot.d2 += r.d2; tot.any += r.any; }
+      return '<tr><td class="l">' + spLabel(r.d)
+        + (r.mature < 2 ? ' <span class="sp-partial">partial</span>' : '')
+        + '</td><td>' + (r.nu || '<span class="sp-na">—</span>') + '</td>' + cells
+        + '<td>' + (r.nu > 0 && r.mature >= 2 ? '<b style="color:var(--ink2)">' + spPct(r.any, r.nu) + '%</b>' : '<span class="sp-na">—</span>') + '</td></tr>';
+    }).join('');
+    // Phones: one card per day. Six columns clip below ~768px, so the same reflow By Role uses.
+    const cellV = (r, k) => (r.nu === 0 || r.mature < k)
+      ? '<div class="sp-cday-v sp-na">—</div>'
+      : '<div class="sp-cday-v ' + spHeat(spPct(k === 0 ? r.d0 : k === 1 ? r.d1 : r.d2, r.nu)) + '">'
+        + spPct(k === 0 ? r.d0 : k === 1 ? r.d1 : r.d2, r.nu) + '%</div>';
+    document.getElementById('sp-cohort-cards').innerHTML = SP_DAYS.map(r =>
+      '<div class="sp-cday"><div class="sp-cday-h">'
+        + '<span class="sp-cday-d">' + spLabel(r.d) + '</span>'
+        + (r.mature < 2 ? '<span class="sp-partial">partial</span>' : '')
+        + '<span class="sp-cday-n">' + (r.nu ? r.nu + ' signed up' : 'no signups') + '</span>'
+      + '</div><div class="sp-cday-g">'
+        + '<div class="sp-cday-c"><div class="sp-cday-l">D0</div>' + cellV(r, 0) + '</div>'
+        + '<div class="sp-cday-c"><div class="sp-cday-l">D1</div>' + cellV(r, 1) + '</div>'
+        + '<div class="sp-cday-c"><div class="sp-cday-l">D2</div>' + cellV(r, 2) + '</div>'
+        + '<div class="sp-cday-c"><div class="sp-cday-l">Any</div>'
+          + (r.nu > 0 && r.mature >= 2
+              ? '<div class="sp-cday-v" style="color:var(--ink2)">' + spPct(r.any, r.nu) + '%</div>'
+              : '<div class="sp-cday-v sp-na">—</div>')
+        + '</div>'
+      + '</div></div>').join('')
+      + '<div class="sp-cday sp-cday-tot"><div class="sp-cday-h">'
+        + '<span class="sp-cday-d">Closed days only</span>'
+        + '<span class="sp-cday-n">' + (tot.nu ? tot.nu + ' signed up' : 'nothing closed yet') + '</span>'
+      + '</div><div class="sp-cday-g">'
+        + [['D0', tot.d0], ['D1', tot.d1], ['D2', tot.d2], ['Any', tot.any]].map(x =>
+            '<div class="sp-cday-c"><div class="sp-cday-l">' + x[0] + '</div><div class="sp-cday-v" style="color:var(--ink2)">'
+            + (tot.nu > 0 ? spPct(x[1], tot.nu) + '%' : '—') + '</div></div>').join('')
+      + '</div></div>';
+
+    const dash = '<span class="sp-na">—</span>';
+    const foot = (n) => (tot.nu > 0 ? spPct(n, tot.nu) + '%' : dash);
+    document.getElementById('sp-cohort-foot').innerHTML =
+      '<tr><td class="l">Closed days only</td><td>' + (tot.nu || dash) + '</td><td>' + foot(tot.d0)
+      + '</td><td>' + foot(tot.d1) + '</td><td>' + foot(tot.d2) + '</td><td>' + foot(tot.any) + '</td></tr>';
+
+    const periods = SP_DAYS.map(r => r.d);
+    const labels = Object.fromEntries(SP_DAYS.map(r => [r.d, spLabel(r.d)]));
+
+    const runsRaw = [];
+    SP_DAYS.forEach(r => {
+      if (r.sch > 0) runsRaw.push({ key: r.d, category: 'sch', count: r.sch });
+      if (r.usr > 0) runsRaw.push({ key: r.d, category: 'usr', count: r.usr });
+    });
+    spChart('sp-runs-chart', 'sp-runs-legend', runsRaw, periods, labels, SP_RUNS_SPEC, 'No runs in this range.');
+
+    // A day with no finished runs has no rate — it draws nothing, not a zero.
+    const okRaw = [];
+    SP_DAYS.forEach(r => { const n = spNines(r.ok, r.runs); if (n !== null) okRaw.push({ key: r.d, category: 'ok', count: n }); });
+    spChart('sp-ok-chart', 'sp-ok-legend', okRaw, periods, labels, SP_OK_SPEC, 'No finished runs in this range.');
+
+    ['sp-runs-chart', 'sp-ok-chart'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement) el.parentElement.scrollLeft = el.parentElement.scrollWidth;
+    });
+  }
+
+  // Range picker — the shared DS §4 calendar, capped to the daily window.
+  let _spCal = null;
+  function spToggleCal(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('sp-cal-menu');
+    const open = menu.style.display === 'block';
+    menu.style.display = open ? 'none' : 'block';
+    if (open) return;
+    if (!_spCal) {
+      _spCal = JHCal.attach({
+        root: menu.querySelector('.date-cal'), from: SP_FROM, to: SP_TO, maxSpan: SP_MAXW,
+        onApply: (f, t) => { const u = new URL(window.location); u.searchParams.set('tab', 'stats'); u.searchParams.delete('preset'); u.searchParams.set('from', f); u.searchParams.set('to', t); window.location.href = u.toString(); },
+        onClear: () => { const u = new URL(window.location); u.searchParams.set('tab', 'stats'); u.searchParams.delete('from'); u.searchParams.delete('to'); u.searchParams.delete('preset'); window.location.href = u.toString(); },
+      });
+    }
+    _spCal.render();
+  }
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('sp-cal-menu');
+    if (menu && !e.target.closest('#sp-cal-menu') && !e.target.closest('#sp-cal-btn')) menu.style.display = 'none';
+  });
+
+  spRender();
+  </script>
+  <% } %>
+  </div><!-- end admin-pane-stats -->
+
 </div><!-- end admin page -->
 
 <script>
@@ -1220,14 +1518,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function switchAdminTab(tab) {
-  ['general', 'sources', 'locations'].forEach(t => {
+  ['general', 'sources', 'locations', 'stats'].forEach(t => {
     const pane = document.getElementById('admin-pane-' + t);
     if (pane) pane.classList.toggle('hidden', t !== tab);
     const btn = document.getElementById('admin-tab-btn-' + t);
     if (btn) btn.classList.toggle('active', t === tab);
   });
   const _h1 = document.querySelector('.stg-h1');
-  if (_h1) _h1.textContent = 'Admin: ' + ({ general: 'General', sources: 'Sources', locations: 'Locations' }[tab] || '');
+  if (_h1) _h1.textContent = 'Admin: ' + ({ general: 'General', sources: 'Sources', locations: 'Locations', stats: 'Stats' }[tab] || '');
   autoGrowTgPrompt();
   const url = new URL(window.location);
   url.searchParams.set('tab', tab);

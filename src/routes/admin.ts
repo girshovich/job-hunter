@@ -1,6 +1,6 @@
 /**
  * Admin Routes — the admin-only control surface, split out of Settings into its own page.
- * General / Sources / Locations tabs render from one route; long-job and CRUD actions
+ * General / Stats / Sources / Locations tabs render from one route; long-job and CRUD actions
  * still post to their existing /api and /settings endpoints.
  */
 
@@ -8,6 +8,7 @@ import { Router, type Request, type Response } from 'express';
 import { getDb, type SettingsRow, type DeletedProfileRow } from '../db';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { getAtsSchedules } from '../pipeline/atsScheduler';
+import { getAdminTotals, getAdminDaily, presetWindow, MAX_WINDOW_DAYS } from './adminStats';
 
 const router = Router();
 
@@ -20,8 +21,25 @@ router.get('/', (req: Request, res: Response) => {
   const db = getDb();
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(req.profile.id) as SettingsRow;
 
-  const validTabs = ['general', 'sources', 'locations'];
+  const validTabs = ['general', 'sources', 'locations', 'stats'];
   const adminTab = validTabs.includes(String(req.query.tab)) ? String(req.query.tab) : 'general';
+
+  // Stats is the only tab whose queries scale with run volume, and this handler serves all four
+  // tabs — so it is computed behind the tab check, never above it. General/Sources/Locations
+  // must not pay for a page they don't render.
+  //
+  // Totals are all-time and carry no date filter; the daily half defaults to the last week and
+  // is capped at MAX_WINDOW_DAYS however it is asked for.
+  const wantsStats = adminTab === 'stats';
+  const totals = wantsStats ? getAdminTotals() : null;
+  const preset = req.query.preset === '30d' ? 30 : req.query.preset === '7d' ? 7 : null;
+  const win = preset ? presetWindow(preset) : presetWindow(7);
+  const daily = wantsStats
+    ? getAdminDaily(
+        preset ? win.from : String(req.query.from || win.from),
+        preset ? win.to : String(req.query.to || win.to),
+      )
+    : null;
 
   // has_own_keys is a storage fact, not a mode: it says both BYO columns are filled, not that the
   // profile runs on them — `use_jh_credits` decides that, and a profile (the admin's typically) can
@@ -57,7 +75,11 @@ router.get('/', (req: Request, res: Response) => {
     deletedProfiles,
     locationCountries: getCanonicalCountries(),
     atsSchedules: getAtsSchedules(),
-    pageMaxWidth: '48rem',
+    totals,
+    daily,
+    maxWindowDays: MAX_WINDOW_DAYS,
+    // A six-column cohort grid does not fit the form column the other tabs use.
+    pageMaxWidth: adminTab === 'stats' ? '70rem' : '48rem',
   });
 });
 

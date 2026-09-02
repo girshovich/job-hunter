@@ -1,61 +1,4 @@
-<style>
-  /* ── Stats page (DS v2) — namespaced under .sp- to avoid global collisions ── */
-  .sp-h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
-  .sp-date{font-size:13px;color:var(--faint);margin-top:3px;font-weight:600}
-  .sp-card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-card)}
-  .sp-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
-  .sp-kpi{padding:20px;text-align:center}
-  .sp-kpi-n{font-size:30px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
-  .sp-kpi-l{font-size:12px;color:var(--faint);font-weight:700;margin-top:6px}
-  .sp-kpi-sub{font-size:11px;color:var(--fainter);font-weight:500;margin-top:3px}
-  .sp-pad{padding:22px 24px}
-  .sp-hd{padding:16px 20px 14px;border-bottom:1px solid var(--line)}
-  .sp-title{font-size:14px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
-  .sp-sub{font-size:12px;color:var(--faint);margin-top:3px;font-weight:500}
-  .sp-statbar{display:flex;height:36px;border-radius:9px;overflow:hidden;gap:1px;margin-top:18px}
-  .sp-statbar>div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700}
-  .sp-statlegend{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:16px}
-  .sp-statleg{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint);font-weight:500}
-  .sp-statdot{width:12px;height:12px;border-radius:4px;flex:none}
-  .sp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;align-items:start}
-  .sp-tbl{width:100%;border-collapse:collapse}
-  .sp-tbl thead th{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:10px 12px;background:#fafbfc;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
-  .sp-tbl thead th.l{text-align:left;padding-left:20px}
-  .sp-tbl tbody td{padding:13px 12px;text-align:center;font-size:13px;border-top:1px solid #f3f4f6;color:var(--muted2)}
-  .sp-tbl tbody td.l{text-align:left;padding-left:20px;font-weight:600;color:var(--ink)}
-  .sp-tbl tbody tr:hover{background:#fafbfc}
-  .sp-t-strong{color:var(--green2);font-weight:700}
-  .sp-t-applied{color:var(--accent);font-weight:700}
-  .sp-rate-wrap{display:inline-flex;align-items:center;gap:8px}
-  .sp-rate-bar{width:60px;height:6px;background:#eef0f4;border-radius:999px;overflow:hidden}
-  .sp-rate-bar>span{display:block;height:100%;background:var(--accent);border-radius:999px}
-  .sp-rate-pct{font-size:12px;color:var(--faint);font-weight:600;width:30px;text-align:right}
-  .sp-empty{padding:40px 20px;text-align:center;font-size:13px;color:var(--fainter)}
-  .sp-clist{list-style:none;margin:0;padding:4px 20px;max-height:206px;overflow-y:auto}
-  .sp-crow{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #f3f4f6}
-  .sp-crow:first-child{border-top:0}
-  .sp-cname{font-size:13px;color:var(--ink2);width:118px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .sp-cbar{flex:1;height:8px;background:#eef0f4;border-radius:999px;overflow:hidden}
-  .sp-cbar>span{display:block;height:100%;background:#34c77b;border-radius:999px}
-  .sp-cval{font-size:13px;font-weight:700;color:var(--ink2);width:22px;text-align:right;flex:none}
-  .sp-capp{font-size:11.5px;color:var(--accent);font-weight:700;width:66px;text-align:right;flex:none}
-  .sp-cmore{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);font-weight:600;cursor:pointer}
-  .sp-cmore:hover{background:#fafbfc;color:var(--muted)}
-  .sp-qlegend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:14px;margin-bottom:16px}
-  /* By Role: table on desktop, utility rows on phones (the 5 columns clip below ~768px) */
-  .sp-roles-mobile{display:none}
-  .sp-rolerow{padding:13px 20px;border-top:1px solid #f3f4f6}
-  .sp-rolerow:first-child{border-top:0}
-  .sp-rolename{font-size:13px;font-weight:700;color:var(--ink);line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-  .sp-rolemeta{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:5px;font-size:11.5px;font-weight:600;color:var(--faint)}
-  .sp-rolemeta b{font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
-  .sp-rolemeta b.sp-t-strong{color:var(--green2)}
-  .sp-rolemeta b.sp-t-applied{color:var(--accent)}
-  .sp-rolerate{display:flex;align-items:center;gap:8px;margin-top:9px}
-  .sp-rolerate .sp-rate-bar{flex:1;width:auto}
-  @media(max-width:960px){.sp-kpi-grid{grid-template-columns:1fr}.sp-grid2{grid-template-columns:minmax(0,1fr)}}
-  @media(max-width:767px){.sp-roles-desktop{display:none}.sp-roles-mobile{display:block}}
-</style>
+<%- include('partials/_sp-styles') %>
 
 <!-- Stats page -->
 <div>
@@ -252,48 +195,8 @@ const QUALITY_MONTHLY_RAW = <%- JSON.stringify(strongQualityMonthlyRaw) %>;
 const COST_RAW            = <%- JSON.stringify(dailyCostRaw) %>;
 const COST_DAYS           = <%- JSON.stringify(costDays) %>;
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
-const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function getLastNDays(n) {
-  const out = [];
-  const now = new Date();
-  for (let i = n-1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i);
-    out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
-  }
-  return out;
-}
-function getLastNMonths(n) {
-  const out = [];
-  const now = new Date();
-  for (let i = n-1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-    out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
-  }
-  return out;
-}
+<%- include('partials/_stacked-chart') %>
 
-// ── Tooltip ───────────────────────────────────────────────────────────────────
-let _tip = null;
-function _ensureTip() {
-  if (_tip) return;
-  _tip = document.createElement('div');
-  _tip.style.cssText = 'position:fixed;z-index:9999;background:#111827;color:#f9fafb;padding:8px 12px;border-radius:8px;font-size:12px;pointer-events:none;line-height:1.7;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.35);display:none;';
-  document.body.appendChild(_tip);
-}
-function _moveTip(e) {
-  if (!_tip || _tip.style.display === 'none') return;
-  const w = _tip.offsetWidth, h = _tip.offsetHeight;
-  let x = e.clientX + 14, y = e.clientY - h - 10;
-  if (x + w > window.innerWidth - 8) x = e.clientX - w - 14;
-  if (y < 8) y = e.clientY + 14;
-  _tip.style.left = x + 'px'; _tip.style.top = y + 'px';
-}
-function hideTip() { if (_tip) _tip.style.display = 'none'; }
-document.addEventListener('mousemove', _moveTip);
-
-// ── Stacked chart shared renderer (quality daily/monthly, costs daily) ────────
-// A spec supplies the categories, how a value is written, and the tooltip suffix.
 const QUALITY_SPEC = {
   order:  ['kept', 'promoted', 'demoted'],
   config: {
@@ -316,69 +219,6 @@ const COST_SPEC = {
   tipSuffix: '',
   colW: 46,   // a "$0.302" label needs more room than a count before it collides when scrolled
 };
-
-function renderStackedChart(containerId, legendId, rawData, periods, getLabel, getKey, spec) {
-  const ORDER = spec.order, CFG = spec.config;
-  const dataMap = {};
-  for (const p of periods) { dataMap[p] = {}; ORDER.forEach(c => { dataMap[p][c] = 0; }); }
-  for (const row of rawData) {
-    const key = getKey(row);
-    if (dataMap[key] !== undefined && CFG[row.category]) {
-      dataMap[key][row.category] += row.count;
-    }
-  }
-
-  const BAR_H = 96;
-  const rawMax = Math.max(...periods.map(p => ORDER.reduce((s,c) => s + dataMap[p][c], 0)));
-  // Guard division by zero only — a fixed floor of 1 would scale dollar bars against $1.00.
-  const maxTotal = rawMax > 0 ? rawMax : 1;
-
-  const container = document.getElementById(containerId);
-  container.style.height = (BAR_H + 46) + 'px';
-  container.style.minWidth = (periods.length * spec.colW + (periods.length - 1) * 6) + 'px';
-  container.innerHTML = periods.map(p => {
-    const cats = dataMap[p];
-    const total = ORDER.reduce((s,c) => s + cats[c], 0);
-    const totalH = total > 0 ? Math.max(Math.round(total / maxTotal * BAR_H), 4) : 0;
-    let segs = '', remaining = totalH;
-    const present = ORDER.filter(c => cats[c] > 0);
-    for (let i = 0; i < present.length; i++) {
-      const c = present[i];
-      const segH = i === present.length - 1 ? remaining : Math.round(cats[c] / total * totalH);
-      remaining -= segH;
-      segs += `<div style="width:100%;height:${segH}px;background:${CFG[c].color};flex-shrink:0;"></div>`;
-    }
-    const tipLines = ORDER.filter(c => cats[c] > 0).map(c =>
-      `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CFG[c].color};margin-right:5px;vertical-align:middle;"></span>${CFG[c].label}: <b>${spec.fmt(cats[c])}</b>`
-    ).join('<br>');
-    const label = getLabel(p);
-    const tipData = JSON.stringify({ label, totalText: spec.fmt(total) + spec.tipSuffix, lines: tipLines });
-    const safeData = tipData.replace(/"/g,'&quot;');
-    return `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:30px;">
-      <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;cursor:default;"
-           data-qtip="${safeData}" onmouseenter="showQTip(event,this)" onmouseleave="hideTip()">
-        <div style="width:100%;height:${totalH}px;display:flex;flex-direction:column;border-radius:2px 2px 0 0;overflow:hidden;">${segs}</div>
-        ${total > 0 ? `<span style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${spec.fmt(total)}</span>` : ''}
-      </div>
-      <span style="font-size:10px;color:#6b7280;text-align:center;display:block;position:absolute;bottom:0;left:0;right:0;">${label}</span>
-    </div>`;
-  }).join('');
-
-  document.getElementById(legendId).innerHTML = ORDER.map(c =>
-    `<div style="display:flex;align-items:center;gap:4px;">
-       <div style="width:10px;height:10px;border-radius:2px;background:${CFG[c].color};flex-shrink:0;"></div>
-       <span style="font-size:11px;color:#6b7280;">${CFG[c].label}</span>
-     </div>`
-  ).join('');
-}
-
-function showQTip(e, el) {
-  _ensureTip();
-  const d = JSON.parse(el.dataset.qtip);
-  _tip.innerHTML = `<div style="font-weight:700;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:4px;">${d.label} &mdash; ${d.totalText}</div>${d.lines}`;
-  _tip.style.display = 'block';
-  _moveTip(e);
-}
 
 
 renderStackedChart(

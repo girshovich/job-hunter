@@ -1,0 +1,114 @@
+// DS v2 §6.1: ONE stacked-bar renderer, spec-driven. Adding a chart means adding a spec
+// (order · config · fmt · tipSuffix · colW) and calling renderStackedChart — never writing a
+// second renderer. Extracted from views/analytics.ejs; consumed by Stats and Admin → Stats.
+// This partial is included INSIDE a <script> tag, so its comments must be JS, not HTML.
+//
+// Everything at top level uses `var`, not `const`/`let`, and the shared listener is registered
+// once. The job-detail pane re-executes injected <script> tags (PRD §11), so a `const` here
+// would throw "already declared" the first time anyone included this file in that fragment.
+// `var` and `function` re-declare harmlessly; state is preserved rather than reset.
+// ── Shared helpers ────────────────────────────────────────────────────────────
+var MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function getLastNDays(n) {
+  const out = [];
+  const now = new Date();
+  for (let i = n-1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i);
+    out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+  }
+  return out;
+}
+function getLastNMonths(n) {
+  const out = [];
+  const now = new Date();
+  for (let i = n-1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+  }
+  return out;
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+var _tip = _tip || null;
+function _ensureTip() {
+  if (_tip) return;
+  _tip = document.createElement('div');
+  _tip.style.cssText = 'position:fixed;z-index:9999;background:#111827;color:#f9fafb;padding:8px 12px;border-radius:8px;font-size:12px;pointer-events:none;line-height:1.7;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.35);display:none;';
+  document.body.appendChild(_tip);
+}
+function _moveTip(e) {
+  if (!_tip || _tip.style.display === 'none') return;
+  const w = _tip.offsetWidth, h = _tip.offsetHeight;
+  let x = e.clientX + 14, y = e.clientY - h - 10;
+  if (x + w > window.innerWidth - 8) x = e.clientX - w - 14;
+  if (y < 8) y = e.clientY + 14;
+  _tip.style.left = x + 'px'; _tip.style.top = y + 'px';
+}
+function hideTip() { if (_tip) _tip.style.display = 'none'; }
+if (!window.__jhTipMove) { window.__jhTipMove = true; document.addEventListener('mousemove', _moveTip); }
+
+// ── Stacked chart shared renderer ─────────────────────────────────────────────
+// A spec supplies the categories, how a value is written, and the tooltip suffix.
+// The specs themselves live in the page that owns the chart.
+function renderStackedChart(containerId, legendId, rawData, periods, getLabel, getKey, spec) {
+  const ORDER = spec.order, CFG = spec.config;
+  const dataMap = {};
+  for (const p of periods) { dataMap[p] = {}; ORDER.forEach(c => { dataMap[p][c] = 0; }); }
+  for (const row of rawData) {
+    const key = getKey(row);
+    if (dataMap[key] !== undefined && CFG[row.category]) {
+      dataMap[key][row.category] += row.count;
+    }
+  }
+
+  const BAR_H = 96;
+  const rawMax = Math.max(...periods.map(p => ORDER.reduce((s,c) => s + dataMap[p][c], 0)));
+  // Guard division by zero only — a fixed floor of 1 would scale dollar bars against $1.00.
+  const maxTotal = rawMax > 0 ? rawMax : 1;
+
+  const container = document.getElementById(containerId);
+  container.style.height = (BAR_H + 46) + 'px';
+  container.style.minWidth = (periods.length * spec.colW + (periods.length - 1) * 6) + 'px';
+  container.innerHTML = periods.map(p => {
+    const cats = dataMap[p];
+    const total = ORDER.reduce((s,c) => s + cats[c], 0);
+    const totalH = total > 0 ? Math.max(Math.round(total / maxTotal * BAR_H), 4) : 0;
+    let segs = '', remaining = totalH;
+    const present = ORDER.filter(c => cats[c] > 0);
+    for (let i = 0; i < present.length; i++) {
+      const c = present[i];
+      const segH = i === present.length - 1 ? remaining : Math.round(cats[c] / total * totalH);
+      remaining -= segH;
+      segs += `<div style="width:100%;height:${segH}px;background:${CFG[c].color};flex-shrink:0;"></div>`;
+    }
+    const tipLines = ORDER.filter(c => cats[c] > 0).map(c =>
+      `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CFG[c].color};margin-right:5px;vertical-align:middle;"></span>${CFG[c].label}: <b>${spec.fmt(cats[c])}</b>`
+    ).join('<br>');
+    const label = getLabel(p);
+    const tipData = JSON.stringify({ label, totalText: spec.fmt(total) + spec.tipSuffix, lines: tipLines });
+    const safeData = tipData.replace(/"/g,'&quot;');
+    return `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:30px;">
+      <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;cursor:default;"
+           data-qtip="${safeData}" onmouseenter="showQTip(event,this)" onmouseleave="hideTip()">
+        <div style="width:100%;height:${totalH}px;display:flex;flex-direction:column;border-radius:2px 2px 0 0;overflow:hidden;">${segs}</div>
+        ${total > 0 ? `<span style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${spec.fmt(total)}</span>` : ''}
+      </div>
+      <span style="font-size:10px;color:#6b7280;text-align:center;display:block;position:absolute;bottom:0;left:0;right:0;">${label}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById(legendId).innerHTML = ORDER.map(c =>
+    `<div style="display:flex;align-items:center;gap:4px;">
+       <div style="width:10px;height:10px;border-radius:2px;background:${CFG[c].color};flex-shrink:0;"></div>
+       <span style="font-size:11px;color:#6b7280;">${CFG[c].label}</span>
+     </div>`
+  ).join('');
+}
+
+function showQTip(e, el) {
+  _ensureTip();
+  const d = JSON.parse(el.dataset.qtip);
+  _tip.innerHTML = `<div style="font-weight:700;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:4px;">${d.label} &mdash; ${d.totalText}</div>${d.lines}`;
+  _tip.style.display = 'block';
+  _moveTip(e);
+}

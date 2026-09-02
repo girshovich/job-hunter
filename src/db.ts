@@ -2230,6 +2230,27 @@ The full post text is stored as the job description — do not repeat or summari
     console.warn('[db] Migration v_gpt56_models failed (non-fatal):', (err as Error).message);
   }
 
+  // v_admin_stats_index: composite (profile_id, ran_at) for Admin → Stats. The table already
+  // carries idx_runs_profile and idx_runs_ran_at separately, which makes SQLite pick one and
+  // scan the rest; the cohort join filters on both at once. Index only — no data is rewritten.
+  //
+  // There is deliberately NO index on profiles.created_at. The column holds two formats —
+  // `2026-05-09 15:33:47` (the SQLite datetime('now') default) and `2026-08-05T20:20:22.248Z`
+  // (ISO, written by app code) — and a space sorts before 'T', so a raw string range scan
+  // silently drops same-day rows in the older format. Admin Stats reads profiles with a
+  // date()-normalised filter and buckets in JS; a full scan of a small table is the correct
+  // shape here, and an index would only invite an unsafe comparison later.
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_admin_stats_index'`).get();
+    if (!done) {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_profile_ran_at ON search_runs(profile_id, ran_at)`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_admin_stats_index')`);
+      console.log('[db] Migration v_admin_stats_index: created idx_runs_profile_ran_at');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_admin_stats_index failed (non-fatal):', (err as Error).message);
+  }
+
   // v_otp_new_account: flags a code as sent to an address that had no profile at send time, feeding
   // the new-account send cap in routes/auth.ts. Stamped on insert rather than derived later — sign-up
   // creates the profile on verify, so a retroactive join against `profiles` would stop counting a
