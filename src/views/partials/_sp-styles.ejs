@@ -71,10 +71,6 @@
   .sp-heat-4{background:var(--accent);color:#fff}
   .sp-heat{display:inline-block;min-width:52px;padding:3px 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
   .sp-na{color:var(--faintest);font-weight:700}
-  /* Segmented switch — §3 Secondary fill as the track, active segment on the card. */
-  .sp-seg{display:inline-flex;gap:2px;background:#eef1f6;border-radius:10px;padding:3px}
-  .sp-seg button{border:0;background:none;font:inherit;font-size:12px;font-weight:700;color:var(--muted);padding:6px 15px;border-radius:8px;cursor:pointer}
-  .sp-seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10)}
   .sp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:18px 0}
   .sp-rangebtn{display:inline-flex;align-items:center;height:33px;padding:0 11px;background:var(--card);border:1px solid var(--line2);border-radius:9px;font:inherit;font-size:12px;font-weight:700;color:var(--muted);text-decoration:none}
   .sp-rangebtn.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-border)}
@@ -82,9 +78,6 @@
   .sp-scopes b{color:var(--muted)}
   /* Scope chip — §5.5 neutral pair: a scope is information, never a verdict. */
   .sp-chip{display:inline-flex;align-items:center;gap:5px;height:23px;padding:0 9px;border-radius:7px;background:#eef1f6;color:var(--ink2);border:1px solid var(--line2);font-size:11px;font-weight:700}
-  .sp-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:800;border-radius:7px;padding:2px 7px;font-variant-numeric:tabular-nums}
-  .sp-delta.up{background:var(--green-soft);color:var(--green2)}
-  .sp-delta.down{background:var(--red-soft);color:var(--red-ink)}
   .sp-kpi-4{grid-template-columns:repeat(4,1fr)}
   /* Cohort grid: table on desktop, one row per day on phones — the same reflow By Role uses,
      since six columns clip below ~768px. */
@@ -165,9 +158,6 @@
   .sp-daily-h{font-size:15px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-right:4px}
   .sp-partial{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--amber-ink);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:999px;padding:1px 6px}
   .sp-rangebtn svg{flex:none}
-  .sp-breakdowns{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
-  @media(max-width:1000px){.sp-breakdowns{grid-template-columns:1fr 1fr}}
-  @media(max-width:700px){.sp-breakdowns{grid-template-columns:1fr}}
   .sp-kpi-left{padding:18px;text-align:left}
   .sp-kpi-row{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
   .sp-kpi-of{font-size:12.5px;font-weight:700;color:var(--faintest);font-variant-numeric:tabular-nums}
@@ -182,7 +172,6 @@
   .sp-act-sub{font-size:11.5px;color:var(--fainter);font-weight:500;margin-top:8px;line-height:1.45}
   .sp-note{font-size:11.5px;color:var(--fainter);font-weight:500;padding:12px 20px;border-top:1px solid var(--line);line-height:1.5;margin:0}
   .sp-note b{color:var(--muted);font-weight:700}
-  .sp-panel-l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
   .sp-tbl tfoot td{padding:11px 12px;text-align:center;font-size:12.5px;font-weight:800;color:var(--ink);border-top:1px solid var(--line2);background:#fbfcfe;font-variant-numeric:tabular-nums}
   .sp-tbl tfoot td.l{text-align:left;padding-left:20px}
   @media(max-width:900px){.sp-act{grid-template-columns:1fr}.sp-actcell{border-right:0;border-bottom:1px solid var(--line)}.sp-actcell:last-child{border-bottom:0}}
