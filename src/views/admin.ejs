@@ -761,7 +761,7 @@
   <div class="sp-card">
     <div class="sp-hd">
       <div>
-        <div class="sp-title">How often runs finished cleanly</div>
+        <div class="sp-title">Runs success rate</div>
         <div class="sp-sub">Higher is better. Drawn on a log scale, so 99.5% and 99.7% still look different — a bar that drops is worth opening Run Logs for.</div>
       </div>
     </div>
@@ -775,7 +775,7 @@
   <div class="sp-card">
     <div class="sp-hd">
       <div>
-        <div class="sp-title">Which job boards runs pulled from</div>
+        <div class="sp-title">Run sources</div>
         <div class="sp-sub">One search fetches from every board the user picked, so these add up to more than the number of searches.</div>
       </div>
     </div>
@@ -801,6 +801,20 @@
           <% }); %>
         </div>
       <% } %>
+    </div>
+  </div>
+
+  <!-- When runs start -->
+  <div class="sp-card">
+    <div class="sp-hd">
+      <div>
+        <div class="sp-title">When runs start</div>
+        <div class="sp-sub">Every run in the range, by hour of the day in <%= daily.timezone %>. Scheduled runs cluster at whatever hours users picked.</div>
+      </div>
+    </div>
+    <div class="sp-pad">
+      <div id="sp-hour-legend" style="display:none"></div>
+      <div class="jh-scroll" style="padding-bottom:4px"><div id="sp-hour-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div>
     </div>
   </div>
 
@@ -842,6 +856,7 @@
   <%- include('partials/_date-cal') %>
 
   const SP_DAYS = <%- JSON.stringify(daily.days) %>;
+  const SP_HOURS = <%- JSON.stringify(daily.byHour) %>;
   const SP_FROM = <%- JSON.stringify(daily.from) %>, SP_TO = <%- JSON.stringify(daily.to) %>;
   const SP_MAXW = <%= maxWindowDays %>;
   const SP_NINES_CAP = 4;
@@ -870,6 +885,12 @@
     return fail <= 0 ? SP_NINES_CAP : Math.min(SP_NINES_CAP, -Math.log10(fail));
   }
 
+  const SP_HOUR_SPEC = {
+    order: ['n'],
+    config: { n: { label: 'Runs', color: 'var(--sky-ink)' } },
+    fmt: v => String(v), tipSuffix: ' runs', colW: 34,
+  };
+
   const spLabel = d => { const p = d.split('-'); return MN[parseInt(p[1]) - 1] + ' ' + parseInt(p[2]); };
   const spPct = (n, d) => (d > 0 ? Math.round(n / d * 100) : 0);
   const spHeat = p => 'sp-heat sp-heat-' + (p >= 55 ? 4 : p >= 40 ? 3 : p >= 25 ? 2 : p >= 12 ? 1 : 0);
@@ -892,7 +913,8 @@
       return;
     }
     if (empty) empty.remove();
-    legend.style.display = legendId === 'sp-ok-legend' ? 'none' : '';
+    // One series needs no legend — the card title names it.
+    legend.style.display = spec.order.length > 1 ? '' : 'none';
     wrap.style.display = '';
     renderStackedChart(chartId, legendId, raw, periods, k => labels[k], row => row.key, spec);
   }
@@ -961,6 +983,14 @@
     const okRaw = [];
     SP_DAYS.forEach(r => { const n = spNines(r.ok, r.runs); if (n !== null) okRaw.push({ key: r.d, category: 'ok', count: n }); });
     spChart('sp-ok-chart', 'sp-ok-legend', okRaw, periods, labels, SP_OK_SPEC, 'No finished runs in this range.');
+
+    // Start-time distribution: 24 fixed columns. An hour with no runs draws nothing but keeps
+    // its axis label, so the shape of the day stays readable.
+    const hourKeys = SP_HOURS.map((_, h) => String(h).padStart(2, '0'));
+    const hourRaw = [];
+    SP_HOURS.forEach((n, h) => { if (n > 0) hourRaw.push({ key: hourKeys[h], category: 'n', count: n }); });
+    spChart('sp-hour-chart', 'sp-hour-legend', hourRaw, hourKeys,
+      Object.fromEntries(hourKeys.map(k => [k, k])), SP_HOUR_SPEC, 'No runs in this range.');
 
     ['sp-runs-chart', 'sp-ok-chart'].forEach(id => {
       const el = document.getElementById(id);

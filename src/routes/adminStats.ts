@@ -58,6 +58,7 @@ export interface AdminDaily {
   days: StatsDay[];
   headline: { hit: number; den: number; pct: number }[];   // index 0/1/2 = day 0/1/2
   bySource: [string, number][];
+  byHour: number[];                                        // 24 entries, admin-local hour
 }
 
 /** `profiles.created_at` holds two formats: ISO-Z from app code, and the SQLite
@@ -69,7 +70,7 @@ function parseStamp(s: string): Date {
   return new Date(t.replace(' ', 'T') + 'Z');
 }
 
-interface RunGroup { d: string; trigger: string; job_source: string | null; status: string; c: number }
+interface RunGroup { d: string; trigger: string; job_source: string | null; status: string; c: number; h?: number }
 
 /** Minutes a timezone runs ahead of UTC on a given day. */
 function offsetMinutes(tz: string, day: string): number {
@@ -222,8 +223,32 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
           AND date(r.ran_at) <= date(?, '+1 day')
       `).all(from, to).map((r) => {
         const row = r as RunGroup;
-        return { ...row, d: dayKey(parseStamp(row.d)) };
+        const at = parseStamp(row.d);
+        return {
+          ...row,
+          d: dayKey(at),
+          h: Number(at.toLocaleString('en-GB', { timeZone: timezone, hour: '2-digit', hour12: false })),
+        };
       }) as RunGroup[];
+
+  // Start-time distribution. Grouped by hour ONLY, so the result is at most 24 rows however
+  // many runs are in the window — the cost is one more scan of rows already being read, not
+  // anything that grows with volume. Same admin-local shift as the day buckets.
+  const byHour = new Array<number>(24).fill(0);
+  if (shift !== null) {
+    const rows = db.prepare(`
+      SELECT CAST(strftime('%H', datetime(r.ran_at, ?)) AS INTEGER) AS h, COUNT(*) AS c
+      FROM search_runs r JOIN profiles p ON p.id = r.profile_id
+      WHERE p.is_admin = 0 AND r.trigger != 'cv'
+        AND date(r.ran_at) >= date(?, '-1 day')
+        AND date(r.ran_at) <= date(?, '+1 day')
+      GROUP BY 1
+    `).all(`${shift >= 0 ? '+' : '-'}${Math.abs(shift)} minutes`, from, to) as { h: number; c: number }[];
+    for (const r of rows) if (r.h >= 0 && r.h < 24) byHour[r.h] += r.c;
+  } else {
+    // DST fallback: the hour came through on each row instead.
+    for (const r of runs) if (r.h !== undefined && r.h >= 0 && r.h < 24) byHour[r.h] += r.c;
+  }
 
   const byDay = new Map<string, StatsDay>();
   for (const d of days) {
@@ -276,5 +301,6 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
     days: days.map((d) => byDay.get(d)!),
     headline,
     bySource: [...src.entries()].sort((a, b) => b[1] - a[1]),
+    byHour,
   };
 }
