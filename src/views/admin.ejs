@@ -678,23 +678,26 @@
   <% if (totals && daily) { %>
   <%- include('partials/_sp-styles') %>
   <%
-    function bars(rows, total) {
-      if (!rows.length) return '<li class="sp-crow" style="border:0;color:var(--faintest);font-size:12.5px">Nothing in this range.</li>';
-      return rows.map(function (r) {
-        const pct = total > 0 ? Math.round(r[1] / total * 100) : 0;
-        return '<li class="sp-crow">'
-          + '<span class="sp-cname" style="width:130px">' + escapeHtml(formatSourceName(r[0])) + '</span>'
-          + '<span class="sp-cbar"><span style="width:' + pct + '%;background:var(--sky-ink)"></span></span>'
-          + '<span class="sp-cval">' + r[1].toLocaleString('en-US') + '</span>'
-          + '<span class="sp-capp" style="color:var(--faintest)">' + pct + '%</span>'
-          + '</li>';
-      }).join('');
+    // Colour per provider, fixed — never by rank, so the bar does not repaint when the order of
+    // sizes changes between ranges. Validated as a 7-slot categorical palette.
+    const SOURCE_FILL = {
+      LinkedIn: '#1d64d8', Greenhouse: '#178049', Ashby: '#6941c6', Lever: '#c2410c',
+      Indeed: '#0891b2', StepStone: '#a16207', Telegram: '#9f1239',
+    };
+    const SOURCE_ORDER = ['LinkedIn', 'Indeed', 'Greenhouse', 'Ashby', 'Lever', 'StepStone', 'Telegram'];
+    const fillFor = (name) => SOURCE_FILL[name] || '#475467';
+    function sourceOrder(rows) {
+      const seen = new Map(rows.map((r) => [formatSourceName(r[0]), r[1]]));
+      const known = SOURCE_ORDER.filter((n) => seen.has(n)).map((n) => [n, seen.get(n)]);
+      const rest = [...seen.entries()].filter(([n]) => !SOURCE_ORDER.includes(n));
+      return known.concat(rest);
     }
     const srcTotal = daily.bySource.reduce((a, r) => a + r[1], 0);
     const fmtDay = (iso) => { const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
   %>
 
   <!-- ── Totals: all time, no date filter ──────────────────────────────────── -->
+  <div class="sp-bar" style="margin:0 0 4px"><span class="sp-daily-h">All-time</span></div>
   <div class="sp-kpi-grid sp-kpi-4" style="margin-top:0">
     <div class="sp-card sp-kpi-left">
       <div class="sp-kpi-l" style="margin-top:0">Users</div>
@@ -745,39 +748,6 @@
     </div>
   </div>
 
-  <!-- Activation -->
-  <div class="sp-card">
-    <div class="sp-hd">
-      <div>
-        <div class="sp-title">Activation</div>
-        <div class="sp-sub">Of users who signed up on a given day, the share that ran a search that day, the next day, and the day after.</div>
-      </div>
-    </div>
-    <div class="sp-act">
-      <% daily.headline.forEach(function (h, k) { %>
-      <div class="sp-actcell">
-        <div class="sp-act-l">Ran on day <%= k %></div>
-        <div class="sp-act-n"><%= h.pct %><small>%</small></div>
-        <div class="sp-act-bar"><span style="width:<%= h.pct %>%"></span></div>
-        <div class="sp-act-sub"><b style="color:var(--muted);font-weight:700"><%= h.hit %></b> of <%= h.den %> users whose day-<%= k %> window has closed</div>
-      </div>
-      <% }); %>
-    </div>
-    <div class="jh-scroll sp-cohort-desktop">
-      <table class="sp-tbl">
-        <thead><tr><th class="l">Signed up on</th><th>Signed up</th><th>Ran D0</th><th>Ran D1</th><th>Ran D2</th><th>Any of D0–D2</th></tr></thead>
-        <tbody id="sp-cohort-body"></tbody>
-        <tfoot id="sp-cohort-foot"></tfoot>
-      </table>
-    </div>
-    <div class="sp-cohort-mobile" id="sp-cohort-cards"></div>
-    <p class="sp-note">
-      <b>The three days are independent, not a funnel</b> — one user can run on day 0 <em>and</em> day 1, so
-      the columns overlap and do not sum; "Any of D0–D2" counts each user once. A day whose window has not
-      closed shows <span class="sp-na">—</span> and is dropped from the figures above.
-    </p>
-  </div>
-
   <!-- Runs per day -->
   <div class="sp-card">
     <div class="sp-hd"><div><div class="sp-title">Runs per day</div></div></div>
@@ -809,7 +779,62 @@
         <div class="sp-sub">One search fetches from every board the user picked, so these add up to more than the number of searches.</div>
       </div>
     </div>
-    <div class="sp-pad"><ul class="sp-clist" style="padding:0;max-height:none"><%- bars(daily.bySource, srcTotal) %></ul></div>
+    <div class="sp-pad">
+      <% const srcRows = sourceOrder(daily.bySource); %>
+      <% if (!srcRows.length) { %>
+        <div class="sp-chart-empty">No runs in this range.</div>
+      <% } else { %>
+        <div class="sp-stack">
+          <% srcRows.forEach(function (r) { %>
+          <span style="flex:<%= r[1] %> 0 auto;background:<%= fillFor(r[0]) %>"
+                title="<%= r[0] %> — <%= r[1].toLocaleString('en-US') %> runs"></span>
+          <% }); %>
+        </div>
+        <div class="sp-stack-legend">
+          <% srcRows.forEach(function (r) { %>
+          <span class="sp-slg">
+            <span class="sp-slg-dot" style="background:<%= fillFor(r[0]) %>"></span>
+            <%= r[0] %>
+            <span class="sp-slg-n"><%= r[1].toLocaleString('en-US') %></span>
+            <span class="sp-slg-p"><%= srcTotal > 0 ? Math.round(r[1] / srcTotal * 100) : 0 %>%</span>
+          </span>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Activation -->
+  <div class="sp-card">
+    <div class="sp-hd">
+      <div>
+        <div class="sp-title">New Activation</div>
+        <div class="sp-sub">Of users who signed up on a given day, the share that ran a search that day, the next day, and the day after.</div>
+      </div>
+    </div>
+    <div class="sp-act">
+      <% daily.headline.forEach(function (h, k) { %>
+      <div class="sp-actcell">
+        <div class="sp-act-l">Ran on day <%= k %></div>
+        <div class="sp-act-n"><%= h.pct %><small>%</small></div>
+        <div class="sp-act-bar"><span style="width:<%= h.pct %>%"></span></div>
+        <div class="sp-act-sub"><b style="color:var(--muted);font-weight:700"><%= h.hit %></b> of <%= h.den %> users whose day-<%= k %> window has closed</div>
+      </div>
+      <% }); %>
+    </div>
+    <div class="jh-scroll sp-cohort-desktop">
+      <table class="sp-tbl">
+        <thead><tr><th class="l">Signed up on</th><th>Signed up</th><th>Ran D0</th><th>Ran D1</th><th>Ran D2</th><th>Any of D0–D2</th></tr></thead>
+        <tbody id="sp-cohort-body"></tbody>
+        <tfoot id="sp-cohort-foot"></tfoot>
+      </table>
+    </div>
+    <div class="sp-cohort-mobile" id="sp-cohort-cards"></div>
+    <p class="sp-note">
+      <b>The three days are independent, not a funnel</b> — one user can run on day 0 <em>and</em> day 1, so
+      the columns overlap and do not sum; "Any of D0–D2" counts each user once. A day whose window has not
+      closed shows <span class="sp-na">—</span> and is dropped from the figures above.
+    </p>
   </div>
 
   <script>

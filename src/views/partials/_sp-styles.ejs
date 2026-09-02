@@ -100,6 +100,17 @@
   .sp-cday-l{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faintest);margin-bottom:4px}
   .sp-cday-v{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;padding:3px 0;border-radius:7px}
   .sp-cday-tot{background:#fbfcfe;border-top:1px solid var(--line2)}
+  /* Stacked source bar. Segment colours are bound to the provider, never to its rank, so the
+     bar never repaints when the order of sizes changes. Four are the §5.4 badge inks; Indeed,
+     StepStone and Telegram are stepped one apart because the badge set has two identical
+     oranges and a grey that reads as no-colour once it is a fill rather than a chip. */
+  .sp-stack{display:flex;height:34px;border-radius:9px;overflow:hidden;gap:2px;background:#eef0f4}
+  .sp-stack>span{min-width:3px;display:block}
+  .sp-stack-legend{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:16px}
+  .sp-slg{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
+  .sp-slg-dot{width:10px;height:10px;border-radius:3px;flex:none}
+  .sp-slg-n{font-weight:800;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .sp-slg-p{color:var(--faintest);font-weight:700;font-variant-numeric:tabular-nums}
   .sp-chart-empty{padding:26px 0 6px;text-align:center;font-size:13.5px;font-weight:600;color:var(--faint)}
   .sp-daily-h{font-size:15px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-right:4px}
   .sp-partial{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--amber-ink);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:999px;padding:1px 6px}
