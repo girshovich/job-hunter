@@ -6,7 +6,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, resolveSpendKeys, PaymentError, MIN_RUN_CREDITS, type Database, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, resolveSpendKeys, resolveLimits, PaymentError, MIN_RUN_CREDITS, type Database, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
+import { refreshApifyLimits } from './apifyLimits';
+import { refreshOpenAiLimits, isModelLimitStale } from './openAiLimits';
+import { APIFY_PROVIDERS } from './providers/apifyGate';
 import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
@@ -17,7 +20,6 @@ import { enrichCompanies } from './companyEnrichment';
 import { companyKey } from '../uiHelpers';
 import { resolveLocationString, lookupCountry, expandRegionToCountries } from './locationNormalizer';
 import { groupOrDrop } from './locationGrouping';
-import pLimit from 'p-limit';
 import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
 import { fetchCompanyLogos } from './companyLogos';
 import { enqueue } from './runQueue';
@@ -270,6 +272,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     // through `/api/run` — is gated on exactly the same rule as a manual one.
     const useJhCredits = (settings.use_jh_credits ?? 1) !== 0;
     const { openAiKey, apifyToken } = resolveSpendKeys(db, profileId);
+
     const resendApiKey = settings.resend_api_key || config.resendApiKey;
     const emailFrom = settings.email_from || config.emailFrom;
 
@@ -287,6 +290,49 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
     const providers = (providersOverride && providersOverride.length > 0)
       ? providersOverride
       : JSON.parse(settings.scraping_providers || DEFAULT_PROVIDER_SELECTION_JSON) as string[];
+
+    // The limits must come from the same row as the keys, so they are resolved through the twin of
+    // `resolveSpendKeys` and threaded down as arguments — no module downstream reads settings for
+    // itself. Cheap and synchronous; the OpenAI half is needed on every run because every run scores.
+    let limits = resolveLimits(db, profileId);
+
+    // Detection, on the other hand, is a network call, so it waits until we know the run will
+    // actually use Apify. Four of the eight providers filter a local pool in SQL and start no Actor
+    // at all — a pool-only run consulting Apify would pay ~0.5s (3s if Apify is unwell) plus a write
+    // to learn a ceiling it never reads, and pool runs are the short ones where that ratio is worst.
+    //
+    // When it does run it is awaited on purpose, before any Actor starts, so the first run after a
+    // plan change is already correct: ~0.5s against runs of 68-350s, hard-capped at 3s, every error
+    // swallowed. It can neither fail a run nor meaningfully delay one.
+    const usesApify = providers.some((p) => APIFY_PROVIDERS.has(p));
+
+    // Both providers are measured before any work starts, so the very first run after a plan or
+    // tier change is already correct rather than correct next time.
+    //
+    // Apify is asked at most daily; OpenAI at most monthly, and only for the models this run will
+    // actually use. Both are hard-capped, swallow every error, and back off after a failure, so
+    // neither can fail a run or meaningfully delay one. Every run scores, so OpenAI is always
+    // measured; Apify only when a provider in this run actually starts an Actor.
+    const scoringModels = [settings.ai_model, settings.ai_model_hard].filter(Boolean);
+    const staleModels = scoringModels.filter((m) => isModelLimitStale(limits.openAiLimits, m));
+
+    await Promise.all([
+      usesApify && limits.apifyDetectionStale
+        ? refreshApifyLimits(db, limits.rowId, apifyToken, { honourBackoff: true })
+        : Promise.resolve(null),
+      staleModels.length > 0
+        ? refreshOpenAiLimits(db, limits.rowId, openAiKey, staleModels, { honourBackoff: true })
+        : Promise.resolve(null),
+    ]);
+    limits = resolveLimits(db, profileId);
+
+    console.log(
+      `[runner] Limits — Apify ${limits.apifyConcurrency} concurrent` +
+      `${limits.apifyConcurrencyDetected ? ` (account reports ${limits.apifyConcurrencyDetected})` : ' (not measured)'}` +
+      `${usesApify ? '' : ' [unused: no Apify provider in this run]'}, ` +
+      `OpenAI ${scoringModels.map((m) => `${m}=${limits.openAiConcurrencyFor(m)}`).join(' ')}` +
+      `${limits.openAiTier ? ` (${limits.openAiTier})` : ''}`,
+    );
 
     console.log(`[runner] Starting pipeline (${trigger}) — ${groups.length} group(s), ${blacklist.length} blacklisted company(ies), ${providers.length} provider(s)`);
 
@@ -563,6 +609,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           // Every gated provider gets the abort check: a call still queued for an Apify slot when
           // the user stops must not start. The skip list stays valig-only.
           checkAborted: () => throwIfStopped(profileId),
+          apifyConcurrency: limits.apifyConcurrency,
           ...(scrapingProvider === 'valig' && VALIG_SKIP_ENABLED
             ? { skipJobIds: recentLinkedInJobIds(profileId, group.id) }
             : {}),
@@ -715,7 +762,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       if (newJobsToScore.length > 0) {
         setStage(profileId, `${providerPrefix}${roleLabel}: Scoring with AI`, Math.round((globalSectionOffset + activeGroupIdx * 2 + 2) * sw), globalTotalSections,
           { providerIdx: providerIdx + 1, providerCount: providers.length, providerName: providerToSource(scrapingProvider), roleIdx: activeGroupIdx + 1, roleCount: activeGroups.length, roleLabel, action: 'Scoring with AI' });
-        const scoreResult = await scoreJobs(newJobsToScore, scoringSettings, openAiKey);
+        const scoreResult = await scoreJobs(newJobsToScore, scoringSettings, openAiKey, limits);
         scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;
         if (scoreResult.failed > 0) {
@@ -1012,11 +1059,13 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         WHERE run_id = ? AND linkedin_job_id = ? AND group_id = ? AND ai_verdict = 'STRONG_MATCH'
       `);
 
-      const rescoreLimit = pLimit(Number(process.env.SCORING_CONCURRENCY) || 5);
-      await Promise.all(strongMatchesForReScoring.map((entry) => rescoreLimit(async () => {
+      // No limiter here any more: `scoreJobs` puts every call through `openAiGate`, which holds
+      // one budget per key+model across the whole process. A second limiter at this call site is
+      // what used to make six concurrent pipelines quietly total 30 in-flight scoring calls.
+      await Promise.all(strongMatchesForReScoring.map((entry) => (async () => {
         try {
           const hardSettings: SettingsRow = { ...entry.scoringSettings, ai_model: settings.ai_model_hard };
-          const result = await scoreJobs([entry.job], hardSettings, openAiKey);
+          const result = await scoreJobs([entry.job], hardSettings, openAiKey, limits);
           if (result.failed > 0 || !result.jobs[0]) {
             jobsFailed += 1;
             errors.push(`Re-score failed for "${entry.job.title}" at "${entry.job.company}": ${result.firstError ?? 'no result'}`);
@@ -1048,7 +1097,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         } catch (err) {
           console.warn(`[runner] Re-score failed for "${entry.job.title}" at "${entry.job.company}":`, (err as Error).message);
         }
-      })));
+      })()));
     }
 
     // 7. Accumulate session totals (email is sent once after the providers loop)

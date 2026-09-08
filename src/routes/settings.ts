@@ -8,11 +8,12 @@ import * as path from 'path';
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { Resend } from 'resend';
-import { getDb, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
+import { getDb, resolveLimits, type SettingsRow, type SearchGroupRow, type CvRow, type EmailChangeRequestRow } from '../db';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { emailFrame } from '../pipeline/emailReport';
 import { hashToken } from './auth';
 import { COMPANY_ENRICHMENT_PROMPT } from '../pipeline/companyEnrichment';
+import { describeAccountLimits } from '../pipeline/limitTables';
 
 const router = Router();
 
@@ -89,6 +90,14 @@ router.get('/', (req: Request, res: Response) => {
     ? 'Email address updated successfully.'
     : null;
 
+  // Own-keys mode only. In credits mode `resolveLimits` reads the ADMIN row, so these figures
+  // describe the operator's account rather than the user's — and the block is hidden by CSS, not
+  // omitted, so building it at all would put the operator's real ceiling in the page source of
+  // every credits user. Caveat C8: that is not theirs to see.
+  const accountLimits = (settings.use_jh_credits ?? 1) === 0
+    ? describeAccountLimits(resolveLimits(db, profileId), settings.ai_model)
+    : null;
+
   res.render('settings', {
     settings,
     groups,
@@ -105,6 +114,7 @@ router.get('/', (req: Request, res: Response) => {
     pendingEmailChange: getPendingEmailChange(db, profileId),
     locationCountries,
     companyEnrichmentPrompt: COMPANY_ENRICHMENT_PROMPT,
+    accountLimits,
     pageMaxWidth: '48rem',
   });
 });

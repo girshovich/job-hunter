@@ -5,7 +5,8 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { getDb, type SettingsRow, type DeletedProfileRow } from '../db';
+import { getDb, resolveLimits, type SettingsRow, type DeletedProfileRow } from '../db';
+import { describeAccountLimits } from '../pipeline/limitTables';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { getAtsSchedules } from '../pipeline/atsScheduler';
 import { getAdminTotals, getAdminDaily, presetWindow, MAX_WINDOW_DAYS } from './adminStats';
@@ -78,6 +79,9 @@ router.get('/', (req: Request, res: Response) => {
     totals,
     daily,
     maxWindowDays: MAX_WINDOW_DAYS,
+    // The admin row is the one every credits profile resolves to, so this describes the account
+    // those users are actually running on.
+    accountLimits: describeAccountLimits(resolveLimits(db, req.profile.id), settings.ai_model),
     // A six-column cohort grid does not fit the form column the other tabs use.
     pageMaxWidth: adminTab === 'stats' ? '70rem' : '48rem',
   });

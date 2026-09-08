@@ -18,6 +18,8 @@ import { tryAcquirePoolLock, releasePoolLock, getActivePoolFetch } from '../pipe
 import { runTelegramIngest } from '../pipeline/telegramIngest';
 import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
+import { refreshApifyLimits } from '../pipeline/apifyLimits';
+import { refreshOpenAiLimits } from '../pipeline/openAiLimits';
 import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, TOPUP_ENABLED, isPaymentReady, resolveSpendKeys, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
@@ -270,7 +272,22 @@ router.post('/test/apify', async (req: Request, res: Response) => {
     }
     const data = await response.json() as { data?: { username?: string } };
     const username = data?.data?.username || 'unknown';
-    res.json({ success: true, message: `Connected as ${username}` });
+
+    // The user is looking at this token right now, so it is the cheapest moment to learn the
+    // account's real concurrency ceiling and cache it. Detection failing must not turn a valid
+    // key into a failed test.
+    //
+    // Cached against **this profile's own row**, never the row `resolveLimits` would pick. A user
+    // on credits resolves to the admin row, so routing the write that way let anyone with a login
+    // overwrite the operator's detected ceiling just by pasting their own token and pressing Test
+    // key — no save required, and a Free-tier token would drop every credits user to 4 concurrent
+    // runs for a day. The token being tested belongs to whoever is testing it, so the answer
+    // belongs on their row. For the admin that row *is* the row credits users read, which is what
+    // makes testing the global token still work.
+    const db = getDb();
+    const detected = await refreshApifyLimits(db, req.profile.id, token);
+    const suffix = detected ? ` — plan allows ${detected} concurrent Actor runs` : '';
+    res.json({ success: true, message: `Connected as ${username}${suffix}` });
   } catch (err) {
     res.status(400).json({ success: false, error: (err as Error).message });
   }
@@ -286,14 +303,17 @@ router.post('/test/openai', async (req: Request, res: Response) => {
     const db = getDb();
     const settings = db.prepare('SELECT ai_model FROM settings WHERE profile_id = ?').get(req.profile.id) as { ai_model: string } | undefined;
     const model = settings?.ai_model?.trim() || FALLBACK_AI_MODEL;
-    const OpenAI = (await import('openai')).default;
-    const client = new OpenAI({ apiKey: key });
-    await client.responses.create({
-      model,
-      input: [{ role: 'user', content: 'Say ok' }],
-      max_output_tokens: 16,
-    });
-    res.json({ success: true, message: 'OpenAI key is valid.' });
+
+    // The validity check *is* the measurement: a real call returns the account's rate-limit headers,
+    // so testing a key also learns what it allows, at no extra cost and no extra call. Cached
+    // against this profile's own row — never the row `resolveLimits` would pick, or a user on
+    // credits would overwrite the operator's figures with their own account's.
+    const { limits, measured } = await refreshOpenAiLimits(db, req.profile.id, key, [model]);
+    // `measured`, not `limits` — a reading stored a month ago must not vouch for the key typed now.
+    if (!measured.includes(model)) throw new Error('Key rejected, or the account returned no usable response.');
+    const m = limits[model];
+
+    res.json({ success: true, message: `OpenAI key is valid — scores up to ${m.concurrency} job(s) at once on ${model}.` });
   } catch (err) {
     res.status(400).json({ success: false, error: (err as Error).message });
   }

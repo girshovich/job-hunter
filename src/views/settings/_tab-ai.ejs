@@ -112,6 +112,10 @@
           </div>
           <p id="user-openai-test-status" class="text-xs mt-1.5 hidden"></p>
         </div>
+
+        <div style="border-top:1px solid var(--line);padding-top:16px">
+          <%- include('../partials/_api-limits-status', { accountLimits: locals.accountLimits }) %>
+        </div>
       </div>
 
       <div id="ai-keys-actions" class="hidden items-center gap-3 mt-5 pt-5 border-t border-gray-100">

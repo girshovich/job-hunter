@@ -7,7 +7,8 @@
 import { ApifyClient } from 'apify-client';
 import type { JobPosting, SearchFilters, DateRange, FetchResult, FetchOptions } from '../types';
 import { filterByTimeWindow } from '../types';
-import { apifyGate, apifyOutstandingCount, APIFY_CONCURRENCY_LIMIT } from './apifyGate';
+import { apifyGate, apifyOutstandingCount, isApifyConcurrencyError } from './apifyGate';
+import { APIFY_FALLBACK_CONCURRENCY } from '../limitTables';
 
 const ACTOR_ID = 'valig/linkedin-jobs-scraper';
 const LIMIT_PER_CALL = 1000;
@@ -115,9 +116,13 @@ async function runSingleCall(
     } catch (err) {
       lastErr = err;
       const code = (err as NodeJS.ErrnoException).code;
-      const isTransient = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNABORTED';
+      // A ceiling rejection is worth retrying: the sibling calls in this same wave are draining,
+      // so a slot is usually free within seconds. Without this it is fatal on the first throw and
+      // takes the whole wave down with it.
+      const isTransient = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNABORTED'
+        || isApifyConcurrencyError(err);
       if (isTransient && attempt < FETCH_MAX_ATTEMPTS) {
-        console.warn(`[valig] "${keyword}"@"${location}" attempt ${attempt} failed (${code}), retrying…`);
+        console.warn(`[valig] "${keyword}"@"${location}" attempt ${attempt} failed (${code ?? 'concurrency ceiling'}), retrying…`);
         await sleep(FETCH_RETRY_DELAY_MS);
       } else {
         break;
@@ -134,6 +139,7 @@ export async function fetchWithValig(
   options: FetchOptions = {},
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
+  const apifyLimit = options.apifyConcurrency ?? APIFY_FALLBACK_CONCURRENCY;
   const datePosted = getDatePosted(dateRange);
   const contractType = mapContractTypes(filters.jobType);
 
@@ -173,15 +179,15 @@ export async function fetchWithValig(
     const outstanding = apifyOutstandingCount(apifyToken);   // read before enqueueing
 
     const promises = calls.map(({ keyword, location }) =>
-      apifyGate(apifyToken, () => {
+      apifyGate(apifyToken, apifyLimit, () => {
         // Stopped while queued: never starts, never bills.
         options.checkAborted?.();
         return runSingleCall(client, keyword, location, datePosted, contractType, skipJobIds, options.titleInclude);
       }));
 
-    const queued = Math.max(0, outstanding + calls.length - APIFY_CONCURRENCY_LIMIT);
+    const queued = Math.max(0, outstanding + calls.length - apifyLimit);
     if (queued > 0) {
-      console.log(`[valig] gate: ${queued} of ${calls.length} call(s) queued (limit ${APIFY_CONCURRENCY_LIMIT})`);
+      console.log(`[valig] gate: ${queued} of ${calls.length} call(s) queued (limit ${apifyLimit})`);
     }
 
     const results = await Promise.all(promises);

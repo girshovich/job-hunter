@@ -1,0 +1,59 @@
+<%#
+  Account limits — read-only, measured, shared by /settings?tab=ai and /admin?tab=general.
+
+  Not a setting. Both providers are asked what they allow (Apify's limits endpoint daily, OpenAI's
+  response headers monthly) and told here in plain terms. There is nothing to choose: a dropdown
+  only ever let someone describe their account wrongly, and the published plan tables it was built
+  from were already out of date.
+
+  On the settings page this sits INSIDE #own-keys-view, so applyKeyMode() hides it in credits mode.
+  A credits user's runs are governed by the operator's account, and neither the numbers nor the tier
+  behind them are theirs to see — the route passes null in that mode so the figures never even
+  reach the page source.
+
+  Locals: accountLimits — { apify: LimitLine, openai: LimitLine } from describeAccountLimits().
+%>
+<% if (locals.accountLimits) { %>
+<%
+  function checkedOn(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+%>
+<div class="stg-limits">
+  <% [['Apify plan', accountLimits.apify], ['OpenAI tier', accountLimits.openai]].forEach(function(row) {
+       var label = row[0], line = row[1]; %>
+    <div class="stg-limits-row">
+      <span class="stg-limits-key"><%= label %></span>
+      <div class="stg-limits-val">
+        <p class="stg-limits-cap">
+          <% if (line.name) { %><strong><%= line.name %></strong> — <% } %><%= line.capability %>
+        </p>
+        <% if (line.warning) { %>
+          <p class="stg-limits-warn"><%= line.warning %></p>
+        <% } %>
+        <p class="stg-limits-when">
+          <% if (line.checkedAt) { %>Checked <%= checkedOn(line.checkedAt) %><% } else { %>We check automatically on your next run<% } %>
+        </p>
+      </div>
+    </div>
+  <% }); %>
+</div>
+
+<style>
+  .stg-limits { display: flex; flex-direction: column; gap: 12px; }
+  .stg-limits-row { display: flex; gap: 14px; align-items: baseline; }
+  .stg-limits-key { flex: none; width: 92px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .stg-limits-val { flex: 1; min-width: 0; }
+  .stg-limits-cap { font-size: 13px; color: var(--ink); margin: 0; line-height: 1.45; }
+  .stg-limits-cap strong { font-weight: 700; }
+  .stg-limits-warn { font-size: 11.5px; color: var(--red); margin: 4px 0 0; line-height: 1.45; }
+  .stg-limits-when { font-size: 11.5px; color: var(--faintest); margin: 3px 0 0; }
+  @media (max-width: 480px) {
+    .stg-limits-row { flex-direction: column; gap: 2px; }
+    .stg-limits-key { width: auto; }
+  }
+</style>
+<% } %>

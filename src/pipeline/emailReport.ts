@@ -383,7 +383,7 @@ export async function sendRateLimitAlert(
       <p style="color:#000000;font-size:14px;line-height:1.6;margin:0;">
         A pipeline run hit an OpenAI rate limit (HTTP 429) after automatic retries, so some jobs were left unscored.
         This usually means the shared account's tier limit was exceeded during the morning spike.
-        Consider raising the OpenAI usage tier or lowering <code>SCORING_CONCURRENCY</code>.
+        Concurrency is sized from the account's own rate-limit headers, so this is usually real contention rather than a misconfiguration &mdash; several runs scoring at once, or another workload sharing the key. The measured limits and the date they were read are shown under the API keys in Admin &rarr; General.
       </p>`);
 
   const resend = new Resend(resendApiKey);

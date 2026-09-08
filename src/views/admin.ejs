@@ -82,6 +82,12 @@
       </div>
       <p id="global-apify-test-status" class="text-xs mt-1 hidden"></p>
       <p id="global-openai-test-status" class="text-xs mt-1 hidden"></p>
+
+      <!-- What these keys' accounts actually allow, measured. Same partial as Settings → AI Setup,
+           so the two surfaces cannot drift. These govern every profile on credits. -->
+      <div class="mt-4 pt-4 border-t border-gray-100">
+        <%- include('partials/_api-limits-status', { accountLimits: locals.accountLimits }) %>
+      </div>
     </div>
   </form>
 

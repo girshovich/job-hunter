@@ -5,13 +5,21 @@
  */
 
 import OpenAI from 'openai';
-import pLimit from 'p-limit';
 import type { JobPosting } from './fetcher';
 import type { SettingsRow, SearchGroupRow } from '../db';
 import { DEFAULT_SUMMARY_PROMPT } from '../db';
 import { resolvePreferredLabels } from './locationNormalizer';
+import { openAiGate } from './openAiGate';
 
-const SCORING_CONCURRENCY = Number(process.env.SCORING_CONCURRENCY) || 5;
+/**
+ * The slice of `resolveLimits` the scorer needs. Passed in rather than read here, so the limit and
+ * the key it protects always come from the same settings row.
+ */
+export interface ScoringLimits {
+  /** '' when the account's limits match no published tier. Display and error wording only. */
+  openAiTier: string;
+  openAiConcurrencyFor(model: string): number;
+}
 
 export type Verdict = 'STRONG_MATCH' | 'WEAK_MATCH' | 'NO_MATCH';
 
@@ -317,7 +325,7 @@ async function callScoringLlmWithBackoff(
       return await callScoringLlm(systemPrompt, userMessage, model, openAiKey);
     } catch (err) {
       if (!isRateLimit(err) || attempt >= RATE_LIMIT_MAX_ATTEMPTS - 1) throw err;
-      // Jitter matters: the SCORING_CONCURRENCY workers are throttled in lockstep, so without it
+      // Jitter matters: the gate's workers are throttled in lockstep, so without it
       // they all wake on the same hinted deadline and trip the same limit together.
       const wait = rateLimitWaitMs(err, attempt) + Math.random() * 500;
       console.warn(`[aiScorer] Rate limited (429) — waiting ${Math.round(wait)}ms, retry ${attempt + 1}/${RATE_LIMIT_MAX_ATTEMPTS - 1}`);
@@ -326,13 +334,45 @@ async function callScoringLlmWithBackoff(
   }
 }
 
+/**
+ * A Free-tier OpenAI account is capped hard in two independent ways, and neither is something a
+ * concurrency gate can express or the 429 backoff can clear. The retries exhaust, the jobs land in
+ * `failed`, and the run reports `partial_error` with nothing the user can act on. Name the cause.
+ *
+ * **Which cap was hit is read from the error, not assumed.** The Free tier's per-minute limit is as
+ * reachable as its daily one — at concurrency 1 and ~6s a call we sit at roughly 10 requests a
+ * minute, which is exactly where `gpt-5.4-mini` throttles — so a message that always blamed the
+ * daily quota would be wrong a good share of the time, and wrong in a way that sends the user to
+ * wait until tomorrow for something that would clear in sixty seconds.
+ *
+ * Deliberately unnumbered: the binding dimension differs per model (mini is request-capped, luna is
+ * token-capped, terra is starved at 3 RPM), and a confidently wrong number is worse than none.
+ */
+function freeTierQuotaNote(tier: string, model: string, jobCount: number, errorText: string): string {
+  if (tier !== 'free') return '';
+  const daily = /\b(RPD|TPD)\b|per\s+day|daily\s+(?:rate\s+)?limit/i.test(errorText);
+  const lead = ` — your OpenAI account is on the Free tier and this run needed ${jobCount} request(s) on ${model}.`;
+  return daily
+    ? `${lead} It hit the account's daily quota, which does not reset until the next day.`
+      + ' Adding credit to the OpenAI account moves it to Tier 1 and lifts the cap.'
+    : `${lead} Free-tier accounts are throttled hard per minute as well as per day.`
+      + ' Adding credit to the OpenAI account moves it to Tier 1 and lifts both.';
+}
+
 export async function scoreJobs(
   jobs: JobPosting[],
   settings: SettingsRow,
   openAiKey: string,
+  limits: ScoringLimits,
   onProgress?: (done: number, total: number) => void,
 ): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage; rateLimited: boolean; failed: number; firstError: string | null }> {
-  const limit = pLimit(SCORING_CONCURRENCY);
+  const model = settings.ai_model;
+  const openAiTier = limits.openAiTier;
+  const concurrency = limits.openAiConcurrencyFor(model);
+  // The whole tier→concurrency table (APIlimits.md §3.1) is linear in an *assumed* 6s per call that
+  // has never been measured — the weakest input in the spec. Log the real figure so the Free and
+  // Tier 1 rows can be re-derived from data rather than from the assumption (caveat C7).
+  const startedAt = Date.now();
   let jobsDone = 0;
   let rateLimited = false;
   // A job whose scoring call fails is dropped from the results, so it lands in no verdict bucket
@@ -342,7 +382,7 @@ export async function scoreJobs(
 
   type WorkerResult = { scored: ScoredJob; usage: TokenUsage } | null;
 
-  const settled = await Promise.all(jobs.map((job) => limit(async (): Promise<WorkerResult> => {
+  const settled = await Promise.all(jobs.map((job) => openAiGate(openAiKey, model, concurrency, async (): Promise<WorkerResult> => {
     let callResult: { result: ScoringLlmOutput; usage: TokenUsage } | null = null;
 
     const isSparse = job.jobSource === 'Telegram' && !job.location?.trim();
@@ -415,7 +455,23 @@ export async function scoreJobs(
     results.push(item.scored);
   }
 
-  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens }, rateLimited, failed, firstError };
+  if (jobs.length > 0) {
+    const elapsedMs = Date.now() - startedAt;
+    console.log(
+      `[aiScorer] ${jobs.length} job(s) on ${model} at concurrency ${concurrency}${openAiTier ? ` (${openAiTier})` : ''} — ` +
+      `${(elapsedMs / 1000).toFixed(1)}s wall, ~${Math.round(elapsedMs * Math.min(concurrency, jobs.length) / jobs.length)}ms per call`,
+    );
+  }
+
+  // Widened deliberately: the assignments to `firstError` all happen inside the async workers
+  // above, which TypeScript's flow analysis does not follow, so it still believes the value is
+  // `null` here and narrows any append to `never`.
+  const reportedError: string | null = firstError;
+
+  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens }, rateLimited, failed,
+    firstError: rateLimited && reportedError
+      ? reportedError + freeTierQuotaNote(openAiTier, model, jobs.length, reportedError)
+      : reportedError };
 }
 
 // ── Call 2: Dedup only (strong matches with existing same-company+title in DB) ──

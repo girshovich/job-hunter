@@ -9,7 +9,8 @@ import { ApifyClient } from 'apify-client';
 import type { JobPosting, SearchFilters, DateRange, FetchResult, FetchOptions, ProviderCompanyData } from '../types';
 import { filterByTimeWindow } from '../types';
 import { resolveCountries } from '../locationNormalizer';
-import { apifyGate, apifyOutstandingCount, APIFY_CONCURRENCY_LIMIT } from './apifyGate';
+import { apifyGate, apifyOutstandingCount } from './apifyGate';
+import { APIFY_FALLBACK_CONCURRENCY } from '../limitTables';
 
 const ACTOR_ID = 'valig/indeed-jobs-scraper';
 
@@ -183,6 +184,7 @@ export async function fetchWithIndeed(
   options: FetchOptions = {},
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
+  const apifyLimit = options.apifyConcurrency ?? APIFY_FALLBACK_CONCURRENCY;
   const datePosted = datePostedParam(dateRange);
 
   // Resolve all unique locations to country names via Nominatim (DB-cached).
@@ -204,7 +206,7 @@ export async function fetchWithIndeed(
 
   const outstanding = apifyOutstandingCount(apifyToken);   // read before enqueueing
 
-  const promises = calls.map(({ keyword, location, country }) => apifyGate(apifyToken, async () => {
+  const promises = calls.map(({ keyword, location, country }) => apifyGate(apifyToken, apifyLimit, async () => {
     // Stopped while queued: never starts, never bills.
     options.checkAborted?.();
     const actorLocation = toIndeedLocation(location);
@@ -220,9 +222,9 @@ export async function fetchWithIndeed(
     return items as IndeedJob[];
   }));
 
-  const queued = Math.max(0, outstanding + calls.length - APIFY_CONCURRENCY_LIMIT);
+  const queued = Math.max(0, outstanding + calls.length - apifyLimit);
   if (queued > 0) {
-    console.log(`[indeed] gate: ${queued} of ${calls.length} call(s) queued (limit ${APIFY_CONCURRENCY_LIMIT})`);
+    console.log(`[indeed] gate: ${queued} of ${calls.length} call(s) queued (limit ${apifyLimit})`);
   }
 
   const results = await Promise.all(promises);

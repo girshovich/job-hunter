@@ -4,9 +4,10 @@
  */
 
 import { ApifyClient } from 'apify-client';
-import type { JobPosting, SearchFilters, DateRange, FetchResult, ProviderCompanyData } from '../types';
+import type { JobPosting, SearchFilters, DateRange, FetchResult, FetchOptions, ProviderCompanyData } from '../types';
 import { parsePostedDate, filterByTimeWindow } from '../types';
-import { apifyGate } from './apifyGate';
+import { apifyGate, isApifyConcurrencyError } from './apifyGate';
+import { APIFY_FALLBACK_CONCURRENCY } from '../limitTables';
 
 interface HarvestJobLocation {
   linkedinText?: string;
@@ -175,8 +176,10 @@ export async function fetchWithHarvestApi(
   filters: SearchFilters,
   apifyToken: string,
   dateRange: DateRange,
+  options: FetchOptions = {},
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
+  const apifyLimit = options.apifyConcurrency ?? APIFY_FALLBACK_CONCURRENCY;
 
   const workplaceType = mapWorkModes(filters.workModes);
   const employmentType = mapEmploymentTypes(filters.jobType);
@@ -199,7 +202,7 @@ export async function fetchWithHarvestApi(
     try {
       // Gate the call only, not the retry loop — one call to schedule, so holding a slot through
       // a retry sleep would buy nothing.
-      const run = await apifyGate(apifyToken, () =>
+      const run = await apifyGate(apifyToken, apifyLimit, () =>
         client.actor('harvestapi/linkedin-job-search').call(actorInput, { waitSecs: 900 }));
 
       console.log(`[harvestapi] Actor run complete (${run.id}), fetching dataset items…`);
@@ -223,7 +226,11 @@ export async function fetchWithHarvestApi(
     } catch (err) {
       lastErr = err;
       const code = (err as NodeJS.ErrnoException).code;
-      const isTransient = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNABORTED';
+      // A ceiling rejection is worth retrying: the sibling calls in this same wave are draining,
+      // so a slot is usually free within seconds. Without this it is fatal on the first throw and
+      // takes the whole wave down with it.
+      const isTransient = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNABORTED'
+        || isApifyConcurrencyError(err);
       if (isTransient && attempt < FETCH_MAX_ATTEMPTS) {
         console.warn(`[harvestapi] Attempt ${attempt} failed (${code}), retrying in ${FETCH_RETRY_DELAY_MS / 1000}s…`);
         await sleep(FETCH_RETRY_DELAY_MS);

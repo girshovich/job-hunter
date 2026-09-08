@@ -8,35 +8,81 @@
  * all resolve to the operator's token — so the gate is keyed by **token**, not by run or provider.
  * A per-run limiter would not hold the account-wide ceiling.
  *
+ * The ceiling used to be the module constant `APIFY_CONCURRENCY_LIMIT` (24, sized for Apify's old
+ * free tier). It is now a per-account setting resolved by `resolveLimits` and passed in on every
+ * call, so it can change while the process is running — the user edits their Apify plan, or
+ * detection reports a different number. See `concurrencyGate.ts` for why that rules out `p-limit`.
+ *
  * In-process only: a second Node process (blue/green deploy overlap, pm2 cluster) gets its own
  * limiter and its own budget.
  */
 
-import pLimit from 'p-limit';
+import { KeyedGate } from '../concurrencyGate';
+import { APIFY_FALLBACK_CONCURRENCY } from '../limitTables';
 
-// 25 is the free-tier ceiling; 24 leaves one slot for anything started outside the gate, such as a
-// manual run from the Apify console. Raise it to the plan's real ceiling. Note `0` falls through
-// to the default — to disable the gate, set a large number.
-export const APIFY_CONCURRENCY_LIMIT = Number(process.env.APIFY_CONCURRENCY) || 24;
+const gate = new KeyedGate('apifyGate', APIFY_FALLBACK_CONCURRENCY);
 
-const gates = new Map<string, ReturnType<typeof pLimit>>();
+/**
+ * The providers that actually queue behind this gate. The other four (`greenhouse`, `ashby`,
+ * `lever`, `telegram`) filter a locally-held pool in SQL and start no Actor at all, so a run made
+ * only of those never consults the ceiling — and must not pay to discover it.
+ *
+ * Keep in step with the imports of `apifyGate` across `pipeline/providers/`.
+ */
+export const APIFY_PROVIDERS = new Set(['harvestapi', 'valig', 'indeed', 'stepstone']);
 
-export function apifyGate<T>(token: string, fn: () => Promise<T>): Promise<T> {
-  let limit = gates.get(token);
-  if (!limit) {
-    limit = pLimit(APIFY_CONCURRENCY_LIMIT);
-    gates.set(token, limit);
+/**
+ * Run `fn` against this token's budget. `limit` is the account's current ceiling, from
+ * `resolveLimits`; passing a different one re-ceilings the gate in place, with no restart and
+ * without disturbing work already running.
+ */
+export function apifyGate<T>(token: string, limit: number, fn: () => Promise<T>): Promise<T> {
+  return gate.run(token, limit, async () => {
+    try {
+      return await fn();
+    } catch (err) {
+      // Rewritten here rather than in each provider: every gated call passes through this one
+      // point, and the raw actor error ("You will exceed your limit of N concurrent Actor runs")
+      // reaches the user as an opaque provider failure that says nothing about the setting that
+      // caused it. The gate is also the only place that knows the ceiling it was enforcing.
+      if (isApifyConcurrencyError(err)) throw new ApifyConcurrencyError(err, limit);
+      throw err;
+    }
+  });
+}
+
+/**
+ * Apify refused a run because the account is already at its concurrent-run ceiling.
+ *
+ * That is a *configuration* failure, not an outage: the Apify plan setting claims more headroom
+ * than the account has. It is also expensive to hit — a provider's grid goes out as one
+ * `Promise.all`, so one rejection unwinds the whole wave while its siblings keep billing.
+ */
+export class ApifyConcurrencyError extends Error {
+  constructor(public readonly cause: unknown, enforcedLimit: number) {
+    super(
+      `${(cause as Error)?.message ?? String(cause)} — your Apify plan setting may be too high. ` +
+      `We allowed ${enforcedLimit} concurrent Actor run(s); the account refused at that level. ` +
+      `Lower the Apify plan in Settings, or check the account's real limit.`,
+    );
+    this.name = 'ApifyConcurrencyError';
   }
-  return limit(fn);
+}
+
+/** True for both the raw actor error and our wrapped form. */
+export function isApifyConcurrencyError(err: unknown): boolean {
+  if (err instanceof ApifyConcurrencyError) return true;
+  const msg = (err as Error)?.message ?? '';
+  return /exceed your limit of \d+ concurrent actor runs/i.test(msg)
+    || /concurrent actor runs?\b.*\blimit/i.test(msg);
 }
 
 /**
  * Calls already running or waiting on this token — i.e. how much of the budget is spoken for.
- * **Read it before enqueueing a batch:** `p-limit` starts nothing until the next microtask, so a
- * count taken straight after enqueue reports the whole batch as pending and is useless. A
- * snapshot, stale the moment it is read — for a human reading logs, not for anything automated.
+ * **Read it before enqueueing a batch:** a gated call does not start until the next microtask, so a
+ * count taken straight after enqueue reports the whole batch as pending and is useless. A snapshot,
+ * stale the moment it is read — for a human reading logs, not for anything automated.
  */
 export function apifyOutstandingCount(token: string): number {
-  const limit = gates.get(token);
-  return limit ? limit.activeCount + limit.pendingCount : 0;
+  return gate.outstanding(token);
 }

@@ -20,6 +20,10 @@ Each pipeline run (scheduled or manual):
 8. **Store** — saves everything locally (all verdicts, rationale, summaries)
 9. **Email digest** — sends strong matches to your inbox (optional)
 
+Fetching and scoring are both throttled to what your provider accounts actually allow. The app asks
+Apify and OpenAI for their limits and sizes itself from the answer — there is nothing to configure
+(see [Concurrency](#concurrency)).
+
 ---
 
 ## Usage modes
@@ -115,17 +119,40 @@ HuggingFace dataset. It looks for `uv` first — `uv run --with duckdb --with pa
 --with tqdm` — then falls back to bare `python3`, which needs those four packages installed
 yourself. Override with `LEVER_PYTHON_CMD`, `UV_PATH`, or `LEVER_SCRIPT_PATH`.
 
+### Concurrency
+
+**How hard the app pushes each provider is measured, not configured.** There is no tier or plan to
+set anywhere in the UI — a number you have to look up and copy is wrong the day your billing
+changes, and the vendors' own published tables lag reality.
+
+| Provider | How the limit is read | Refreshed |
+|---|---|---|
+| **Apify** | `GET /v2/users/me/limits` → `maxConcurrentActorJobs`, minus one reserved slot so a run you start by hand in the Apify console still fits | at most once a day |
+| **OpenAI** | the `x-ratelimit-limit-requests` / `x-ratelimit-limit-tokens` headers on a 16-token probe call (~$0.0003), read **per model** | at most once a month |
+
+Both are measured before a run starts, so the first run after a plan change is already correct.
+Both are hard-capped (3s / 10s), swallow every error, and back off for an hour after a failure — a
+provider outage costs a conservative ceiling for that run and nothing else. An account that has
+never been reached falls back to **4**.
+
+The measured figures appear read-only under the API keys on **Settings → AI Setup** (own-keys
+users) and **Admin → General** (the account every hosted profile runs through), in plain terms —
+*"up to 28 job searches at once"* — with the date each was taken.
+
 ### Optional tuning
 
 | Variable | Default | Effect |
 |---|---|---|
-| `SCORING_CONCURRENCY` | `5` | Parallel OpenAI scoring calls. Lower it on 429s. |
-| `APIFY_CONCURRENCY` | `24` | Account-wide cap on concurrent Apify actor runs (free tier allows 25). `0` falls through to the default — to loosen it, set a large number. |
+| `APIFY_CONCURRENCY` | _(measured)_ | Override for concurrent Apify actor runs. `0` falls through to the measurement — to loosen the gate, set a large number. |
+| `SCORING_CONCURRENCY` | _(measured)_ | Override for parallel OpenAI scoring calls. `0` falls through to the measurement. |
 | `MAX_CONCURRENT_RUNS` | `6` | Pipelines in flight at once. |
 | `VALIG_SKIP_JOB_IDS` | on | Set `0` to stop sending already-seen job ids to the valig actor. Does not disable the `titleInclude` filter. |
 
-Both limiters are **in-process** — a second Node process (pm2 cluster mode, blue/green overlap) gets
-its own budget.
+The two overrides are the only manual control over either ceiling, they win over the measurement,
+and they apply to the whole instance rather than one profile.
+
+Both gates are **in-process** — a second Node process (pm2 cluster mode, blue/green overlap) gets
+its own budget, so don't run two against one database.
 
 ---
 
@@ -158,6 +185,10 @@ pm2 save
 > next reboot. Log files are unaffected — the paths in `ecosystem.config.js` are explicit, not
 > derived from the app name.
 
+> **Deploying is a build, not a pull.** `npm run build` compiles TypeScript, builds the CSS, **and
+> copies `src/views` and `src/public` into `dist/`**. A `git pull` followed by a restart alone
+> serves stale CSS and can 500 on a page whose view partial never reached `dist/`.
+
 ---
 
 ## API keys needed
@@ -167,6 +198,10 @@ pm2 save
 | [Apify](https://apify.com) | Job discovery (HarvestAPI, Valig, Indeed, StepStone actors) | Pay as you go |
 | [OpenAI](https://platform.openai.com) | AI scoring, dedup & summaries | Pay as you go (~$0.50/day typical) |
 | [Resend](https://resend.com) | OTP login + email digests | 100 emails/day free |
+
+> **A free OpenAI account is not enough.** Free tiers cap requests per *day* as well as per minute,
+> and a normal run needs more than a day's allowance in one go — scoring will stop part-way and the
+> error will say so. Adding credit to the account lifts both limits.
 
 ---
 
@@ -178,20 +213,24 @@ pm2 save
 - **Profile description** — a top-level background/CV context field injected into every AI scoring call; can be shared across all roles or overridden per role
 - **Languages + current location** — preferred posting languages drive the language disqualifier; your current country gates the visa/relocation rejection rule
 - **Dual AI model configuration** — a fast soft model for batch scoring and a separate hard model for semantic dedup, re-scoring, and CV comparison; both configurable independently
+- **Self-sizing concurrency** — the app reads what your Apify and OpenAI accounts allow and throttles itself to it, per model, with nothing to configure and no way to over-commit an account
 - **Score thresholds** — scores run 0–100; thresholds for Strong (default ≥71), Weak (51–70), and No Match (≤50) are configurable per Role
 - **Work mode & job type filters** — filter by remote/hybrid/onsite and full/part/fixed-term, honored per provider (some sources skip filters they can't support)
-- **Title word filter** — narrow results without changing search keywords
+- **Title word filter** — narrow results without changing search keywords; on the valig source it is also sent to the provider, so filtered-out listings are never billed
 - **Company blacklist** — permanently skip companies across all Roles
+- **Company profiles** — who the employer is, your history with them, and a private note, researched once by AI and shared across all profiles
 - **Company logos** — HarvestAPI supplies real logos; every other source falls back to a cached Google favicon lookup
 - **Country flags** — location strings are resolved to country labels and shown alongside listing data
 - **Matches** — two-pane list + detail; review strong matches, mark Applied, add notes, fix AI verdicts inline
 - **Multi-country jobs** — the same role in several countries is grouped into one opportunity, with duplicates folded
+- **Stated salary** — captured wherever a source supplies it, shown on the job card and given to the scorer
 - **CV comparison** — upload your CV (PDF, TXT, or MD) and run a per-job AI analysis against your background
 - **Email address change** — update your login email via a verified token link sent to the new address
 - **Run Logs** — full audit log of every pipeline run, including filter decisions, scores, and outcomes; filter by source, verdict, and company
 - **Stoppable runs** — a manual or scheduled run in progress can be stopped; work already scored is kept and billed, no digest is sent
 - **Last Session card** — the home dashboard aggregates all providers from a single run trigger into one summary (jobs found, strong/weak counts, duration, combined status)
-- **Analytics** — daily and monthly trend charts, per-role and per-country breakdowns
+- **Analytics** — daily and monthly trend charts, per-role and per-country breakdowns, and a 14-day spend chart split Fetch vs AI
+- **Admin Stats** — operator view of the user base: sign-ups, activation, run volume, success rate, source mix, and the accounts whose runs fail most
 - **Run Diff** — compare job deltas between the two most recent runs
 - **Scheduling** — per-profile cron with timezone support; schedule state survives server restarts
 - **Preflight checks** — validates config before running

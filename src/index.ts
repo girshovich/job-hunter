@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
-import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, TOPUP_ENABLED } from './db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, TOPUP_ENABLED, warnOnSplitApifyTokens } from './db';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -201,6 +201,8 @@ process.on('uncaughtException', (err) => {
 
 async function start(): Promise<void> {
   const db = getDb();
+
+  warnOnSplitApifyTokens(db);
 
   // Mark any runs that were still 'running' when the server last stopped as failed.
   // This prevents them from showing as stuck "Running" in the UI indefinitely.

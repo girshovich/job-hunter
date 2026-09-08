@@ -96,6 +96,13 @@ export interface FetchOptions {
    * boundary as well. Any provider that queues behind the gate must call it.
    */
   checkAborted?: () => void;
+  /**
+   * The account's concurrent-Actor-run ceiling, from `resolveLimits`. Every Apify provider passes
+   * it straight to `apifyGate`, which re-ceilings the token's budget in place. Omit and the gate
+   * falls back to the most conservative plan — so any new gated provider that forgets it throttles
+   * rather than over-commits.
+   */
+  apifyConcurrency?: number;
 }
 
 export function parsePostedDate(raw: string | number | undefined): { date: string | null; confidence: 'HIGH' | 'LOW' } {

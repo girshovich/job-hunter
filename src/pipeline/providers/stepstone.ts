@@ -7,7 +7,8 @@
 import { ApifyClient } from 'apify-client';
 import type { JobPosting, SearchFilters, DateRange, FetchResult, FetchOptions } from '../types';
 import { filterByTimeWindow } from '../types';
-import { apifyGate, apifyOutstandingCount, APIFY_CONCURRENCY_LIMIT } from './apifyGate';
+import { apifyGate, apifyOutstandingCount } from './apifyGate';
+import { APIFY_FALLBACK_CONCURRENCY } from '../limitTables';
 
 const ACTOR_ID = 'valig/stepstone-jobs-scraper';
 
@@ -99,6 +100,7 @@ export async function fetchWithStepStone(
   options: FetchOptions = {},
 ): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
+  const apifyLimit = options.apifyConcurrency ?? APIFY_FALLBACK_CONCURRENCY;
   const ag  = agParam(dateRange);
   const wfh = wfhParam(filters.workModes);
 
@@ -112,7 +114,7 @@ export async function fetchWithStepStone(
 
   const outstanding = apifyOutstandingCount(apifyToken);   // read before enqueueing
 
-  const promises = calls.map(({ keyword, location }) => apifyGate(apifyToken, async () => {
+  const promises = calls.map(({ keyword, location }) => apifyGate(apifyToken, apifyLimit, async () => {
     // Stopped while queued: never starts, never bills.
     options.checkAborted?.();
     const input: Record<string, unknown> = {
@@ -135,9 +137,9 @@ export async function fetchWithStepStone(
     return items as StepStoneJob[];
   }));
 
-  const queued = Math.max(0, outstanding + calls.length - APIFY_CONCURRENCY_LIMIT);
+  const queued = Math.max(0, outstanding + calls.length - apifyLimit);
   if (queued > 0) {
-    console.log(`[stepstone] gate: ${queued} of ${calls.length} call(s) queued (limit ${APIFY_CONCURRENCY_LIMIT})`);
+    console.log(`[stepstone] gate: ${queued} of ${calls.length} call(s) queued (limit ${apifyLimit})`);
   }
 
   const results = await Promise.all(promises);

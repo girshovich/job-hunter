@@ -13,6 +13,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { config } from './config';
 import ALL_COUNTRIES from './pipeline/countries.json';
+import { apifyConcurrencyFromCeiling, APIFY_FALLBACK_CONCURRENCY, OPENAI_FALLBACK_CONCURRENCY } from './pipeline/limitTables';
+import { parseOpenAiLimits, type OpenAiLimitsMap } from './pipeline/openAiLimits';
 
 export const DEFAULT_PROVIDER_SELECTION = ['valig', 'greenhouse', 'ashby', 'lever', 'telegram'] as const;
 export const DEFAULT_PROVIDER_SELECTION_JSON = JSON.stringify(DEFAULT_PROVIDER_SELECTION);
@@ -2284,6 +2286,53 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_deleted_profiles failed (non-fatal):', (err as Error).message);
   }
+
+  // v_api_limits: what each account's provider limits actually are, replacing the module constants
+  // that used to hardcode them (APIlimits.md).
+  //
+  // None of these are settings. Both providers are asked directly — Apify's limits endpoint daily,
+  // OpenAI's response headers monthly — and detection writes every column here. `openai_tier` and
+  // `apify_plan` are *derived labels* for the UI, empty until measured and empty again whenever the
+  // measurement matches no published plan, which is the normal case for a negotiated account.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'openai_tier')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN openai_tier TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_api_limits: settings.openai_tier added');
+    }
+    if (!cols.some((c) => c.name === 'apify_plan')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN apify_plan TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_api_limits: settings.apify_plan added');
+    }
+    // Last answer from `GET /v2/users/me/limits` for this row's token, and when it was asked.
+    // 0 / '' mean "never detected" — the dropdown is used alone until a detection lands.
+    if (!cols.some((c) => c.name === 'apify_concurrency_detected')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN apify_concurrency_detected INTEGER NOT NULL DEFAULT 0`);
+      console.log('[db] Migration v_api_limits: settings.apify_concurrency_detected added');
+    }
+    if (!cols.some((c) => c.name === 'apify_limits_checked_at')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN apify_limits_checked_at TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_api_limits: settings.apify_limits_checked_at added');
+    }
+    // Measured OpenAI limits, keyed by model: {"gpt-5.4-mini":{"rpm":5000,"tpm":4000000,…}}.
+    // Per model because the same tier gives `gpt-5.6-terra` half of `gpt-5.4-mini`'s TPM.
+    if (!cols.some((c) => c.name === 'openai_limits_json')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN openai_limits_json TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_api_limits: settings.openai_limits_json added');
+    }
+    if (!cols.some((c) => c.name === 'openai_limits_checked_at')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN openai_limits_checked_at TEXT NOT NULL DEFAULT ''`);
+      console.log('[db] Migration v_api_limits: settings.openai_limits_checked_at added');
+    }
+
+    // `openai_tier` and `apify_plan` are no longer anyone's choice — both providers are asked
+    // directly and detection writes these columns as *labels* for the UI. The one-time admin seed
+    // that used to live here (tier3 / custom) is deliberately gone: the operator's account reports
+    // its own numbers within a run of deploying, and a hardcoded guess would only be right until
+    // the plan changed. The column defaults stay as the conservative floor for a never-measured row.
+  } catch (err) {
+    console.warn('[db] Migration v_api_limits failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -2813,6 +2862,133 @@ export function resolveSpendKeys(db: Database, profileId: number): { openAiKey: 
   return adminKeys(db);
 }
 
+/** How long a detected Apify ceiling is trusted before it is re-read (APIlimits.md §4.4). */
+export const APIFY_LIMITS_TTL_MS = 24 * 3600_000;
+
+export interface ResolvedLimits {
+  /** The settings row these limits came from — the admin's in credits mode, the profile's own
+   *  otherwise. Detection must be cached back to this row, not to the running profile's. */
+  rowId: number;
+
+  /** Concurrent Actor runs for this account, measurement and env override already applied. */
+  apifyConcurrency: number;
+  /** True when the measurement is missing or older than 24h, i.e. worth taking before a run. */
+  apifyDetectionStale: boolean;
+  /** Raw `maxConcurrentActorJobs` last reported by the account; 0 when never measured. */
+  apifyConcurrencyDetected: number;
+  apifyCheckedAt: string;
+  /** Plan name derived from the measurement, or '' for a negotiated plan. Display only. */
+  apifyPlan: string;
+
+  /** Measured per-model limits for this account, keyed by model id. Each entry carries its own
+   *  timestamp — the account is measured a model at a time, so there is no row-level "checked at"
+   *  that would be true of all of them. */
+  openAiLimits: OpenAiLimitsMap;
+  /** Tier every measured model agrees on, or '' when they disagree. Display only. */
+  openAiTier: string;
+
+  /** Concurrent scoring calls allowed for a given model. Falls back conservatively. */
+  openAiConcurrencyFor(model: string): number;
+}
+
+/**
+ * **The only code permitted to decide how hard we may push a provider.** The twin of
+ * `resolveSpendKeys`, and it must stay a twin: a limit resolved from a row whose key is not the one
+ * being used is worse than no limit at all, because it protects an account nobody is calling while
+ * over-committing the account we are.
+ *
+ *   credits mode  (use_jh_credits != 0)  →  the ADMIN row   (mirrors `adminKeys`)
+ *   own-keys mode (use_jh_credits == 0)  →  the PROFILE row
+ *
+ * For Apify, a **fresh detection wins outright** over the dropdown. `maxConcurrentActorJobs` read
+ * from the account itself is better data than a human's self-report in both directions, and the
+ * dropdown's conservative default would otherwise throttle every existing own-keys profile to 4
+ * with no way for detection to lift it. The dropdown is the fallback for when detection is down.
+ *
+ * `telegramIngest.ts` is a system cron with no profile: it reads the admin key directly, bypasses
+ * `resolveSpendKeys`, and bypasses this too (APIlimits.md caveat C4).
+ */
+export function resolveLimits(db: Database, profileId: number): ResolvedLimits {
+  const own = db.prepare('SELECT use_jh_credits FROM settings WHERE profile_id = ?').get(profileId) as
+    { use_jh_credits: number } | undefined;
+
+  let rowId = profileId;
+  if ((own?.use_jh_credits ?? 1) !== 0) {
+    const admin = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+    if (admin) rowId = admin.id;
+  }
+
+  const s = db.prepare(`
+    SELECT openai_tier, apify_plan, apify_concurrency_detected, apify_limits_checked_at,
+           openai_limits_json, openai_limits_checked_at
+    FROM settings WHERE profile_id = ?
+  `).get(rowId) as {
+    openai_tier: string; apify_plan: string;
+    apify_concurrency_detected: number; apify_limits_checked_at: string;
+    openai_limits_json: string; openai_limits_checked_at: string;
+  } | undefined;
+
+  // ── Apify ──
+  const detected = Number(s?.apify_concurrency_detected) || 0;
+  const apifyCheckedAt = s?.apify_limits_checked_at || '';
+  const apifyAge = apifyCheckedAt ? Date.now() - Date.parse(apifyCheckedAt) : Infinity;
+  const apifyFresh = detected > 0 && Number.isFinite(apifyAge) && apifyAge < APIFY_LIMITS_TTL_MS;
+
+  // `Number(env) || x` is deliberate: APIFY_CONCURRENCY=0 falls through to the measured value
+  // rather than disabling the gate (PRD §11). The env var is the only override left.
+  const apifyConcurrency = Number(process.env.APIFY_CONCURRENCY)
+    || (apifyFresh ? apifyConcurrencyFromCeiling(detected) : APIFY_FALLBACK_CONCURRENCY);
+
+  // ── OpenAI ──
+  const openAiLimits = parseOpenAiLimits(s?.openai_limits_json ?? '');
+
+  return {
+    rowId,
+    apifyConcurrency,
+    apifyDetectionStale: !apifyFresh,
+    apifyConcurrencyDetected: detected,
+    apifyCheckedAt,
+    apifyPlan: s?.apify_plan || '',
+    openAiLimits,
+    openAiTier: s?.openai_tier || '',
+    openAiConcurrencyFor(model: string): number {
+      const override = Number(process.env.SCORING_CONCURRENCY);
+      if (override > 0) return override;
+      return openAiLimits[model]?.concurrency || OPENAI_FALLBACK_CONCURRENCY;
+    },
+  };
+}
+
+/**
+ * Caveat C9 tripwire. In credits mode every user resolves to the admin row's `apify_api_token`,
+ * while the admin's own runs resolve to `user_apify_api_token` on that same row. The gate is keyed
+ * by token **string**, so two different strings for one Apify account would build two independent
+ * limiters — 56 concurrent runs against a ceiling of 29, gate silently defeated.
+ *
+ * We assume the two columns never hold different tokens for the same account. This costs nothing
+ * and makes a future edit to one column impossible to miss. Warn only; never fail a boot.
+ */
+export function warnOnSplitApifyTokens(db: Database): void {
+  try {
+    const admin = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+    if (!admin) return;
+    const s = db.prepare('SELECT apify_api_token, user_apify_api_token FROM settings WHERE profile_id = ?')
+      .get(admin.id) as { apify_api_token: string; user_apify_api_token: string } | undefined;
+    const global = s?.apify_api_token?.trim() || '';
+    const personal = s?.user_apify_api_token?.trim() || '';
+    if (global && personal && global !== personal) {
+      console.warn(
+        '[db] ⚠ APIlimits caveat C9: the admin row holds two different Apify tokens ' +
+        '(apify_api_token vs user_apify_api_token). The concurrency gate is keyed by token string, ' +
+        'so if these belong to the SAME Apify account the ceiling is being enforced twice over and ' +
+        'the account can be over-committed. Make them identical, or confirm they are separate accounts.',
+      );
+    }
+  } catch {
+    // A tripwire must never be the reason a boot fails.
+  }
+}
+
 // ---- Row types ----
 
 export interface ProfileRow {
@@ -2981,6 +3157,10 @@ export interface SettingsRow {
   app_url: string;                 // deployment base URL used in email links (e.g. https://hunter.example.com)
   telegram_ingest_enabled: number;
   telegram_extract_prompt: string;
+  openai_tier: string;                  // 'free' | 'tier1'..'tier5' — see pipeline/limitTables.ts
+  apify_plan: string;                   // 'free' | 'custom' | 'starter' | 'scale' | 'business'
+  apify_concurrency_detected: number;   // last `maxConcurrentActorJobs` seen; 0 = never detected
+  apify_limits_checked_at: string;      // ISO timestamp of that detection; '' = never
 }
 
 export interface CvRow {

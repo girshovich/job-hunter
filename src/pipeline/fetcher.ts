@@ -28,5 +28,5 @@ export async function fetchJobs(
   if (provider === 'ashby')      return fetchWithAshby(filters, apifyToken, dateRange);
   if (provider === 'lever')      return fetchWithLever(filters, apifyToken, dateRange);
   if (provider === 'telegram')   return fetchWithTelegram(filters, apifyToken, dateRange);
-  return fetchWithHarvestApi(filters, apifyToken, dateRange);
+  return fetchWithHarvestApi(filters, apifyToken, dateRange, options);
 }
