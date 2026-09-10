@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import { Resend } from 'resend';
-import { getDb, createProfile, type ProfileRow, type OtpCodeRow, type SessionRow, type EmailChangeRequestRow } from '../db';
+import { getDb, createProfile, touchProfileActivity, type ProfileRow, type OtpCodeRow, type SessionRow, type EmailChangeRequestRow } from '../db';
 
 export const SESSION_COOKIE = 'jh_session';
 export const SESSION_DAYS = 30;
@@ -42,6 +42,9 @@ function createSession(db: ReturnType<typeof getDb>, profileId: number): string 
   db.prepare(
     'INSERT INTO sessions (token, profile_id, created_at, expires_at, last_active) VALUES (?, ?, ?, ?, ?)'
   ).run(hashToken(token), profileId, now, expiresAt, now);
+  // The gate's hourly refresh cannot see a login: a fresh session's `last_active` is never stale,
+  // so a user who signs in and leaves within the hour would register no presence at all.
+  touchProfileActivity(db, profileId);
   return token;
 }
 

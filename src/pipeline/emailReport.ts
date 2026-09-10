@@ -373,6 +373,64 @@ export async function sendLowCreditsEmail(
   console.log(`[email] Sent low credits alert to ${recipientEmail}`);
 }
 
+/**
+ * Two days' notice before the reaper stops an abandoned schedule (schedule_disable.md §6).
+ *
+ * `track` picks the copy, not the styling: 'new' is someone who never came back after signup day,
+ * 'lapsed' is a returning user who went quiet. Neither version says "daily" — a schedule can run on
+ * chosen weekdays, so the cadence is always "scheduled searches".
+ *
+ * Deliberately ignores `settings.email_enabled`: that flag gates the digest, and this is an
+ * account-state alert like the low-credits one. A user with digests off would otherwise be paused
+ * with no notice at all.
+ *
+ * There is no keep-alive link by design — opening the app is what counts, and a one-click token
+ * would mean an HMAC and a new unauthenticated route for a two-day reprieve.
+ */
+export async function sendScheduleInactivityWarning(
+  recipientEmail: string,
+  track: 'new' | 'lapsed',
+  appUrl: string,
+  resendApiKey: string,
+  emailFrom: string,
+): Promise<void> {
+  const domain = appUrl.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const closer = domain
+    ? `<p style="color:#000000;font-size:14px;line-height:1.6;margin:14px 0 0;"><strong>${escapeHtml(domain)} &mdash; get back any time!</strong></p>`
+    : '';
+
+  const heading = track === 'new'
+    ? 'Your scheduled searches are about to stop'
+    : 'Still looking?';
+  const opener = track === 'new'
+    ? "You set up a search schedule, but you haven't opened a job or changed anything since the day you registered."
+    : "It's been almost a month since you last opened a job or did anything here.";
+  const invite = track === 'new'
+    ? "you're welcome to come back and set the schedule again any time."
+    : "you're welcome to start the schedule again whenever you want.";
+
+  const html = emailFrame('alert', `
+      <h3 style="margin:0 0 12px;font-size:18px;font-weight:800;color:#000000;letter-spacing:-0.01em;">${heading}</h3>
+      <p style="color:#000000;font-size:14px;line-height:1.6;margin:0 0 14px;">
+        ${opener} I'll stop your schedule in <strong>2 days</strong> rather than keep running searches
+        you don't actually need.
+      </p>
+      <p style="color:#000000;font-size:14px;line-height:1.6;margin:0;">
+        Nothing gets deleted. Your roles, settings and everything already found stay exactly where they
+        are &mdash; ${invite}
+      </p>${closer}`);
+
+  const resend = new Resend(resendApiKey);
+  const { error } = await resend.emails.send({
+    from: emailFrom,
+    to: recipientEmail,
+    subject: 'Job Search — your scheduled searches stop in 2 days',
+    html,
+  });
+  if (error) throw new Error(error.message);
+  console.log(`[email] Sent inactivity warning (${track}) to ${recipientEmail}`);
+}
+
 export async function sendRateLimitAlert(
   recipientEmail: string,
   resendApiKey: string,

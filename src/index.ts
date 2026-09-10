@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
-import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, TOPUP_ENABLED, warnOnSplitApifyTokens } from './db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, TOPUP_ENABLED, touchProfileActivity, warnOnSplitApifyTokens } from './db';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -17,6 +17,7 @@ import { rundiffRouter } from './routes/rundiff';
 import { publicAnonymousRouter, publicAuthedRouter } from './routes/public';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
 import { startAtsDiscoveryCron, startLeverDiscoveryCron, startAtsValidationCron, startGhPoolCron, startAshbyPoolCron, startLeverPoolCron, startPoolCleanupCron, startTelegramIngestCron, ATS_DISCOVERY_CRON, ATS_LEVER_CRON, ATS_VALIDATION_CRON } from './pipeline/atsScheduler';
+import { startScheduleReaperCron } from './pipeline/scheduleReaper';
 import compression from 'compression';
 import { uiHelpers } from './uiHelpers';
 
@@ -89,6 +90,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     const newExpiry = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
     const now = new Date().toISOString();
     db.prepare('UPDATE sessions SET expires_at = ?, last_active = ? WHERE id = ?').run(newExpiry, now, session.id);
+    // Same hourly beat, mirrored onto the profile so it survives a logout — see touchProfileActivity.
+    touchProfileActivity(db, session.profile_id);
   }
 
   req.profile = {
@@ -255,6 +258,7 @@ async function start(): Promise<void> {
     }
   }
   startPoolCleanupCron();
+  startScheduleReaperCron();
 
   // Restore user schedules that were active before the last restart
   const activeSchedules = db.prepare(`

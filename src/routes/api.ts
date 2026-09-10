@@ -594,7 +594,9 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   const timeVal = emailSendTime || '07:00';
   const [hStr, mStr] = timeVal.split(':');
   const expression = `${parseInt(mStr || '0', 10)} ${parseInt(hStr || '7', 10)} * * ${scheduleDays}`;
-  updates.push('cron_schedule = ?', 'schedule_date_range = ?', 'schedule_group_ids = ?', 'scraping_providers = ?', 'schedule_active = ?', 'updated_at = ?');
+  // Clearing the pause stamp here is what keeps `schedule_paused_reason` honest: it means
+  // "the inactivity reaper stopped this one", so it must not outlive the schedule it described.
+  updates.push('cron_schedule = ?', 'schedule_date_range = ?', 'schedule_group_ids = ?', 'scraping_providers = ?', 'schedule_active = ?', 'schedule_paused_at = NULL', 'schedule_paused_reason = NULL', 'updated_at = ?');
   params.push(expression, scheduleDateRange, JSON.stringify(groupIds), JSON.stringify(schedProviders), 1, new Date().toISOString());
   db.prepare(`UPDATE settings SET ${updates.join(', ')} WHERE profile_id = ?`).run(...params, profileId);
 

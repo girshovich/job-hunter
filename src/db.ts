@@ -2333,6 +2333,44 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_api_limits failed (non-fatal):', (err as Error).message);
   }
+
+  // v_schedule_inactivity: the presence columns that drive the abandoned-schedule reaper
+  // (schedule_disable.md). `sessions` cannot be the source of truth — an ordinary logout DELETEs
+  // the row and `v_hashed_sessions` once deleted every row that existed — so "a human was here"
+  // is denormalised onto `profiles`, where it survives both.
+  //
+  // The backfill deliberately does NOT derive from MAX(sessions.last_active): for anyone whose
+  // rows were wiped the fallback would be months old and the very first sweep would pause a live
+  // account. Every pre-existing profile is seeded with the migration timestamp and
+  // `active_days_count = 2` — 2, not 1, because the short (10-day) track is meant for accounts
+  // that never came back after signup day, which cannot be proven retroactively. The cost of
+  // seeding this way is one extra 30-day window for genuinely dead accounts, once.
+  try {
+    const pCols = db.prepare(`PRAGMA table_info(profiles)`).all() as Array<{ name: string }>;
+    if (!pCols.some((c) => c.name === 'last_active_at')) {
+      db.exec(`ALTER TABLE profiles ADD COLUMN last_active_at TEXT`);
+      db.exec(`ALTER TABLE profiles ADD COLUMN active_day_last TEXT`);
+      db.exec(`ALTER TABLE profiles ADD COLUMN active_days_count INTEGER NOT NULL DEFAULT 0`);
+      console.log('[db] Migration v_schedule_inactivity: profiles activity columns added');
+    }
+    const sCols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!sCols.some((c) => c.name === 'schedule_paused_at')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN schedule_paused_at TEXT`);
+      db.exec(`ALTER TABLE settings ADD COLUMN schedule_paused_reason TEXT`);
+      db.exec(`ALTER TABLE settings ADD COLUMN activity_warned_at TEXT`);
+      console.log('[db] Migration v_schedule_inactivity: settings pause columns added');
+    }
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_schedule_inactivity'`).get();
+    if (!done) {
+      db.prepare(
+        `UPDATE profiles SET last_active_at = ?, active_days_count = 2 WHERE last_active_at IS NULL`
+      ).run(new Date().toISOString());
+      db.exec(`INSERT INTO _migrations VALUES ('v_schedule_inactivity')`);
+      console.log('[db] Migration v_schedule_inactivity: existing profiles seeded');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_schedule_inactivity failed (non-fatal):', (err as Error).message);
+  }
 }
 
 function initSchema(db: Database): void {
@@ -2772,6 +2810,59 @@ export function createProfile(db: Database, email: string): { id: number; create
   return { id: newId, createdAt: now };
 }
 
+/** `YYYY-MM-DD` for `when` as seen in `tz`, falling back to UTC for a timezone SQLite/ICU rejects. */
+function localDay(when: Date, tz: string): string {
+  const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+  try {
+    return new Intl.DateTimeFormat('en-CA', { ...opts, timeZone: tz }).format(when);
+  } catch {
+    return new Intl.DateTimeFormat('en-CA', { ...opts, timeZone: 'UTC' }).format(when);
+  }
+}
+
+/**
+ * Record that a human was here, on `profiles` rather than on `sessions` — a logout DELETEs the
+ * session row, so reading presence from there would make a heavy user look like they never came
+ * (schedule_disable.md §2). Feeds the abandoned-schedule reaper and nothing else.
+ *
+ * Two call sites, both already rate-limited by something other than this function: the auth gate's
+ * once-an-hour session refresh (`index.ts`), and session creation on login (`auth.ts`) — which the
+ * gate's throttle would otherwise miss entirely, since a fresh session's `last_active` is never stale.
+ *
+ * `active_days_count` counts **distinct calendar days in the user's own timezone**, so a session
+ * spanning local midnight counts twice. That errs toward the longer threshold, which is the safe
+ * direction. A scheduled run is not a user action and never reaches here.
+ *
+ * Non-fatal by construction: presence bookkeeping must never break a page load.
+ */
+export function touchProfileActivity(db: Database, profileId: number): void {
+  try {
+    const row = db.prepare<{ active_day_last: string | null; timezone: string | null; activity_warned_at: string | null }>(`
+      SELECT p.active_day_last, s.timezone, s.activity_warned_at
+      FROM profiles p LEFT JOIN settings s ON s.profile_id = p.id
+      WHERE p.id = ?
+    `).get(profileId);
+    if (!row) return;
+
+    const now = new Date();
+    const today = localDay(now, row.timezone || 'UTC');
+    if (row.active_day_last === today) {
+      db.prepare('UPDATE profiles SET last_active_at = ? WHERE id = ?').run(now.toISOString(), profileId);
+    } else {
+      db.prepare(
+        'UPDATE profiles SET last_active_at = ?, active_day_last = ?, active_days_count = active_days_count + 1 WHERE id = ?'
+      ).run(now.toISOString(), today, profileId);
+    }
+
+    // The silence streak is over, so the next lapse gets its own warning email.
+    if (row.activity_warned_at) {
+      db.prepare('UPDATE settings SET activity_warned_at = NULL WHERE profile_id = ?').run(profileId);
+    }
+  } catch (err) {
+    console.warn('[activity] touchProfileActivity failed (non-fatal):', (err as Error).message);
+  }
+}
+
 /**
  * True when a profile's chosen payment mode can actually pay for a run: both own keys saved, or a
  * balance clearing the floor `/api/run` enforces. **Choosing a mode is not readiness** — that
@@ -2996,6 +3087,10 @@ export interface ProfileRow {
   email: string;
   is_admin: number;   // 1 = admin, 0 = regular
   created_at: string;
+  // Presence, denormalised off `sessions` so it survives logout (migration `v_schedule_inactivity`).
+  last_active_at: string | null;     // ISO-8601, last authed human request
+  active_day_last: string | null;    // YYYY-MM-DD in the profile's own settings.timezone
+  active_days_count: number;         // distinct calendar days the profile was ever active
 }
 
 /** Tombstone for a deleted profile — no email, no personal data (migration `v_deleted_profiles`). */
@@ -3161,6 +3256,9 @@ export interface SettingsRow {
   apify_plan: string;                   // 'free' | 'custom' | 'starter' | 'scale' | 'business'
   apify_concurrency_detected: number;   // last `maxConcurrentActorJobs` seen; 0 = never detected
   apify_limits_checked_at: string;      // ISO timestamp of that detection; '' = never
+  schedule_paused_at: string | null;     // ISO — when the inactivity reaper stopped the schedule
+  schedule_paused_reason: string | null; // 'inactivity'; NULL for a user or credits stop
+  activity_warned_at: string | null;     // ISO — warning email sent, once per silence streak
 }
 
 export interface CvRow {

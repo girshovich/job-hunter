@@ -103,7 +103,7 @@ class CreditsExhaustedError extends Error {
  *
  * Dynamic import keeps the scheduler → runner → scheduler cycle from becoming a static one.
  */
-function stopScheduleAndPersist(db: Database, profileId: number): void {
+export function stopScheduleAndPersist(db: Database, profileId: number): void {
   import('./scheduler').then(({ stopSchedule }) => stopSchedule(profileId)).catch(() => {});
   try {
     db.prepare('UPDATE settings SET schedule_active = 0 WHERE profile_id = ?').run(profileId);
