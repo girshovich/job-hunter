@@ -13,6 +13,17 @@ function renderMd(text) {
   const paras = s.split(/\n{2,}/);
   return paras.map(p => '<p>' + p.replace(/\n/g, '<br>') + '</p>').join('');
 }
+// Structured AI resolution: JSON in `ai_rationale`. Legacy rows hold prose and return null,
+// which routes them to the original paragraph block below (R5).
+function parseResolution(text) {
+  const t = String(text || '').trim();
+  if (!t.startsWith('{')) return null;
+  try {
+    const r = JSON.parse(t);
+    if (!r || typeof r.headline !== 'string' || !Array.isArray(r.pros) || !Array.isArray(r.cons)) return null;
+    return r;
+  } catch (e) { return null; }
+}
 // Plain-text strip of markdown emphasis for the one-line AI summary
 function stripMdInline(text) {
   return String(text || '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/[*_`#]/g, '').trim();
@@ -22,12 +33,12 @@ function formatDate(iso) {
   return formatDateTimeToMinutes(iso, tz);
 }
 const detailVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
-// General AI analysis tone box (DS v2 §5.5)
+// AI analysis tone (DS v2 §5.6) — tints the header strip; the body is always `--card`.
 function analysisTone(v) {
-  if (v === 'STRONG_MATCH') return { bg: 'var(--green-soft)', border: 'var(--green-border)', head: 'var(--green2)', body: '#2f5741', icon: 'var(--green)' };
-  if (v === 'WEAK_MATCH')   return { bg: 'var(--amber-soft)', border: 'var(--amber-border)', head: 'var(--amber-ink)', body: '#5c4413', icon: 'var(--amber)' };
-  if (v === 'DUPLICATE')    return { bg: 'var(--purple-soft)', border: 'var(--purple-border)', head: 'var(--purple)', body: '#4a3a6b', icon: 'var(--purple-strong)' };
-  return { bg: 'var(--red-soft)', border: 'var(--red-border)', head: 'var(--red-ink)', body: '#5c2b28', icon: 'var(--red)' };
+  if (v === 'STRONG_MATCH') return { bg: 'var(--green-soft)', border: 'var(--green-border)', head: 'var(--green2)', icon: 'var(--green)' };
+  if (v === 'WEAK_MATCH')   return { bg: 'var(--amber-soft)', border: 'var(--amber-border)', head: 'var(--amber-ink)', icon: 'var(--amber)' };
+  if (v === 'DUPLICATE')    return { bg: 'var(--purple-soft)', border: 'var(--purple-border)', head: 'var(--purple)', icon: 'var(--purple-strong)' };
+  return { bg: 'var(--red-soft)', border: 'var(--red-border)', head: 'var(--red-ink)', icon: 'var(--red)' };
 }
 // Source badge tone (DS v2 §5.4) comes from the shared uiHelpers `sourceTone`.
 %>
@@ -115,6 +126,39 @@ function renderLinks(raw) {
   .jd-html p:has(> b:only-child) + *   { margin-top: 0.25em; }
   .jd-html a, .jd-link                  { color: var(--accent); text-decoration: underline; overflow-wrap: anywhere; }
   .jd-plain { font-size: 14px; line-height: 1.7; color: #4a5262; white-space: pre-wrap; }
+
+  /* ── Structured AI analysis: tone strip over a neutral ledger (DS v2 §5.6) ──
+     The verdict tone arrives as three custom properties set inline on .air. */
+  .air        { background: var(--card); border: 1px solid var(--air-bd); border-radius: 14px;
+                overflow: hidden; container-type: inline-size; }
+  .air-top    { background: var(--air-bg); padding: 11px 17px 12px; border-bottom: 1px solid var(--air-bd); }
+  /* Label and headline share one row on a true baseline — no eyebrow row of its own. */
+  .air-hrow   { display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 0 10px; }
+  .air-lbl    { white-space: nowrap; }
+  /* Inline, not flex, so the grid aligns real text baselines rather than box edges — which means
+     undoing the display:block Tailwind preflight puts on every svg, or the bulb stacks on the label. */
+  .air-lbl svg  { display: inline-block; vertical-align: -2.5px; margin-right: 6px; }
+  .air-lbl span { font-size: 11px; font-weight: 800; letter-spacing: .07em;
+                  text-transform: uppercase; color: var(--air-hd); opacity: .62; }
+  .air-vr     { width: 1px; align-self: stretch; background: var(--air-bd); }
+  .air-head   { margin: 0; font-size: 12.5px; font-weight: 800; line-height: 1.42;
+                letter-spacing: -.005em; color: var(--air-hd); text-wrap: pretty; }
+  /* Keyed to the block's own width: the same block renders in the two-pane detail, the
+     standalone /job/:id page and the run-logs drawer, so a viewport query would miss it. */
+  @container (max-width: 420px) {
+    .air-hrow { grid-template-columns: 1fr; gap: 6px; }
+    .air-vr   { display: none; }
+  }
+  /* Paragraph body — legacy prose rows, and any row whose JSON fails to parse. */
+  .air-body   { padding: 11px 17px 13px; }
+  .air-body p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink2); }
+  .air-ledger { padding: 10px 17px 12px; display: flex; flex-direction: column; gap: 5px; }
+  .air-li     { display: grid; grid-template-columns: 17px 1fr; gap: 9px; align-items: start; }
+  .air-li svg { margin-top: 1px; }
+  .air-li p   { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink2); }
+  /* Colour separates the two lists; a divider rule would be pure height. */
+  .air-li.is-first-con { margin-top: 7px; }
+  .air-li.is-dq p      { color: var(--red-ink); font-weight: 700; }
 </style>
 
 <div style="display:flex;flex-direction:column;gap:12px;max-width:900px;">
@@ -269,14 +313,48 @@ function renderLinks(raw) {
     <div id="cv-assessment-text" class="cv-md"><% if (job.cv_assessment) { %><%- renderMd(job.cv_assessment) %><% } %></div>
   </div>
 
-  <!-- General AI analysis -->
-  <% if (job.ai_rationale) { const an = analysisTone(detailVerdict); %>
-  <div style="background:<%= an.bg %>;border:1px solid <%= an.border %>;border-radius:14px;padding:15px 18px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="<%= an.icon %>" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg>
-      <span style="font-size:14px;font-weight:800;color:<%= an.head %>;">General AI analysis</span>
+  <!-- AI analysis -->
+  <%# One block for both stored formats (DS v2 §5.6). Structured rows get the marked ledger;
+      legacy prose rows — and any row whose JSON fails to parse — get the paragraph body. The
+      shell, the tone strip and the label are shared, so nothing is duplicated for the old format. %>
+  <% if (job.ai_rationale) { const an = analysisTone(detailVerdict); const res = parseResolution(job.ai_rationale); %>
+  <% const _headline = res && res.headline ? res.headline : ''; %>
+  <%# The disqualifying con leads the cons in red; at most one carries the flag. %>
+  <% const _cons = res ? res.cons.slice().sort((a, b) => ((b && b.disqualifying) ? 1 : 0) - ((a && a.disqualifying) ? 1 : 0)) : []; %>
+  <div class="air" style="--air-bg:<%= an.bg %>;--air-bd:<%= an.border %>;--air-hd:<%= an.head %>;">
+    <div class="air-top">
+      <div class="air-hrow">
+        <span class="air-lbl"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="<%= an.icon %>" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg><span>AI analysis</span></span>
+        <%# No headline: drop the rule too, so nothing divides the label from empty space. %>
+        <% if (_headline) { %>
+        <span class="air-vr"></span>
+        <p class="air-head"><%= _headline %></p>
+        <% } %>
+      </div>
     </div>
-    <p style="margin:0;font-size:14px;line-height:1.65;color:<%= an.body %>;"><%= job.ai_rationale %></p>
+    <% if (!res) { %>
+    <div class="air-body"><p><%= job.ai_rationale %></p></div>
+    <%# Both lists can be empty (no floors) — omit the ledger rather than pad the block with blank. %>
+    <% } else if (res.pros.length > 0 || _cons.length > 0) { %>
+    <div class="air-ledger">
+      <% res.pros.forEach(function (pro) { %>
+      <div class="air-li">
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="var(--green-soft)" stroke="var(--green-border)"/><path d="m6.6 10.2 2.2 2.2 4.6-4.6" stroke="var(--green2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p><%= pro %></p>
+      </div>
+      <% }); %>
+      <% _cons.forEach(function (con, i) { %>
+      <div class="air-li<%= con.disqualifying ? ' is-dq' : '' %><%= i === 0 && res.pros.length > 0 ? ' is-first-con' : '' %>">
+        <% if (con.disqualifying) { %>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="var(--red-soft)" stroke="var(--red-border)"/><path d="M10 6.2v4.6" stroke="var(--red-ink)" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="13.9" r="1.15" fill="var(--red-ink)"/></svg>
+        <% } else { %>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="var(--amber-soft)" stroke="var(--amber-border)"/><path d="M7.4 7.4l5.2 5.2M12.6 7.4l-5.2 5.2" stroke="var(--amber-ink)" stroke-width="2" stroke-linecap="round"/></svg>
+        <% } %>
+        <p><%= con.text %></p>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
   </div>
   <% } %>
 

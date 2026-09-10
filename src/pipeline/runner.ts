@@ -915,7 +915,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           insertJobLog.run(
             runId, group.id, scored.job.jobId, scored.job.jobSource ?? 'LinkedIn', scored.job.title, scored.job.company,
             logLoc, scored.job.url || null,
-            scored.score, logVerdict, scored.rationale || null,
+            scored.score, logVerdict, null,
             scored.rejectionCategory || null, loggedAt,
           );
         }
@@ -1083,7 +1083,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             entry.jobId, profileId,
           );
           updateRescoredLog.run(
-            rescored.score, rescored.verdict, rescored.rationale,
+            rescored.score, rescored.verdict, null,
             rescored.rejectionCategory,
             runId, entry.job.jobId, entry.groupId,
           );
