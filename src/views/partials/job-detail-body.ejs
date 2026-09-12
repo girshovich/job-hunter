@@ -57,6 +57,10 @@ const _elapsed = Number(locals.elapsedDays);
 // editor: there is no row behind it to edit. The first real move writes one and it becomes an
 // ordinary step like any other.
 const _derived = locals.derivedCurrent === true;
+// The status control shows on a job that is strong OR already tracked, so promoting a weak match
+// in All Jobs visibly changes that card rather than being a dead end (§8.3, LC4). Defined here
+// because the exits (header card) and the rail (tracking card) are now in different blocks.
+const _showStatus = detailVerdict === 'STRONG_MATCH' || _curType !== 'new';
 // The rail heading answers "how long has this been sitting". Set today, the answer repeats the
 // date on the chip beside it, so it says nothing at all (D48).
 const _ageLong = (_ended || !Number.isFinite(_elapsed) || _elapsed < 0) ? ''
@@ -280,6 +284,64 @@ function renderLinks(raw) {
     </div>
     <% } %>
 
+    <!-- Actions -->
+    <% const applyUrl = job.apply_url || job.url; %>
+    <%# A New job leads with the application CTA. A job already being tracked leads with where it
+        stands, and its links demote to secondary — you are not applying to it again. %>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <% if (applyUrl && _isNewJob) { %>
+      <a href="<%= applyUrl %>" target="_blank" rel="noopener noreferrer"
+         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--green);color:#fff;font-size:13.5px;font-weight:700;box-shadow:0 1px 2px rgba(40,177,105,.35);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        Apply on website
+      </a>
+      <% } else if (applyUrl) { %>
+      <a href="<%= applyUrl %>" target="_blank" rel="noopener noreferrer"
+         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700;border:1px solid var(--accent-border);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        View on website
+      </a>
+      <% } %>
+      <% if (job.url) { %>
+      <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer"
+         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700;border:1px solid var(--accent-border);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+        View on <%= sourceName %>
+      </a>
+      <% } %>
+    </div>
+
+    <%# The three exits, beneath the buttons, on a job still waiting for a decision (DP1). %>
+    <% if (_showStatus && _isNewJob) { %>
+    <div class="pane-exits">
+      <% if (_statusExit.applied) { %>
+      <button type="button" class="exit-btn is-primary" data-job-id="<%= job.id %>" data-exit-status="<%= _statusExit.applied.id %>">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2-7-8-3z"/></svg>I applied
+      </button>
+      <% } %>
+      <% if (_statusExit.wont) { %>
+      <button type="button" class="exit-btn skip" data-job-id="<%= job.id %>" data-exit-status="<%= _statusExit.wont.id %>">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>I'm not applying
+      </button>
+      <% } %>
+      <%# The third exit. `I applied` and `I'm not applying` are statements about what YOU did;
+          `not a match?` is a statement about the JOB, and it corrects the AI rather than recording
+          a decision — which is why it sits apart, to the right, and reads as a link (D16). %>
+      <button type="button" class="corrlink verdict-btn" data-job-id="<%= job.id %>"
+              data-verdict="<%= detailVerdict %>">not a match?</button>
+    </div>
+    <% } %>
+
+  </div>
+
+  <%# ── Tracking card ────────────────────────────────────────────────────────────────────────
+      Where this job stands, and what you think about it — one card. The rail used to sit at the
+      bottom of the header card, which meant that card opened with what the AI found and ended with
+      what you did: two different subjects under one roof. The note was a feature of its own below
+      it, which it never was — a note is part of tracking.
+      The action buttons deliberately stay in the header card: on a New job `Apply on website` is
+      the point of the screen, and it must not drop below a second card header. %>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 16px;box-shadow:var(--shadow-card);">
     <%# ── Status rail ──────────────────────────────────────────────────────────────────────
         The whole history on one titled line, oldest on the left, the current status last and
         wearing its type colour. No rule above it — ordinary spacing under the AI summary (D36).
@@ -287,9 +349,7 @@ function renderLinks(raw) {
         anything away, because the room exists here and a hidden step is worse than an extra row
         (D31). The pills are not joined by connectors — a dash gets orphaned at the end of a
         wrapped line, so a consistent 7px gap carries the sequence instead (D38).
-        The control shows on a job that is strong OR already tracked, so a promoted weak match is
-        never a dead end (§8.3). %>
-    <% const _showStatus = detailVerdict === 'STRONG_MATCH' || !_isNewJob; %>
+        Lives in the tracking card, above the note (§12.5). %>
     <% if (_showStatus && !_isNewJob) { %>
     <div class="hist" data-job-id="<%= job.id %>">
       <%# On a phone the chips give up their dates, so one date moves here — the date of the step
@@ -355,59 +415,11 @@ function renderLinks(raw) {
     </div>
     <% } %>
 
-    <!-- Actions -->
-    <% const applyUrl = job.apply_url || job.url; %>
-    <%# A New job leads with the application CTA. A job already being tracked leads with where it
-        stands, and its links demote to secondary — you are not applying to it again. %>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
-      <% if (applyUrl && _isNewJob) { %>
-      <a href="<%= applyUrl %>" target="_blank" rel="noopener noreferrer"
-         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--green);color:#fff;font-size:13.5px;font-weight:700;box-shadow:0 1px 2px rgba(40,177,105,.35);">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        Apply on website
-      </a>
-      <% } else if (applyUrl) { %>
-      <a href="<%= applyUrl %>" target="_blank" rel="noopener noreferrer"
-         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700;border:1px solid var(--accent-border);">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        View on website
-      </a>
-      <% } %>
-      <% if (job.url) { %>
-      <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer"
-         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700;border:1px solid var(--accent-border);">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
-        View on <%= sourceName %>
-      </a>
-      <% } %>
-    </div>
-
-    <%# The three exits, beneath the buttons, on a job still waiting for a decision (DP1). %>
-    <% if (_showStatus && _isNewJob) { %>
-    <div class="pane-exits">
-      <% if (_statusExit.applied) { %>
-      <button type="button" class="exit-btn" data-job-id="<%= job.id %>" data-exit-status="<%= _statusExit.applied.id %>">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2-7-8-3z"/></svg>I applied
-      </button>
-      <% } %>
-      <% if (_statusExit.wont) { %>
-      <button type="button" class="exit-btn skip" data-job-id="<%= job.id %>" data-exit-status="<%= _statusExit.wont.id %>">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>I'm not applying
-      </button>
-      <% } %>
-      <%# The third exit. `I applied` and `I'm not applying` are statements about what YOU did;
-          `not a match?` is a statement about the JOB, and it corrects the AI rather than recording
-          a decision — which is why it sits apart, to the right, and reads as a link (D16). %>
-      <button type="button" class="corrlink verdict-btn" data-job-id="<%= job.id %>"
-              data-verdict="<%= detailVerdict %>">not a match?</button>
-    </div>
+    <%# The rule is full-bleed so the two halves read as one card divided, not two stacked blocks. %>
+    <% if (_showStatus && !_isNewJob) { %>
+    <div style="height:1px;background:var(--line);margin:14px -16px 0;"></div>
     <% } %>
-
-  </div>
-
-  <!-- Notes about the job -->
-  <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 16px;box-shadow:var(--shadow-card);">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:<%= (_showStatus && !_isNewJob) ? '13px' : '0' %> 0 8px;">
       <div style="font-size:13px;font-weight:800;color:var(--ink);">Notes about the job</div>
       <button id="notes-save-btn" onclick="saveNotes()"
               style="font-size:12px;font-weight:700;color:var(--accent);background:transparent;border:0;cursor:pointer;">Save</button>

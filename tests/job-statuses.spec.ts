@@ -546,11 +546,17 @@ test('a New job shows the three exits; a tracked one shows the rail (LC1, DP1, D
   await page.goto(`/jobs?verdict=all&selected=${newJob}`);
   await expect(page.locator('.pane-exits .exit-btn')).toHaveCount(2);
   await expect(page.locator('.hist')).toHaveCount(0);
-  // Nothing is preselected among the exits — all three sit at equal weight (D18).
-  const filled = await page.locator('.pane-exits .exit-btn').evaluateAll(
+  // D18 revised: not "all three at equal weight" but **exactly one primary**. The fill is what makes
+  // the strip read as the action the card exists for; making only one of the three filled is what
+  // keeps that fill reading as emphasis rather than as a state the job is already in.
+  await expect(page.locator('.pane-exits .exit-btn.is-primary')).toHaveCount(1);
+  const fills = await page.locator('.pane-exits .exit-btn').evaluateAll(
     (els) => els.map((e) => getComputedStyle(e).backgroundColor),
   );
-  expect(new Set(filled).size).toBe(1);
+  // The primary carries --accent; the secondary carries nothing, so it takes the card's own colour
+  // and can never sit lighter than the surface holding it.
+  expect(fills).toContain('rgb(67, 115, 255)');
+  expect(fills).toContain('rgba(0, 0, 0, 0)');
 
   const trackedJob = pickJob('applied');
   await page.goto(`/jobs?verdict=all&selected=${trackedJob}`);

@@ -126,7 +126,7 @@ function exitStrip(job){
   const appliedId = (exitStatuses.applied || {}).id;
   const wontId = (exitStatuses.wont || {}).id;
   let html = '<div class="ctlstrip">';
-  if (appliedId) html += btn('I applied', sendIcon, appliedId);
+  if (appliedId) html += btn('I applied', sendIcon, appliedId, 'is-primary');
   if (wontId) html += btn("I'm not applying", skipIcon, wontId, 'skip');
   html += '<button type="button" class="corrlink verdict-btn" data-job-id="'+job.id+'" data-verdict="'+esc(job.is_duplicate?'DUPLICATE':job.ai_verdict)+'">not a match?</button>';
   return html + '</div>';

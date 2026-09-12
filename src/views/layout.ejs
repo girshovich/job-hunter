@@ -481,14 +481,28 @@
        standalone /job/:id the buttons fell back to `display:block` and Tailwind's preflight put
        the icon on its own line. One slot per card, same place, under its own hairline (D19). */
     .ctlstrip { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); }
+    /* One primary, one secondary, one link. On a New card these two buttons are the only thing the
+       user is there to do — everything around them is input to that one decision — so the primary
+       is filled and reads as a primary. This revises D18 ("all three at equal weight, colour only
+       on hover"): what D18 was guarding against is a fill reading as a *state*, and making only
+       ONE of the three filled is what keeps it reading as emphasis instead.
+       The secondary is transparent, not white: it takes the card's own colour, so nothing sits
+       lighter than the surface holding it on either the tinted list card or the white pane card. */
     .exit-btn {
       display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
       border-radius: 9px; font-size: 11.5px; font-weight: 700; font-family: inherit;
-      border: 1px solid var(--line2); background: #fff; color: var(--ink2);
+      border: 1px solid var(--line2); background: transparent; color: var(--ink2);
       white-space: nowrap; cursor: pointer; transition: .12s;
     }
-    .exit-btn:hover { border-color: var(--accent-border); background: var(--accent-soft); color: var(--accent); }
-    .exit-btn.skip:hover { border-color: #dfe3ea; background: #f2f4f7; color: var(--ink2); }
+    .exit-btn:hover { border-color: #dfe3ea; background: #f2f4f7; color: var(--ink2); }
+    /* `--accent` and not the Applied blue: D22 reserves the status ramp for status and keeps accent
+       meaning *interactive* everywhere, so an accent button beside a --sky-ink chip says "press
+       this" and "this happened" in two different colours rather than one. */
+    .exit-btn.is-primary {
+      border-color: transparent; background: var(--accent); color: #fff;
+      box-shadow: 0 1px 2px rgba(67,115,255,.35);
+    }
+    .exit-btn.is-primary:hover { background: var(--accent-hover); border-color: transparent; }
     /* Tailwind's preflight sets `svg { display:block }`, which is what broke the icon onto its own
        line wherever this strip rendered without the list page's CSS. */
     .exit-btn svg { display: inline-block; flex: none; }
