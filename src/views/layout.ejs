@@ -109,13 +109,16 @@
       border-radius: 999px; padding: 1px 8px;
     }
 
-    /* ── Scrollable nav middle section ──────────────────────────── */
+    /* ── Nav middle section ─────────────────────────────────────────
+       It does NOT scroll. It used to, behind a 0px scrollbar, which meant that when the column
+       overflowed the credits card and the profile row were simply gone with nothing to say so.
+       The column has to fit instead, and it yields in a fixed order to make sure it does — see
+       `jhFitNav` below (D33, D51). */
     .sb-nav-scroll {
-      flex: 1; overflow-y: auto; min-height: 0;
+      flex: 1; overflow: hidden; min-height: 0;
       padding: 8px 12px;
       display: flex; flex-direction: column; gap: 2px;
     }
-    .sb-nav-scroll::-webkit-scrollbar { width: 0; }
 
     /* ── Settings sub-nav ───────────────────────────────────────── */
     .sb-subnav {
@@ -137,6 +140,110 @@
     .sb-subitem.admin.active { background: var(--red-soft); color: var(--red-ink); }
     .sb-subitem.admin.active .sb-subdot { opacity: 1; background: var(--red); }
     .sb-admin-divider { height: 1px; background: var(--line); margin: 10px 10px; }
+    /* The shortcut counts sit where a role count would: quiet, right-aligned, tabular. */
+    .sb-subcount { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--faintest); font-variant-numeric: tabular-nums; }
+    .sb-subitem.active .sb-subcount { color: var(--accent); }
+
+    /* ── Footer: two compact rows (D41) ─────────────────────────── */
+    .sb-compact {
+      padding: 10px 12px; border-top: 1px solid var(--line);
+      display: flex; flex-direction: column; gap: 7px; flex-shrink: 0; position: relative;
+    }
+    .sb-compact-row { display: flex; align-items: center; gap: 7px; }
+    .sb-run-c {
+      flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px;
+      height: 36px; white-space: nowrap; border-radius: 10px; font-family: inherit;
+      border: 1px solid var(--green-border); background: var(--green-soft); color: var(--green2);
+      font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .sb-run-c:hover { background: #e6f3ec; }
+    .sb-run-c:disabled { opacity: .55; cursor: not-allowed; }
+    .sb-run-c:disabled:hover { background: var(--green-soft); }
+    .sb-run-c svg { flex: none; }
+    /* The schedule control is a clock and nothing else; the dot notched into its corner is a
+       state light — red off, green on — and it never animates (D42). */
+    .sb-sched {
+      position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px;
+      flex: none; border-radius: 10px; border: 1px solid var(--line2); background: #fff;
+      color: var(--muted); text-decoration: none;
+    }
+    .sb-sched:hover { background: #f5f6f8; color: var(--ink2); }
+    .sb-sched.live { border-color: var(--green-border); color: var(--green2); }
+    .sb-sched.live:hover { background: var(--green-soft); }
+    .sb-sched .lamp {
+      position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
+      border-radius: 50%; border: 2px solid #fff; background: var(--red);
+    }
+    .sb-sched.live .lamp { background: var(--green); }
+    .sb-sched.is-locked { opacity: .55; cursor: not-allowed; pointer-events: none; }
+    /* The balance and its ＋ are one split pill — a ＋ floating beside it reads as unrelated. */
+    .sb-money {
+      display: flex; align-items: stretch; height: 34px; flex: 1; min-width: 0;
+      border-radius: 9px; border: 1px solid var(--line2); background: #fbfcfe; overflow: hidden;
+    }
+    .sb-money .val {
+      flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0 10px;
+      background: none; border: 0; color: var(--ink); font-size: 15px; font-weight: 800;
+      font-variant-numeric: tabular-nums; text-align: left; letter-spacing: -.01em;
+      font-family: inherit; cursor: pointer;
+    }
+    .sb-money .val:hover { background: #f2f5fa; }
+    .sb-money .val em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--faint); white-space: nowrap; }
+    .sb-money .add {
+      width: 31px; flex: none; display: grid; place-items: center; background: transparent;
+      border: 0; border-left: 1px solid var(--line2); color: var(--accent); cursor: pointer;
+    }
+    .sb-money .add:hover { background: var(--accent-soft); }
+    .sb-av-btn {
+      width: 34px; height: 34px; flex: none; border-radius: 50%; border: 0; padding: 0;
+      background: linear-gradient(135deg, #5b8cff, var(--accent)); color: #fff;
+      font-size: 13px; font-weight: 700; font-family: inherit;
+      display: grid; place-items: center; position: relative; cursor: pointer;
+    }
+    .sb-av-btn .adm {
+      position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px;
+      border-radius: 50%; background: var(--red); border: 2px solid #fff;
+    }
+    /* Own-keys profiles: the account takes the row the balance would have had, at the same height. */
+    .sb-acct {
+      display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; height: 34px;
+      padding: 0 4px 0 0; border: 0; background: none; border-radius: 9px;
+      color: var(--ink); text-align: left; font-family: inherit; cursor: pointer;
+    }
+    .sb-acct:hover { background: #f5f6f8; }
+    .sb-av-btn.as-part { pointer-events: none; }
+    .sb-acct-meta { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .sb-acct-email { font-size: 11.5px; font-weight: 700; line-height: 1.25; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sb-acct-sub { font-size: 10px; color: var(--faint); font-weight: 600; line-height: 1.2; }
+    .sb-acct-chev { color: var(--fainter); flex: none; }
+
+    /* The profile menu (D43) */
+    .sb-pop {
+      position: absolute; left: 12px; right: 12px; bottom: calc(100% - 4px); z-index: 60;
+      background: #fff; border: 1px solid #e4e6ec; border-radius: 12px;
+      box-shadow: var(--shadow-dropdown); padding: 6px;
+    }
+    .sb-pop.hidden { display: none; }
+    .sb-pop-mail { padding: 8px 9px 9px; font-size: 12px; font-weight: 700; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sb-pop-sep { height: 1px; background: var(--line); margin: 5px 4px; }
+    .sb-pop-row {
+      display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
+      font-size: 12.5px; font-weight: 600; color: var(--ink2); border: 0; background: none;
+      width: 100%; text-align: left; text-decoration: none; font-family: inherit; cursor: pointer;
+    }
+    .sb-pop-row:hover { background: #f5f6f8; }
+    /* Admin is a heading here, not a row — it was never a page. */
+    .sb-pop-lbl.adm {
+      display: flex; align-items: center; gap: 7px; padding: 9px 9px 3px;
+      font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--red-ink); opacity: .85;
+    }
+    .sb-pop-row.adm { padding-left: 26px; position: relative; }
+    .sb-pop-row.adm::before {
+      content: ''; position: absolute; left: 15px; top: 50%; width: 4px; height: 4px;
+      margin-top: -2px; border-radius: 50%; background: var(--red); opacity: .6;
+    }
+    .sb-pop-row.adm:hover { background: var(--red-soft); color: var(--red-ink); }
     .sb-chev {
       display: inline-flex; align-items: center; margin-left: auto;
       color: var(--fainter); transition: transform 0.15s ease;
@@ -306,6 +413,155 @@
     .sb-onboard-check.done svg { width: 10px; height: 10px; stroke-width: 2.6; }
     .sb-onboard-chev { color: var(--faintest); opacity: 0.6; width: 12px; height: 12px; }
     .sb-onboard-item:hover .sb-onboard-chev { opacity: 1; }
+    /* Collapsed: the user's own lever, not ours. Nothing is ever clipped (D44). */
+    .sb-onboard-acts { display: flex; align-items: center; gap: 2px; }
+    .sb-onboard-toggle {
+      width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center;
+      background: transparent; border: 0; color: var(--accent); opacity: .8; cursor: pointer;
+    }
+    .sb-onboard-toggle:hover { background: rgba(67,115,255,.1); }
+    .sb-onboard-toggle svg { width: 13px; height: 13px; transition: transform .16s; }
+    .sb-onboard .mini-only { display: none; }
+    .sb-onboard.mini { padding: 8px 11px; gap: 0; }
+    .sb-onboard.mini .sb-onboard-head { gap: 9px; }
+    .sb-onboard.mini .mini-only { display: block; }
+    .sb-onboard.mini .sb-onboard-bar.mini-only { margin-left: 2px; }
+    .sb-onboard.mini .sb-onboard-count {
+      font-size: 10.5px; font-weight: 800; color: var(--accent); opacity: .85;
+      font-variant-numeric: tabular-nums; flex: none;
+    }
+    .sb-onboard.mini .sb-onboard-toggle svg { transform: rotate(-90deg); }
+    .sb-onboard.mini .sb-onboard-meta,
+    .sb-onboard.mini .sb-onboard-list,
+    .sb-onboard.mini .sb-fit-note { display: none; }
+    .sb-fit-note {
+      margin: 4px 0 0; font-size: 10.5px; line-height: 1.35; font-weight: 600;
+      color: var(--accent); opacity: .8;
+    }
+    .sb-fit-note.hidden { display: none; }
+
+    /* ── Status rail (detail pane) — the whole history on one titled line.
+       A step is a pill, not a word, so it reads as something you can open (D30). ── */
+    .hist { margin-top: 15px; }
+    .hist-hd { display: flex; align-items: center; gap: 10px; height: 17px; margin-bottom: 8px; }
+    .hist-l { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+    .hist-age { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--faintest); font-variant-numeric: tabular-nums; }
+    /* No connectors: a dash is orphaned at the end of a wrapped line, and wrapping is the normal
+       desktop behaviour, so a consistent 7px gap carries the sequence instead (D38). */
+    .rail { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+    .rstep {
+      display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px;
+      border-radius: 8px; border: 1px solid var(--line2); background: #fff; color: var(--muted);
+      font-size: 12px; font-weight: 700; font-family: inherit; white-space: nowrap; cursor: pointer;
+    }
+    .rstep .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+    .rstep .d { font-size: 10.5px; font-weight: 700; color: var(--faintest); font-variant-numeric: tabular-nums; }
+    .rstep:hover { border-color: #d3d8e2; background: #fafbfc; color: var(--ink2); }
+    .rstep.now { border: 0; color: #fff; padding: 0 9px 0 11px; }
+    .rstep.now .d { color: rgba(255,255,255,.72); }
+    .rstep.now.gold { color: var(--gold-ink); }
+    .rstep.now.gold .d { color: rgba(67,41,10,.6); }
+    .rstep.is-fixed { color: var(--faint); background: #fafbfc; cursor: default; }
+    .rstep.is-fixed:hover { border-color: var(--line2); background: #fafbfc; color: var(--faint); }
+    /* The derived current status is a solid chip that simply cannot be opened — its own colour
+       wins over the fixed treatment, and it keeps the dotted outline that says "no date". */
+    .rstep.now.is-fixed { color: #fff; border: 0; }
+    .rstep.now.is-fixed:hover { color: #fff; }
+    .rstep.now.gold.is-fixed, .rstep.now.gold.is-fixed:hover { color: var(--gold-ink); }
+    .radd {
+      display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+      margin-left: 2px; border: 1px dashed #d3d8e2; background: #fff; color: var(--muted);
+      font-size: 15px; font-weight: 700; line-height: 1; font-family: inherit; cursor: pointer;
+    }
+    .radd:hover { border-color: var(--accent); border-style: solid; color: var(--accent); background: var(--accent-soft); }
+    .radd.is-off { color: var(--faintest); border-color: #eceef2; cursor: not-allowed; }
+    .radd.is-off:hover { border-color: #eceef2; border-style: dashed; color: var(--faintest); background: #fff; }
+    /* The control strip — the three exits. These live HERE, not in jobs.ejs, because the detail
+       pane renders on three surfaces and only two of them load that page's stylesheet: on the
+       standalone /job/:id the buttons fell back to `display:block` and Tailwind's preflight put
+       the icon on its own line. One slot per card, same place, under its own hairline (D19). */
+    .ctlstrip { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); }
+    .exit-btn {
+      display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+      border-radius: 9px; font-size: 11.5px; font-weight: 700; font-family: inherit;
+      border: 1px solid var(--line2); background: #fff; color: var(--ink2);
+      white-space: nowrap; cursor: pointer; transition: .12s;
+    }
+    .exit-btn:hover { border-color: var(--accent-border); background: var(--accent-soft); color: var(--accent); }
+    .exit-btn.skip:hover { border-color: #dfe3ea; background: #f2f4f7; color: var(--ink2); }
+    /* Tailwind's preflight sets `svg { display:block }`, which is what broke the icon onto its own
+       line wherever this strip rendered without the list page's CSS. */
+    .exit-btn svg { display: inline-block; flex: none; }
+    /* The correction sits apart from the two decisions, and reads as a link rather than a button —
+       it overrules the AI, it is not a third thing you did (D16). */
+    .corrlink {
+      display: inline-flex; align-items: center; height: 26px; padding: 0 2px; margin-left: 4px;
+      border: 0; background: none; font-size: 12px; font-weight: 700; font-family: inherit;
+      color: var(--muted); cursor: pointer; transition: .12s;
+      text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px;
+      text-decoration-color: var(--faintest);
+    }
+    .corrlink:hover { color: var(--red-ink); text-decoration-color: var(--red); }
+    /* On a phone the three exits do not fit a line with their icons. The labels already say what
+       each one does — the icons were reinforcement, and reinforcement is the first thing to cut
+       when the line is the constraint. */
+    @media (max-width: 767px) {
+      .exit-btn svg { display: none; }
+      .exit-btn { gap: 0; padding: 0 11px; }
+    }
+    .pane-exits { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
+    .pane-exits .exit-btn { height: 30px; padding: 0 12px; font-size: 12px; }
+    /* On a phone the rail folds — the cap is three, and the chips give up their dates to the
+       heading, which is the date anyone actually asks about (D31, MB1). The rail is therefore the
+       same height at three, four or nine steps (MB3). */
+    .hist-age-mobile { display: none; }
+    .rfold { display: none; }
+    @media (max-width: 767px) {
+      .hist-age-desktop { display: none; }
+      .hist-age-mobile { display: inline; }
+      .rstep .d { display: none; }
+      .rail .rstep.is-folded { display: none; }
+      .rail.is-open .rstep.is-folded { display: inline-flex; }
+      .rail.is-open .rfold { display: none; }
+      .rfold {
+        display: inline-flex; align-items: center; height: 22px; padding: 0 10px;
+        border-radius: 999px; border: 1px dashed #d3d8e2; background: #fff;
+        font-size: 10.5px; font-weight: 800; color: var(--muted);
+        font-variant-numeric: tabular-nums; font-family: inherit; cursor: pointer;
+      }
+      .rfold:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-soft); border-style: solid; }
+    }
+
+    /* One editor doing all three jobs: change the status, move the date, delete the step (D30). */
+    .stepedit { width: 258px; padding: 12px; }
+    .stepedit .et { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-bottom: 9px; }
+    .stepedit .fr + .fr { margin-top: 9px; }
+    .stepedit label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+    .stepedit select, .stepedit .dateinput {
+      width: 100%; border: 1px solid var(--line2); border-radius: 9px; padding: 8px 10px;
+      font-size: 12.5px; font-family: inherit; color: var(--ink); background: #fff;
+      font-weight: 600; text-align: left; cursor: pointer;
+    }
+    .stepedit select:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .stepedit .dateinput { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .stepedit .dateinput:hover { border-color: var(--accent-border); }
+    .stepedit .warn {
+      margin-top: 9px; display: grid; grid-template-columns: 14px 1fr; gap: 8px;
+      background: var(--amber-soft); border: 1px solid var(--amber-border); border-radius: 9px;
+      padding: 8px 9px; font-size: 11.5px; line-height: 1.45; color: var(--amber-ink); font-weight: 600;
+    }
+    .stepedit .ef { display: flex; align-items: center; gap: 7px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .stepedit .eb { height: 30px; padding: 0 12px; border-radius: 9px; border: 0; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+    .stepedit .eb.del { background: var(--red-soft); color: var(--red-ink); border: 1px solid var(--red-border); }
+    .stepedit .eb.ghost { background: transparent; color: var(--muted); margin-left: auto; }
+    .stepedit .eb.pri { background: var(--accent); color: #fff; }
+    .stepedit .cal-back {
+      display: inline-flex; align-items: center; gap: 6px; border: 0; background: none;
+      padding: 2px 4px; border-radius: 6px; font-size: 11.5px; font-weight: 700;
+      color: var(--muted); font-family: inherit; cursor: pointer;
+    }
+    .stepedit .cal-back:hover { color: var(--accent); }
+    .stepedit .cal-note { font-size: 11px; color: var(--faintest); font-weight: 600; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
 
     /* ── Job source picker table ───────────────────────────────── */
     @media (min-width: 768px) {
@@ -432,16 +688,20 @@
         const num = Number(value);
         return Number.isFinite(num) ? String(Math.round(num)) : '\u2014';
       },
-      formatAppliedLabel(value) {
-        const n = Number(value);
-        return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'New';
+      formatStatusAge(days, type) {
+        if (String(type) === 'rejected') return '';
+        const n = Number(days);
+        if (!Number.isFinite(n) || n < 0) return '';
+        return n === 0 ? 'today' : n + 'd';
       },
       getVerdictChipStyle(value) {
         return window.JHUI_TOKENS.verdictChipStyles[String(value || '').trim().toUpperCase()] || window.JHUI_TOKENS.verdictChipFallback;
       },
-      getAppliedChipStyle(value) {
-        const n = Number(value);
-        return window.JHUI_TOKENS.appliedChipStyles[n === 1 ? 1 : n === 2 ? 2 : 0];
+      getStatusChipStyle(type) {
+        return window.JHUI_TOKENS.statusChipStyles[String(type || 'new')] || window.JHUI_TOKENS.statusChipStyles.new;
+      },
+      getStatusDot(type) {
+        return window.JHUI_TOKENS.statusDots[String(type || 'new')] || window.JHUI_TOKENS.statusDots.new;
       }
     };
   </script>
@@ -469,9 +729,20 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
               Onboarding
             </div>
-            <button class="sb-onboard-close" onclick="jhDismissOnboarding()" aria-label="Dismiss onboarding">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
-            </button>
+            <%# Collapsed, the widget is ONE row — title, bar, 4/5 — never clipped and never
+                replaced. These two carry it only in that state (D44). %>
+            <span class="sb-onboard-bar mini-only">
+              <span class="sb-onboard-bar-fill" style="width:<%= (onboarding.completedCount/5*100) %>%"></span>
+            </span>
+            <span class="sb-onboard-count mini-only"><%= onboarding.completedCount %>/5</span>
+            <span class="sb-onboard-acts">
+              <button class="sb-onboard-toggle" onclick="jhToggleOnboarding()" aria-label="Collapse onboarding" title="Collapse">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <button class="sb-onboard-close" onclick="jhDismissOnboarding()" aria-label="Dismiss onboarding">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+              </button>
+            </span>
           </div>
           <div class="sb-onboard-meta">
             <%= onboarding.completedCount %> of 5 done
@@ -518,6 +789,9 @@
               <% } %>
             <% }); %>
           </ul>
+          <%# Below 660px one of the two blocks has to stay collapsed. Rather than silently undoing
+              the user's click, the column says which and why (D51). %>
+          <p class="sb-fit-note hidden" id="sb-fit-note">Not enough room. Collapse Settings to keep this open.</p>
         </div>
 
         <!-- Nav items -->
@@ -527,7 +801,10 @@
           </span>
           Start
         </a>
-        <a href="/jobs" class="sb-item <%= title === 'Matches' ? 'active' : '' %>">
+        <%# Matches is a link, never a group: clicking it shows everything. Its badge keeps counting
+            New only — the badge answers "what is waiting for me", not "how many rows are behind
+            this link" (D40). %>
+        <a href="/jobs" class="sb-item <%= title === 'Matches' && !locals.activeShortcut ? 'active' : (title === 'Matches' && locals.activeShortcut === 'all' ? 'active' : '') %>">
           <span class="ico">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
           </span>
@@ -535,6 +812,16 @@
           <% const mc = typeof matchesCount === 'undefined' ? 0 : matchesCount; %>
           <span class="sb-count" id="sb-matches-count" <%= mc > 0 ? '' : 'hidden' %>><%= mc %></span>
         </a>
+        <%# Three shortcuts, always expanded and never collapsible — these are filters kept in
+            view, not a menu. Each is a preset over the ordinary Status filter, so its href carries
+            the real status ids its types resolve to (D40, D45). %>
+        <div class="sb-subnav">
+          <% (locals.shortcuts || []).forEach(function (sc) { %>
+          <a href="<%= sc.href %>" class="sb-item sb-subitem <%= title === 'Matches' && locals.activeShortcut === sc.id ? 'active' : '' %>">
+            <span class="sb-subdot"></span><%= sc.label %><span class="sb-subcount" data-shortcut="<%= sc.id %>"><%= sc.count %></span>
+          </a>
+          <% }); %>
+        </div>
         <a href="/history" class="sb-item <%= title === 'All Jobs' ? 'active' : '' %>">
           <span class="ico">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>
@@ -568,7 +855,9 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
           </span>
         </button>
-        <div class="sb-subnav" id="sb-settings-sub" style="display:none;">
+        <%# Unrolled by default and until the user collapses it: its three tabs are the
+            destination, the row above them is not (D46). %>
+        <div class="sb-subnav" id="sb-settings-sub">
           <a href="/settings" class="sb-item sb-subitem <%= isSettings && curTab === 'profile' ? 'active' : '' %>">
             <span class="sb-subdot"></span>Profile
           </a>
@@ -580,94 +869,103 @@
           </a>
         </div>
 
-        <% if (activeProfile.isAdmin) { %>
-        <!-- Admin (operator area) -->
-        <div class="sb-admin-divider"></div>
-        <%
-          const isAdminPage = title === 'Admin';
-          const curAdminTab = locals.adminTab || 'general';
-        %>
-        <button type="button" class="sb-item" id="sb-admin-btn" onclick="jhToggleAdmin()">
-          <span class="ico">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg>
-          </span>
-          Admin
-          <span class="sb-chev" id="sb-admin-chev">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
-          </span>
-        </button>
-        <div class="sb-subnav" id="sb-admin-sub" style="display:none;">
-          <a href="/admin?tab=general" class="sb-item sb-subitem admin <%= isAdminPage && curAdminTab === 'general' ? 'active' : '' %>">
-            <span class="sb-subdot"></span>General
-          </a>
-          <a href="/admin?tab=stats" class="sb-item sb-subitem admin <%= isAdminPage && curAdminTab === 'stats' ? 'active' : '' %>">
-            <span class="sb-subdot"></span>Admin Stats
-          </a>
-          <a href="/admin?tab=sources" class="sb-item sb-subitem admin <%= isAdminPage && curAdminTab === 'sources' ? 'active' : '' %>">
-            <span class="sb-subdot"></span>Sources
-          </a>
-          <a href="/admin?tab=locations" class="sb-item sb-subitem admin <%= isAdminPage && curAdminTab === 'locations' ? 'active' : '' %>">
-            <span class="sb-subdot"></span>Locations
-          </a>
-        </div>
-        <% } %>
+        <%# Admin has left the nav for the profile menu (D39). A button, a 21px divider and four
+            sub-items — 188px — bought back for the Matches shortcuts. Settings stays, because it
+            is the user's own surface where Admin is the operator's. %>
       </div>
 
-      <!-- Footer -->
-      <div class="sb-footer">
-        <div class="sb-run-group">
-          <!-- Run once. Disabled until the profile can actually pay for a run — same isPaymentReady
-               rule the home page and POST /api/run use, so all three agree. -->
-          <button id="sidebar-run-btn" onclick="openRunModal()" class="sb-run sb-run-primary"
+      <%# ── Footer: two compact rows (D41) ────────────────────────────────────────────────
+          The 219px stack of run buttons, credits card and profile row becomes 96px. Row one runs
+          the search; row two is the account. On credits the balance and its `＋` are ONE split
+          pill — a `＋` floating beside the balance reads as unrelated to it — and on own API keys,
+          which is most profiles, there is no balance at all and that row is the account instead.
+          Both states keep the row height, so the footer does not resize when a profile switches. %>
+      <div class="sb-compact">
+        <div class="sb-compact-row">
+          <button id="sidebar-run-btn" onclick="openRunModal()" class="sb-run-c"
                   <% if (locals.canRun === false) { %>disabled title="Add credits or your own API keys in Settings → AI Setup to run."<% } %>>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8L6 20V4Z"/></svg>
             <span id="sidebar-run-label">Run once</span>
           </button>
-
-          <!-- Schedule inactive -->
-          <div id="schedule-inactive" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? 'hidden' : '' %>">
-            <button onclick="openScheduleModal()" class="sb-run sb-run-secondary"
-                    <% if (locals.canRun === false) { %>disabled title="Add credits or your own API keys in Settings → AI Setup to run."<% } %>>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-              Schedule
-            </button>
-          </div>
-
-          <!-- Schedule active stop button -->
-          <div id="schedule-active" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? '' : 'hidden' %>">
-            <button onclick="scheduleStop()" class="sb-run sb-run-danger">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
-              Stop Schedule
-            </button>
-          </div>
-
-          <!-- Schedule active status row (shown below stop button when active) -->
-          <div id="schedule-status" class="<%= locals.scheduleStatus && locals.scheduleStatus.active ? '' : 'hidden' %>" style="align-items:center;justify-content:space-between;padding:2px 4px;<%= locals.scheduleStatus && locals.scheduleStatus.active ? 'display:flex;' : '' %>">
-            <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--green2);font-weight:500;">
-              <span class="w-1.5 h-1.5 rounded-full bg-[var(--green)] animate-pulse inline-block"></span>
-              Schedule active
-            </span>
-            <span id="schedule-expr" style="font-size:11px;color:var(--muted);font-family:monospace;"></span>
-          </div>
-
-          <p id="schedule-msg" class="text-xs text-center hidden" style="color:var(--muted);"></p>
+          <%# The schedule control is a clock and nothing else — a bare "09:00" in a nav reads as a
+              label for whatever sits beside it. The dot notched into its corner is a state light:
+              --red when no schedule is set, --green when one is running. It does NOT animate;
+              motion would claim attention every second for something that changes about once a
+              week. Pressing it opens no menu here — it navigates to Start and opens the schedule
+              modal there (D42). %>
+          <% const _schedOn = !!(locals.scheduleStatus && locals.scheduleStatus.active); %>
+          <%# The credits gate holds here too: a profile that cannot pay for a run cannot reach the
+              schedule modal, exactly as the old Schedule button was disabled. Same `isPaymentReady`
+              rule as `Run once`, so the two can never disagree. %>
+          <% const _schedLocked = locals.canRun === false; %>
+          <%# Unescaped: these emit whole ATTRIBUTES, and escaping would mangle their quotes. %>
+          <a <%- _schedLocked ? '' : 'href="/?schedule=1"' %> id="sb-sched-btn"
+             class="sb-sched <%= _schedOn ? 'live' : '' %><%= _schedLocked ? ' is-locked' : '' %>"
+             <%- _schedLocked ? 'aria-disabled="true"' : '' %>
+             title="<%= _schedLocked ? 'Add credits or your own API keys in Settings → AI Setup to run.' : (_schedOn ? 'Schedule running — opens Start' : 'No schedule set — opens Start') %>"
+             aria-label="<%= _schedOn ? 'Schedule running' : 'No schedule set' %>">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span class="lamp"></span>
+          </a>
         </div>
 
-        <!-- Credits widget (shown only when using JH credits) -->
-        <% if (locals.useJhCredits) { %>
-        <div class="sb-credits">
-          <span class="sb-credits-icon">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+        <div class="sb-compact-row">
+          <% if (locals.useJhCredits) { %>
+          <span class="sb-money">
+            <button type="button" class="val" onclick="jhTopUp()" title="Credits">
+              $<%= Number(locals.creditsBalance || 0).toFixed(1) %><em>≈ <%= Math.floor(Math.round(Number(locals.creditsBalance || 0) / 0.2 * 100) / 100) %> runs</em>
+            </button>
+            <button type="button" class="add" onclick="jhTopUp()" title="Top up" aria-label="Top up">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
           </span>
-          <div class="sb-credits-vals">
-            <span class="sb-credits-num">$<%= Number(locals.creditsBalance || 0).toFixed(1) %></span>
-            <span class="sb-credits-sub">≈ <%= Math.floor(Math.round(Number(locals.creditsBalance || 0) / 0.2 * 100) / 100) %> runs</span>
-          </div>
-          <button class="sb-credits-topup" type="button" onclick="jhTopUp()" title="Top up" aria-label="Top up">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          <button type="button" class="sb-av-btn" onclick="jhToggleProfileMenu(event)" title="<%= activeProfile.email %>" aria-label="Account">
+            <%= activeProfile.displayName.charAt(0).toUpperCase() %>
+            <% if (activeProfile.isAdmin) { %><span class="adm"></span><% } %>
           </button>
+          <% } else { %>
+          <%# No balance to show, so the row the pill would have taken is the full account row —
+              the space is not left empty and nothing below it shifts. %>
+          <button type="button" class="sb-acct" onclick="jhToggleProfileMenu(event)" title="<%= activeProfile.email %>">
+            <span class="sb-av-btn as-part">
+              <%= activeProfile.displayName.charAt(0).toUpperCase() %>
+              <% if (activeProfile.isAdmin) { %><span class="adm"></span><% } %>
+            </span>
+            <span class="sb-acct-meta">
+              <span class="sb-acct-email"><%= activeProfile.email %></span>
+              <span class="sb-acct-sub">Own API keys</span>
+            </span>
+            <svg class="sb-acct-chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <% } %>
         </div>
-        <% } %>
+
+        <%# The profile menu (D43). Email at the top — the display name is derived from it, so
+            printing both spends a line twice. `Admin` is a HEADING, not a row: it was never a
+            page, and drawn as a row it invited a click that did nothing. Its four destinations sit
+            under it in the red the admin sub-nav already used. No Top up row: on credits it is the
+            `＋` in the pill above, on own keys there is nothing to top up. %>
+        <div id="sb-profile-menu" class="sb-pop hidden">
+          <div class="sb-pop-mail"><%= activeProfile.email %></div>
+          <% if (activeProfile.isAdmin) { %>
+          <div class="sb-pop-sep"></div>
+          <div class="sb-pop-lbl adm">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg>
+            Admin
+          </div>
+          <a href="/admin?tab=general" class="sb-pop-row adm">General</a>
+          <a href="/admin?tab=stats" class="sb-pop-row adm">Admin Stats</a>
+          <a href="/admin?tab=sources" class="sb-pop-row adm">Sources</a>
+          <a href="/admin?tab=locations" class="sb-pop-row adm">Locations</a>
+          <% } %>
+          <div class="sb-pop-sep"></div>
+          <form method="POST" action="/logout" style="display:contents;">
+            <button type="submit" class="sb-pop-row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+              Log out
+            </button>
+          </form>
+        </div>
         <script>
           // Default: land on AI Setup, which opens the top-up form on arrival.
           // The AI tab overrides this to open the form in place.
@@ -675,23 +973,6 @@
             window.location.href = '/settings?tab=ai&topup=1';
           }
         </script>
-
-        <!-- Profile row -->
-        <div class="sb-profile">
-          <div class="sb-avatar"><%= activeProfile.displayName.charAt(0).toUpperCase() %></div>
-          <div class="sb-profile-meta">
-            <div class="sb-profile-name">
-              <%= activeProfile.displayName %>
-              <% if (activeProfile.isAdmin) { %><span class="sb-role-pill">admin</span><% } %>
-            </div>
-            <div class="sb-profile-email"><%= activeProfile.email %></div>
-          </div>
-          <form method="POST" action="/logout" style="display:contents;">
-            <button type="submit" title="Log out" class="sb-logout-btn">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-            </button>
-          </form>
-        </div>
       </div>
     </aside>
 
@@ -1092,14 +1373,35 @@
     </div>
   </div>
 
-  <!-- Applied dropdown -->
-  <div id="applied-dropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="min-width:148px">
-    <div class="py-1">
-      <button onclick="setApplied(0)" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-600 font-medium">New</button>
-      <button onclick="setApplied(1)" class="w-full text-left px-4 py-2 text-sm hover:bg-[var(--green-soft)] text-[var(--green2)] font-medium">Applied</button>
-      <button onclick="setApplied(2)" class="w-full text-left px-4 py-2 text-sm hover:bg-ds-red-soft text-ds-red-ink font-medium">Won't Apply</button>
-    </div>
+  <!-- Status picker.
+       No job follows a fixed path — a hiring manager can come before a case, a recruiter round
+       can be skipped entirely — so nothing here is enforced, greyed out or predicted (D7, D20).
+       The picker simply uses the order the user arranged their own statuses in: what sits below
+       the current one is offered first under "Move on", everything else is one glance away
+       under "Anything else" (D21). `New` is written once, by the fetch, and is absent from every
+       picker (D34).
+       Below 768px this is a bottom sheet — fifteen rows do not fit a 148px menu (§12.5, MB2). -->
+  <div id="status-picker" class="hidden fixed z-50" style="inset:auto">
+    <div id="status-picker-backdrop" class="hidden fixed inset-0 bg-black/35" onclick="closeStatusPicker()"></div>
+    <div id="status-picker-panel" class="fixed bg-white border border-gray-200 overflow-y-auto"
+         style="border-radius:12px;box-shadow:var(--shadow-dropdown);padding:6px;min-width:206px;max-height:340px"></div>
   </div>
+  <style>
+    .sp-row { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:8px;
+              font-size:12.5px; font-weight:600; color:var(--ink2); border:0; background:none;
+              width:100%; text-align:left; cursor:pointer; }
+    .sp-row:hover { background:#f5f6f8; }
+    .sp-row .sp-dot { width:8px; height:8px; border-radius:2px; flex:none; }
+    .sp-lbl { font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+              color:var(--faintest); padding:6px 9px 3px; }
+    .sp-sep { height:1px; background:var(--line); margin:5px 4px; }
+    @media (max-width: 767px) {
+      /* A bottom sheet, not a 148px menu — fifteen statuses need the room (MB2). */
+      #status-picker-panel { left:0 !important; right:0; bottom:0; top:auto !important;
+        max-height:70dvh; border-radius:16px 16px 0 0; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); }
+      .sp-row { padding:11px 12px; font-size:14px; }
+    }
+  </style>
 
   <!-- Schedule Setup Modal -->
   <div id="schedule-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
@@ -1452,6 +1754,14 @@
   </div>
 
   <script>
+    // The shared calendar. The step editor (below) opens it in single-date mode, and the detail
+    // pane can appear on any page that renders this layout — so it is included here rather than
+    // per page. `window.JHCal = window.JHCal || …` guards the double-include on Matches/All Jobs,
+    // which already ship it for their own date-range filter.
+<%- include('partials/_date-cal') %>
+  </script>
+
+  <script>
     // ---- Global state ----
     let _scheduleActive = <%- typeof scheduleStatus !== 'undefined' ? JSON.stringify(scheduleStatus.active) : 'false' %>;
     let _scheduleData = <%- typeof scheduleStatus !== 'undefined' ? JSON.stringify(scheduleStatus) : 'null' %>;   // latest data from /api/schedule/status
@@ -1529,12 +1839,18 @@
 
     function setScheduleUI(active, expression, timezone) {
       _scheduleActive = active;
-      document.getElementById('schedule-inactive').classList.toggle('hidden', active);
-      const statusEl = document.getElementById('schedule-status');
-      statusEl.classList.toggle('hidden', !active);
-      statusEl.style.display = active ? 'flex' : '';
-      document.getElementById('schedule-active').classList.toggle('hidden', !active);
-      if (expression) document.getElementById('schedule-expr').textContent = cronToLabel(expression, timezone);
+      // The sidebar's schedule control is a clock with a state light — red off, green on, never
+      // animated (D42). The next run time lives in its tooltip and in the modal on Start, not in
+      // the nav: a bare "09:00" there reads as a label for whatever sits beside it.
+      const schedBtn = document.getElementById('sb-sched-btn');
+      if (schedBtn) {
+        schedBtn.classList.toggle('live', !!active);
+        const when = active && expression ? cronToLabel(expression, timezone) : '';
+        schedBtn.title = active
+          ? ('Schedule running' + (when ? ' — ' + when : '') + '. Opens Start.')
+          : 'No schedule set — opens Start.';
+        schedBtn.setAttribute('aria-label', active ? 'Schedule running' : 'No schedule set');
+      }
 
       // Sync home-page Schedule button if present
       const homeBtn = document.getElementById('home-schedule-btn');
@@ -1561,14 +1877,6 @@
       } else {
         openScheduleModal();
       }
-    }
-
-    function showScheduleMsg(text, isError) {
-      const el = document.getElementById('schedule-msg');
-      el.textContent = text;
-      el.className = 'text-xs text-center mt-2 ' + (isError ? 'text-red-400' : 'text-gray-400');
-      el.classList.remove('hidden');
-      setTimeout(() => el.classList.add('hidden'), 4000);
     }
 
     // ---- Schedule Setup Modal ----
@@ -1914,8 +2222,9 @@
         const data = await res.json();
         if (data.success) {
           _scheduleData = data;
+          // No toast: the footer clock's lamp turns green the moment setScheduleUI runs, which
+          // is the same answer in the place the control lives.
           setScheduleUI(true, data.expression, data.timezone);
-          showScheduleMsg('Schedule started', false);
           closeScheduleModal();
         } else {
           msgEl.textContent = data.error || 'Error starting schedule';
@@ -1939,10 +2248,9 @@
         const data = await res.json();
         if (data.success) {
           setScheduleUI(false, null, null);
-          showScheduleMsg('Schedule stopped', false);
         }
       } catch (e) {
-        showScheduleMsg('Network error', true);
+        await showAlert('Could not reach the server. The schedule was not stopped.');
       }
     }
 
@@ -2425,6 +2733,15 @@
       el.hidden = count === 0;
     }
 
+    /** The three Matches shortcut counts, repainted from the same response as the badge. */
+    function updateShortcutCounts(counts) {
+      if (!Array.isArray(counts)) return;
+      counts.forEach(function (c) {
+        const el = document.querySelector('.sb-subcount[data-shortcut="' + c.id + '"]');
+        if (el) el.textContent = String(c.count);
+      });
+    }
+
     function verdictChipHTML(verdict, style) {
       const label = window.JHUI.formatVerdictLabel(verdict) + (window.JHUI.isVerdictEditable(verdict) ? ' \u25be' : '');
       return '<span style="display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:700;white-space:nowrap;' + window.JHUI.getVerdictChipStyle(verdict) + '">' + label + '</span>';
@@ -2438,7 +2755,7 @@
       const current = btn.dataset.verdict;
       closeVerdictDropdown();
       if (newVerdict === current) return;
-      const ok = await showConfirm('Change status to "' + window.JHUI.formatVerdictLabel(newVerdict) + '"?');
+      const ok = await showConfirm('Change the verdict to "' + window.JHUI.formatVerdictLabel(newVerdict) + '"?');
       if (!ok) return;
       try {
         const endpoint = jobId ? '/api/jobs/' + jobId + '/verdict' : '/api/run-log/' + logId + '/verdict';
@@ -2469,76 +2786,334 @@
             b.innerHTML = verdictChipHTML(newVerdict, b.dataset.chipStyle || 'compact');
           });
         } else {
-          await showAlert(data.error || 'Failed to update status');
+          await showAlert(data.error || 'Failed to update the verdict');
         }
       } catch (e) {
         await showAlert('Could not reach the server. Make sure the app is running and try again.');
       }
     }
 
-    // ---- Applied dropdown ----
-    let _appliedBtn = null;
+    // ---- Status picker ----
+    // One picker serves the card chip, the pane chip and the rail's `＋`. Which statuses it
+    // offers first comes from the user's own order, never from a guess about what comes next
+    // (D21). `New` never appears — it is written by the fetch and cannot be picked twice (D34).
+    window.JH_STATUSES = <%- JSON.stringify(locals.statusList || []) %>;
+    let _statusBtn = null;
+    let _statusOnPick = null;
 
-    function openAppliedDropdown(btn) {
-      _appliedBtn = btn;
-      const dd = document.getElementById('applied-dropdown');
-      dd.classList.remove('hidden');
-      const rect = btn.getBoundingClientRect();
-      const ddW = 160;
-      let left = rect.left;
-      if (left + ddW > window.innerWidth - 8) left = window.innerWidth - ddW - 8;
-      dd.style.top  = (rect.bottom + 4) + 'px';
-      dd.style.left = left + 'px';
+    function statusPickerRows(currentId) {
+      const all = (window.JH_STATUSES || []).filter(s => s.type !== 'new');
+      // "Move on" is everything below the current status in the user's arranged list. It claims
+      // no path — it is just the half of the list they are most likely to reach for next.
+      const byOrder = all.slice().sort((a, b) => a.order - b.order);
+      const at = byOrder.findIndex(s => String(s.id) === String(currentId));
+      const ahead = at < 0 ? byOrder : byOrder.slice(at + 1);
+      const rest  = at < 0 ? []      : byOrder.slice(0, at);
+      const row = s => '<button type="button" class="sp-row" data-pick="' + s.id + '">'
+        + '<span class="sp-dot" style="background:' + window.JHUI.getStatusDot(s.type) + '"></span>'
+        + esc(s.name) + '</button>';
+      let html = '';
+      if (ahead.length) html += '<div class="sp-lbl">Move on</div>' + ahead.map(row).join('');
+      if (rest.length)  html += (ahead.length ? '<div class="sp-sep"></div>' : '')
+        + '<div class="sp-lbl">Anything else</div>' + rest.map(row).join('');
+      return html || '<div class="sp-lbl">No statuses</div>';
+    }
+    function esc(v) {
+      return String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
     }
 
-    function closeAppliedDropdown() {
-      document.getElementById('applied-dropdown').classList.add('hidden');
-      _appliedBtn = null;
+    function openStatusPicker(btn, onPick) {
+      _statusBtn = btn;
+      _statusOnPick = onPick || null;
+      const wrap  = document.getElementById('status-picker');
+      const panel = document.getElementById('status-picker-panel');
+      const back  = document.getElementById('status-picker-backdrop');
+      panel.innerHTML = statusPickerRows(btn.dataset.statusId);
+      wrap.classList.remove('hidden');
+      const mobile = window.innerWidth < 768;
+      back.classList.toggle('hidden', !mobile);
+      if (!mobile) {
+        const rect = btn.getBoundingClientRect();
+        const w = panel.offsetWidth || 206;
+        let left = Math.min(rect.left, window.innerWidth - w - 12);
+        let top = rect.bottom + 4;
+        const h = panel.offsetHeight;
+        if (top + h + 12 > window.innerHeight && rect.top - h - 6 > 0) top = rect.top - h - 6;
+        panel.style.left = Math.max(8, left) + 'px';
+        panel.style.top  = top + 'px';
+      }
+      panel.querySelectorAll('[data-pick]').forEach(b => {
+        b.onclick = ev => { ev.stopPropagation(); setJobStatus(Number(b.dataset.pick)); };
+      });
+    }
+
+    function closeStatusPicker() {
+      document.getElementById('status-picker').classList.add('hidden');
+      _statusBtn = null;
+      _statusOnPick = null;
     }
 
     document.addEventListener('click', e => {
-      const dd = document.getElementById('applied-dropdown');
-      if (!dd.classList.contains('hidden') && !dd.contains(e.target) && !e.target.closest('.applied-btn')) {
-        closeAppliedDropdown();
+      const wrap = document.getElementById('status-picker');
+      if (!wrap.classList.contains('hidden') && !wrap.contains(e.target) && !e.target.closest('.status-btn')) {
+        closeStatusPicker();
       }
     });
-
     document.addEventListener('click', e => {
-      const btn = e.target.closest('.applied-btn');
-      if (btn) { e.stopPropagation(); openAppliedDropdown(btn); }
+      const btn = e.target.closest('.status-btn');
+      if (btn) { e.stopPropagation(); openStatusPicker(btn); }
     });
+    // The two exits that set a status go straight there — no picker, that is the point of them.
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.exit-btn');
+      if (!btn) return;
+      e.stopPropagation();
+      _statusBtn = btn;
+      _statusOnPick = null;
+      setJobStatus(Number(btn.dataset.exitStatus));
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStatusPicker(); });
 
-    function appliedChipHTML(state, full) {
+    function statusChipHTML(status, age, full) {
       const width = full ? 'width:100%;justify-content:center;' : '';
-      return '<span style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;' + width + window.JHUI.getAppliedChipStyle(state) + '">' + window.JHUI.formatAppliedLabel(state) + ' ▾</span>';
+      const ageHtml = age ? '<span style="opacity:.72;font-weight:600"> \u00b7 ' + esc(age) + '</span>' : '';
+      return '<span style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;'
+        + width + window.JHUI.getStatusChipStyle(status.type) + '">' + esc(status.name) + ageHtml + ' \u25be</span>';
     }
 
-    async function setApplied(newState) {
-      const btn = _appliedBtn;
+    /** Repaint every chip for this job, on the card and in the pane — they share data-job-id. */
+    function paintStatus(jobId, status, age) {
+      document.querySelectorAll('.status-btn[data-job-id="' + jobId + '"]').forEach(b => {
+        b.dataset.statusId = String(status.id);
+        b.dataset.statusType = status.type;
+        b.innerHTML = statusChipHTML(status, b.dataset.chipStyle === 'detail' ? '' : age, b.dataset.chipStyle === 'detail');
+      });
+    }
+
+    async function setJobStatus(statusId) {
+      const btn = _statusBtn;
+      const after = _statusOnPick;
       if (!btn) return;
       const jobId = btn.dataset.jobId;
-      const current = Number(btn.dataset.applied);
-      closeAppliedDropdown();
-      if (newState === current) return;
+      closeStatusPicker();
       try {
-        const res = await fetch('/api/jobs/' + jobId + '/applied', {
+        const res = await fetch('/api/jobs/' + jobId + '/status', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ applied: newState }),
+          body: JSON.stringify({ status_id: statusId }),
         });
         const data = await res.json();
         if (data.success) {
           updateMatchesBadge(data.matchesCount);
-          // Sync the chip on EVERY place this job appears (list card + detail pane share the same
-          // data-job-id), so changing status in one updates the other without a reload.
-          document.querySelectorAll('.applied-btn[data-job-id="' + jobId + '"]').forEach(b => {
-            b.dataset.applied = String(newState);
-            b.innerHTML = appliedChipHTML(newState, b.dataset.chipStyle === 'detail');
-          });
-          if (window.onAppliedChanged) { try { window.onAppliedChanged(jobId, newState); } catch (e) {} }
+          updateShortcutCounts(data.shortcutCounts);
+          if (after) { after(data); return; }
+          if (data.status) paintStatus(jobId, data.status, window.JHUI.formatStatusAge(0, data.status.type));
+          if (window.onStatusChanged) { try { window.onStatusChanged(jobId, data); } catch (e) {} }
+          // The standalone /job/:id page has no pane to swap — the rail is the page, so it
+          // re-renders the only way it can.
+          else if (document.querySelector('.pane-exits, .hist')) window.location.reload();
         } else {
-          await showAlert(data.error || 'Failed to update applied status');
+          await showAlert(data.error || 'Failed to update the status');
         }
+      } catch (e) {
+        await showAlert('Could not reach the server. Make sure the app is running and try again.');
+      }
+    }
+
+    // ── The step editor ────────────────────────────────────────────────────────────────────
+    //
+    // One popover doing all three jobs — change the step's status, move its date, delete it — with
+    // no second menu and no separate delete mode (D30). The date field is a trigger, not a text
+    // box: pressing it swaps this same surface to the calendar and a back link returns. Nesting a
+    // second popover inside the editor would put two dismiss layers on top of each other; one
+    // surface with two faces has neither problem.
+    let _stepPop = null;
+    let _stepState = null;
+
+    function closeStepEditor() {
+      if (_stepPop) { _stepPop.remove(); _stepPop = null; }
+      _stepState = null;
+    }
+    document.addEventListener('click', e => {
+      if (_stepPop && !_stepPop.contains(e.target) && !e.target.closest('.rstep')) closeStepEditor();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStepEditor(); });
+
+    document.addEventListener('click', e => {
+      const step = e.target.closest('.rstep[data-step-id]');
+      if (!step) return;
+      e.stopPropagation();
+      const rail = step.closest('.hist');
+      openStepEditor(step, {
+        eventId: Number(step.dataset.stepId),
+        jobId: Number(rail.dataset.jobId),
+        statusId: Number(step.dataset.stepStatus),
+        date: step.dataset.stepDate,
+        cal: false,
+      });
+    });
+
+    function stepEditorPop(anchorEl) {
+      closeStepEditor();
+      const p = document.createElement('div');
+      p.className = 'stepedit';
+      p.style.cssText = 'position:absolute;z-index:60;background:#fff;border:1px solid #e4e6ec;'
+        + 'border-radius:12px;box-shadow:var(--shadow-dropdown)';
+      document.body.appendChild(p);
+      _stepPop = p;
+      return p;
+    }
+    function placeStepPop(p, anchorEl) {
+      const r = anchorEl.getBoundingClientRect();
+      const w = p.offsetWidth, h = p.offsetHeight;
+      let left = Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 12);
+      let top = r.bottom + window.scrollY + 6;
+      if (r.bottom + h + 12 > window.innerHeight && r.top - h - 6 > 0) top = r.top + window.scrollY - h - 6;
+      p.style.left = Math.max(8, left) + 'px';
+      p.style.top = top + 'px';
+    }
+
+    function openStepEditor(anchorEl, st) {
+      _stepState = st;
+      const p = stepEditorPop(anchorEl);
+      const all = (window.JH_STATUSES || []).filter(x => x.type !== 'new');
+
+      if (st.cal) {
+        p.innerHTML = '<div class="date-cal" style="width:234px"></div>';
+        placeStepPop(p, anchorEl);
+        // JHCal in single-date mode (D47). `allowFuture` is left at its default, so future days
+        // are greyed and unclickable and the next-month chevron disables past today — the newest
+        // step IS the current status, so a date next Tuesday would make an unbooked interview
+        // today's status (D9).
+        const cal = JHCal.attach({
+          root: p.querySelector('.date-cal'),
+          from: st.date, to: st.date,
+          single: true,
+          backLabel: 'Back to the step',
+          note: 'Future dates are blocked — the newest step is the current status.',
+          onPick: d => openStepEditor(anchorEl, Object.assign({}, st, { date: d, cal: false })),
+          onBack: () => openStepEditor(anchorEl, Object.assign({}, st, { cal: false })),
+        });
+        cal.render();
+        placeStepPop(p, anchorEl);
+        return;
+      }
+
+      // The guard rail of §5 Trap 2, shown at the moment it applies. The rule is "the newest step
+      // is where you are now", so the thing worth warning about is a save that changes WHICH step
+      // is newest — in either direction. Moving a step up to the front is the obvious case; moving
+      // the current step back down is the one that used to change the job's status with nothing
+      // said about it.
+      const rail = anchorEl.closest('.hist');
+      const editable = Array.prototype.slice.call(rail.querySelectorAll('.rstep[data-step-id]'));
+      const byId = x => (window.JH_STATUSES || []).find(y => String(y.id) === String(x));
+      const nameOf = id => { const s = byId(id); return s ? s.name : ''; };
+      const nowNewest = editable.length ? editable[editable.length - 1] : null;
+      // What the log would look like after this save, sorted the way the server sorts it.
+      const after = editable
+        .map(el => el === anchorEl
+          ? { date: st.date, statusId: String(st.statusId), self: true }
+          : { date: el.dataset.stepDate, statusId: el.dataset.stepStatus, self: false })
+        .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+      const willBeNewest = after.length ? after[after.length - 1] : null;
+      const currentName = nowNewest ? nameOf(nowNewest.dataset.stepStatus) : '';
+      const nextName = willBeNewest ? nameOf(willBeNewest.statusId) : '';
+      const changesCurrent = willBeNewest && nextName && nextName !== currentName;
+      const warn = changesCurrent
+        ? '<div class="warn"><span>\u26a0</span><span>This makes <b>' + esc(nextName)
+          + '</b> the newest step. The job will show <b>' + esc(nextName) + '</b>.</span></div>'
+        : '';
+
+      let lastType = null;
+      const options = all.map(x => {
+        let out = '';
+        if (x.type !== lastType) {
+          if (lastType !== null) out += '</optgroup>';
+          out += '<optgroup label="' + esc(x.typeLabel) + '">';
+          lastType = x.type;
+        }
+        return out + '<option value="' + x.id + '"' + (String(x.id) === String(st.statusId) ? ' selected' : '') + '>' + esc(x.name) + '</option>';
+      }).join('') + (lastType !== null ? '</optgroup>' : '');
+
+      p.innerHTML = '<div class="et">Edit step</div>'
+        + '<div class="fr"><label>Status</label><select data-step-select>' + options + '</select></div>'
+        + '<div class="fr"><label>Date</label><button type="button" class="dateinput" data-step-cal>'
+          + esc(prettyStepDate(st.date))
+          + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'
+        + '</button></div>'
+        + warn
+        + '<div class="ef"><button type="button" class="eb del" data-step-del>Delete step</button>'
+          + '<button type="button" class="eb ghost" data-step-cancel>Cancel</button>'
+          + '<button type="button" class="eb pri" data-step-save>Save</button></div>';
+      placeStepPop(p, anchorEl);
+
+      p.querySelector('[data-step-select]').onchange = ev => {
+        openStepEditor(anchorEl, Object.assign({}, st, { statusId: Number(ev.target.value) }));
+      };
+      p.querySelector('[data-step-cal]').onclick = ev => {
+        ev.stopPropagation();
+        openStepEditor(anchorEl, Object.assign({}, st, { cal: true }));
+      };
+      p.querySelector('[data-step-cancel]').onclick = ev => { ev.stopPropagation(); closeStepEditor(); };
+      p.querySelector('[data-step-save]').onclick = ev => { ev.stopPropagation(); saveStep(st); };
+      p.querySelector('[data-step-del]').onclick = ev => { ev.stopPropagation(); deleteStep(st); };
+    }
+
+    // The fold is a phone affordance only; on a desktop every step is already on screen (D31).
+    document.addEventListener('click', e => {
+      const f = e.target.closest('.rfold');
+      if (!f) return;
+      e.stopPropagation();
+      const rail = f.closest('.rail');
+      if (rail) rail.classList.add('is-open');
+    });
+
+    function prettyStepDate(iso) {
+      const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z');
+      if (isNaN(d.getTime())) return String(iso);
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    }
+
+    // Saving or deleting a step reorders the log, which can move the current status with it, so
+    // the whole pane is reloaded rather than patched — the rail, the chip, the corner and the
+    // action buttons all derive from that one answer.
+    async function refreshDetailPane(jobId) {
+      const host = document.getElementById('jh-pane');
+      if (host && window.JH && typeof window.JH.reloadPane === 'function') { window.JH.reloadPane(jobId); return; }
+      window.location.reload();
+    }
+
+    async function saveStep(st) {
+      closeStepEditor();
+      try {
+        const res = await fetch('/api/history/' + st.eventId, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status_id: st.statusId, changed_at: st.date }),
+        });
+        const data = await res.json();
+        if (!data.success) { await showAlert(data.error || 'Failed to save the step'); return; }
+        updateMatchesBadge(data.matchesCount);
+        updateShortcutCounts(data.shortcutCounts);
+        refreshDetailPane(st.jobId);
+      } catch (e) {
+        await showAlert('Could not reach the server. Make sure the app is running and try again.');
+      }
+    }
+
+    async function deleteStep(st) {
+      closeStepEditor();
+      // Deleting the last step promotes the one before it; deleting them all returns the job to
+      // New. Both happen server-side, in the same transaction as the delete (DP10, DP12).
+      const ok = await showConfirm('Delete this step?');
+      if (!ok) return;
+      try {
+        const res = await fetch('/api/history/' + st.eventId, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) { await showAlert(data.error || 'Failed to delete the step'); return; }
+        updateMatchesBadge(data.matchesCount);
+        updateShortcutCounts(data.shortcutCounts);
+        refreshDetailPane(st.jobId);
       } catch (e) {
         await showAlert('Could not reach the server. Make sure the app is running and try again.');
       }
@@ -2551,47 +3126,105 @@
       document.getElementById('profile-sheet').classList.add('hidden');
     }
 
-    // ── Sidebar submenus (Settings / Admin): mutually exclusive accordion ──
+    // ── The sidebar column: Settings, the onboarding widget, and making them fit ──────────
+    //
+    // Two blocks want to be open at once and the column is not always tall enough for both. It
+    // never scrolls and nothing is ever clipped (D33), so it yields in a FIXED order instead:
+    //
+    //   ≥800px   both open
+    //   700–800  the onboarding widget drops to its one row
+    //   660–700  if the user reopens the widget, Settings collapses instead — reopening it was an
+    //            explicit choice, and Settings is one click back
+    //   <660     one of the two stays collapsed and the column says which and why, rather than
+    //            silently undoing a click
+    //
+    // The widget yields first because it is temporary by definition; Settings is not (D51).
     (function () {
-      const defs = {
-        settings: { key: 'jh_settings_open', btn: 'sb-settings-btn', sub: 'sb-settings-sub', chev: 'sb-settings-chev' },
-        admin:    { key: 'jh_admin_open',    btn: 'sb-admin-btn',    sub: 'sb-admin-sub',    chev: 'sb-admin-chev' },
-      };
-      const menus = {};
-      for (const [name, d] of Object.entries(defs)) {
-        if (!document.getElementById(d.btn)) continue;
-        menus[name] = { key: d.key, sub: document.getElementById(d.sub), chev: document.getElementById(d.chev) };
-      }
-      function setOpen(name, open) {
-        const m = menus[name];
-        if (!m) return;
-        m.sub.style.display = open ? '' : 'none';
-        m.chev.classList.toggle('open', open);
-        localStorage.setItem(m.key, open ? '1' : '0');
-        // Accordion: opening one collapses the other.
-        if (open) for (const other of Object.keys(menus)) if (other !== name) setOpen(other, false);
-      }
-      const path = window.location.pathname;
-      const onSettings = document.title.includes('Settings') || path.startsWith('/settings');
-      const onAdmin = path.startsWith('/admin');
-      if (onAdmin) setOpen('admin', true);
-      else if (onSettings) setOpen('settings', true);
-      else if (localStorage.getItem(defs.settings.key) === '1') setOpen('settings', true);
-      else if (localStorage.getItem(defs.admin.key) === '1') setOpen('admin', true);
-      window.jhToggleSettings = function () { if (menus.settings) setOpen('settings', menus.settings.sub.style.display === 'none'); };
-      window.jhToggleAdmin = function () { if (menus.admin) setOpen('admin', menus.admin.sub.style.display === 'none'); };
-    })();
-
-    // ── Onboarding dismiss ──────────────────────────────────────────
-    (function () {
+      const SET_KEY = 'jh_settings_open';
+      const ONB_MINI_KEY = 'jh_onboarding_mini';
       const DISMISS_KEY = 'jh_onboarding_dismissed';
+
+      const settingsSub  = document.getElementById('sb-settings-sub');
+      const settingsChev = document.getElementById('sb-settings-chev');
       const widget = document.getElementById('sb-onboard-widget');
-      if (!widget) return;
-      if (localStorage.getItem(DISMISS_KEY)) widget.style.display = 'none';
+      const fitNote = document.getElementById('sb-fit-note');
+      const nav = document.querySelector('.sb-nav-scroll');
+
+      // What the user asked for. What actually renders may be less, and only because of height.
+      let settingsWanted = localStorage.getItem(SET_KEY) !== '0';
+      let widgetWanted   = localStorage.getItem(ONB_MINI_KEY) !== '1';
+
+      if (widget && localStorage.getItem(DISMISS_KEY)) widget.style.display = 'none';
+
+      function paint(settingsOpen, widgetOpen, note) {
+        if (settingsSub)  settingsSub.style.display = settingsOpen ? '' : 'none';
+        if (settingsChev) settingsChev.classList.toggle('open', settingsOpen);
+        if (widget) widget.classList.toggle('mini', !widgetOpen);
+        if (fitNote) fitNote.classList.toggle('hidden', !note);
+      }
+
+      // Does the column fit as currently painted? Measured, not assumed — the nav's own scroll
+      // height against the room it has.
+      function overflows() {
+        return !!nav && nav.scrollHeight > nav.clientHeight + 1;
+      }
+
+      function fit() {
+        if (!nav) { paint(settingsWanted, widgetWanted, false); return; }
+        // Try what the user asked for.
+        paint(settingsWanted, widgetWanted, false);
+        if (!overflows()) return;
+        // The widget yields first: it is temporary by definition.
+        if (widgetWanted) {
+          paint(settingsWanted, false, false);
+          if (!overflows()) return;
+        }
+        // Still short, and the user explicitly reopened the widget: Settings gives way instead,
+        // because it is one click back and the widget was the deliberate choice.
+        if (widgetWanted && settingsWanted) {
+          paint(false, true, false);
+          if (!overflows()) return;
+        }
+        // Nothing fits both. Keep the widget's own choice, collapse the other, and SAY so.
+        paint(false, widgetWanted, widgetWanted);
+        if (!overflows()) return;
+        paint(false, false, false);
+      }
+
+      window.jhToggleSettings = function () {
+        settingsWanted = !settingsWanted;
+        localStorage.setItem(SET_KEY, settingsWanted ? '1' : '0');
+        fit();
+      };
+      window.jhToggleOnboarding = function () {
+        widgetWanted = !widgetWanted;
+        localStorage.setItem(ONB_MINI_KEY, widgetWanted ? '0' : '1');
+        fit();
+      };
       window.jhDismissOnboarding = function () {
         localStorage.setItem(DISMISS_KEY, '1');
-        widget.style.display = 'none';
+        if (widget) widget.style.display = 'none';
+        fit();
       };
+
+      fit();
+      window.addEventListener('resize', fit);
+    })();
+
+    // ── The profile menu (D43) ──────────────────────────────────────
+    (function () {
+      const menu = document.getElementById('sb-profile-menu');
+      if (!menu) return;
+      window.jhToggleProfileMenu = function (e) {
+        if (e) e.stopPropagation();
+        menu.classList.toggle('hidden');
+      };
+      document.addEventListener('click', function (ev) {
+        if (!menu.classList.contains('hidden') && !menu.contains(ev.target)) menu.classList.add('hidden');
+      });
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') menu.classList.add('hidden');
+      });
     })();
 
     // ── Onboarding actions: land on Start, then open the modal ──────

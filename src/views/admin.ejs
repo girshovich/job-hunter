@@ -882,10 +882,10 @@
 
   // Two series: over time the split an operator acts on is compute spent with nobody present vs.
   // compute a user asked for. order[0] draws topmost. Nothing here is a verdict, so it takes the
-  // sky family — the secondary deepened one step from --sky-border, too light to read on white.
+  // sky family — the same two fills every chart in the app uses (application_status.md §11).
   const SP_RUNS_SPEC = {
     order: ['sch', 'usr'],
-    config: { sch: { label: 'Scheduled', color: 'var(--sky-ink)' }, usr: { label: 'User-started', color: '#5aaed9' } },
+    config: { sch: { label: 'Scheduled', color: 'var(--sky-ink)' }, usr: { label: 'User-started', color: 'var(--sky-border)' } },
     fmt: v => String(v), tipSuffix: ' runs', colW: 36,
     tipLabel: d => spLabel(d),
   };

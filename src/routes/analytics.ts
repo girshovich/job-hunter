@@ -4,6 +4,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type SearchGroupRow } from '../db';
+import { everAppliedSql } from '../statuses';
 
 const router = Router();
 
@@ -11,12 +12,18 @@ router.get('/', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
 
+  // "Applied" means **ever reached a status that counts as an application** — read from the
+  // history log, not from where the job sits today (application_status.md NR1, DS8). Counting the
+  // current status alone made every number here fall the moment a user succeeded: move a job on
+  // to Recruiter and it stopped being an application. This is a semantics change, not a repaint.
+  const EVER_APPLIED = everAppliedSql('jps');
+
   // Overall totals
   const totals = db.prepare<{ total: number; strong: number; applied: number }>(`
     SELECT
       COUNT(CASE WHEN jps.is_duplicate = 0 THEN 1 END) as total,
       SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
-      SUM(CASE WHEN jps.applied = 1 AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
+      SUM(CASE WHEN ${EVER_APPLIED} AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
     FROM job_profile_states jps WHERE jps.profile_id = ?
   `).get(profileId) as { total: number; strong: number; applied: number };
 
@@ -46,7 +53,7 @@ router.get('/', (req: Request, res: Response) => {
       jps.group_id,
       COUNT(CASE WHEN jps.is_duplicate = 0 THEN 1 END) as total,
       SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
-      SUM(CASE WHEN jps.applied = 1 AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
+      SUM(CASE WHEN ${EVER_APPLIED} AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as applied
     FROM job_profile_states jps WHERE jps.profile_id = ?
     GROUP BY jps.group_id
   `).all(profileId) as GroupStat[];
@@ -62,7 +69,7 @@ router.get('/', (req: Request, res: Response) => {
   // Per-country stats (strong matches only, non-duplicate) — single primary jobs.country (multi-country.md §15)
   interface JobLocationRow { country: string | null; applied: number }
   const allStrongJobs = db.prepare<JobLocationRow>(`
-    SELECT j.country, jps.applied FROM jobs j
+    SELECT j.country, ${EVER_APPLIED} AS applied FROM jobs j
     JOIN job_profile_states jps ON jps.job_id = j.id
     WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
   `).all(profileId) as JobLocationRow[];

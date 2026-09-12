@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
 import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, TOPUP_ENABLED, touchProfileActivity, warnOnSplitApifyTokens } from './db';
+import { shortcuts, activeShortcut, parseStatusParam, listStatuses, TYPE_META, STATUS_TYPES } from './statuses';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -139,6 +140,20 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.locals.creditsBalance = s?.credits_balance ?? 0;
   res.locals.topupEnabled = TOPUP_ENABLED;
   res.locals.matchesCount = getMatchesCount(pid);
+  // The three Matches shortcuts live in the layout, so they render on every page. Each carries the
+  // real status ids its types resolve to (D45) and a count computed on the Matches base, so the
+  // badge, the "N new" subtitle and these three can never disagree (NR3).
+  const shortcutList = shortcuts(pid);
+  res.locals.shortcuts = shortcutList;
+  // The status picker is a shared dropdown in the layout, so it needs the profile's own list on
+  // every page — grouped by type, in the order the user arranged it (D21).
+  res.locals.statusList = listStatuses(pid)
+    .slice()
+    .sort((a, b) => STATUS_TYPES.indexOf(a.type) - STATUS_TYPES.indexOf(b.type))
+    .map((st) => ({ id: st.id, name: st.name, type: st.type, typeLabel: TYPE_META[st.type].label, order: st.sort_order }));
+  res.locals.activeShortcut = req.path === '/jobs'
+    ? activeShortcut(shortcutList, parseStatusParam(pid, String(req.query.status || '')))
+    : null;
   next();
 });
 

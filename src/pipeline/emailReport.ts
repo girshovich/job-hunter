@@ -295,6 +295,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
       seen: 0,
       seen_at: null,
       applied: 0,
+      status_id: null,
       user_notes: null,
     },
   ];

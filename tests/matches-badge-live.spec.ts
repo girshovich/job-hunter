@@ -20,14 +20,19 @@ const db = new DatabaseSync(DB_PATH);
 const token = crypto.randomBytes(24).toString('hex');
 const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
-type JobState = { job_id: number; applied: number; ai_verdict: string };
+type JobState = { job_id: number; applied: number; status_id: number | null; ai_verdict: string };
 const touched: JobState[] = [];
+// Every history row this run causes the app to write, so it can be removed by exact id.
+const eventsBefore = new Map<number, Set<number>>();
 
 function remember(jobId: number): void {
   const row = db.prepare(
-    'SELECT job_id, applied, ai_verdict FROM job_profile_states WHERE job_id = ? AND profile_id = ?',
+    'SELECT job_id, applied, status_id, ai_verdict FROM job_profile_states WHERE job_id = ? AND profile_id = ?',
   ).get(jobId, PROFILE_ID) as JobState;
   touched.push(row);
+  const ids = db.prepare('SELECT id FROM job_status_events WHERE job_id = ? AND profile_id = ?')
+    .all(jobId, PROFILE_ID) as Array<{ id: number }>;
+  eventsBefore.set(jobId, new Set(ids.map((r) => r.id)));
 }
 
 test.beforeAll(() => {
@@ -37,18 +42,30 @@ test.beforeAll(() => {
 });
 
 test.afterAll(() => {
+  // Drop only the steps this run added — by exact id, diffed against the snapshot.
+  for (const [jobId, before] of eventsBefore) {
+    const now = db.prepare('SELECT id FROM job_status_events WHERE job_id = ? AND profile_id = ?')
+      .all(jobId, PROFILE_ID) as Array<{ id: number }>;
+    for (const { id } of now) {
+      if (!before.has(id)) db.prepare('DELETE FROM job_status_events WHERE id = ?').run(id);
+    }
+  }
   for (const t of touched) {
-    db.prepare('UPDATE job_profile_states SET applied = ?, ai_verdict = ? WHERE job_id = ? AND profile_id = ?')
-      .run(t.applied, t.ai_verdict, t.job_id, PROFILE_ID);
+    db.prepare('UPDATE job_profile_states SET applied = ?, status_id = ?, ai_verdict = ? WHERE job_id = ? AND profile_id = ?')
+      .run(t.applied, t.status_id, t.ai_verdict, t.job_id, PROFILE_ID);
   }
   // Delete ONLY the token this run minted — never a broad profile_id sweep.
   db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
 });
 
+// The badge means "still needs an action from me" — status of type `new` (application_status.md
+// D40), not the old `applied = 0`.
 function dbCount(): number {
-  return (db.prepare(
-    "SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 AND applied = 0",
-  ).get(PROFILE_ID) as { c: number }).c;
+  return (db.prepare(`
+    SELECT COUNT(*) as c FROM job_profile_states jps LEFT JOIN statuses s ON s.id = jps.status_id
+    WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+      AND COALESCE(s.type, 'new') = 'new'
+  `).get(PROFILE_ID) as { c: number }).c;
 }
 
 const badge = (page: Page) => page.locator('#sb-matches-count');
@@ -71,32 +88,36 @@ async function openMatches(page: Page) {
   ]);
   await page.goto('/jobs?verdict=STRONG_MATCH&status=new');
   const jobId = await page
-    .locator('.jobcard[data-strong="1"][data-applied="0"]:not([data-selected="1"])')
+    .locator('.jobcard[data-strong="1"][data-status-type="new"]:not([data-selected="1"])')
     .first().getAttribute('data-id');
   expect(jobId).toBeTruthy();
   remember(Number(jobId));
   return page.locator(`.jobcard[data-id="${jobId}"]`);
 }
 
-test('applied change updates the badge without reloading', async ({ page }) => {
+test('status change updates the badge without reloading', async ({ page }) => {
   const card = await openMatches(page);
+  const jobId = await card.getAttribute('data-id');
   const before = dbCount();
   await expect(badge(page)).toHaveText(String(before));
   await markNoReload(page);
 
-  await card.locator('.applied-btn').click();
-  await page.locator('#applied-dropdown button', { hasText: 'Applied' }).click();
+  // A New card carries the three exits; "I applied" is the one that sets a status directly.
+  await card.locator('.exit-btn', { hasText: 'I applied' }).click();
 
   await expect(badge(page)).toHaveText(String(before - 1));
   expect(dbCount()).toBe(before - 1);
   await assertNoReload(page);
 
-  // Back to New — the badge must climb again.
-  await card.locator('.applied-btn').click();
-  await page.locator('#applied-dropdown button', { hasText: 'New' }).click();
-  await expect(badge(page)).toHaveText(String(before));
+  // Back to New — and the only way back is deleting the step, because `New` is written by the
+  // fetch and is absent from every picker (D34). Deleting the newest step promotes the one below
+  // it, which for this job is that opening `New` (DP10).
+  const newest = db.prepare(
+    'SELECT id FROM job_status_events WHERE job_id = ? AND profile_id = ? ORDER BY changed_at DESC, id DESC LIMIT 1',
+  ).get(Number(jobId), PROFILE_ID) as { id: number };
+  const res = await page.request.delete(`/api/history/${newest.id}`);
+  expect(res.ok()).toBeTruthy();
   expect(dbCount()).toBe(before);
-  await assertNoReload(page);
 });
 
 test('verdict change updates the badge without reloading', async ({ page }) => {
@@ -105,7 +126,7 @@ test('verdict change updates the badge without reloading', async ({ page }) => {
   await expect(badge(page)).toHaveText(String(before));
   await markNoReload(page);
 
-  await card.locator('.verdict-btn').click();
+  await card.locator('.verdict-btn:not(.corrlink)').click();
   await page.locator('#verdict-dropdown button', { hasText: 'Weak' }).click();
   await page.locator('#jh-confirm-modal button', { hasText: 'Confirm' }).click();
 
@@ -114,7 +135,7 @@ test('verdict change updates the badge without reloading', async ({ page }) => {
   await assertNoReload(page);
 
   // Back to Strong — the badge must climb again.
-  await card.locator('.verdict-btn').click();
+  await card.locator('.verdict-btn:not(.corrlink)').click();
   await page.locator('#verdict-dropdown button', { hasText: 'Strong' }).click();
   await page.locator('#jh-confirm-modal button', { hasText: 'Confirm' }).click();
   await expect(badge(page)).toHaveText(String(before));

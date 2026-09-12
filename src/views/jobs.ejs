@@ -3,7 +3,26 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function stripMd(text){ if(!text) return ''; return String(text).replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*/g,''); }
 const f = filters;
 const verdictLabels = { all:'All verdicts', STRONG_MATCH:'Strong', WEAK_MATCH:'Weak', NO_MATCH:'No match', DUPLICATE:'Duplicate' };
-const statusLabels = { '':'Status', new:'New', applied:'Applied', wont:"Won't apply" };
+// The two exits from New that set a status. Looked up by type, never by name — a user who renames
+// "Not applying" keeps working exits (D1).
+const exitStatuses = {};
+statusOptions.forEach(o => { if (!exitStatuses[o.type]) exitStatuses[o.type] = o; });
+// Elapsed days in the profile's timezone, or "today" reads wrong for anyone east of UTC (§5).
+const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: timezone || 'UTC' }).format(new Date());
+function daysSinceLocal(iso){
+  if (!iso) return -1;
+  const a = Date.parse(String(iso).slice(0,10) + 'T00:00:00Z');
+  const b = Date.parse(todayLocal + 'T00:00:00Z');
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return -1;
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+// One selected status reads as its own name, several as a count — the idiom Role and Country
+// already use. Never a type or bucket name: those are not things the user can pick (D45, FL2).
+const statusSel = f.status ? String(f.status).split(',').map(Number).filter(n => statusOptions.some(o => o.id === n)) : [];
+const statusActive = statusSel.length > 0;
+const statusLabel = !statusActive ? 'Status'
+  : (statusSel.length === 1 ? (statusOptions.find(o => o.id === statusSel[0]) || {}).name || '1 status'
+                            : statusSel.length + ' statuses');
 const rolesActive = (f.roleIds.length > 0) || f.roleOther;
 const verdictActive = f.verdict !== 'all';
 const countryActive = f.countries.length > 0;
@@ -60,12 +79,8 @@ function renderFilterBar(){
   const countryIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
   const countryLabel = !countryActive ? 'Country' : (f.countries.length === 1 ? (countryLabelMap[f.countries[0]] || f.countries[0]) : f.countries.length + ' countries');
 
-  // Status (single)
+  // Status (multi — D45). Rows are filled client-side by JH.renderMultiMenu, like Role and Country.
   const statusIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>';
-  let statusMenu = menuRow("JH.setStatus('')", '#cfd4dd', 'All statuses', statusCounts.all, f.status === '');
-  statusMenu += menuRow("JH.setStatus('new')", '#8a91a0', 'New', statusCounts[0], f.status === 'new');
-  statusMenu += menuRow("JH.setStatus('applied')", 'var(--green)', 'Applied', statusCounts[1], f.status === 'applied');
-  statusMenu += menuRow("JH.setStatus('wont')", 'var(--red)', "Won't apply", statusCounts[2], f.status === 'wont');
 
   // Date range (custom calendar)
   const dateIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>';
@@ -80,7 +95,7 @@ function renderFilterBar(){
     + '</div>'
     + '<div style="display:flex;gap:7px;margin-top:8px;flex-wrap:wrap">'
       + '<div style="position:relative;flex:none">'+filterBtn('country', countryIcon, countryLabel, countryActive)+multiMenu('country', 240)+'</div>'
-      + '<div style="position:relative;flex:none">'+filterBtn('status', statusIcon, statusLabels[f.status]||'Status', f.status!=='')+menuWrap(statusMenu)+'</div>'
+      + '<div style="position:relative;flex:none">'+filterBtn('status', statusIcon, statusLabel, statusActive)+multiMenu('status', 250)+'</div>'
       + '<div style="position:relative;flex:none">'
         + '<button type="button" class="filter-btn" data-filter="date" onclick="JH.toggleMenu(this)" style="display:inline-flex;align-items:center;gap:6px;padding:7px 11px;font-size:12px;font-weight:700;border-radius:9px;cursor:pointer;white-space:nowrap;'+(dateActive?'color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border)':'color:var(--muted);background:#fff;border:1px solid var(--line2)')+'">'+dateIcon+'<span>'+esc(dateLabel)+'</span>'+chev()+'</button>'
         + dateMenu
@@ -98,17 +113,40 @@ function scoreChip(score, verdict){
   const t = getVerdictChipStyle(verdict);
   return '<span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;'+t+'">'+formatScore(score)+'</span>';
 }
+// The three exits from New, in the user's own words. Nothing is preselected — all three sit at
+// equal weight and take their colour only on hover, because a filled primary on "I applied" reads
+// as "this job is already Applied" (D16, D18). The first two are decisions about what you did; the
+// third corrects the AI, which is what "Actually…" signals, and it sits apart behind a divider.
+function exitStrip(job){
+  const btn = (label, iconSvg, statusId, cls) =>
+    '<button type="button" class="exit-btn'+(cls?' '+cls:'')+'" data-job-id="'+job.id+'" data-exit-status="'+statusId+'">'
+    + iconSvg + esc(label) + '</button>';
+  const sendIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2-7-8-3z"/></svg>';
+  const skipIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>';
+  const appliedId = (exitStatuses.applied || {}).id;
+  const wontId = (exitStatuses.wont || {}).id;
+  let html = '<div class="ctlstrip">';
+  if (appliedId) html += btn('I applied', sendIcon, appliedId);
+  if (wontId) html += btn("I'm not applying", skipIcon, wontId, 'skip');
+  html += '<button type="button" class="corrlink verdict-btn" data-job-id="'+job.id+'" data-verdict="'+esc(job.is_duplicate?'DUPLICATE':job.ai_verdict)+'">not a match?</button>';
+  return html + '</div>';
+}
+
 function card(job){
-  const applied = Number(job.applied) || 0;
   const cardVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
-  // Applied status (chip + New-tint + dim) is a matches-workflow concept — strong matches only.
+  const stType = job.status_type || 'new';
+  const isNew = stType === 'new';
+  // The status control shows on a job that is strong OR already carries a status, so promoting a
+  // weak match in All Jobs visibly changes that card instead of being a dead end (§8.3, LC4).
   const isStrongCard = cardVerdict === 'STRONG_MATCH';
+  const showStatus = isStrongCard || !isNew;
   const selected = job.id === selectedJobId;
   const summary = job.ai_summary ? esc(stripMd(job.ai_summary)) : '';
   const applyUrl = job.apply_url || job.url;
   const agencyChip = renderAgencyChip(job);
-  let html = '<div class="jobcard" data-id="'+job.id+'" data-strong="'+(isStrongCard?'1':'0')+'" data-applied="'+applied+'"'+(selected?' data-selected="1"':'')+' onclick="if(!JH.isControl(event)){JH.open('+job.id+')}">';
-  html += '<div style="display:flex;align-items:flex-start;gap:11px">'
+  const age = formatStatusAge(daysSinceLocal(job.status_since), stType);
+  let html = '<div class="jobcard" data-id="'+job.id+'" data-strong="'+(isStrongCard?'1':'0')+'" data-status-type="'+esc(stType)+'"'+(selected?' data-selected="1"':'')+' onclick="if(!JH.isControl(event)){JH.open('+job.id+')}">';
+  html += '<div class="jc-top" style="display:flex;align-items:flex-start;gap:11px">'
     + '<div style="flex:1;min-width:0">'
       + '<div style="font-size:14px;font-weight:700;line-height:1.3;color:var(--ink)">'+esc(job.title)+'</div>'
       // The chip wraps to its own line when the name is long; logo and name stay together and
@@ -118,7 +156,11 @@ function card(job){
         + (agencyChip?'<span style="flex:none">'+agencyChip+'</span>':'')
       + '</div>'
     + '</div>'
-    + (isStrongCard ? '<div style="flex:none">'+renderAppliedSelector(job.applied, { 'data-job-id': job.id })+'</div>' : '')
+    + (showStatus && !isNew
+        ? '<div style="flex:none">'+renderStatusSelector(
+            { id: job.status_id, name: job.status_name || 'New', type: stType, age },
+            { 'data-job-id': job.id })+'</div>'
+        : '')
   + '</div>';
   if (summary) html += '<div class="clamp3" style="font-size:12.5px;line-height:1.5;color:var(--muted2)">'+summary+'</div>';
   html += '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">'
@@ -128,6 +170,9 @@ function card(job){
     + '<span style="flex:1"></span>'
     + (applyUrl ? '<a href="'+esc(applyUrl)+'" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--accent)">Apply<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>' : '')
   + '</div>';
+  // A card that still owes a decision spends a row on it; a settled one wears its state in the
+  // corner instead. One control slot per card, always in the same place (D19).
+  if (showStatus && isNew) html += exitStrip(job);
   html += '</div>';
   return html;
 }
@@ -164,7 +209,18 @@ function renderList(){
       border-left: 1px solid #e6e8ee; border-right: 1px solid #dfe2e9; box-shadow: var(--shadow-list-edge);
     }
     .jh-jobs-head { padding: 24px 22px 12px 16px; }
-    .jh-jobs-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 24px; }
+    /* A column, so the legal bar can be pushed to the bottom when the list is short. Children
+       keep their natural height — without `flex-shrink:0` a long list would be squashed to fit
+       instead of scrolling. */
+    /* 10px bottom padding, not 24: it puts the legal bar's baseline on the same line as the
+       sidebar footer's credits pill, which has the same 10px gap under it. The two bottom-most
+       elements of the two columns then read as one row. */
+    .jh-jobs-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 10px;
+                    display: flex; flex-direction: column; }
+    .jh-jobs-body > * { flex-shrink: 0; }
+    /* Short content: the bar sits at the bottom of the column rather than floating up under the
+       last card. Long content: `auto` resolves to 0 and it simply follows the list. */
+    .jh-jobs-foot { margin-top: auto; }
     .jh-jobs-detail { display: block; flex: 1; min-width: 0; overflow-y: auto; background: #f6f5f3; }
     .jh-jobs-foot { display: block; }
   }
@@ -174,8 +230,8 @@ function renderList(){
     cursor: pointer; background: #fff; border: 1px solid #e6e8ee; box-shadow: 0 1px 2px rgba(16,24,40,.05);
     transition: box-shadow .12s, border-color .12s, opacity .12s;
   }
-  .jobcard[data-strong="1"][data-applied="0"] { background: var(--accent-tint); }
-  .jobcard[data-strong="1"]:not([data-applied="0"]):not([data-selected="1"]) { opacity: .85; }
+  .jobcard[data-strong="1"][data-status-type="new"] { background: var(--accent-tint); }
+  .jobcard[data-strong="1"]:not([data-status-type="new"]):not([data-selected="1"]) { opacity: .85; }
   .jobcard[data-selected="1"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 2px rgba(16,24,40,.06); }
 </style>
 
@@ -218,7 +274,7 @@ function renderList(){
         <% } %>
       <% } %>
       <!-- Legal footer (same as other pages; desktop only, as before) -->
-      <footer class="jh-jobs-foot" style="margin-top:18px">
+      <footer class="jh-jobs-foot" style="padding-top:18px">
         <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
           <a href="/terms" class="text-gray-500 hover:text-gray-700 transition-colors">Terms</a>
           <a href="/privacy" class="text-gray-500 hover:text-gray-700 transition-colors">Privacy</a>
@@ -232,7 +288,10 @@ function renderList(){
     <div style="max-width:900px;margin:0;padding:18px clamp(14px,1.5vw,22px) 40px">
       <div id="jh-pane">
         <% if (pane) { %>
-          <%- include('partials/job-detail-body', { job: pane.job, original: pane.original, duplicatesOfThis: pane.duplicatesOfThis, cvs: pane.cvs, settings: pane.settings, companyNote: pane.companyNote, companyAppliedCount: pane.companyAppliedCount, locationLabels: pane.locationLabels, locPref: pane.locPref }) %>
+          <%# Spread, not a hand-listed set: `loadJobDetail` owns what the partial needs, and the two
+              routes that render this fragment directly already spread it (dashboard.ts, reports.ts).
+              Listing the keys here meant every new local had to be added in three places. %>
+          <%- include('partials/job-detail-body', pane) %>
         <% } else { %>
           <div style="height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#d4d8e0" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:10px"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 10h8M8 14h5"/></svg>
@@ -252,14 +311,46 @@ window.__selectedJobId = <%= selectedJobId || 'null' %>;
 window.__fromKey = '<%= fromKey %>';
 window.__filterOpts = {
   roles: <%- JSON.stringify(roleOptions.map(r => ({ v: String(r.id), label: r.group_name || ('Role ' + r.id), count: r.cnt })).concat(orphanCount > 0 ? [{ v: 'other', label: 'Other', count: orphanCount }] : [])) %>,
-  country: <%- JSON.stringify(countryOptions.map(c => ({ v: c.value, label: c.label, count: c.cnt }))) %>
+  country: <%- JSON.stringify(countryOptions.map(c => ({ v: c.value, label: c.label, count: c.cnt }))) %>,
+  status: <%- JSON.stringify(statusOptions.map(o => ({ v: String(o.id), label: o.name, count: o.cnt, type: o.type, typeLabel: o.typeLabel, dot: o.dot }))) %>
 };
-// When applied status changes via the shared dropdown, the card must drop/gain the New tint + dim
-// — the .jobcard CSS derives both from data-applied.
-window.onAppliedChanged = function(jobId, state){
+// When the status changes, the card must drop or gain the New tint and the dim — the .jobcard CSS
+// derives both from data-status-type — and a job that leaves New swaps its exit strip for a chip.
+// Re-rendering the card is not possible here (the server owns its markup), so the strip is removed
+// and the corner chip is grown in place, which is the same transition the server would render.
+// A card that leaves New swaps its exit strip for a corner chip — the same transition the server
+// renders, done in place because the server owns the card's markup and we are not re-fetching it.
+window.onStatusChanged = function(jobId, data){
+  if (!data || !data.status) return;
+  const st = data.status;
+  const age = window.JHUI.formatStatusAge(0, st.type);   // just set, so: today (or nothing)
   document.querySelectorAll('.jobcard[data-id="' + jobId + '"]').forEach(function(card){
-    card.dataset.applied = String(Number(state));
+    card.dataset.statusType = st.type;
+    const strip = card.querySelector('.ctlstrip');
+    if (strip && st.type !== 'new') strip.remove();
+
+    let btn = card.querySelector('.status-btn');
+    if (st.type === 'new') {
+      // Back to New: the chip goes, and the server will render the exits on the next load.
+      if (btn) btn.closest('div').remove();
+      return;
+    }
+    if (!btn) {
+      const top = card.querySelector('.jc-top');
+      if (!top) return;
+      const holder = document.createElement('div');
+      holder.style.flex = 'none';
+      holder.innerHTML = '<button type="button" class="status-btn cursor-pointer" data-job-id="'
+        + jobId + '" data-status-id="' + st.id + '" data-status-type="' + st.type + '"></button>';
+      top.appendChild(holder);
+      btn = holder.querySelector('.status-btn');
+    }
+    btn.dataset.statusId = String(st.id);
+    btn.dataset.statusType = st.type;
+    btn.innerHTML = statusChipHTML(st, age, false);
   });
+  // If this job is open in the pane, its rail just gained a step.
+  if (window.JH) window.JH.reloadPane(jobId);
 };
 window.JH = (function(){
   function currentUrl(){ return new URL(window.location.href); }
@@ -281,7 +372,8 @@ window.JH = (function(){
   // Pending (un-applied) multi-select state; applied on menu close (not per checkbox click).
   const _pending = {
     roles: <%- JSON.stringify(f.roleIds.map(String).concat(f.roleOther ? ['other'] : [])) %>,
-    country: <%- JSON.stringify(f.countries) %>
+    country: <%- JSON.stringify(f.countries) %>,
+    status: <%- JSON.stringify(statusSel.map(String)) %>
   };
   function escJs(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   // ── Detail pane: swap in the job-detail fragment instead of re-navigating the whole page ──
@@ -306,14 +398,22 @@ window.JH = (function(){
     return '<div style="height:70vh;display:flex;align-items:center;justify-content:center;text-align:center;'
       + 'font-size:13px;font-weight:600;color:' + (color || 'var(--faint)') + '">' + text + '</div>';
   }
-  async function loadPane(id){
+  // `quiet` is for refreshing the job that is ALREADY open — after a status change, say. Opening a
+  // different job blanks to "Loading…" and jumps to the top, which is right: it is a different
+  // document. Doing the same for a one-pill edit reads as the whole pane thrashing, so a quiet
+  // refresh keeps the current content on screen until the new HTML is ready and holds the scroll
+  // position where the user left it.
+  async function loadPane(id, quiet){
     const host = document.getElementById('jh-pane');
     const scroller = document.getElementById('jh-detail');
     if (!host) return;
     markSelected(id);
     const token = ++_paneToken;
-    host.innerHTML = paneMsg('Loading…');
-    scroller.scrollTop = 0;
+    const keepTop = quiet ? scroller.scrollTop : 0;
+    if (!quiet) {
+      host.innerHTML = paneMsg('Loading…');
+      scroller.scrollTop = 0;
+    }
     try {
       const res = await fetch('/job/' + id + '/detail');
       if (!res.ok) throw new Error('bad');
@@ -321,9 +421,9 @@ window.JH = (function(){
       if (token !== _paneToken) return; // a newer click already won
       host.innerHTML = html;
       runInjectedScripts(host);
-      scroller.scrollTop = 0;
+      scroller.scrollTop = keepTop;
     } catch (_) {
-      if (token === _paneToken) host.innerHTML = paneMsg('Failed to load this job.', 'var(--red-ink)');
+      if (token === _paneToken && !quiet) host.innerHTML = paneMsg('Failed to load this job.', 'var(--red-ink)');
     }
   }
   // Back/forward between ?selected= entries stays in-document; no ?selected means the server
@@ -336,18 +436,26 @@ window.JH = (function(){
   });
   const CHK_W = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
   const CHK_A = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
+  const ALL_LABEL = { roles: 'All roles', country: 'All countries', status: 'All statuses' };
   function buildRows(kind){
     const opts = (window.__filterOpts[kind]) || [];
     const sel = _pending[kind];
     const allActive = sel.length === 0;
     let html = '<div onclick="event.stopPropagation();JH.clearMulti(\''+kind+'\')" style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer;background:'+(allActive?'var(--accent-soft)':'transparent')+'">'
-      + '<span style="flex:1;font-size:12.5px;font-weight:'+(allActive?'800':'600')+';color:var(--ink)">'+(kind==='roles'?'All roles':'All countries')+'</span>'
+      + '<span style="flex:1;font-size:12.5px;font-weight:'+(allActive?'800':'600')+';color:var(--ink)">'+(ALL_LABEL[kind]||'All')+'</span>'
       + (allActive?CHK_A:'') + '</div>';
+    let lastType = null;
     opts.forEach(function(o){
       const checked = sel.indexOf(String(o.v)) >= 0;
       const val = String(o.v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      // Statuses are grouped under their type heading — fifteen flat rows is a wall (§9).
+      if (kind === 'status' && o.type !== lastType){
+        lastType = o.type;
+        html += '<div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faintest);padding:7px 9px 3px">'+escJs(o.typeLabel)+'</div>';
+      }
       html += '<div onclick="event.stopPropagation();JH.toggleMulti(\''+kind+'\',\''+val+'\')" style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:8px;cursor:pointer;background:'+(checked?'var(--accent-soft)':'transparent')+'">'
         + '<span style="width:16px;height:16px;flex:none;border-radius:5px;display:grid;place-items:center;border:1.5px solid '+(checked?'var(--accent)':'#cfd4dd')+';background:'+(checked?'var(--accent)':'#fff')+'">'+(checked?CHK_W:'')+'</span>'
+        + (o.dot ? '<span style="width:8px;height:8px;flex:none;border-radius:2px;background:'+o.dot+'"></span>' : '')
         + '<span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--ink)">'+escJs(o.label)+'</span>'
         + '<span style="font-size:11.5px;color:var(--faintest);font-weight:600">'+o.count+'</span>'
         + '</div>';
@@ -355,7 +463,7 @@ window.JH = (function(){
     return html;
   }
   return {
-    isControl(e){ return !!e.target.closest('.verdict-btn,.applied-btn,a,button,input,.filter-menu'); },
+    isControl(e){ return !!e.target.closest('.verdict-btn,.status-btn,.exit-btn,.corrlink,a,button,input,.filter-menu'); },
     toggleMenu(btn){
       if (this.applyMulti()) return; // apply pending multi-select from the previously open menu
       const menu = btn.parentElement.querySelector('.filter-menu');
@@ -382,8 +490,10 @@ window.JH = (function(){
       const sel = _pending[kind];
       const active = sel.length > 0;
       let label;
-      if (kind === 'roles') label = sel.length === 0 ? 'Role' : (sel.length === 1 ? ((window.__filterOpts.roles.find(o => String(o.v) === String(sel[0])) || {}).label || sel[0]) : sel.length + ' roles');
-      else label = sel.length === 0 ? 'Country' : (sel.length === 1 ? ((window.__filterOpts.country.find(o => String(o.v) === String(sel[0])) || {}).label || sel[0]) : sel.length + ' countries');
+      const one = () => (window.__filterOpts[kind].find(o => String(o.v) === String(sel[0])) || {}).label || sel[0];
+      if (kind === 'roles') label = sel.length === 0 ? 'Role' : (sel.length === 1 ? one() : sel.length + ' roles');
+      else if (kind === 'status') label = sel.length === 0 ? 'Status' : (sel.length === 1 ? one() : sel.length + ' statuses');
+      else label = sel.length === 0 ? 'Country' : (sel.length === 1 ? one() : sel.length + ' countries');
       document.querySelectorAll('[data-filter="' + kind + '"]').forEach(function(btn){
         const lbl = btn.querySelector('.fb-label'); if (lbl) lbl.textContent = label;
         if (active) { btn.style.color = 'var(--accent)'; btn.style.background = 'var(--accent-soft)'; btn.style.border = '1px solid var(--accent-border)'; }
@@ -394,15 +504,25 @@ window.JH = (function(){
       const u = currentUrl();
       const curR = (u.searchParams.get('roles') || '').split(',').filter(Boolean).sort();
       const curC = (u.searchParams.get('country') || '').split(',').filter(Boolean).sort();
+      // The URL may carry the `applied` alias or ids in any order; compare against what the server
+      // actually resolved, so re-opening the menu and closing it does not navigate (FL9).
+      const curS = <%- JSON.stringify(statusSel.map(String)) %>.slice().sort();
       const pr = _pending.roles.slice().sort();
       const pc = _pending.country.slice().sort();
-      if (pr.join(',') !== curR.join(',') || pc.join(',') !== curC.join(',')) {
-        nav({ roles: _pending.roles.join(',') || null, country: _pending.country.join(',') || null });
+      const ps = _pending.status.slice().sort();
+      if (pr.join(',') !== curR.join(',') || pc.join(',') !== curC.join(',') || ps.join(',') !== curS.join(',')) {
+        nav({
+          roles: _pending.roles.join(',') || null,
+          country: _pending.country.join(',') || null,
+          status: _pending.status.join(',') || null,
+        });
         return true;
       }
       return false;
     },
     setStatus(s){ nav({ status: s || null }); },
+    /** A sidebar shortcut or the filter, both of which carry real status ids (D45). */
+    setStatuses(ids){ nav({ status: (ids && ids.length) ? ids.join(',') : null }); },
     setCompany(val){ nav({ company: (val||'').trim() || null }); },
     navDates(df, dt){ nav({ df: df || null, dt: dt || null }); },
     calDay(ds){ if (_cal) _cal.day(ds); },
@@ -428,6 +548,13 @@ window.JH = (function(){
     open(id){
       if (window.innerWidth < 768) { window.location.href = '/job/' + id + '?from=' + window.__fromKey; return; }
       this.select(id);
+    },
+    /** Re-fetch the open pane. A status change adds a step, and the rail, the chip, the corner
+     *  and the action buttons all derive from that one answer — so the fragment is re-rendered
+     *  rather than patched in six places. */
+    reloadPane(id){
+      if (String(id) !== String(window.__selectedJobId)) return;
+      loadPane(id, true);
     },
     select(id){
       if (String(id) === String(window.__selectedJobId)) return;

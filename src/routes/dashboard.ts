@@ -4,6 +4,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, isPaymentReady, type JobWithState, type SearchRunRow, type SettingsRow } from '../db';
+import { everAppliedSql } from '../statuses';
 import { getScheduleStatus } from '../pipeline/scheduler';
 import { getPreferredCountries } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
@@ -116,7 +117,8 @@ router.get('/', (req: Request, res: Response) => {
 
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow | undefined;
   const groupCount = (db.prepare('SELECT COUNT(*) as c FROM search_groups WHERE profile_id = ?').get(profileId) as { c: number }).c;
-  const appliedCount = (db.prepare(`SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND applied = 1 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'`).get(profileId) as { c: number }).c;
+  // Ever reached a status that counts as an application, not "is applied right now" (NR1).
+  const appliedCount = (db.prepare(`SELECT COUNT(*) as c FROM job_profile_states jps WHERE jps.profile_id = ? AND ${everAppliedSql('jps')} AND jps.is_duplicate = 0 AND jps.ai_verdict = 'STRONG_MATCH'`).get(profileId) as { c: number }).c;
 
   // Onboarding checklist steps
   const checklist = {

@@ -68,10 +68,15 @@
   --purple-strong: #9f80f7;
   --purple-soft: #f4f3ff;
   --purple-border: #e4dcff;
-  /* sky (info, admin) */
+  /* sky (info, admin, applied) — --sky-ink retinted cyan → ocean so the Applied status chip is
+     a system token rather than a new one (application_status.md §11, D25). */
   --sky-soft: #e8f4fd;
-  --sky-ink: #0369a1;
+  --sky-ink: #0d5bb5;
   --sky-border: #bfe3fb;
+  /* gold (offer) — the one genuinely new value: the only status chip that is not flat, and the
+     only one with dark ink (§10.3, D27). White on gold reaches ~2.5:1 against a 4.5:1 floor. */
+  --gold: #f2b01f;
+  --gold-ink: #43290a;
   /* type */
   --font: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   /* radii */

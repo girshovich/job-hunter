@@ -28,6 +28,8 @@ import { config } from '../config';
 import { checkOpenAiBalance } from '../utils/openaiBalance';
 import { companyKey } from '../uiHelpers';
 import { getCompanyProfile, getCompanyUserContext, buildCompanyLinks } from './company';
+import { newStatusId, todayIn, profileTimezone, listStatuses, statusMap, setJobStatus, recomputeCurrent,
+         jobHistory, shortcuts, MAX_STATUSES, MAX_STATUS_NAME, STATUS_TYPES, ASSIGNABLE_TYPES, TYPE_META, type StatusType, type StatusRow } from '../statuses';
 import OpenAI from 'openai';
 
 const router = Router();
@@ -993,33 +995,314 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
     `).run(log.linkedin_job_id, logJobSource, log.title, log.company, log.location, log.url, log.logged_at);
     const { id: jobId } = db.prepare(`SELECT id FROM jobs WHERE linkedin_job_id = ? AND job_source = ?`)
       .get(log.linkedin_job_id, logJobSource) as { id: number };
-    db.prepare(`
+    // Promoting a run-log row materialises the job: it enters the list at `New`, and its history
+    // opens with that step, exactly as a freshly fetched job does (D34).
+    const newStatus = newStatusId(profileId);
+    const created = db.prepare(`
       INSERT OR IGNORE INTO job_profile_states
         (job_id, profile_id, group_id, fetched_at, ai_score, ai_verdict, original_ai_verdict,
-         is_duplicate, rejection_category, seen)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+         is_duplicate, rejection_category, seen, status_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     `).run(jobId, profileId, log.group_id, now,
            log.ai_score ?? 0, verdict, log.ai_verdict,
-           verdict === 'DUPLICATE' ? 1 : 0, log.rejection_category);
+           verdict === 'DUPLICATE' ? 1 : 0, log.rejection_category, newStatus);
+    if (created.changes > 0) {
+      db.prepare(
+        "INSERT INTO job_status_events (profile_id, job_id, status_id, changed_at, source) VALUES (?, ?, ?, ?, 'fetch')",
+      ).run(profileId, jobId, newStatus, todayIn(profileTimezone(profileId)));
+    }
     internalJobId = jobId;
   }
 
   res.json({ success: true, internal_job_id: internalJobId, matchesCount: getMatchesCount(profileId) });
 });
 
-// PATCH /api/jobs/:id/applied — set applied status (0 = not applied, 1 = applied, 2 = won't apply)
-router.patch('/jobs/:id/applied', (req: Request, res: Response) => {
+// ── Job status ──────────────────────────────────────────────────────────────────────────────
+//
+// Replaces PATCH /api/jobs/:id/applied. One transaction points the job at the status and appends
+// the move to the diary (§12.4), and the response keeps the old contract — `matchesCount`, which
+// layout.ejs repaints without a reload.
+
+/** Everything the card, the chip and the rail need to repaint after a change. */
+function statusPayload(profileId: number, jobId: number) {
+  const map = statusMap(profileId);
+  const history = jobHistory(profileId, jobId).map((h) => ({
+    id: h.id, status_id: h.status_id, name: h.name, type: h.type, changed_at: h.changed_at,
+  }));
+  const row = getDb().prepare('SELECT status_id FROM job_profile_states WHERE job_id = ? AND profile_id = ?')
+    .get(jobId, profileId) as { status_id: number | null } | undefined;
+  const current = row?.status_id != null ? map.get(row.status_id) ?? null : null;
+  return {
+    matchesCount: getMatchesCount(profileId),
+    // The three sidebar shortcut counts, recomputed on the same request. They are derived from the
+    // status that just changed, so leaving them stale would contradict the badge sitting directly
+    // above them — and it is the same query the layout already runs on every page load.
+    shortcutCounts: shortcuts(profileId).map((sc) => ({ id: sc.id, count: sc.count })),
+    status: current ? { id: current.id, name: current.name, type: current.type } : null,
+    history,
+  };
+}
+
+// PATCH /api/jobs/:id/status — move a job to a status and record the step.
+router.patch('/jobs/:id/status', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ success: false, error: 'Invalid job id.' }); return; }
-  const b = req.body as Record<string, unknown>;
-  const raw = Number(b.applied);
-  const applied = raw === 1 || raw === 2 ? raw : 0;
+  const profileId = req.profile.id;
+  const statusId = Number((req.body as Record<string, unknown>).status_id);
+  if (!Number.isFinite(statusId)) { res.status(400).json({ success: false, error: 'Invalid status.' }); return; }
+  // D35: a Rejected-type status ends the line, and this endpoint only ever APPENDS. The rail's
+  // `＋` is already disabled in that state; the list card's chip has no rail to disable, so the
+  // rule is enforced here — otherwise changing a rejected job's status from the list silently
+  // pushed a step past the rejection. The way out is the step editor in the detail pane, which is
+  // what the message points at.
+  const cur = getDb().prepare(`
+    SELECT s.name, s.type FROM job_profile_states jps JOIN statuses s ON s.id = jps.status_id
+    WHERE jps.job_id = ? AND jps.profile_id = ?
+  `).get(id, profileId) as { name: string; type: string } | undefined;
+  if (cur && cur.type === 'rejected') {
+    res.status(409).json({
+      success: false,
+      error: `"${cur.name}" is the end of this job's history. Open the job and change or delete that step to carry on.`,
+    });
+    return;
+  }
+
+  const ok = setJobStatus(profileId, id, statusId, todayIn(profileTimezone(profileId)));
+  if (!ok) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
+  res.json({ success: true, ...statusPayload(profileId, id) });
+});
+
+// ── History editing (the step editor, detail pane only) ─────────────────────────────────────
+//
+// A step can be re-dated, re-statused or deleted — that is the misclick fix (§5, Trap 2). The one
+// rule is that the newest step IS the current status, so any edit that reorders the log recomputes
+// it, in the same transaction (DP12).
+
+/** The job this event belongs to, if the caller owns both. */
+function ownedEvent(profileId: number, eventId: number): { job_id: number; status_id: number } | null {
+  const row = getDb().prepare(
+    'SELECT job_id, status_id FROM job_status_events WHERE id = ? AND profile_id = ?',
+  ).get(eventId, profileId) as { job_id: number; status_id: number } | undefined;
+  return row ?? null;
+}
+
+// PATCH /api/history/:id — change a step's status and/or its date.
+router.patch('/history/:id', (req: Request, res: Response) => {
+  const eventId = parseInt(req.params.id, 10);
+  if (isNaN(eventId)) { res.status(400).json({ success: false, error: 'Invalid step id.' }); return; }
+  const profileId = req.profile.id;
   const db = getDb();
-  const changes = db.prepare(`
-    UPDATE job_profile_states SET applied = ? WHERE job_id = ? AND profile_id = ?
-  `).run(applied, id, req.profile.id).changes;
-  if (changes === 0) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
-  res.json({ success: true, matchesCount: getMatchesCount(req.profile.id) });
+  const ev = ownedEvent(profileId, eventId);
+  if (!ev) { res.status(404).json({ success: false, error: 'Step not found.' }); return; }
+
+  const b = req.body as Record<string, unknown>;
+  const nextStatusId = b.status_id === undefined ? ev.status_id : Number(b.status_id);
+  const nextDate = b.changed_at === undefined ? null : String(b.changed_at).slice(0, 10);
+
+  const target = db.prepare('SELECT * FROM statuses WHERE id = ? AND profile_id = ?')
+    .get(nextStatusId, profileId) as StatusRow | undefined;
+  if (!target) { res.status(400).json({ success: false, error: 'Unknown status.' }); return; }
+  // `New` is written once, by the fetch. It is never something you pick (D34).
+  if (target.type === 'new' && target.is_builtin === 1 && nextStatusId !== ev.status_id) {
+    res.status(400).json({ success: false, error: 'New is set when the job arrives and cannot be chosen.' });
+    return;
+  }
+  if (nextDate !== null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) { res.status(400).json({ success: false, error: 'Invalid date.' }); return; }
+    // The newest step is the current status, so a date next Tuesday would make an unbooked
+    // interview today's status (D9).
+    if (nextDate > todayIn(profileTimezone(profileId))) {
+      res.status(400).json({ success: false, error: 'A step cannot be dated in the future.' });
+      return;
+    }
+  }
+
+  // ── Two invariants the log has to keep, checked against the *prospective* state ──────────
+  const steps = db.prepare(`
+    SELECT e.id, e.changed_at, s.type FROM job_status_events e JOIN statuses s ON s.id = e.status_id
+    WHERE e.profile_id = ? AND e.job_id = ? ORDER BY e.changed_at ASC, e.id ASC
+  `).all(profileId, ev.job_id) as Array<{ id: number; changed_at: string; type: string }>;
+  const after = steps
+    .map((st) => st.id === eventId
+      ? { ...st, changed_at: nextDate ?? st.changed_at, type: target.type as string }
+      : st)
+    .sort((a, b) => (a.changed_at < b.changed_at ? -1 : a.changed_at > b.changed_at ? 1 : a.id - b.id));
+
+  // 1. Nothing happened before the job arrived. The first step is the fetch, and without this
+  //    floor a step dragged behind it makes `New` the newest again — the job silently reverts to
+  //    New and the card grows its exit buttons back, which reads as data loss rather than an edit.
+  const arrival = steps.find((st) => st.type === 'new');
+  if (arrival && nextDate !== null && eventId !== arrival.id && nextDate < arrival.changed_at) {
+    res.status(400).json({
+      success: false,
+      error: `This job arrived on ${arrival.changed_at}. A step cannot be dated before that.`,
+    });
+    return;
+  }
+
+  // 2. A Rejected-type status ends the line (D35). It is only "the end" while it is the newest
+  //    step, so re-dating one behind another step, or retyping a middle step to Rejected, would
+  //    quietly reopen a closed line.
+  //
+  //    Judged as a DELTA, not an absolute: a log that is already broken — one written before this
+  //    rule existed — must still be repairable, and an absolute check refuses every edit on it,
+  //    including the edit that would fix it. So this only blocks an edit that breaks a log which
+  //    was previously sound.
+  const misplaced = (list: Array<{ type: string }>) =>
+    list.some((st, i) => st.type === 'rejected' && i < list.length - 1);
+  if (misplaced(after) && !misplaced(steps)) {
+    res.status(400).json({
+      success: false,
+      error: 'A rejection has to be the last step. Move or delete the steps after it first.',
+    });
+    return;
+  }
+
+  db.transaction(() => {
+    db.prepare('UPDATE job_status_events SET status_id = ?, changed_at = COALESCE(?, changed_at) WHERE id = ? AND profile_id = ?')
+      .run(nextStatusId, nextDate, eventId, profileId);
+    recomputeCurrent(profileId, ev.job_id);
+  });
+  res.json({ success: true, ...statusPayload(profileId, ev.job_id) });
+});
+
+// DELETE /api/history/:id — drop a step; the one below it becomes current, or New if none remain.
+router.delete('/history/:id', (req: Request, res: Response) => {
+  const eventId = parseInt(req.params.id, 10);
+  if (isNaN(eventId)) { res.status(400).json({ success: false, error: 'Invalid step id.' }); return; }
+  const profileId = req.profile.id;
+  const db = getDb();
+  const ev = ownedEvent(profileId, eventId);
+  if (!ev) { res.status(404).json({ success: false, error: 'Step not found.' }); return; }
+
+  // Deleting the step and recomputing the status are one transaction: kill the request midway and
+  // the database holds either both or neither, never a history missing the step the job still
+  // shows (DP12).
+  db.transaction(() => {
+    db.prepare('DELETE FROM job_status_events WHERE id = ? AND profile_id = ?').run(eventId, profileId);
+    recomputeCurrent(profileId, ev.job_id);
+  });
+  res.json({ success: true, ...statusPayload(profileId, ev.job_id) });
+});
+
+// ── The statuses admin (Settings → Roles) ───────────────────────────────────────────────────
+
+const isStatusType = (v: unknown): v is StatusType => STATUS_TYPES.includes(v as StatusType);
+// New / Not applying / Applied are single built-in rows — a second status of one of those types
+// would make "is this an application?" ambiguous, so they are not offered (D1, §4.1).
+const isAssignableType = (v: unknown): v is StatusType => ASSIGNABLE_TYPES.includes(v as StatusType);
+
+router.get('/statuses', (req: Request, res: Response) => {
+  const list = listStatuses(req.profile.id).map((st) => ({
+    ...st,
+    typeLabel: TYPE_META[st.type].label,
+    dot: TYPE_META[st.type].dot,
+    inUse: (getDb().prepare('SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND status_id = ?')
+      .get(req.profile.id, st.id) as { c: number }).c,
+    // Any trace at all — current or historical. A status with history cannot become a rejection.
+    everUsed: (getDb().prepare(`
+      SELECT (SELECT COUNT(*) FROM job_profile_states WHERE profile_id = ? AND status_id = ?)
+           + (SELECT COUNT(*) FROM job_status_events   WHERE profile_id = ? AND status_id = ?) AS c
+    `).get(req.profile.id, st.id, req.profile.id, st.id) as { c: number }).c,
+  }));
+  res.json({ success: true, statuses: list, max: MAX_STATUSES, maxName: MAX_STATUS_NAME, assignableTypes: ASSIGNABLE_TYPES });
+});
+
+router.post('/statuses', (req: Request, res: Response) => {
+  const profileId = req.profile.id;
+  const db = getDb();
+  const b = req.body as Record<string, unknown>;
+  const name = String(b.name ?? '').trim();
+  const type = b.type;
+  if (!name) { res.status(400).json({ success: false, error: 'A status needs a name.' }); return; }
+  if (name.length > MAX_STATUS_NAME) {
+    res.status(400).json({ success: false, error: `Keep the name to ${MAX_STATUS_NAME} characters or fewer.` });
+    return;
+  }
+  if (!isAssignableType(type)) {
+    res.status(400).json({ success: false, error: 'Pick a type: In Progress, Offer or Rejected.' });
+    return;
+  }
+  // The cap counts live rows only — archived ones cost nothing (§12.1).
+  const live = (db.prepare('SELECT COUNT(*) as c FROM statuses WHERE profile_id = ? AND archived_at IS NULL')
+    .get(profileId) as { c: number }).c;
+  if (live >= MAX_STATUSES) {
+    res.status(409).json({ success: false, error: `Maximum of ${MAX_STATUSES} statuses reached.` });
+    return;
+  }
+  const next = (db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM statuses WHERE profile_id = ?')
+    .get(profileId) as { n: number }).n;
+  const result = db.prepare('INSERT INTO statuses (profile_id, name, type, sort_order, is_builtin) VALUES (?, ?, ?, ?, 0)')
+    .run(profileId, name, type, next);
+  res.status(201).json({ success: true, status: db.prepare('SELECT * FROM statuses WHERE id = ?').get(result.lastInsertRowid) });
+});
+
+router.patch('/statuses/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ success: false, error: 'Invalid status id.' }); return; }
+  const profileId = req.profile.id;
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM statuses WHERE id = ? AND profile_id = ?').get(id, profileId) as StatusRow | undefined;
+  if (!row) { res.status(404).json({ success: false, error: 'Status not found.' }); return; }
+
+  const b = req.body as Record<string, unknown>;
+  const name = b.name === undefined ? row.name : String(b.name).trim();
+  const type = b.type === undefined ? row.type : b.type;
+  if (!name) { res.status(400).json({ success: false, error: 'A status needs a name.' }); return; }
+  if (name.length > MAX_STATUS_NAME) {
+    res.status(400).json({ success: false, error: `Keep the name to ${MAX_STATUS_NAME} characters or fewer.` });
+    return;
+  }
+  if (!isStatusType(type)) { res.status(400).json({ success: false, error: 'Unknown status type.' }); return; }
+  // The three built-ins carry the migration's meaning of 0/1/2 — retyping one would silently
+  // rewrite what every old row means (AD3).
+  if (row.is_builtin === 1 && type !== row.type) {
+    res.status(400).json({ success: false, error: 'Built-in statuses keep their type.' });
+    return;
+  }
+  if (!row.is_builtin && type !== row.type && !isAssignableType(type)) {
+    res.status(400).json({ success: false, error: 'Pick a type: In Progress, Offer or Rejected.' });
+    return;
+  }
+  // Becoming a rejection is the one retype that can break history it never touched: a Rejected
+  // status ends the line (D35), so the moment "Recruiter" becomes a rejection, every job that
+  // passed THROUGH Recruiter on its way somewhere else has a rejection sitting mid-history. There
+  // is no safe way to rewrite those logs, so the change is refused while anything uses the status.
+  if (type === 'rejected' && row.type !== 'rejected') {
+    const used = (db.prepare(`
+      SELECT (SELECT COUNT(*) FROM job_profile_states WHERE profile_id = ? AND status_id = ?)
+           + (SELECT COUNT(*) FROM job_status_events   WHERE profile_id = ? AND status_id = ?) AS c
+    `).get(profileId, id, profileId, id) as { c: number }).c;
+    if (used > 0) {
+      res.status(409).json({
+        success: false,
+        error: `"${row.name}" is already used by ${used} job${used === 1 ? '' : 's'}. A rejection has to be the last step, so this type cannot be applied to a status with history. Create a new status instead.`,
+      });
+      return;
+    }
+  }
+  db.prepare('UPDATE statuses SET name = ?, type = ? WHERE id = ? AND profile_id = ?').run(name, type, id, profileId);
+  res.json({ success: true, status: db.prepare('SELECT * FROM statuses WHERE id = ?').get(id) });
+});
+
+// DELETE /api/statuses/:id — refused while any job sits in it; otherwise archived, never erased,
+// so the history of jobs that passed through it keeps rendering (§7, D6).
+router.delete('/statuses/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ success: false, error: 'Invalid status id.' }); return; }
+  const profileId = req.profile.id;
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM statuses WHERE id = ? AND profile_id = ?').get(id, profileId) as StatusRow | undefined;
+  if (!row) { res.status(404).json({ success: false, error: 'Status not found.' }); return; }
+  if (row.is_builtin === 1) { res.status(400).json({ success: false, error: 'This status cannot be deleted.' }); return; }
+  const held = (db.prepare('SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND status_id = ?')
+    .get(profileId, id) as { c: number }).c;
+  if (held > 0) {
+    res.status(409).json({ success: false, error: `${held} job${held === 1 ? '' : 's'} still ${held === 1 ? 'sits' : 'sit'} in "${row.name}". Move them first.` });
+    return;
+  }
+  db.prepare("UPDATE statuses SET archived_at = datetime('now') WHERE id = ? AND profile_id = ?").run(id, profileId);
+  res.json({ success: true });
 });
 
 // GET /api/company?name=... — everything the company details modal renders.
@@ -1034,7 +1317,7 @@ router.get('/company', (req: Request, res: Response) => {
     key,
     basics,
     context: getCompanyUserContext(req.profile.id, key),
-    links: buildCompanyLinks(basics?.display_name || raw),
+    links: buildCompanyLinks(req.profile.id, basics?.display_name || raw),
   });
 });
 

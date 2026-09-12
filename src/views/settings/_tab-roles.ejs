@@ -22,6 +22,103 @@
       </div>
     </div>
 
+    <style>
+      /* A reference table, not a form. The type's colour says what a row IS, so the row itself
+         stays quiet: hairline separators instead of ten filled cards, no grip (the order is
+         derived), and controls that only show an edge when you reach for them. DS v2 §1.1 tokens
+         throughout; nothing new is introduced. */
+      .stat-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 4px 2px; border-bottom: 1px solid var(--line);
+      }
+      .stat-row:last-child { border-bottom: 0; }
+      .stat-dot { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+      .stat-name {
+        flex: 1; min-width: 0; height: 28px; padding: 0 8px;
+        border: 1px solid transparent; border-radius: 8px; background: transparent;
+        font-size: 13px; font-weight: 600; color: var(--ink); font-family: inherit; outline: none;
+      }
+      .stat-name:hover:not([readonly]) { border-color: var(--line2); }
+      .stat-name:focus { border-color: var(--accent-border); background: #fff; box-shadow: 0 0 0 3px var(--accent-soft); }
+      .stat-name[readonly] { color: var(--muted); cursor: default; }
+      .stat-type {
+        flex: none; width: 124px; height: 28px; padding: 0 6px;
+        border: 1px solid transparent; border-radius: 8px;
+        background: transparent; font-size: 12.5px; font-weight: 600; color: var(--muted);
+        font-family: inherit; cursor: pointer; outline: none;
+      }
+      /* The header labels the two columns the user edits; the count and the delete need no name.
+         Padding matches the inputs below it, so the labels sit over their own column. */
+      .stat-head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 14px 2px 5px; border-bottom: 1px solid var(--line2);
+        font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+        text-transform: uppercase; color: var(--faintest);
+      }
+      .stat-head-name { flex: 1; min-width: 0; padding-left: 8px; }
+      .stat-head-type { flex: none; width: 124px; padding-left: 7px; }
+
+      /* Below 768px the row has 308px and the fixed columns were taking 252 of it, leaving the
+         name 52px against the 111px "Hiring Manager" needs. Two columns give way: the type select
+         narrows to its longest label ("Not applying", not "In Progress"), and the job count —
+         a diagnostic nobody acts on — goes. The name gets 134px, and the row keeps its height. */
+      @media (max-width: 767px) {
+        .stat-type, .stat-head-type { width: 112px; }   /* 'Not applying' + its caret */
+        .stat-use { display: none; }
+      }
+      .stat-type:hover:not(:disabled) { border-color: var(--line2); background: #fff; }
+      .stat-type:focus { border-color: var(--accent-border); background: #fff; }
+      .stat-type:disabled { color: var(--faintest); cursor: default; }
+      .stat-use {
+        flex: none; min-width: 54px; text-align: right; font-size: 11.5px; font-weight: 600;
+        color: var(--faintest); font-variant-numeric: tabular-nums;
+      }
+      .stat-del, .stat-del-spacer {
+        flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+        border: 0; border-radius: 8px; background: transparent; color: var(--faintest); cursor: pointer;
+      }
+      .stat-del:hover { background: var(--red-soft); color: var(--red-ink); }
+      /* Held by jobs: dimmed so it reads as unavailable, but still pressable — pressing it is how
+         you find out why, which matters most on a phone where the count is hidden. */
+      .stat-del.is-held { color: var(--line2); }
+      .stat-del.is-held:hover { background: #f4f5f7; color: var(--faint); }
+      .stat-row.is-new { border-bottom: 0; padding-top: 8px; gap: 8px; }
+      .stat-row.is-new .stat-name { border-color: var(--accent-border); background: #fff; }
+      .stat-row.is-new .stat-type { border-color: var(--line2); background: #fff; color: var(--ink2); }
+      .stat-add-go { flex: none; }
+    </style>
+
+    <!-- STATUSES -->
+    <%# One list per profile, shared by every role (D5). It lives here, under Roles, because this
+        is where the user already goes to shape their search — and it is a card, not a new tab:
+        `validTabs` stays ['profile','roles','ai'] (AD4). %>
+    <div class="jh-card stg-cardpad">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+        <div>
+          <div class="stg-h2">
+            Statuses
+            <span id="statuses-count" style="margin-left:6px;font-size:12px;font-weight:600;color:var(--faintest)"></span>
+          </div>
+          <p class="stg-sub">Track progress of your application with statuses</p>
+        </div>
+        <button id="add-status-btn" onclick="addStatus()" class="stg-btn stg-btn-secondary stg-btn-sm">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Add Status
+        </button>
+      </div>
+      <div id="statuses-error" class="hidden" style="margin:10px 0 0;font-size:12.5px;line-height:1.45;color:var(--amber-ink);background:var(--amber-soft);border:1px solid var(--amber-border);padding:8px 11px;border-radius:9px"></div>
+      <div class="stat-head" aria-hidden="true">
+        <span class="stat-dot" style="background:transparent"></span>
+        <span class="stat-head-name">Status name</span>
+        <span class="stat-head-type">Type</span>
+        <span class="stat-use"></span>
+        <span class="stat-del-spacer"></span>
+      </div>
+      <div id="statuses-list">
+        <div style="padding:24px 0;text-align:center;color:var(--faintest);font-size:13px">Loading statuses…</div>
+      </div>
+    </div>
+
     <!-- CVs -->
     <div class="jh-card" style="overflow:hidden">
       <button type="button" onclick="togglePromptBlock('cvs-body', 'cvs-chevron')" class="stg-coll-head">

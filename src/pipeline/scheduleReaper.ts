@@ -77,8 +77,10 @@ export async function runScheduleReaperSweep(enforce = config.scheduleReaperEnfo
   const db = getDb();
   const label = enforce ? '[schedule-reaper]' : '[schedule-reaper][shadow]';
 
-  // One SELECT per pass, then one transaction: `node:sqlite` is synchronous and the server is a
-  // single fork, so every statement here blocks the event loop.
+  // One grouped SELECT per pass and no per-row lookups: `node:sqlite` is synchronous and the server
+  // is a single fork, so every statement here blocks the event loop. The writes below are not in a
+  // transaction — each profile's pause is independent, and a crash mid-sweep leaves the rest for
+  // tomorrow rather than rolling back the ones already stopped.
   const toPause = selectSilent(db, PAUSE_SHORT_DAYS, PAUSE_LONG_DAYS);
   // `activity_warned_at` holds the warning to one per silence streak; touchProfileActivity clears
   // it the moment the user comes back.

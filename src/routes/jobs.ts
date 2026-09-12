@@ -9,6 +9,7 @@ import { getDb, type JobWithState, type SettingsRow } from '../db';
 import { getPreferredCountries, lookupCountry } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
 import { companyKey } from '../uiHelpers';
+import { listStatuses, parseStatusParam, idsOfPreset, PRESETS, TYPE_META, STATUS_TYPES, type StatusRow } from '../statuses';
 
 const router = Router();
 const PAGE_DATES = 10; // number of distinct run-dates shown per page
@@ -37,8 +38,6 @@ interface DateGroup {
   jobs: JobWithState[];
 }
 
-const STATUS_MAP: Record<string, number> = { new: 0, applied: 1, wont: 2 };
-
 export function renderJobList(req: Request, res: Response, opts: JobListOpts): void {
   const db = getDb();
   const profileId = req.profile.id;
@@ -59,8 +58,12 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   const companyIsExact = company.length >= 2 && company.startsWith('"') && company.endsWith('"');
   const companyTerm = companyIsExact ? company.slice(1, -1).trim() : company;
   const countries = q.country ? String(q.country).split(',').filter(Boolean) : [];
+  // Status is multi-select (D45): `?status=` carries a comma list of status ids, and the two
+  // single-word values `new|applied|wont` still resolve as a bookmark alias (D10, D49).
   const statusParam = q.status ? String(q.status) : '';
-  const status = statusParam in STATUS_MAP ? STATUS_MAP[statusParam] : null;
+  const statusIds = parseStatusParam(profileId, statusParam);
+  // Sorted ids, so `?status=b,a` and `?status=a,b` are one cache entry rather than two (FL9).
+  const statusKey = statusIds ? statusIds.join(',') : '';
   const dateFrom = q.df ? String(q.df) : '';
   const dateTo = q.dt ? String(q.dt) : '';
 
@@ -97,13 +100,16 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     where.push(`EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id AND jc.country IN (${countries.map(() => '?').join(',')}))`);
     params.push(...countries.map((c) => c.toLowerCase()));
   }
-  if (status !== null) { where.push('jps.applied = ?'); params.push(status); }
+  if (statusIds) {
+    where.push(`jps.status_id IN (${statusIds.map(() => '?').join(',')})`);
+    params.push(...statusIds);
+  }
   if (dateFrom) { where.push('DATE(jps.fetched_at) >= ?'); params.push(dateFrom); }
   if (dateTo) { where.push('DATE(jps.fetched_at) <= ?'); params.push(dateTo); }
   const whereSql = where.join(' AND ');
 
   // ── Distinct fetch dates matching the filters (cached per profile+filter signature) ──
-  const cacheKey = profileId + '|' + JSON.stringify({ verdictParam, roleIds, roleOther, company, countries, statusParam, dateFrom, dateTo });
+  const cacheKey = profileId + '|' + JSON.stringify({ verdictParam, roleIds, roleOther, company, countries, statusKey, dateFrom, dateTo });
   let allDates = datesCache.get(cacheKey);
   if (!allDates) {
     allDates = db.prepare(`
@@ -124,8 +130,11 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   // ── Fetch jobs for this page's dates (sort: day DESC, then Score DESC within a day — Q8) ──
   const COLS = `j.id, j.title, j.company, j.location, j.country, j.url, j.apply_url, j.job_source,
                 jps.ai_score, jps.ai_verdict, jps.is_duplicate, jps.ai_summary,
-                jps.fetched_at, jps.applied, jps.user_notes, c.logo_url,
-                c.is_agency, c.employee_count, c.employee_range`;
+                jps.fetched_at, jps.applied, jps.status_id, jps.user_notes, c.logo_url,
+                c.is_agency, c.employee_count, c.employee_range,
+                st.name AS status_name, st.type AS status_type,
+                (SELECT MAX(e.changed_at) FROM job_status_events e
+                   WHERE e.job_id = jps.job_id AND e.profile_id = jps.profile_id) AS status_since`;
   let jobs: JobWithState[] = [];
   if (pageDates.length > 0) {
     const ph = pageDates.map(() => '?').join(',');
@@ -133,6 +142,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
       SELECT ${COLS}
       FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
       LEFT JOIN companies c ON c.company = LOWER(TRIM(j.company))
+      LEFT JOIN statuses st ON st.id = jps.status_id
       WHERE ${whereSql} AND DATE(jps.fetched_at) IN (${ph})
       ORDER BY DATE(jps.fetched_at) DESC, ${opts.withinDaySort}, j.id DESC
     `).all(...params, ...pageDates) as JobWithState[];
@@ -195,16 +205,35 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     label: lookupCountry(c.value) ?? titleCase(c.value),
     cnt: c.cnt,
   }));
+  // Status menu: every live status, its own count, grouped by type in the view (D45).
   const statusRows = db.prepare(`
-    SELECT applied, COUNT(*) as cnt FROM job_profile_states jps WHERE jps.profile_id = ? AND ${NOT_BL} GROUP BY applied
-  `).all(profileId) as Array<{ applied: number; cnt: number }>;
-  const statusCounts = { 0: 0, 1: 0, 2: 0, all: 0 };
-  for (const r of statusRows) { statusCounts[(r.applied as 0 | 1 | 2)] = r.cnt; statusCounts.all += r.cnt; }
+    SELECT status_id, COUNT(*) as cnt FROM job_profile_states jps
+    WHERE jps.profile_id = ? AND ${NOT_BL} GROUP BY status_id
+  `).all(profileId) as Array<{ status_id: number | null; cnt: number }>;
+  const statusCountById = new Map<number, number>();
+  let statusTotal = 0;
+  for (const r of statusRows) {
+    if (r.status_id != null) statusCountById.set(r.status_id, r.cnt);
+    statusTotal += r.cnt;
+  }
+  const statusOptions = listStatuses(profileId).map((st: StatusRow) => ({
+    id: st.id,
+    name: st.name,
+    type: st.type,
+    typeLabel: TYPE_META[st.type].label,
+    dot: TYPE_META[st.type].dot,
+    cnt: statusCountById.get(st.id) ?? 0,
+  }));
+  // Keep the menu in the user's own order but grouped, so each type heading appears once.
+  statusOptions.sort((a, b) => STATUS_TYPES.indexOf(a.type) - STATUS_TYPES.indexOf(b.type));
+  const statusCounts = { all: statusTotal };
 
-  // "N new" subtitle = applied-0 count across the whole filtered set
+  // "N new" subtitle = jobs of type `new` across the whole filtered set. Counted the same way as
+  // the sidebar badge and the shortcut counts, so the three can never disagree (NR3).
   const newCount = (db.prepare(`
     SELECT COUNT(*) as c FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
-    WHERE ${whereSql} AND jps.applied = 0
+    LEFT JOIN statuses ns ON ns.id = jps.status_id
+    WHERE ${whereSql} AND COALESCE(ns.type, 'new') = 'new'
   `).get(...params) as { c: number }).c;
 
   // Truly-empty (no non-blacklisted jobs in account at all) vs filtered-empty
@@ -228,8 +257,11 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     showSubtitle: opts.showSubtitle,
     fullBleed: true,
     dateGroups,
-    filters: { verdict: verdictParam, roleIds, roleOther, company, countries, status: statusParam, df: dateFrom, dt: dateTo },
-    roleOptions, orphanCount, countryOptions, statusCounts,
+    // `status` carries the RESOLVED ids, not the raw param: the view's chip, its checkboxes and
+    // its "did this change" comparison all have to agree with what the query actually ran, or the
+    // `applied` alias would render as an empty selection (D49, FL9).
+    filters: { verdict: verdictParam, roleIds, roleOther, company, countries, status: statusKey, df: dateFrom, dt: dateTo },
+    roleOptions, orphanCount, countryOptions, statusCounts, statusOptions,
     newCount, totalUnfiltered,
     page, totalPages, pageNewest, pageOldest,
     selectedJobId, pane,

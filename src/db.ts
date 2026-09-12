@@ -20,6 +20,48 @@ export const DEFAULT_PROVIDER_SELECTION = ['valig', 'greenhouse', 'ashby', 'leve
 export const DEFAULT_PROVIDER_SELECTION_JSON = JSON.stringify(DEFAULT_PROVIDER_SELECTION);
 
 /** Minimum credit balance `/api/run` will start a run on. */
+export type StatusType = 'new' | 'wont' | 'applied' | 'progress' | 'offer' | 'rejected';
+
+export interface StatusRow {
+  id: number;
+  profile_id: number;
+  name: string;
+  type: StatusType;
+  sort_order: number;
+  is_builtin: number;
+  archived_at: string | null;
+}
+
+/**
+ * The ten statuses every profile starts with (application_status.md §4.1, D32). The first three
+ * are `is_builtin` — undeletable and un-retypeable, because the migration maps the old
+ * `applied` 0/1/2 onto them and the New pile is the whole review loop. The other seven are
+ * ordinary rows, leaving five of the fifteen slots for the user's own.
+ */
+export const DEFAULT_STATUSES: Array<{ name: string; type: StatusType; builtin?: boolean }> = [
+  { name: 'New',            type: 'new',      builtin: true },
+  { name: 'Not applying',   type: 'wont',     builtin: true },
+  { name: 'Applied',        type: 'applied',  builtin: true },
+  { name: 'Recruiter',      type: 'progress' },
+  { name: 'Hiring Manager', type: 'progress' },
+  { name: 'Case',           type: 'progress' },
+  { name: 'Team call',      type: 'progress' },
+  { name: 'Offer',          type: 'offer' },
+  { name: 'Rejected',       type: 'rejected' },
+  { name: 'I declined',     type: 'rejected' },
+];
+
+/** Mirrors the 15-role cap (routes/api.ts). Counts live rows only — archived ones are free. */
+export const MAX_STATUSES = 15;
+
+/** Seed one profile's list. Idempotent: a profile that already has rows is left alone. */
+export function seedStatusesForProfile(db: Database, profileId: number): void {
+  const existing = (db.prepare('SELECT COUNT(*) as c FROM statuses WHERE profile_id = ?').get(profileId) as { c: number }).c;
+  if (existing > 0) return;
+  const ins = db.prepare('INSERT INTO statuses (profile_id, name, type, sort_order, is_builtin) VALUES (?, ?, ?, ?, ?)');
+  DEFAULT_STATUSES.forEach((st, i) => ins.run(profileId, st.name, st.type, i, st.builtin ? 1 : 0));
+}
+
 export const MIN_RUN_CREDITS = 0.5;
 
 /**
@@ -177,7 +219,10 @@ export function getDb(): Database {
 // endpoints so a status change can return the fresh number without a page reload.
 export function getMatchesCount(profileId: number): number {
   return (getDb().prepare(
-    "SELECT COUNT(*) as c FROM job_profile_states WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 AND applied = 0",
+    `SELECT COUNT(*) as c FROM job_profile_states jps
+      LEFT JOIN statuses s ON s.id = jps.status_id
+      WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+        AND COALESCE(s.type, 'new') = 'new'`,
   ).get(profileId) as { c: number }).c;
 }
 
@@ -2371,6 +2416,124 @@ The full post text is stored as the job description — do not repeat or summari
   } catch (err) {
     console.warn('[db] Migration v_schedule_inactivity failed (non-fatal):', (err as Error).message);
   }
+
+  // v_statuses: custom job statuses replace the three-state `applied` column
+  // (application_status.md §12.2). Four steps, in this order — the seed has to exist before
+  // anything can point at it.
+  //
+  // Step 4 writes ONE event per job: `New`, dated `fetched_at`. That date is a fact, not a guess —
+  // it is the day the job arrived, which is exactly what D34 says the first step of every history
+  // is. No event is written for the applied/won't-apply transition, because there is no timestamp
+  // for when it happened and inventing one from `fetched_at` would put fiction in an audit log
+  // (D8). Those jobs carry their status on `status_id` and pick up real history the first time
+  // the user touches them; `everAppliedSql` reads the current status as well as the log so their
+  // Applied statistics survive the migration intact.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(job_profile_states)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'status_id')) {
+      db.exec(`ALTER TABLE job_profile_states ADD COLUMN status_id INTEGER REFERENCES statuses(id)`);
+      console.log('[db] Migration v_statuses: job_profile_states.status_id added');
+    }
+
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_statuses'`).get();
+    if (!done) {
+      db.transaction(() => {
+        const profiles = db.prepare('SELECT id FROM profiles ORDER BY id ASC').all() as Array<{ id: number }>;
+        for (const { id: profileId } of profiles) {
+          seedStatusesForProfile(db, profileId);
+
+          const byType = (t: StatusType): number | null => {
+            const r = db.prepare(
+              'SELECT id FROM statuses WHERE profile_id = ? AND type = ? AND is_builtin = 1 ORDER BY sort_order ASC LIMIT 1',
+            ).get(profileId, t) as { id: number } | undefined;
+            return r ? r.id : null;
+          };
+          const newId = byType('new');
+          const appliedId = byType('applied');
+          const wontId = byType('wont');
+          if (newId === null || appliedId === null || wontId === null) continue;
+
+          // 0 → New, 1 → Applied, 2 → Not applying.
+          db.prepare('UPDATE job_profile_states SET status_id = ? WHERE profile_id = ? AND status_id IS NULL AND applied = 0').run(newId, profileId);
+          db.prepare('UPDATE job_profile_states SET status_id = ? WHERE profile_id = ? AND status_id IS NULL AND applied = 1').run(appliedId, profileId);
+          db.prepare('UPDATE job_profile_states SET status_id = ? WHERE profile_id = ? AND status_id IS NULL AND applied = 2').run(wontId, profileId);
+
+          // The opening `New` step, dated the day the job arrived — **in the profile's own
+          // timezone**, not UTC. `DATE(fetched_at)` would be the UTC day, and history dates are
+          // shown local (§5), so for anyone far from Greenwich the step would contradict the
+          // "Fetched …" line directly above it in the same card: measured against real rows, the
+          // UTC day is wrong for 28% of jobs in Los Angeles, 31% in Tokyo and 44% in Auckland.
+          // SQLite has no IANA timezone support, so the day is computed here, with one formatter
+          // per profile.
+          const tzRow = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?')
+            .get(profileId) as { timezone?: string } | undefined;
+          let localDayOf: (iso: string) => string;
+          try {
+            const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tzRow?.timezone || 'UTC' });
+            localDayOf = (iso) => fmt.format(new Date(iso));
+          } catch {
+            // A timezone string SQLite/ICU rejects: fall back to UTC rather than skip the profile.
+            localDayOf = (iso) => String(iso).slice(0, 10);
+          }
+          const arrivals = db.prepare(
+            'SELECT job_id, fetched_at FROM job_profile_states WHERE profile_id = ? AND fetched_at IS NOT NULL',
+          ).all(profileId) as Array<{ job_id: number; fetched_at: string }>;
+          const insertArrival = db.prepare(
+            "INSERT INTO job_status_events (profile_id, job_id, status_id, changed_at, source) VALUES (?, ?, ?, ?, 'backfill')",
+          );
+          for (const a of arrivals) {
+            let day: string;
+            try {
+              day = localDayOf(a.fetched_at);
+            } catch {
+              day = String(a.fetched_at).slice(0, 10);
+            }
+            insertArrival.run(profileId, a.job_id, newId, day);
+          }
+        }
+        db.exec(`INSERT INTO _migrations VALUES ('v_statuses')`);
+      });
+      console.log('[db] Migration v_statuses: statuses seeded, status_id backfilled, New history written');
+    }
+
+    // ── Post-migration assertion ──────────────────────────────────────────────────────────
+    // Nothing downstream can tell a failed migration from an empty one: a NULL `status_id` reads
+    // as `New` everywhere, so a half-applied migration would quietly present every applied job as
+    // un-applied. Check the result rather than trust it, and refuse to serve a wrong app.
+    //
+    // Scoped to LIVE profiles. Rows whose profile is not in `profiles` cannot be migrated at all —
+    // `statuses.profile_id` has a foreign key to `profiles`, so there is no list to point them at —
+    // and they are unreachable anyway, because nobody can log in as a profile that does not exist.
+    // Those are reported, not fatal.
+    const unmappedLive = (db.prepare(`
+      SELECT COUNT(*) AS c FROM job_profile_states
+      WHERE status_id IS NULL AND profile_id IN (SELECT id FROM profiles)
+    `).get() as { c: number }).c;
+    if (unmappedLive > 0) {
+      throw new Error(
+        `${unmappedLive} job_profile_states row(s) still have no status_id after migration. ` +
+        'Refusing to start: every one of them would render as "New" and look like lost data.',
+      );
+    }
+
+    const orphanRows = db.prepare(`
+      SELECT profile_id AS p, COUNT(*) AS c FROM job_profile_states
+      WHERE status_id IS NULL GROUP BY profile_id ORDER BY profile_id
+    `).all() as Array<{ p: number; c: number }>;
+    if (orphanRows.length > 0) {
+      console.warn(
+        '[db] v_statuses: ' + orphanRows.reduce((n, r) => n + r.c, 0) + ' row(s) left unmigrated because ' +
+        'their profile no longer exists — ' + orphanRows.map((r) => `profile ${r.p}: ${r.c}`).join(', ') +
+        '. They are unreachable (no profile, no login) and safe to ignore; delete them if you want the ' +
+        'table clean.',
+      );
+    }
+  } catch (err) {
+    // Deliberately fatal, unlike every other migration in this file. The others degrade to a
+    // missing column or an unseeded default; this one decides what every job in the app *is*.
+    console.error('[db] Migration v_statuses FAILED — refusing to start:', (err as Error).message);
+    throw err;
+  }
 }
 
 function initSchema(db: Database): void {
@@ -2445,9 +2608,36 @@ function initSchema(db: Database): void {
       seen                INTEGER NOT NULL DEFAULT 0,
       seen_at             TEXT,
       applied             INTEGER NOT NULL DEFAULT 0,
+      status_id           INTEGER REFERENCES statuses(id),
       user_notes          TEXT,
       PRIMARY KEY (job_id, profile_id)
     );
+
+    -- Custom statuses: one ordered list per profile, capped at 15 live rows (application_status.md
+    -- §12.1). Deleting is a soft delete — an archived status disappears from every menu but still
+    -- renders, correctly named and coloured, in the history of jobs that passed through it (§7).
+    CREATE TABLE IF NOT EXISTS statuses (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id  INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      name        TEXT    NOT NULL,
+      type        TEXT    NOT NULL,   -- new | wont | applied | progress | offer | rejected
+      sort_order  INTEGER NOT NULL,
+      is_builtin  INTEGER NOT NULL DEFAULT 0,
+      archived_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_statuses_profile ON statuses(profile_id, sort_order);
+
+    -- The diary. One row per move, oldest first when read. CASCADE on the job matches
+    -- job_profile_states, or a deleted job leaves orphan history (§9).
+    CREATE TABLE IF NOT EXISTS job_status_events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      job_id     INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      status_id  INTEGER NOT NULL REFERENCES statuses(id),
+      changed_at TEXT    NOT NULL,   -- profile timezone, never in the future (D9)
+      source     TEXT    NOT NULL DEFAULT 'user'
+    );
+    CREATE INDEX IF NOT EXISTS idx_jse_job ON job_status_events(profile_id, job_id, changed_at, id);
 
     CREATE TABLE IF NOT EXISTS search_runs (
       id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2806,6 +2996,10 @@ export function createProfile(db: Database, email: string): { id: number; create
       VALUES (?, ?, '07:00', ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `).run(newId, email, now, DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_HARD, DEFAULT_SUMMARY_PROMPT, DEFAULT_DEDUP_SYSTEM_PROMPT, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION_JSON, DEFAULT_PROVIDER_SELECTION_JSON);
   }
+
+  // Every profile owns its own status list from the moment it exists (D5) — the migration only
+  // covers profiles that were already here.
+  seedStatusesForProfile(db, newId);
 
   return { id: newId, createdAt: now };
 }
@@ -3168,7 +3362,11 @@ export interface JobProfileStateRow {
   duplicate_of_job_id: number | null;
   seen: number;
   seen_at: string | null;
+  /** Legacy three-state column. Still written for one release, read by nothing (§12.2 step 5). */
   applied: number;
+  /** The job's current status. Denormalised from `job_status_events` so list queries can filter
+   *  and group on it without digging through the log per row (§5, Trap 1). */
+  status_id: number | null;
   user_notes: string | null;
 }
 

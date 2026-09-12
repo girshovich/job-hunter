@@ -41,6 +41,33 @@ function analysisTone(v) {
   return { bg: 'var(--red-soft)', border: 'var(--red-border)', head: 'var(--red-ink)', icon: 'var(--red)' };
 }
 // Source badge tone (DS v2 §5.4) comes from the shared uiHelpers `sourceTone`.
+
+// ── Status rail (application_status.md §5.3) ──
+const _hist = locals.history || [];
+const _statuses = locals.statuses || [];
+const _cur = locals.currentStatus || null;
+const _curType = _cur ? _cur.type : 'new';
+const _isNewJob = _curType === 'new';
+// A Rejected-type status closes the line: nothing can be added after it until that step is
+// changed or deleted, and it carries no elapsed counter on either surface (D35, D37).
+const _ended = _curType === 'rejected';
+const _elapsed = Number(locals.elapsedDays);
+// A status the log has no step for — a job migrated from the old three-state column. It is drawn
+// as the closing step with no date, because there is no honest date to draw (D8). It opens no
+// editor: there is no row behind it to edit. The first real move writes one and it becomes an
+// ordinary step like any other.
+const _derived = locals.derivedCurrent === true;
+// The rail heading answers "how long has this been sitting". Set today, the answer repeats the
+// date on the chip beside it, so it says nothing at all (D48).
+const _ageLong = (_ended || !Number.isFinite(_elapsed) || _elapsed < 0) ? ''
+  : _elapsed === 0 ? '' : _elapsed === 1 ? 'for 1 day' : 'for ' + _elapsed + ' days';
+const _statusExit = {};
+_statuses.forEach(function (st) { if (!_statusExit[st.type]) _statusExit[st.type] = st; });
+function _stepDate(iso) {
+  const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z');
+  return isNaN(d.getTime()) ? String(iso)
+    : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+}
 %>
 <%
 // ── Full description: real sanitized-HTML renderer (R2 — never the mockup placeholder) ──
@@ -180,7 +207,7 @@ function renderLinks(raw) {
             <%= formatScore(job.ai_score) %>
           </span>
           <span style="width:1px;height:14px;background:#e2e5ea;"></span>
-          <%- renderVerdictSelector(detailVerdict, { 'data-job-id': job.id, 'data-verdict': detailVerdict, 'data-chip-style': 'detail', title: 'Click to change status', class: 'cursor-pointer' }) %>
+          <%- renderVerdictSelector(detailVerdict, { 'data-job-id': job.id, 'data-verdict': detailVerdict, 'data-chip-style': 'detail', title: 'Click to change the verdict', class: 'cursor-pointer' }) %>
           <% const sourceLabel = formatSourceLabel(job.job_source || 'LinkedIn'); %>
           <% const sourceName = formatSourceName(job.job_source || 'LinkedIn'); %>
           <% const _src = sourceTone(sourceLabel); %>
@@ -201,7 +228,7 @@ function renderLinks(raw) {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
           </button>
           <% const _companyChip = renderCompanyChip(job); %><% if (_companyChip) { %><span style="vertical-align:middle;margin-right:8px;"><%- _companyChip %></span><% } %>
-          <% if ((locals.companyAppliedCount || 0) > 0) { %><a href="/jobs?company=<%= encodeURIComponent('"' + job.company.trim() + '"') %>&verdict=all&status=applied"
+          <% if ((locals.companyAppliedCount || 0) > 0) { %><a href="/jobs?company=<%= encodeURIComponent('"' + job.company.trim() + '"') %>&verdict=all&status=<%= locals.appliedStatusIds || '' %>"
              style="display:inline-flex;align-items:center;vertical-align:middle;margin-right:8px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;text-decoration:none;background:var(--green-soft);color:var(--green2);">Applied <%= locals.companyAppliedCount %>&times;</a><% } %><span id="company-note-inline" class="<%= (locals.companyNote || '') ? '' : 'hidden' %>"
                 onclick="openCompanyModal()" title="Company note — click to edit"
                 style="font-size:12.5px;color:var(--faint);font-weight:600;cursor:pointer;">(note: <span id="company-note-text"><%= locals.companyNote || '' %></span>)</span>
@@ -242,13 +269,6 @@ function renderLinks(raw) {
         </div>
       </div>
 
-      <!-- Applied selector (shared dropdown, top-right) — only for strong matches;
-           applying is a matches-workflow concept, so non-strong verdicts don't show it. -->
-      <% if (detailVerdict === 'STRONG_MATCH') { %>
-      <div style="flex:none;">
-        <%- renderAppliedSelector(job.applied, { 'data-job-id': job.id }) %>
-      </div>
-      <% } %>
     </div>
 
     <!-- AI summary -->
@@ -260,14 +280,97 @@ function renderLinks(raw) {
     </div>
     <% } %>
 
+    <%# ── Status rail ──────────────────────────────────────────────────────────────────────
+        The whole history on one titled line, oldest on the left, the current status last and
+        wearing its type colour. No rule above it — ordinary spacing under the AI summary (D36).
+        Nothing is hidden on a desktop: the rail wraps to a second line rather than folding
+        anything away, because the room exists here and a hidden step is worse than an extra row
+        (D31). The pills are not joined by connectors — a dash gets orphaned at the end of a
+        wrapped line, so a consistent 7px gap carries the sequence instead (D38).
+        The control shows on a job that is strong OR already tracked, so a promoted weak match is
+        never a dead end (§8.3). %>
+    <% const _showStatus = detailVerdict === 'STRONG_MATCH' || !_isNewJob; %>
+    <% if (_showStatus && !_isNewJob) { %>
+    <div class="hist" data-job-id="<%= job.id %>">
+      <%# On a phone the chips give up their dates, so one date moves here — the date of the step
+          you are standing on, which is the one anyone actually asks about (D31, MB1). %>
+      <% const _nowStep = _hist.length ? _hist[_hist.length - 1] : null; %>
+      <% const _sinceMobile = _derived ? '' : (_nowStep && !_ended)
+           ? 'since ' + _stepDate(_nowStep.changed_at) + (_ageLong ? ' · ' + _ageLong.replace(/^for /, '') : '')
+           : (_nowStep ? _stepDate(_nowStep.changed_at) : ''); %>
+      <div class="hist-hd">
+        <span class="hist-l">Status history</span>
+        <span class="hist-age hist-age-desktop"><%= _ageLong %></span>
+        <span class="hist-age hist-age-mobile"><%= _sinceMobile %></span>
+      </div>
+      <%# On a phone the rail keeps three items on one line: the first step, a `+N`, and the
+          current status — then the `＋`. Measured at 390px, three PILLS plus the fold plus `＋`
+          come to 315px in a 316px rail, so the `＋` wraps and the block doubles in height; the
+          rail must be the same height at three, four or nine steps (MB3), and that is the
+          constraint the cap was serving. Three steps still show unfolded, because three pills
+          plus `＋` do fit. Desktop shows every step and wraps instead — the room exists there
+          (D31, DP4). %>
+      <% const _foldFrom = 1, _foldTo = _hist.length - 1; %>
+      <% const _foldCount = _hist.length > 3 ? (_foldTo - _foldFrom) : 0; %>
+      <div class="rail">
+        <% _hist.forEach(function (step, i) { %>
+          <% const isNow = i === _hist.length - 1; %>
+          <% const isFixed = step.type === 'new' && i === 0; %>
+          <% const folded = _foldCount > 0 && i >= _foldFrom && i < _foldTo; %>
+          <% if (folded && i === _foldFrom) { %>
+            <button type="button" class="rfold" data-rail-unfold>+<%= _foldCount %></button>
+          <% } %>
+          <%# The first step is the day the job arrived. It is a fact, not a decision, so it is
+              drawn as a step and never opens an editor — and `New` is absent from every picker,
+              so it can never be added a second time (D34). %>
+          <% if (isFixed) { %>
+            <span class="rstep is-fixed<%= folded ? ' is-folded' : '' %>" title="The day this job arrived. Not editable.">
+              <span class="dot" style="background:<%= getStatusDot(step.type) %>"></span><%= step.name %><span class="d"><%= _stepDate(step.changed_at) %></span>
+            </span>
+          <% } else { %>
+            <button type="button" class="rstep<%= isNow ? ' now' : '' %><%= isNow && step.type === 'offer' ? ' gold' : '' %><%= folded ? ' is-folded' : '' %>"
+                    data-step-id="<%= step.id %>" data-step-status="<%= step.status_id %>"
+                    data-step-date="<%= String(step.changed_at).slice(0,10) %>"
+                    <%# Unescaped on purpose: this emits the whole style ATTRIBUTE, and escaping
+                        would turn its quotes into entities and silently drop the chip's fill. %>
+                    <%- isNow ? 'style="' + getStatusChipStyle(step.type) + '"' : '' %>>
+              <% if (!isNow) { %><span class="dot" style="background:<%= getStatusDot(step.type) %>"></span><% } %><%= step.name %><span class="d"><%= _stepDate(step.changed_at) %></span>
+            </button>
+          <% } %>
+        <% }); %>
+        <% if (_derived && _cur) { %>
+          <span class="rstep now<%= _cur.type === 'offer' ? ' gold' : '' %> is-fixed"
+                style="<%= getStatusChipStyle(_cur.type) %>"
+                title="Set before status history was tracked, so it carries no date.">
+            <%= _cur.name %>
+          </span>
+        <% } %>
+        <% if (_ended) { %>
+          <span class="radd is-off" title="<%= _cur ? _cur.name : 'This' %> is the end of the line. Change or delete it to carry on.">+</span>
+        <% } else { %>
+          <button type="button" class="radd status-btn" title="Add step"
+                  data-job-id="<%= job.id %>" data-status-id="<%= _cur ? _cur.id : '' %>">+</button>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
     <!-- Actions -->
     <% const applyUrl = job.apply_url || job.url; %>
+    <%# A New job leads with the application CTA. A job already being tracked leads with where it
+        stands, and its links demote to secondary — you are not applying to it again. %>
     <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
-      <% if (applyUrl) { %>
+      <% if (applyUrl && _isNewJob) { %>
       <a href="<%= applyUrl %>" target="_blank" rel="noopener noreferrer"
          style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--green);color:#fff;font-size:13.5px;font-weight:700;box-shadow:0 1px 2px rgba(40,177,105,.35);">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         Apply on website
+      </a>
+      <% } else if (applyUrl) { %>
+      <a href="<%= applyUrl %>" target="_blank" rel="noopener noreferrer"
+         style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700;border:1px solid var(--accent-border);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        View on website
       </a>
       <% } %>
       <% if (job.url) { %>
@@ -279,14 +382,27 @@ function renderLinks(raw) {
       <% } %>
     </div>
 
-    <!-- Compare to CV -->
-    <div style="display:flex;margin-top:10px;">
-      <button id="cv-compare-btn" onclick="openCvModal()"
-              style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:9px;background:transparent;border:0;color:var(--faint);font-size:12.5px;font-weight:600;cursor:pointer;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4"/></svg>
-        Compare to CV
+    <%# The three exits, beneath the buttons, on a job still waiting for a decision (DP1). %>
+    <% if (_showStatus && _isNewJob) { %>
+    <div class="pane-exits">
+      <% if (_statusExit.applied) { %>
+      <button type="button" class="exit-btn" data-job-id="<%= job.id %>" data-exit-status="<%= _statusExit.applied.id %>">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2-7-8-3z"/></svg>I applied
       </button>
+      <% } %>
+      <% if (_statusExit.wont) { %>
+      <button type="button" class="exit-btn skip" data-job-id="<%= job.id %>" data-exit-status="<%= _statusExit.wont.id %>">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>I'm not applying
+      </button>
+      <% } %>
+      <%# The third exit. `I applied` and `I'm not applying` are statements about what YOU did;
+          `not a match?` is a statement about the JOB, and it corrects the AI rather than recording
+          a decision — which is why it sits apart, to the right, and reads as a link (D16). %>
+      <button type="button" class="corrlink verdict-btn" data-job-id="<%= job.id %>"
+              data-verdict="<%= detailVerdict %>">not a match?</button>
     </div>
+    <% } %>
+
   </div>
 
   <!-- Notes about the job -->

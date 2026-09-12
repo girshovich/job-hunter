@@ -10,8 +10,16 @@
 //     maxSpan: 30,                                    // optional cap, in days, inclusive
 //     allowFuture: true,                              // optional: future dates selectable
 //                                                     // (default: they are greyed out)
+//     single: true,                                   // optional: ONE date, not a range — the
+//                                                     // first click picks and calls onPick, and
+//                                                     // the Clear/Apply footer is not drawn
+//     backLabel: 'Back to the step',                  // optional (single mode): a link above the
+//                                                     // grid, calling onBack
+//     note: 'Future dates are blocked.',              // optional: a line under the grid
 //     onApply(from, to) { ... },                      // Apply pressed
 //     onClear()         { ... },                      // Clear pressed
+//     onPick(date)      { ... },                      // single mode: a day was clicked
+//     onBack()          { ... },                      // single mode: the back link was pressed
 //   });
 //   cal.render();   // call when the popover opens
 // Assigned to window and guarded, not `const`: this file is included by more than one page,
@@ -38,6 +46,14 @@ window.JHCal = window.JHCal || (function () {
       y: base.getFullYear(),
       m: base.getMonth(),
       maxSpan: opts.maxSpan || 0,
+      // Single-date mode (application_status.md D47): a history step needs one date, so the first
+      // click picks and returns. Everything else is reused as-is — Monday-first grid, 30px cells,
+      // 26px month chevrons, and the same future-date guard.
+      single: opts.single === true,
+      backLabel: opts.backLabel || '',
+      note: opts.note || '',
+      onPick: opts.onPick || function () {},
+      onBack: opts.onBack || function () {},
       // Future dates are greyed out everywhere by default — no surface in this app has data
       // dated ahead of today, so offering one is offering an empty result.
       maxToday: opts.allowFuture !== true,
@@ -47,6 +63,7 @@ window.JHCal = window.JHCal || (function () {
     instances[id] = st;
 
     st.day = function (ds) {
+      if (st.single) { st.from = ds; st.to = ds; st.onPick(ds); return; }
       // A fresh click starts a new range; the second click closes it. With a maxSpan, a second
       // click beyond the cap starts over from that day rather than silently clamping — the
       // clamp would look like the calendar ignoring the click.
@@ -58,6 +75,7 @@ window.JHCal = window.JHCal || (function () {
     };
     st.prev = function () { st.m--; if (st.m < 0) { st.m = 11; st.y--; } st.render(); };
     st.next = function () { st.m++; if (st.m > 11) { st.m = 0; st.y++; } st.render(); };
+    st.back = function () { st.onBack(); };
     st.apply = function () { st.onApply(st.from, st.to || st.from); };
     st.clear = function () { st.from = null; st.to = null; st.onClear(); };
     st.set = function (from, to) {
@@ -92,24 +110,39 @@ window.JHCal = window.JHCal || (function () {
       }
       const dows = ['Mo','Tu','We','Th','Fr','Sa','Su'].map((w) =>
         '<div style="height:22px;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--faintest)">' + w + '</div>').join('');
-      const navBtn = (dir, path) =>
-        '<button type="button" onclick="event.stopPropagation();JHCal.' + dir + '(\'' + st.id + '\')" '
-        + 'style="width:26px;height:26px;display:grid;place-items:center;border:0;background:transparent;border-radius:7px;cursor:pointer;color:var(--muted)">'
+      // The next-month chevron switches off once it would leave today behind — there is nothing
+      // selectable past today, so offering the month is offering an empty grid.
+      const nextBlocked = st.maxToday && ymd(st.y, st.m + 1 > 11 ? 0 : st.m + 1, 1) > todayStr
+        && new Date(st.y, st.m + 1, 1) > new Date(today.getFullYear(), today.getMonth(), 1);
+      const navBtn = (dir, path, off) =>
+        '<button type="button" ' + (off ? 'disabled' : 'onclick="event.stopPropagation();JHCal.' + dir + '(\'' + st.id + '\')"') + ' '
+        + 'style="width:26px;height:26px;display:grid;place-items:center;border:0;background:transparent;border-radius:7px;cursor:' + (off ? 'not-allowed' : 'pointer') + ';color:' + (off ? 'var(--faintest)' : 'var(--muted)') + '">'
         + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + path + '"/></svg></button>';
 
-      st.root.innerHTML =
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-          + navBtn('prev', 'm15 6-6 6 6 6')
+      // Single mode swaps the Clear/Apply footer — there is nothing to apply, the click IS the
+      // choice — for an optional back link above the grid and an optional note below it.
+      const backLink = st.backLabel
+        ? '<button type="button" class="cal-back" onclick="event.stopPropagation();JHCal.back(\'' + st.id + '\')">'
+          + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>'
+          + st.backLabel + '</button>'
+        : '';
+      const footer = st.single
+        ? (st.note ? '<div class="cal-note">' + st.note + '</div>' : '')
+        : '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
+          + '<button type="button" onclick="event.stopPropagation();JHCal.clear(\'' + st.id + '\')" style="font-size:12px;font-weight:700;color:var(--muted);background:transparent;border:0;cursor:pointer">Clear</button>'
+          + '<button type="button" onclick="event.stopPropagation();JHCal.apply(\'' + st.id + '\')" style="padding:6px 14px;font-size:12px;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:9px;cursor:pointer">Apply</button>'
+        + '</div>';
+
+      st.root.innerHTML = backLink
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px' + (backLink ? ';margin-top:9px' : '') + '">'
+          + navBtn('prev', 'm15 6-6 6 6 6', false)
           + '<span style="font-size:12.5px;font-weight:800;color:var(--ink)">' + MN[st.m] + ' ' + st.y + '</span>'
-          + navBtn('next', 'm9 6 6 6-6 6')
+          + navBtn('next', 'm9 6 6 6-6 6', nextBlocked)
         + '</div>'
         + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">' + dows + '</div>'
         + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">' + cells + '</div>'
         + (st.maxSpan ? '<div style="font-size:11px;color:var(--faintest);font-weight:600;margin-top:9px">Up to ' + st.maxSpan + ' days at a time.</div>' : '')
-        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
-          + '<button type="button" onclick="event.stopPropagation();JHCal.clear(\'' + st.id + '\')" style="font-size:12px;font-weight:700;color:var(--muted);background:transparent;border:0;cursor:pointer">Clear</button>'
-          + '<button type="button" onclick="event.stopPropagation();JHCal.apply(\'' + st.id + '\')" style="padding:6px 14px;font-size:12px;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:9px;cursor:pointer">Apply</button>'
-        + '</div>';
+        + footer;
     };
 
     return st;
@@ -119,6 +152,7 @@ window.JHCal = window.JHCal || (function () {
     attach,
     day:   (id, ds) => instances[id] && instances[id].day(ds),
     prev:  (id) => instances[id] && instances[id].prev(),
+    back:  (id) => instances[id] && instances[id].back(),
     next:  (id) => instances[id] && instances[id].next(),
     apply: (id) => instances[id] && instances[id].apply(),
     clear: (id) => instances[id] && instances[id].clear(),

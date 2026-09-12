@@ -58,19 +58,37 @@ const VERDICT_CHIP_STYLES: Record<string, string> = {
   DUPLICATE: 'background:#f4f3ff;color:#6941c6',
 };
 const VERDICT_CHIP_FALLBACK = 'background:#f2f4f7;color:#5b6472';
-const APPLIED_CHIP_STYLES: Record<number, string> = {
-  0: 'background:#1f2634;color:#fff', // New — dark chip (DS §5.3)
-  1: 'background:var(--green);color:#fff', // Applied — DS --green (§5.3)
-  2: 'background:var(--red);color:#fff', // Won't apply — DS --red (§5.3)
+/**
+ * Status chips take their colour from the status **type**, never from its name or from the user —
+ * several statuses sharing one colour is the point, and the label carries the precise meaning
+ * (application_status.md §10, D3). The ramp reads blue → green → gold: an application is a
+ * submission, a reply is the good news, an offer is the win (D24).
+ *
+ * Kept in step with `TYPE_META` in `src/statuses.ts`; this copy is what the client mirrors.
+ */
+const STATUS_CHIP_STYLES: Record<string, string> = {
+  new:      'background:#1f2634;color:#fff',                 // DS §5.3 dark chip
+  wont:     'background:var(--faint);color:#fff',
+  applied:  'background:var(--sky-ink);color:#fff',          // retinted ocean (D25)
+  progress: 'background:var(--green);color:#fff',
+  // The only status that is not flat, and the only one with dark ink (D27, §10.3).
+  offer:    'background:linear-gradient(135deg,#ffd166,var(--gold));color:var(--gold-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 1px 2px rgba(190,130,10,.3)',
+  rejected: 'background:var(--red);color:#fff',
+};
+const STATUS_DOTS: Record<string, string> = {
+  new: '#1f2634', wont: 'var(--faint)', applied: 'var(--sky-ink)',
+  progress: 'var(--green)', offer: 'var(--gold)', rejected: 'var(--red)',
 };
 
 export function getVerdictChipStyle(value: unknown): string {
   const key = String(value ?? '').trim().toUpperCase();
   return VERDICT_CHIP_STYLES[key] ?? VERDICT_CHIP_FALLBACK;
 }
-export function getAppliedChipStyle(value: unknown): string {
-  const n = Number(value);
-  return APPLIED_CHIP_STYLES[n === 1 ? 1 : n === 2 ? 2 : 0];
+export function getStatusChipStyle(type: unknown): string {
+  return STATUS_CHIP_STYLES[String(type ?? 'new')] ?? STATUS_CHIP_STYLES.new;
+}
+export function getStatusDot(type: unknown): string {
+  return STATUS_DOTS[String(type ?? 'new')] ?? STATUS_DOTS.new;
 }
 
 const VERDICT_TONES: Record<string, string> = {
@@ -178,9 +196,17 @@ export function formatScore(value: unknown): string {
   return String(Math.round(num));
 }
 
-export function formatAppliedLabel(value: unknown): string {
-  const n = Number(value);
-  return n === 1 ? 'Applied' : n === 2 ? "Won't Apply" : 'New';
+/**
+ * The elapsed readout on a **list card**. The chip there carries no date of its own, so the count
+ * is the only thing saying how long this has sat — `Recruiter · 13d`, and `Applied · today` when
+ * it was set today. A Rejected-type status goes bare: the count means *how long have I been
+ * waiting*, and a rejection is not a waiting room (D37, D48).
+ */
+export function formatStatusAge(days: unknown, type: unknown): string {
+  if (String(type) === 'rejected') return '';
+  const n = Number(days);
+  if (!Number.isFinite(n) || n < 0) return '';
+  return n === 0 ? 'today' : `${n}d`;
 }
 
 export function formatRunStatusLabel(value: unknown): string {
@@ -271,18 +297,26 @@ export function renderVerdictSelector(value: unknown, attrs: HtmlAttrs = {}): st
   return `<button ${htmlAttrs}>${renderVerdictChip(value, { editable: true, rounded: attrs['data-chip-style'] === 'detail' })}</button>`;
 }
 
-export function renderAppliedChip(value: unknown, options: { editable?: boolean; full?: boolean } = {}): string {
+export interface StatusChipData { id: number; name: string; type: string; age?: string }
+
+export function renderStatusChip(status: StatusChipData, options: { editable?: boolean; full?: boolean } = {}): string {
   const caret = options.editable ? ' ▾' : '';
   const width = options.full ? 'width:100%;justify-content:center;' : '';
-  return `<span style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;${width}${getAppliedChipStyle(value)}">${formatAppliedLabel(value)}${caret}</span>`;
+  const age = status.age ? `<span style="opacity:.72;font-weight:600"> · ${escapeHtml(status.age)}</span>` : '';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;${width}${getStatusChipStyle(status.type)}">${escapeHtml(status.name)}${age}${caret}</span>`;
 }
 
-export function renderAppliedSelector(value: unknown, attrs: HtmlAttrs = {}): string {
+export function renderStatusSelector(status: StatusChipData, attrs: HtmlAttrs = {}): string {
   const full = attrs['data-chip-style'] === 'detail';
-  const state = Number(value) === 1 ? 1 : Number(value) === 2 ? 2 : 0;
-  const className = `applied-btn ${full ? 'w-full ' : ''}cursor-pointer ${attrs.class ?? ''}`.trim();
-  const htmlAttrs = attrsToHtml({ type: 'button', 'data-applied': String(state), ...attrs, class: className });
-  return `<button ${htmlAttrs}>${renderAppliedChip(value, { editable: true, full })}</button>`;
+  const className = `status-btn ${full ? 'w-full ' : ''}cursor-pointer ${attrs.class ?? ''}`.trim();
+  const htmlAttrs = attrsToHtml({
+    type: 'button',
+    'data-status-id': String(status.id),
+    'data-status-type': status.type,
+    ...attrs,
+    class: className,
+  });
+  return `<button ${htmlAttrs}>${renderStatusChip(status, { editable: true, full })}</button>`;
 }
 
 export function renderScoreCell(value: unknown, verdict?: unknown): string {
@@ -544,7 +578,8 @@ export function getClientUiTokens() {
     editableVerdicts: ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH', 'DUPLICATE'],
     verdictChipStyles: VERDICT_CHIP_STYLES,
     verdictChipFallback: VERDICT_CHIP_FALLBACK,
-    appliedChipStyles: APPLIED_CHIP_STYLES,
+    statusChipStyles: STATUS_CHIP_STYLES,
+    statusDots: STATUS_DOTS,
   };
 }
 
@@ -555,7 +590,7 @@ export const uiHelpers = {
   getVerdictTone,
   isVerdictEditable,
   formatScore,
-  formatAppliedLabel,
+  formatStatusAge,
   formatRunStatusLabel,
   formatDateTimeToMinutes,
   formatSourceLabel,
@@ -566,7 +601,10 @@ export const uiHelpers = {
   renderDottedPopupLink,
   renderVerdictChip,
   renderVerdictSelector,
-  renderAppliedSelector,
+  renderStatusSelector,
+  renderStatusChip,
+  getStatusChipStyle,
+  getStatusDot,
   getVerdictChipStyle,
   renderScoreCell,
   renderDateTimeCell,

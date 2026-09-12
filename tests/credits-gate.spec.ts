@@ -62,7 +62,11 @@ test.describe('zero balance', () => {
     await page.goto('http://localhost:3000/');
 
     await expect(page.locator('#sidebar-run-btn')).toBeDisabled();
-    await expect(page.locator('#schedule-inactive button')).toBeDisabled();
+    // The Schedule button is now a clock in the two-row footer (application_status.md D42). Locked,
+    // it carries no href at all, so there is nothing to click through to.
+    const clock = page.locator('#sb-sched-btn');
+    await expect(clock).toHaveClass(/is-locked/);
+    await expect(clock).not.toHaveAttribute('href', /./);
   });
 
   test('the lock holds on pages other than home', async ({ page, context }) => {

@@ -1184,6 +1184,182 @@ function tryClosePromptsModal() {
 
 // ---- Initialisation (called from settings.ejs with the server-side activeTab value) ----
 
+
+// ── Statuses (Settings → Roles) ─────────────────────────────────────────────────────────────
+//
+// One list per profile, shared by every role (application_status.md D5, §12.6). The list is a
+// reference table, not a form: a hairline-separated row per status, the type's colour carrying
+// what the row IS, and controls that stay quiet until you reach for them. Order is automatic —
+// by type, then name — so there is no grip to drag and no arrangement to maintain.
+let _statuses = [];
+let _statusMax = 15;
+let _statusMaxName = 15;
+let _assignableTypes = ['progress', 'offer', 'rejected'];
+let _addingStatus = false;
+
+const STATUS_TYPE_LABELS = {
+  new: 'New', wont: 'Not applying', applied: 'Applied',
+  progress: 'In Progress', offer: 'Offer', rejected: 'Rejected',
+};
+const STATUS_TYPE_DOTS = {
+  new: '#1f2634', wont: 'var(--faint)', applied: 'var(--sky-ink)',
+  progress: 'var(--green)', offer: 'var(--gold)', rejected: 'var(--red)',
+};
+
+async function loadStatuses() {
+  try {
+    const res = await fetch('/api/statuses');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to load statuses');
+    _statuses = data.statuses;
+    _statusMax = data.max;
+    if (data.maxName) _statusMaxName = data.maxName;
+    if (Array.isArray(data.assignableTypes)) _assignableTypes = data.assignableTypes;
+    renderStatuses();
+  } catch (e) {
+    document.getElementById('statuses-list').innerHTML =
+      '<p class="text-sm text-red-500 py-4 text-center">' + escHtml(e.message) + '</p>';
+  }
+}
+
+function showStatusError(msg) {
+  const el = document.getElementById('statuses-error');
+  if (!el) return;
+  if (!msg) { el.classList.add('hidden'); return; }
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+/** The type <select> for one row. Built-ins show their own type and cannot be changed. */
+function statusTypeOptions(selected, locked) {
+  const list = locked ? [selected] : _assignableTypes.slice();
+  if (!locked && list.indexOf(selected) < 0) list.unshift(selected);
+  return list.map(t =>
+    '<option value="' + t + '"' + (t === selected ? ' selected' : '') + '>' + STATUS_TYPE_LABELS[t] + '</option>'
+  ).join('');
+}
+
+function renderStatuses() {
+  const list = document.getElementById('statuses-list');
+  const countEl = document.getElementById('statuses-count');
+  const addBtn = document.getElementById('add-status-btn');
+  if (!list) return;
+  // The cap counts live rows only — archived ones cost nothing (§12.1).
+  const full = _statuses.length >= _statusMax;
+  if (countEl) countEl.textContent = _statuses.length + ' / ' + _statusMax;
+  if (addBtn) {
+    addBtn.disabled = full || _addingStatus;
+    addBtn.title = full ? ('Maximum of ' + _statusMax + ' statuses reached') : '';
+  }
+
+  list.innerHTML = _statuses.map(st => {
+    // The three built-ins carry the migration's meaning of the old 0/1/2 column, so neither their
+    // type nor their existence is the user's to change (AD3).
+    const locked = st.is_builtin === 1;
+    // Deleting is refused while any job sits in the status (§7, D6); becoming a rejection is
+    // refused if the status has any history at all, because a rejection has to be last (D35).
+    const held = st.inUse > 0;
+    const hasHistory = (st.everUsed || 0) > 0;
+    return '<div class="stat-row" data-status-id="' + st.id + '">'
+      + '<span class="stat-dot" style="background:' + STATUS_TYPE_DOTS[st.type] + '" title="' + STATUS_TYPE_LABELS[st.type] + '"></span>'
+      + '<input class="stat-name" value="' + escHtml(st.name) + '" data-id="' + st.id + '" maxlength="' + _statusMaxName + '" '
+        + (locked ? 'readonly ' : '') + 'onchange="saveStatus(' + st.id + ')" aria-label="Status name"/>'
+      + '<select class="stat-type" data-id="' + st.id + '" onchange="saveStatus(' + st.id + ')" aria-label="Type"'
+        + (locked ? ' disabled title="Built-in statuses keep their type"' : (hasHistory ? ' data-has-history="1"' : ''))
+        + '>' + statusTypeOptions(st.type, locked) + '</select>'
+      + '<span class="stat-use">' + (held ? st.inUse + (st.inUse === 1 ? ' job' : ' jobs') : '') + '</span>'
+      + (locked
+          ? '<span class="stat-del-spacer"></span>'
+          : '<button type="button" class="stat-del' + (held ? ' is-held' : '') + '" onclick="deleteStatus(' + st.id + ')" title="Delete">'
+            + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>')
+      + '</div>';
+  }).join('') + (_addingStatus ? addStatusRow() : '');
+
+  if (_addingStatus) {
+    const input = list.querySelector('#new-status-name');
+    if (input) input.focus();
+  }
+}
+
+/** The add row: a name and a type, in the shape of the rows it will join. */
+function addStatusRow() {
+  return '<div class="stat-row is-new">'
+    + '<span class="stat-dot" id="new-status-dot" style="background:' + STATUS_TYPE_DOTS[_assignableTypes[0]] + '"></span>'
+    + '<input class="stat-name" id="new-status-name" maxlength="' + _statusMaxName + '" placeholder="Name it — e.g. Case study" '
+      + 'onkeydown="if(event.key===\'Enter\')createStatus();if(event.key===\'Escape\')cancelAddStatus()"/>'
+    + '<select class="stat-type" id="new-status-type" onchange="syncNewStatusDot()" aria-label="Type">'
+      + _assignableTypes.map(t => '<option value="' + t + '">' + STATUS_TYPE_LABELS[t] + '</option>').join('')
+    + '</select>'
+    + '<button type="button" class="stg-btn stg-btn-primary stg-btn-sm stat-add-go" onclick="createStatus()">Add</button>'
+    + '<button type="button" class="stat-del" onclick="cancelAddStatus()" title="Cancel">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg></button>'
+    + '</div>';
+}
+
+function syncNewStatusDot() {
+  const sel = document.getElementById('new-status-type');
+  const dot = document.getElementById('new-status-dot');
+  if (sel && dot) dot.style.background = STATUS_TYPE_DOTS[sel.value];
+}
+
+function addStatus() { showStatusError(''); _addingStatus = true; renderStatuses(); }
+function cancelAddStatus() { _addingStatus = false; renderStatuses(); }
+
+async function createStatus() {
+  const name = (document.getElementById('new-status-name') || {}).value || '';
+  const type = (document.getElementById('new-status-type') || {}).value;
+  if (!name.trim()) { showStatusError('Give the status a name.'); return; }
+  showStatusError('');
+  try {
+    const res = await fetch('/api/statuses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), type: type }),
+    });
+    const data = await res.json();
+    if (!data.success) { showStatusError(data.error || 'Could not add the status'); return; }
+    _addingStatus = false;
+    await loadStatuses();
+  } catch (e) { showStatusError('Could not reach the server.'); }
+}
+
+async function saveStatus(id) {
+  showStatusError('');
+  const nameEl = document.querySelector('.stat-name[data-id="' + id + '"]');
+  const typeEl = document.querySelector('.stat-type[data-id="' + id + '"]');
+  if (!nameEl || !typeEl) return;
+  try {
+    const res = await fetch('/api/statuses/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nameEl.value.trim(), type: typeEl.value }),
+    });
+    const data = await res.json();
+    if (!data.success) { showStatusError(data.error || 'Could not save'); loadStatuses(); return; }
+    await loadStatuses();   // name or type may have moved the row: the order is derived
+  } catch (e) { showStatusError('Could not reach the server.'); }
+}
+
+async function deleteStatus(id) {
+  showStatusError('');
+  const row = _statuses.find(s => s.id === id);
+  if (!row) return;
+  // Held by jobs: say so instead of asking. On a phone the count column is hidden and there is no
+  // tooltip, so a greyed-out bin would be a dead end — the control answers when you press it.
+  if (row.inUse > 0) {
+    showStatusError(row.inUse + (row.inUse === 1 ? ' job is' : ' jobs are') + ' in "' + row.name
+      + '". Move them to another status before deleting it.');
+    return;
+  }
+  if (!window.confirm('Delete "' + row.name + '"? Jobs that passed through it keep it in their history.')) return;
+  try {
+    const res = await fetch('/api/statuses/' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) { showStatusError(data.error || 'Could not delete'); return; }
+    await loadStatuses();
+  } catch (e) { showStatusError('Could not reach the server.'); }
+}
+
 function initSettings(activeTab, initialGroups) {
   _activeTab = activeTab;
 
@@ -1209,6 +1385,7 @@ function initSettings(activeTab, initialGroups) {
     loadGroups();
   }
   loadBlacklist();
+  loadStatuses();
   snapshotForm('profile');
   snapshotForm('ai');
   autoGrowIn(document);

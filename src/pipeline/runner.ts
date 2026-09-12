@@ -18,6 +18,7 @@ import { filterNewJobs, filterDuplicatesByUrl } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { enrichCompanies } from './companyEnrichment';
 import { companyKey } from '../uiHelpers';
+import { newStatusId, todayIn } from '../statuses';
 import { resolveLocationString, lookupCountry, expandRegionToCountries } from './locationNormalizer';
 import { groupOrDrop } from './locationGrouping';
 import { sendDailyReport, sendLowCreditsEmail, sendRateLimitAlert, type RunStats } from './emailReport';
@@ -356,13 +357,29 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         updated_at       = excluded.updated_at
     `);
 
-    const insertJobState = db.prepare(`
+    const insertJobStateRow = db.prepare(`
       INSERT OR IGNORE INTO job_profile_states (
         job_id, profile_id, group_id, fetched_at,
         ai_score, ai_verdict, original_ai_verdict, ai_rationale, ai_summary,
-        rejection_category, is_duplicate, duplicate_of_job_id, seen, seen_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        rejection_category, is_duplicate, duplicate_of_job_id, seen, seen_at, status_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const insertNewEvent = db.prepare(`
+      INSERT INTO job_status_events (profile_id, job_id, status_id, changed_at, source)
+      VALUES (?, ?, ?, ?, 'fetch')
+    `);
+    // Every job arrives at `New`, and its history opens with that step dated the day it arrived
+    // (application_status.md D34). The state insert is OR IGNORE, so a job this profile already
+    // holds writes nothing here and never gets a second `New` row.
+    const newStatus = newStatusId(profileId);
+    const fetchDay = todayIn(settings.timezone || 'UTC');
+    const insertJobState = {
+      run(jobId: number, ...rest: Array<string | number | null>) {
+        const res = insertJobStateRow.run(jobId, ...rest, newStatus);
+        if (res.changes > 0) insertNewEvent.run(profileId, jobId, newStatus, fetchDay);
+        return res;
+      },
+    };
 
     const updateApplyUrl = db.prepare(`
       UPDATE jobs SET apply_url = ?

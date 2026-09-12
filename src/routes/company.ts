@@ -4,6 +4,7 @@
  */
 
 import { getDb } from '../db';
+import { everAppliedSql, idsOfTypes, APPLIED_TYPES } from '../statuses';
 
 export interface CompanyBasics {
   display_name: string | null;
@@ -65,7 +66,7 @@ export function getCompanyUserContext(profileId: number, key: string): CompanyUs
   return {
     allJobs: count(''),
     strongMatches: count("AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0"),
-    applications: count('AND jps.applied = 1'),
+    applications: count(`AND ${everAppliedSql('jps')}`),
     note: note?.note || '',
     blacklisted: !!blacklisted,
   };
@@ -75,7 +76,7 @@ export function getCompanyUserContext(profileId: number, key: string): CompanyUs
 export function getCompanyAppliedCount(profileId: number, key: string): number {
   if (!key) return 0;
   return (getDb().prepare<{ c: number }>(
-    `SELECT COUNT(*) AS c ${COUNT_BASE} AND jps.applied = 1`,
+    `SELECT COUNT(*) AS c ${COUNT_BASE} AND ${everAppliedSql('jps')}`,
   ).get(profileId, key)?.c) ?? 0;
 }
 
@@ -84,11 +85,14 @@ export function getCompanyAppliedCount(profileId: number, key: string): number {
  * Quoted `company` is the list pages' exact-match operator (jobs.ts); matching folds case, so
  * the display name can go in the box as the user knows it.
  */
-export function buildCompanyLinks(name: string): { allJobs: string; strongMatches: string; applications: string } {
+export function buildCompanyLinks(profileId: number, name: string): { allJobs: string; strongMatches: string; applications: string } {
   const c = encodeURIComponent(`"${name}"`);
+  // The applications link emits the real status ids, regenerated on every render (D49) — the
+  // single-word `?status=applied` it used to carry still resolves, but only as a bookmark alias.
+  const appliedIds = idsOfTypes(profileId, APPLIED_TYPES).join(',');
   return {
     allJobs: `/history?company=${c}&verdict=all`,
     strongMatches: `/jobs?company=${c}&verdict=STRONG_MATCH`,
-    applications: `/jobs?company=${c}&verdict=all&status=applied`,
+    applications: `/jobs?company=${c}&verdict=all&status=${appliedIds}`,
   };
 }
