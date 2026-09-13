@@ -12,7 +12,7 @@ import { getDb, resolveLimits, type SettingsRow, type SearchGroupRow, type CvRow
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { emailFrame } from '../pipeline/emailReport';
 import { hashToken } from './auth';
-import { COMPANY_ENRICHMENT_PROMPT } from '../pipeline/companyEnrichment';
+import { COMPANY_ENRICHMENT_PROMPT, COMPANY_NAME_CHECK_PROMPT } from '../pipeline/companyEnrichment';
 import { describeAccountLimits } from '../pipeline/limitTables';
 
 const router = Router();
@@ -114,6 +114,7 @@ router.get('/', (req: Request, res: Response) => {
     pendingEmailChange: getPendingEmailChange(db, profileId),
     locationCountries,
     companyEnrichmentPrompt: COMPANY_ENRICHMENT_PROMPT,
+    companyNameCheckPrompt: COMPANY_NAME_CHECK_PROMPT,
     accountLimits,
     pageMaxWidth: '48rem',
   });

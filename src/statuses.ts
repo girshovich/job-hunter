@@ -12,9 +12,9 @@
  *                          every list query filters and groups on it (§5, Trap 1)
  */
 
-import { getDb, seedStatusesForProfile, type StatusType, type StatusRow } from './db';
+import { getDb, seedStatusesForProfile, INCOMING_STATUS_NAME, type StatusType, type StatusRow } from './db';
 
-export { DEFAULT_STATUSES, MAX_STATUSES, seedStatusesForProfile } from './db';
+export { DEFAULT_STATUSES, MAX_STATUSES, INCOMING_STATUS_NAME, seedStatusesForProfile } from './db';
 
 /** Status names are chips before they are records — a long one breaks the rail and the list card
  *  long before it breaks the admin table. Fifteen characters fits every default, the longest
@@ -92,9 +92,23 @@ export function statusMap(profileId: number): Map<number, StatusRow> {
   return m;
 }
 
-/** The built-in `New` row. Written by the fetch, never picked, always first in a history (D34). */
+/**
+ * The built-in `New` row. Written by the fetch, never picked, always first in a history (D34).
+ *
+ * **Two layers, deliberately.** `Incoming` is a second built-in of type `new` (manual_jobs.md §4),
+ * so "the first built-in `new` status by sort order" stopped being a unique description of `New`.
+ * Get this wrong and nothing errors — the pipeline just starts stamping every scraped job
+ * "Incoming" and the app quietly relabels itself. So: match the name first, and keep the sort-order
+ * rule as the fallback for a profile whose `New` was renamed. `Incoming` is seeded last in
+ * `DEFAULT_STATUSES` and at MAX+1 by its migration, so the fallback still lands on `New`.
+ */
 export function newStatusId(profileId: number): number {
-  const row = getDb().prepare(
+  const db = getDb();
+  const byName = db.prepare(
+    "SELECT id FROM statuses WHERE profile_id = ? AND type = 'new' AND is_builtin = 1 AND name = 'New' LIMIT 1",
+  ).get(profileId) as { id: number } | undefined;
+  if (byName) return byName.id;
+  const row = db.prepare(
     "SELECT id FROM statuses WHERE profile_id = ? AND type = 'new' AND is_builtin = 1 ORDER BY sort_order ASC LIMIT 1",
   ).get(profileId) as { id: number } | undefined;
   if (row) return row.id;
@@ -103,6 +117,19 @@ export function newStatusId(profileId: number): number {
   return (getDb().prepare(
     "SELECT id FROM statuses WHERE profile_id = ? AND type = 'new' ORDER BY sort_order ASC LIMIT 1",
   ).get(profileId) as { id: number }).id;
+}
+
+/**
+ * The built-in `Incoming` row — the opening step of a job the user added as *Incoming*
+ * (manual_jobs.md §4). Resolved by name among this profile's built-in `new` statuses, which is the
+ * mirror of `newStatusId()`'s first layer. Returns null if the migration has not run for this
+ * profile; callers fall back to `New` rather than refuse the save.
+ */
+export function incomingStatusId(profileId: number): number | null {
+  const row = getDb().prepare(
+    "SELECT id FROM statuses WHERE profile_id = ? AND type = 'new' AND is_builtin = 1 AND name = ? AND archived_at IS NULL LIMIT 1",
+  ).get(profileId, INCOMING_STATUS_NAME) as { id: number } | undefined;
+  return row ? row.id : null;
 }
 
 /** Ids of every live status carrying one of these types. */

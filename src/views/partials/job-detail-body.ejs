@@ -33,6 +33,14 @@ function formatDate(iso) {
   return formatDateTimeToMinutes(iso, tz);
 }
 const detailVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
+// A job the user typed in themselves (manual_jobs.md). `_mergedManual` is one the pipeline has
+// since found for itself — it keeps the "Added manually" badge, but it can no longer be deleted.
+const _isManual = job.job_source === 'Manual';
+const _mergedManual = _isManual && !!job.merged_from;
+// Only the NUMBER is suppressed, and only while the score is 0: formatScore(0) prints a green "0",
+// which reads as machine output where no machine ran. The chip stays — same metrics, carrying the
+// verdict tone — so the badge row keeps its rhythm. A merge brings a real number and it appears.
+const _blankScore = _isManual && !job.ai_score;
 // AI analysis tone (DS v2 §5.6) — tints the header strip; the body is always `--card`.
 function analysisTone(v) {
   if (v === 'STRONG_MATCH') return { bg: 'var(--green-soft)', border: 'var(--green-border)', head: 'var(--green2)', icon: 'var(--green)' };
@@ -206,9 +214,9 @@ function renderLinks(raw) {
       <div style="flex:1;min-width:0;">
         <!-- Badges: score (verdict-toned) · verdict selector · source -->
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;">
-          <span title="Relevance score"
-                style="display:inline-flex;align-items:center;height:23px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;<%= getVerdictChipStyle(detailVerdict) %>;">
-            <%= formatScore(job.ai_score) %>
+          <span title="<%= _blankScore ? 'You added this job manually — there is no AI score' : 'Relevance score' %>"
+                style="display:inline-flex;align-items:center;height:23px;padding:0 <%= _blankScore ? '12px' : '9px' %>;border-radius:7px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;<%= getVerdictChipStyle(detailVerdict) %>;">
+            <%= _blankScore ? '' : formatScore(job.ai_score) %>
           </span>
           <span style="width:1px;height:14px;background:#e2e5ea;"></span>
           <%- renderVerdictSelector(detailVerdict, { 'data-job-id': job.id, 'data-verdict': detailVerdict, 'data-chip-style': 'detail', title: 'Click to change the verdict', class: 'cursor-pointer' }) %>
@@ -302,7 +310,9 @@ function renderLinks(raw) {
         View on website
       </a>
       <% } %>
-      <% if (job.url) { %>
+      <%# Suppressed for a manual job: there is no "Added manually" website to view it on, and the
+          apply CTA above already carries the link the user gave us. %>
+      <% if (job.url && !_isManual) { %>
       <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer"
          style="flex:1;min-width:150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:700;border:1px solid var(--accent-border);">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
@@ -516,7 +526,11 @@ function renderLinks(raw) {
   </div>
   <% } %>
 
-  <!-- Full job description -->
+  <%# Full job description. A manual job need not have one — the point of the feature is the
+      tracking, not the posting — and an empty card with only a heading in it reads as a page that
+      failed to load. Suppressed for manual jobs only: a scraped job with no description is a
+      different situation, and not this feature's to change. %>
+  <% if (!(_isManual && !String(_desc).trim())) { %>
   <div style="background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-card);">
     <div style="font-size:15px;font-weight:800;color:var(--ink);margin-bottom:14px;">Full Job Description</div>
     <% if (_isHtml) { %>
@@ -525,6 +539,47 @@ function renderLinks(raw) {
     <div class="jd-plain"><%- renderLinks(_desc) %></div>
     <% } %>
   </div>
+  <% } %>
+
+  <%# ── Delete (manual_jobs.md §7) ──────────────────────────────────────────────────────────
+      Manual jobs only, by their creator, and no edit — a typo'd title is fixed by deleting and
+      re-adding. A quiet link, last thing in the column, well away from the exits: nothing else in
+      the app deletes a job.
+
+      It stays visible on a job that has since merged, and answers instead of vanishing. A control
+      that silently disappears teaches nothing, and the reason here is *it won't work*, never *it
+      isn't yours* — which would only invite "but I made it". %>
+  <% if (_isManual && job.created_by_profile_id) { %>
+  <div id="jd-delete-wrap" style="padding:2px;">
+    <%# Right-aligned: it trails the column rather than leading it, which is where a last-resort
+        action belongs — and it keeps the left edge, where every card's content starts, clean. %>
+    <div style="display:flex;justify-content:flex-end;">
+      <button type="button" id="jd-delete-link" onclick="openDeletePanel()"
+              style="font-size:12.5px;font-weight:700;color:var(--red-ink);background:transparent;border:0;padding:6px 2px;cursor:pointer;">
+        Delete this job
+      </button>
+    </div>
+    <div id="jd-delete-panel" class="hidden">
+      <% if (_mergedManual) { %>
+      <div style="border:1px solid var(--line2);background:var(--panel, #f7f8fa);border-radius:11px;padding:12px 13px;">
+        <div style="font-size:13px;font-weight:800;color:var(--ink);">Can't delete — an automated run picked this job up</div>
+        <p style="font-size:12px;color:var(--faint);margin:6px 0 10px;line-height:1.5;">It's part of your search results now. Use <b>I'm not applying</b>, or set the verdict to <b>Weak</b>.</p>
+        <button type="button" onclick="closeDeletePanel()" style="font-size:12.5px;font-weight:700;background:#fff;color:var(--muted);border:1px solid var(--line2);padding:7px 14px;border-radius:9px;cursor:pointer;">Got it</button>
+      </div>
+      <% } else { %>
+      <div style="border:1px solid var(--red-border);background:var(--red-soft);border-radius:11px;padding:12px 13px;">
+        <div style="font-size:13px;font-weight:800;color:var(--red-ink);">Delete this job?</div>
+        <p style="font-size:12px;color:var(--faint);margin:6px 0 10px;line-height:1.5;">You added it by hand, so it's yours to remove. Its status history and notes go with it. This can't be undone.</p>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <button type="button" id="jd-delete-confirm" onclick="confirmDelete()" style="font-size:12.5px;font-weight:700;background:var(--red);color:#fff;border:0;padding:7px 14px;border-radius:9px;cursor:pointer;">Delete job</button>
+          <button type="button" onclick="closeDeletePanel()" style="font-size:12.5px;font-weight:700;background:transparent;color:var(--muted);border:0;padding:7px 4px;cursor:pointer;">Cancel</button>
+          <span id="jd-delete-status" style="font-size:12px;color:var(--red-ink);font-weight:600;"></span>
+        </div>
+      </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
 
 </div>
 
@@ -642,6 +697,34 @@ function onCompanyNoteSaved(note) {
   if (!wrap || !text) return;
   text.textContent = note || '';
   wrap.classList.toggle('hidden', !note);
+}
+
+// Two-step, like blacklisting a company: the first click writes nothing, it opens the panel.
+function openDeletePanel() {
+  document.getElementById('jd-delete-panel').classList.remove('hidden');
+  document.getElementById('jd-delete-link').classList.add('hidden');
+}
+function closeDeletePanel() {
+  document.getElementById('jd-delete-panel').classList.add('hidden');
+  document.getElementById('jd-delete-link').classList.remove('hidden');
+}
+async function confirmDelete() {
+  const btn = document.getElementById('jd-delete-confirm');
+  const status = document.getElementById('jd-delete-status');
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+  try {
+    const res = await fetch('/api/jobs/' + _jobId, { method: 'DELETE' });
+    const data = await res.json();
+    if (res.ok && data.success) { window.location.href = '/jobs'; return; }
+    status.textContent = data.error === 'merged'
+      ? 'An automated run picked this job up — reload the page.'
+      : (data.error || 'Could not delete this job.');
+  } catch (e) {
+    status.textContent = 'Network error';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Delete job';
 }
 
 async function saveNotes() {

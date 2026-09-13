@@ -45,7 +45,12 @@ router.get('/', (req: Request, res: Response) => {
       AND status != 'running'
   `).get(profileId, profileId) as SearchRunRow | undefined;
 
-  // Jobs from the last pipeline run
+  // Jobs from the last pipeline run.
+  //
+  // Every query below is filtered on `fetched_at >= lastRunAt` and nothing else, so a job the user
+  // added by hand and dated today would be counted as something the last run found. It has no run
+  // behind it at all — `job_source != 'Manual'` keeps this page describing runs (manual_jobs.md
+  // §10.1).
   const lastRunAt = lastRun?.ran_at ?? null;
 
   // Live counts — recalculate from job_profile_states so manual verdict changes are reflected
@@ -55,8 +60,8 @@ router.get('/', (req: Request, res: Response) => {
           SUM(CASE WHEN jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as strong,
           SUM(CASE WHEN jps.ai_verdict = 'WEAK_MATCH'   AND jps.is_duplicate = 0 THEN 1 ELSE 0 END) as weak,
           SUM(CASE WHEN jps.is_duplicate = 1 THEN 1 ELSE 0 END) as duplicate
-        FROM job_profile_states jps
-        WHERE jps.profile_id = ? AND jps.fetched_at >= ?
+        FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+        WHERE jps.profile_id = ? AND jps.fetched_at >= ? AND j.job_source != 'Manual'
       `).get(profileId, lastRunAt) as { strong: number; weak: number; duplicate: number } | undefined)
     : undefined;
 
@@ -66,6 +71,7 @@ router.get('/', (req: Request, res: Response) => {
         FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
         LEFT JOIN companies c ON c.company = LOWER(TRIM(j.company))
         WHERE jps.profile_id = ? AND jps.fetched_at >= ? AND jps.is_duplicate = 0 AND jps.ai_verdict = 'STRONG_MATCH'
+          AND j.job_source != 'Manual'
         ORDER BY jps.ai_score DESC
       `).all(profileId, lastRunAt) as JobWithState[])
     : [];
@@ -110,7 +116,7 @@ router.get('/', (req: Request, res: Response) => {
         SELECT j.location, COUNT(*) as count
         FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id
         WHERE jps.profile_id = ? AND jps.fetched_at >= ? AND jps.is_duplicate = 0
-          AND jps.ai_verdict = 'STRONG_MATCH' AND j.location IS NOT NULL
+          AND jps.ai_verdict = 'STRONG_MATCH' AND j.location IS NOT NULL AND j.job_source != 'Manual'
         GROUP BY j.location ORDER BY count DESC LIMIT 10
       `).all(profileId, lastRunAt) as Array<{ location: string; count: number }>)
     : [];

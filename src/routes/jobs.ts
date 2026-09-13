@@ -6,10 +6,10 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type JobWithState, type SettingsRow } from '../db';
-import { getPreferredCountries, lookupCountry } from '../pipeline/locationNormalizer';
+import { getPreferredCountries, lookupCountry, getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
 import { companyKey } from '../uiHelpers';
-import { listStatuses, parseStatusParam, idsOfPreset, PRESETS, TYPE_META, STATUS_TYPES, type StatusRow } from '../statuses';
+import { listStatuses, parseStatusParam, idsOfPreset, PRESETS, TYPE_META, STATUS_TYPES, todayIn, type StatusRow } from '../statuses';
 
 const router = Router();
 const PAGE_DATES = 10; // number of distinct run-dates shown per page
@@ -250,7 +250,17 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
 
   const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
 
+  // Everything the "Add a job" modal needs (manual_jobs.md §2). It lives in the layout — the detail
+  // pane re-injects its partial, which would duplicate ids — but it is rendered only where these
+  // options are present, so no other page carries 250 country options it never shows.
+  const addJobOptions = {
+    roles: roleOptions.map((r) => ({ id: r.id, name: r.group_name })),
+    countries: getCanonicalCountries(),
+    today: todayIn(settings?.timezone || 'UTC'),
+  };
+
   res.render('jobs', {
+    addJobOptions,
     title: opts.title,
     basePath: opts.basePath,
     fromKey: opts.fromKey,

@@ -1179,6 +1179,393 @@
     </div>
   </div>
 
+
+  <%# ── Add a job (manual_jobs.md) ────────────────────────────────────────────────────────────
+      Layout level, like the company modal above and for the same reason: the detail pane
+      re-injects its partial as raw HTML on every selection change, which would duplicate these
+      ids. Rendered only where the control exists — `addJobOptions` is supplied by renderJobList,
+      so no other page pays for 250 country options it will never show. %>
+  <% if (locals.addJobOptions) { %>
+  <div id="jh-addjob-modal" class="hidden fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="JHAddJob.close()"></div>
+    <div class="relative bg-white w-full max-w-lg overflow-hidden flex flex-col"
+         style="border-radius:16px 16px 0 0;box-shadow:var(--shadow-modal);max-height:90vh">
+      <style>
+        @media (min-width:768px){#jh-addjob-modal > div:last-child{border-radius:var(--radius-modal)!important}}
+        #jh-addjob-modal .aj-fld { display:flex; flex-direction:column; gap:6px; }
+        #jh-addjob-modal .aj-lbl { display:flex; align-items:baseline; gap:7px; font-size:12px; font-weight:700; color:var(--ink2); }
+        #jh-addjob-modal .aj-opt { font-size:11px; font-weight:600; color:var(--faintest); }
+        #jh-addjob-modal .aj-in, #jh-addjob-modal select.aj-in {
+          width:100%; font-size:13px; color:var(--ink2); background:#fff; border:1px solid var(--line2);
+          border-radius:9px; padding:9px 11px; outline:none; line-height:1.4; font-family:inherit;
+        }
+        #jh-addjob-modal .aj-in:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+        #jh-addjob-modal textarea.aj-in { resize:vertical; }
+        #jh-addjob-modal .aj-two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        #jh-addjob-modal .aj-origin { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        /* The choice-card, borrowed from the pay-mode picker. Each states its own consequence,
+           because that consequence is invisible until the job exists. */
+        #jh-addjob-modal .aj-ocard {
+          position:relative; text-align:left; padding:11px 12px; border-radius:11px; cursor:pointer;
+          background:#fff; border:1px solid var(--line2); font-family:inherit;
+        }
+        #jh-addjob-modal .aj-ocard[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-tint); box-shadow:0 0 0 2px var(--accent-soft); }
+        #jh-addjob-modal .aj-ocard .t { display:block; font-size:13px; font-weight:800; color:var(--ink); margin-top:6px; }
+        #jh-addjob-modal .aj-ocard .d { display:block; font-size:11.5px; color:var(--faint); line-height:1.4; margin-top:2px; }
+        #jh-addjob-modal .aj-ocard .ic { color:var(--muted2); display:block; }
+        #jh-addjob-modal .aj-ocard[aria-pressed="true"] .ic { color:var(--accent); }
+        #jh-addjob-modal .aj-note { font-size:11.5px; line-height:1.45; font-weight:600; }
+        #jh-addjob-modal .aj-sugg { border:1px solid var(--accent-border); background:var(--accent-soft); border-radius:10px; padding:10px 11px; }
+        #jh-addjob-modal .aj-mini {
+          font-size:12px; font-weight:700; border-radius:8px; padding:6px 11px; cursor:pointer;
+          background:#fff; color:var(--accent); border:1px solid var(--accent-border); font-family:inherit;
+        }
+        #jh-addjob-modal .aj-mini.fill { background:var(--accent); color:#fff; border-color:var(--accent); }
+        #jh-addjob-modal .aj-sgbox {
+          position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:5; background:#fff;
+          border:1px solid var(--line2); border-radius:10px; box-shadow:var(--shadow-dropdown);
+          padding:4px; max-height:196px; overflow-y:auto;
+        }
+        #jh-addjob-modal .aj-sgbox button {
+          display:block; width:100%; text-align:left; font-size:12.5px; font-weight:600; color:var(--ink2);
+          padding:7px 9px; border:0; border-radius:7px; background:transparent; cursor:pointer; font-family:inherit;
+        }
+        #jh-addjob-modal .aj-sgbox button:hover, #jh-addjob-modal .aj-sgbox button.on { background:var(--accent-soft); }
+      </style>
+
+      <div style="display:flex;align-items:flex-start;gap:11px;padding:16px 20px;border-bottom:1px solid var(--line)">
+        <div style="flex:1;min-width:0">
+          <h2 style="font-size:15px;font-weight:800;color:var(--ink);line-height:1.3">Add a job</h2>
+          <p style="font-size:12px;color:var(--faint);margin-top:2px">For jobs you're tracking yourself — an invite, or something you applied to.</p>
+        </div>
+        <button type="button" onclick="JHAddJob.close()" aria-label="Close"
+                style="flex:none;border:0;background:none;cursor:pointer;color:var(--faintest);padding:2px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="jh-scroll" style="flex:1;min-height:0;overflow-y:auto;padding:16px 20px 20px;display:flex;flex-direction:column;gap:14px">
+
+        <div class="aj-fld">
+          <div class="aj-lbl"><span>How did this come to you?</span></div>
+          <div class="aj-origin">
+            <button type="button" class="aj-ocard" id="aj-o-incoming" aria-pressed="true" onclick="JHAddJob.setOrigin('incoming')">
+              <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg></span>
+              <span class="t">Incoming</span>
+              <span class="d">Someone reached out. Starts as Incoming.</span>
+            </button>
+            <button type="button" class="aj-ocard" id="aj-o-applied" aria-pressed="false" onclick="JHAddJob.setOrigin('applied')">
+              <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2-7-8-3z"/></svg></span>
+              <span class="t">Applied myself</span>
+              <span class="d">You already applied. Starts as Applied.</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="aj-fld">
+          <div class="aj-lbl"><span>Job title</span></div>
+          <input id="aj-title" class="aj-in" type="text" maxlength="200" placeholder="Senior Product Manager" autocomplete="off">
+        </div>
+
+        <div class="aj-fld" style="position:relative">
+          <div class="aj-lbl"><span>Company</span></div>
+          <input id="aj-company" class="aj-in" type="text" maxlength="120" placeholder="Where is the job?" autocomplete="off"
+                 oninput="JHAddJob.onCompanyInput()" onkeydown="JHAddJob.onCompanyKey(event)">
+          <div id="aj-company-sugg" class="aj-sgbox hidden"></div>
+          <div id="aj-company-state"></div>
+        </div>
+
+        <div class="aj-two">
+          <div class="aj-fld">
+            <div class="aj-lbl"><span>Country</span></div>
+            <select id="aj-country" class="aj-in">
+              <option value="">Pick a country…</option>
+              <% addJobOptions.countries.forEach(function (c) { %><option value="<%= c %>"><%= c %></option><% }); %>
+            </select>
+          </div>
+          <div class="aj-fld" style="position:relative">
+            <div class="aj-lbl"><span id="aj-date-label">Date received</span></div>
+            <button type="button" id="aj-date-btn" class="aj-in" onclick="JHAddJob.toggleCal()"
+                    style="text-align:left;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer">
+              <span id="aj-date-text">Pick a date…</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+            </button>
+            <div id="aj-cal-pop" class="hidden" style="position:absolute;top:calc(100% + 6px);right:0;z-index:20;background:#fff;border:1px solid #e4e6ec;border-radius:14px;box-shadow:var(--shadow-dropdown);padding:14px">
+              <div class="date-cal" id="aj-cal" style="width:288px"></div>
+            </div>
+          </div>
+        </div>
+
+        <% if (addJobOptions.roles.length > 0) { %>
+        <div class="aj-fld">
+          <div class="aj-lbl"><span>Which role is it for?</span></div>
+          <select id="aj-role" class="aj-in">
+            <option value="">Pick a role…</option>
+            <% addJobOptions.roles.forEach(function (r) { %><option value="<%= r.id %>"><%= r.name %></option><% }); %>
+          </select>
+        </div>
+        <% } %>
+
+        <div class="aj-fld">
+          <div class="aj-lbl"><span>Link to the job</span><span class="aj-opt">Optional</span></div>
+          <input id="aj-url" class="aj-in" type="url" maxlength="2000" placeholder="https://…" autocomplete="off">
+        </div>
+
+        <div class="aj-fld">
+          <div class="aj-lbl"><span>Description</span><span class="aj-opt">Optional</span></div>
+          <textarea id="aj-description" class="aj-in" rows="3" maxlength="20000" placeholder="Paste the posting if you have it…"></textarea>
+        </div>
+
+        <div class="aj-fld">
+          <div class="aj-lbl"><span>Your notes</span><span class="aj-opt">Optional</span></div>
+          <textarea id="aj-note" class="aj-in" rows="2" maxlength="20000" placeholder="Who contacted you, what you agreed on, etc"></textarea>
+        </div>
+
+      </div>
+
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--line)">
+        <p id="aj-error" class="hidden" style="flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--red-ink);line-height:1.4"></p>
+        <span id="aj-error-spacer" style="flex:1"></span>
+        <button type="button" onclick="JHAddJob.close()"
+                style="flex:none;font-size:12.5px;font-weight:700;color:var(--muted);background:transparent;border:0;padding:8px 6px;cursor:pointer">Cancel</button>
+        <button type="button" id="aj-submit" onclick="JHAddJob.submit()"
+                style="flex:none;height:36px;padding:0 16px;border-radius:9px;background:var(--accent);color:#fff;border:0;font-size:13px;font-weight:700;cursor:pointer">Add job</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  window.JHAddJob = (function () {
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const TODAY = <%- JSON.stringify(addJobOptions.today) %>;
+    const el = (id) => document.getElementById(id);
+
+    let origin = 'incoming';
+    let date = '';
+    let cal = null;
+    // The company the server resolved, and the exact string it resolved. Editing the field after a
+    // check voids it: the two are compared on submit and a changed name is re-checked, so the job
+    // can never be saved against a company the user has since typed over.
+    let resolved = null, resolvedFor = null;
+    let busy = false;
+    let suggestSeq = 0, suggestPick = -1, suggestNames = [];
+
+    function show(id, on) { el(id).classList.toggle('hidden', !on); }
+
+    function fail(msg) {
+      el('aj-error').textContent = msg;
+      show('aj-error', true);
+      show('aj-error-spacer', false);
+    }
+    function clearError() { show('aj-error', false); show('aj-error-spacer', true); }
+
+    function setBusy(on, label) {
+      busy = on;
+      const b = el('aj-submit');
+      b.disabled = on;                       // a double click cannot create two jobs
+      b.style.opacity = on ? '.6' : '1';
+      b.style.cursor = on ? 'default' : 'pointer';
+      b.textContent = label || 'Add job';
+    }
+
+    function setOrigin(v) {
+      origin = v;
+      el('aj-o-incoming').setAttribute('aria-pressed', String(v === 'incoming'));
+      el('aj-o-applied').setAttribute('aria-pressed', String(v === 'applied'));
+      // Same field, honest label: an invitation was received, an application was sent.
+      el('aj-date-label').textContent = v === 'incoming' ? 'Date received' : 'Date applied';
+    }
+
+    function fmtDate(iso) {
+      const d = new Date(iso + 'T12:00:00Z');
+      return isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', timeZone:'UTC' });
+    }
+    function setDate(iso) { date = iso; el('aj-date-text').textContent = fmtDate(iso); el('aj-date-text').style.color = 'var(--ink2)'; }
+
+    function toggleCal() {
+      const pop = el('aj-cal-pop');
+      const opening = pop.classList.contains('hidden');
+      pop.classList.toggle('hidden', !opening);
+      if (!opening) return;
+      // Single-date mode: the first click picks and returns. Future days are greyed out by JHCal
+      // itself, which is the same guard every other date control in the app uses.
+      cal = window.JHCal.attach({
+        root: el('aj-cal'), from: date || null, to: date || null, single: true,
+        onPick(d) { setDate(d); pop.classList.add('hidden'); clearError(); },
+      });
+      cal.render();
+    }
+
+    // ── Company: autocomplete over the ~7k names we already trust. A nudge, never a gate. ──
+    function closeSuggest() { show('aj-company-sugg', false); suggestPick = -1; suggestNames = []; }
+
+    async function onCompanyInput() {
+      resolved = null; resolvedFor = null;
+      el('aj-company-state').innerHTML = '';
+      const q = el('aj-company').value.trim();
+      if (q.length < 2) { closeSuggest(); return; }
+      const seq = ++suggestSeq;
+      try {
+        const res = await fetch('/api/company-suggest?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (seq !== suggestSeq) return;                        // a newer keystroke already won
+        suggestNames = (data.names || []).filter((n) => n.toLowerCase() !== q.toLowerCase());
+        if (suggestNames.length === 0) { closeSuggest(); return; }
+        suggestPick = -1;
+        el('aj-company-sugg').innerHTML = suggestNames
+          .map((n, i) => '<button type="button" data-i="' + i + '" onclick="JHAddJob.pickSuggest(' + i + ')">' + esc(n) + '</button>').join('');
+        show('aj-company-sugg', true);
+      } catch (_) { closeSuggest(); }
+    }
+
+    function pickSuggest(i) {
+      const name = suggestNames[i];
+      if (!name) return;
+      el('aj-company').value = name;
+      closeSuggest();
+      // A picked suggestion is a name we already hold, so it needs no call at all.
+      resolved = name; resolvedFor = name;
+      companyNote('ok', 'Matched to a company you already track');
+      el('aj-company').focus();
+    }
+
+    function onCompanyKey(e) {
+      if (el('aj-company-sugg').classList.contains('hidden')) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        suggestPick = Math.max(0, Math.min(suggestNames.length - 1, suggestPick + (e.key === 'ArrowDown' ? 1 : -1)));
+        el('aj-company-sugg').querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', i === suggestPick));
+      } else if (e.key === 'Enter' && suggestPick >= 0) {
+        e.preventDefault(); pickSuggest(suggestPick);
+      } else if (e.key === 'Escape') {
+        e.stopPropagation(); closeSuggest();
+      }
+    }
+
+    const CHECK_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="m5 12 5 5 9-10"/></svg>';
+    function companyNote(kind, text) {
+      const colour = kind === 'ok' ? 'var(--green2)' : 'var(--faint)';
+      el('aj-company-state').innerHTML =
+        '<div class="aj-note" style="display:flex;align-items:center;gap:5px;color:' + colour + '">'
+        + (kind === 'ok' ? CHECK_ICON : '') + esc(text) + '</div>';
+    }
+
+    // The fork. Offered only when the corrected name is NOT already in the base — when it is, the
+    // job attaches to that company silently, by decision. Both choices are safe, so neither is red,
+    // and each names the outcome rather than saying "Accept" / "Decline".
+    function askSuggestion(typed, suggested) {
+      el('aj-company-state').innerHTML =
+        '<div class="aj-sugg">'
+        + '<div style="font-size:12.5px;font-weight:700;color:var(--ink)">Did you mean <b>' + esc(suggested) + '</b>?</div>'
+        + '<div style="display:flex;gap:8px;margin-top:9px">'
+        + '<button type="button" class="aj-mini fill" onclick="JHAddJob.useName(' + JSON.stringify(suggested).replace(/"/g, '&quot;') + ')">Use ' + esc(suggested) + '</button>'
+        + '<button type="button" class="aj-mini" onclick="JHAddJob.useName(' + JSON.stringify(typed).replace(/"/g, '&quot;') + ')">Keep ' + esc(typed) + '</button>'
+        + '</div></div>';
+      setBusy(false);
+    }
+
+    function useName(name) {
+      el('aj-company').value = name;
+      resolved = name; resolvedFor = name;
+      companyNote('', 'Saving as ' + name + '…');
+      save();
+    }
+
+    function open() {
+      clearError();
+      setBusy(false);
+      el('jh-addjob-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => el('aj-title').focus(), 40);
+    }
+
+    function close() {
+      // Closing mid-check leaves nothing behind: the company row is written by the SAVE, never by
+      // the check.
+      el('jh-addjob-modal').classList.add('hidden');
+      el('aj-cal-pop').classList.add('hidden');
+      closeSuggest();
+      document.body.style.overflow = '';
+    }
+
+    async function submit() {
+      if (busy) return;
+      clearError();
+      closeSuggest();
+      const company = el('aj-company').value.trim();
+      if (!el('aj-title').value.trim()) return fail('The job title is required.');
+      if (!company) return fail('The company name is required.');
+      if (!el('aj-country').value) return fail('Pick a country from the list.');
+      if (!date) return fail('Pick a date.');
+      if (el('aj-role') && !el('aj-role').value) return fail('Pick which role this job is for.');
+
+      // Submit is the one moment the name is final — not blur, which fires when someone clicks away
+      // to think, and not debounced typing, which spends calls on half-words.
+      if (resolved && resolvedFor === company) return save();
+
+      setBusy(true, 'Checking company…');
+      let data;
+      try {
+        const res = await fetch('/api/company/check', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: company }),
+        });
+        data = await res.json();
+        if (!res.ok) { setBusy(false); return fail(data.error || 'Could not check that company name.'); }
+      } catch (_) {
+        // The lookup is never allowed to block a save: fall through under what was typed.
+        data = { status: 'unchecked', name: company };
+      }
+
+      if (data.status === 'suggestion') return askSuggestion(data.typed, data.suggested);
+      resolved = data.name || company;
+      resolvedFor = company;
+      if (data.status === 'known') companyNote('ok', 'Matched to a company you already track');
+      save();
+    }
+
+    async function save() {
+      setBusy(true, 'Adding…');
+      const body = {
+        origin,
+        title: el('aj-title').value.trim(),
+        company: resolved,
+        country: el('aj-country').value,
+        role_id: el('aj-role') ? Number(el('aj-role').value) : null,
+        date,
+        url: el('aj-url').value.trim(),
+        description: el('aj-description').value.trim(),
+        note: el('aj-note').value.trim(),
+      };
+      try {
+        const res = await fetch('/api/jobs/manual', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { setBusy(false); return fail(data.error || 'Could not save this job.'); }
+        // Straight into the job: an older application date files the card in an old day group,
+        // possibly pages back, and this is what makes that cost affordable.
+        window.location.href = '/jobs?selected=' + data.job_id;
+      } catch (_) {
+        setBusy(false);
+        fail('Could not save this job. Try again.');
+      }
+    }
+
+    document.addEventListener('click', function (e) {
+      if (!el('jh-addjob-modal') || el('jh-addjob-modal').classList.contains('hidden')) return;
+      if (!e.target.closest('#aj-company') && !e.target.closest('#aj-company-sugg')) closeSuggest();
+      if (!e.target.closest('#aj-cal-pop') && !e.target.closest('#aj-date-btn')) el('aj-cal-pop').classList.add('hidden');
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && el('jh-addjob-modal') && !el('jh-addjob-modal').classList.contains('hidden')) close();
+    });
+
+    return { open, close, submit, setOrigin, toggleCal, onCompanyInput, onCompanyKey, pickSuggest, useName };
+  })();
+  </script>
+  <% } %>
+
   <script>
   window.JHCompanyModal = (function(){
     const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

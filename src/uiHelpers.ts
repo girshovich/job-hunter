@@ -116,6 +116,7 @@ const SOURCE_LABELS: Record<string, string> = {
   Ashby: 'Ashby',
   Lever: 'Lever',
   Telegram: 'Telegram',
+  Manual: 'Added manually',
 };
 
 const SOURCE_NAMES: Record<string, string> = {
@@ -135,6 +136,8 @@ const SOURCE_NAMES: Record<string, string> = {
   Lever: 'Lever',
   telegram: 'Telegram',
   Telegram: 'Telegram',
+  manual: 'Added manually',
+  Manual: 'Added manually',
 };
 
 function humanizeToken(value: unknown, fallback: string): string {

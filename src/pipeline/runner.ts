@@ -381,6 +381,49 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       },
     };
 
+    // ── Adopting a manual job (manual_jobs.md §6) ─────────────────────────────────────────────
+    //
+    // The user added "PM at Stripe" by hand; three weeks later we scrape that exact posting. Rather
+    // than show a second card, the scraped details are poured into the card they already have — it
+    // keeps its id, its status history, its notes and its human verdict, and simply stops being
+    // empty.
+    //
+    // Two routes arrive here and one branch serves both: the free URL route (`filterDuplicatesByUrl`
+    // matches the `job_postings` row every manual job gets) and the semantic route (stage-3 dedup
+    // returns the manual job's id). `merged_from IS NULL` is the guard that makes this happen once:
+    // if another profile already owns this posting key our `INSERT OR IGNORE` posting is dropped,
+    // the next run re-fetches the job, and without the guard it would re-merge every run, forever.
+    const selectManualMergeTarget = db.prepare(`
+      SELECT j.id FROM jobs j
+      JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
+      WHERE j.id = ? AND j.job_source = 'Manual' AND j.created_by_profile_id = ? AND j.merged_from IS NULL
+    `);
+    // Anything the user put there wins; everything else comes from the scrape. Hence COALESCE on
+    // every field — and `job_source` is deliberately not among them: the card stays "Added manually".
+    const adoptIntoManualJob = db.prepare(`
+      UPDATE jobs SET
+        location    = COALESCE(location, ?),
+        work_mode   = COALESCE(work_mode, ?),
+        salary      = COALESCE(salary, ?),
+        posted_date = COALESCE(posted_date, ?),
+        apply_url   = COALESCE(apply_url, ?),
+        merged_from = ?
+      WHERE id = ?
+    `);
+    // Only on the semantic route. Semantic dedup runs **only** for scraped jobs that scored
+    // STRONG_MATCH, so the adopted score always agrees with the STRONG_MATCH already on the record —
+    // which until now sat there with a score of 0. The user's own `ai_verdict` is never touched.
+    const adoptScoreIntoManualJob = db.prepare(`
+      UPDATE job_profile_states SET ai_score = ?, ai_rationale = ?, ai_summary = ?, original_ai_verdict = ?
+      WHERE job_id = ? AND profile_id = ?
+    `);
+    /** The manual job this scrape should be poured into, or null for the ordinary storage path. */
+    const manualMergeTarget = (duplicateOfId: number | null): number | null => {
+      if (!duplicateOfId || duplicateOfId <= 0) return null;
+      const row = selectManualMergeTarget.get(profileId, duplicateOfId, profileId) as { id: number } | undefined;
+      return row ? row.id : null;
+    };
+
     const updateApplyUrl = db.prepare(`
       UPDATE jobs SET apply_url = ?
       WHERE linkedin_job_id = ? AND job_source = ? AND apply_url IS NULL
@@ -826,6 +869,12 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           // Assign temporary negative IDs to in-run entries (not yet in DB)
           const inRunWithIds: ExistingJob[] = inRunEntries.map((e, i) => ({ ...e, id: -(i + 1) }));
           // Match on normalized key (exact) OR on names that extend it with a legal suffix ("Every." → "Every. GmbH").
+          // A job with no description at all is NOT a candidate. There is nothing to compare it on
+          // but the title, and title alone is exactly the signal this design refuses to merge on —
+          // two genuinely different openings can share a title at one company, and a false merge
+          // silently swallows a real status history. Measured before it was written: of 1,980 real
+          // candidates on the live base, none is excluded by this clause; it only ever bites a
+          // manually added job the user gave no description (manual_jobs.md §6).
           const dbCandidates = db.prepare(`
             SELECT j.id, j.title, COALESCE(jd.description_text, j.description) AS description FROM jobs j
             JOIN job_profile_states jps ON jps.job_id = j.id
@@ -833,6 +882,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             WHERE (lower(j.company) = ? OR lower(j.company) LIKE ? || ' %')
               AND jps.is_duplicate = 0
               AND jps.profile_id = ?
+              AND TRIM(COALESCE(jd.description_text, j.description)) != ''
             ORDER BY jps.fetched_at DESC
           `).all(companyKey, companyKey, profileId) as ExistingJob[];
           const allCandidates: ExistingJob[] = [...inRunWithIds, ...dbCandidates];
@@ -978,6 +1028,29 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             const { job } = scored;
             const country = job.location ? (countryMap.get(job.location) ?? null) : null;
             const jobSource = job.jobSource ?? 'LinkedIn';
+
+            // The semantic route. Same branch, one extra write: this job WAS scored, so the manual
+            // card also gains the score, the rationale and the summary it never had — and the number
+            // finally appears in the square that has been sitting blank on it.
+            const mergeInto = isDuplicate ? manualMergeTarget(duplicateOfId) : null;
+            if (mergeInto !== null) {
+              adoptIntoManualJob.run(
+                job.location || null, job.workMode || null, job.salary || null,
+                job.postedDate || null, job.applyUrl || job.url || null,
+                `${jobSource}::${job.jobId}`, mergeInto,
+              );
+              adoptScoreIntoManualJob.run(
+                scored.score, scored.rationale || null, scored.summary || null, scored.verdict,
+                mergeInto, profileId,
+              );
+              insertPosting.run(mergeInto, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+              groupOrDrop(mergeInto, locDataMap.get(job.location ?? '') ?? buildLocationData(country));
+              if (job.description) upsertJobDescription.run(mergeInto, job.description, now);
+              if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
+              console.log(`[runner] Merged scraped "${job.title}" into manually added job ${mergeInto} (semantic)`);
+              continue;
+            }
+
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,
@@ -1010,6 +1083,27 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           for (const { job, duplicateOfId } of urlDuplicates) {
             const country = job.location ? (countryMap.get(job.location) ?? null) : null;
             const jobSource = job.jobSource ?? 'LinkedIn';
+
+            // The link route: this collision was caught by `filterDuplicatesByUrl`, **before any
+            // scoring**, so adopting here costs nothing. No score comes with it — the job was scored
+            // by a human when it was added, and there is no on-demand re-score by design.
+            const mergeInto = manualMergeTarget(duplicateOfId);
+            if (mergeInto !== null) {
+              adoptIntoManualJob.run(
+                job.location || null, job.workMode || null, job.salary || null,
+                job.postedDate || null, job.applyUrl || job.url || null,
+                `${jobSource}::${job.jobId}`, mergeInto,
+              );
+              // The real posting, hung off the manual job — this is what stops the next run fetching
+              // it all over again.
+              insertPosting.run(mergeInto, jobSource, job.jobId, job.url || null, job.applyUrl || null, job.location || null, now);
+              groupOrDrop(mergeInto, locDataMap.get(job.location ?? '') ?? buildLocationData(country));
+              if (job.description) upsertJobDescription.run(mergeInto, job.description, now);
+              if (job.logoUrl) upsertCompanyLogo.run(companyKey(job.company), job.company.trim(), job.logoUrl, now);
+              console.log(`[runner] Merged scraped "${job.title}" into manually added job ${mergeInto}`);
+              continue;
+            }
+
             insertCanonicalJob.run(
               job.jobId, jobSource, job.provider || 'harvestapi',
               job.title, job.company, job.location || null, country, job.workMode || null,

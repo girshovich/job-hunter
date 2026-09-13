@@ -33,10 +33,15 @@ export interface StatusRow {
 }
 
 /**
- * The ten statuses every profile starts with (application_status.md §4.1, D32). The first three
+ * The eleven statuses every profile starts with (application_status.md §4.1, D32). The first three
  * are `is_builtin` — undeletable and un-retypeable, because the migration maps the old
  * `applied` 0/1/2 onto them and the New pile is the whole review loop. The other seven are
- * ordinary rows, leaving five of the fifteen slots for the user's own.
+ * ordinary rows, leaving four of the fifteen slots for the user's own.
+ *
+ * `Incoming` is the fourth built-in and the second of type `new` (manual_jobs.md §4) — a deliberate
+ * exception to the rule that only one status carries each of the three migrated types. It is **last
+ * on purpose**: `newStatusId()` falls back to the lowest `sort_order` among built-in `new` rows, so
+ * seeding it anywhere before `New` would make the pipeline stamp every scraped job "Incoming".
  */
 export const DEFAULT_STATUSES: Array<{ name: string; type: StatusType; builtin?: boolean }> = [
   { name: 'New',            type: 'new',      builtin: true },
@@ -49,7 +54,11 @@ export const DEFAULT_STATUSES: Array<{ name: string; type: StatusType; builtin?:
   { name: 'Offer',          type: 'offer' },
   { name: 'Rejected',       type: 'rejected' },
   { name: 'I declined',     type: 'rejected' },
+  { name: 'Incoming',       type: 'new',      builtin: true },
 ];
+
+/** The `Incoming` row's name, shared by the seed, the migration and `incomingStatusId()`. */
+export const INCOMING_STATUS_NAME = 'Incoming';
 
 /** Mirrors the 15-role cap (routes/api.ts). Counts live rows only — archived ones are free. */
 export const MAX_STATUSES = 15;
@@ -2532,6 +2541,79 @@ The full post text is stored as the job description — do not repeat or summari
     // Deliberately fatal, unlike every other migration in this file. The others degrade to a
     // missing column or an unseeded default; this one decides what every job in the app *is*.
     console.error('[db] Migration v_statuses FAILED — refusing to start:', (err as Error).message);
+    throw err;
+  }
+
+  // ── Manually added jobs (manual_jobs.md §9.1) ───────────────────────────────────────────────
+  //
+  // Three migrations, and all three are **fatal**, against the house style above. The others here
+  // degrade to a missing column nothing reads yet; nothing in this feature works without all of
+  // these, and a swallowed failure would give a booted app that throws on the user's first click
+  // instead of a clean failure visible in the log.
+  //
+  // Every column is nullable with a NULL default, so each ALTER is instant even on a 100MB file —
+  // and a `REFERENCES` clause is legal here only *because* the default is NULL; SQLite refuses it
+  // with a non-NULL default while foreign keys are on.
+  //
+  // `ON DELETE SET NULL` is load-bearing, not decoration. Profile deletion runs
+  // `DELETE FROM profiles WHERE id = ?` inside a transaction with foreign keys on
+  // (`routes/api.ts`), so a plain `REFERENCES` would make deleting any account that ever added a
+  // job by hand throw — months later, on the first deletion.
+  try {
+    const jobCols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    if (!jobCols.some((c) => c.name === 'created_by_profile_id')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN created_by_profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL`);
+      db.exec(`ALTER TABLE jobs ADD COLUMN merged_from TEXT`);
+      // Distinct from `fetched_at`, which holds the date the *user typed*. The daily cap has to
+      // count real clock time or a script backdating every job would never trip it (§8.3).
+      db.exec(`ALTER TABLE jobs ADD COLUMN created_at TEXT`);
+      console.log('[db] Migration v_manual_jobs_cols: jobs manual columns added');
+    }
+    // The rate-limit count runs against every row of `jobs` on every add.
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_manual ON jobs(created_by_profile_id, created_at)`);
+  } catch (err) {
+    console.error('[db] Migration v_manual_jobs_cols FAILED — refusing to start:', (err as Error).message);
+    throw err;
+  }
+
+  try {
+    const compCols = db.prepare(`PRAGMA table_info(companies)`).all() as Array<{ name: string }>;
+    if (!compCols.some((c) => c.name === 'created_by_profile_id')) {
+      db.exec(`ALTER TABLE companies ADD COLUMN created_by_profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL`);
+      console.log('[db] Migration v_companies_created_by: companies.created_by_profile_id added');
+    }
+  } catch (err) {
+    console.error('[db] Migration v_companies_created_by FAILED — refusing to start:', (err as Error).message);
+    throw err;
+  }
+
+  // The 11th built-in status, for every profile that already exists. `seedStatusesForProfile`
+  // cannot do this — it returns early for any profile that already has rows, which is all of them,
+  // so the feature would work perfectly on a fresh dev database and silently do nothing in
+  // production. One plain INSERT … SELECT instead, with no per-profile existence check: nobody has
+  // this status yet, and the `_migrations` row is what stops it running twice.
+  //
+  // `sort_order` is MAX+1 per profile, i.e. **after** `New` — see DEFAULT_STATUSES. That ordering
+  // also protects a rollback: the old `newStatusId()` picks the lowest-sorted built-in `new` row,
+  // which is still `New`.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_status_incoming'`).get();
+    if (!done) {
+      db.transaction(() => {
+        const res = db.prepare(`
+          INSERT INTO statuses (profile_id, name, type, sort_order, is_builtin)
+          SELECT p.id, ?, 'new',
+                 (SELECT COALESCE(MAX(s.sort_order), -1) + 1 FROM statuses s WHERE s.profile_id = p.id),
+                 1
+          FROM profiles p
+        `).run(INCOMING_STATUS_NAME);
+        db.exec(`INSERT INTO _migrations VALUES ('v_status_incoming')`);
+        console.log(`[db] Migration v_status_incoming: "${INCOMING_STATUS_NAME}" seeded for ${res.changes} profile(s)`);
+      });
+    }
+  } catch (err) {
+    console.error('[db] Migration v_status_incoming FAILED — refusing to start:', (err as Error).message);
     throw err;
   }
 }

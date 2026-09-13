@@ -20,16 +20,20 @@ import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { refreshApifyLimits } from '../pipeline/apifyLimits';
 import { refreshOpenAiLimits } from '../pipeline/openAiLimits';
-import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, TOPUP_ENABLED, isPaymentReady, resolveSpendKeys, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
+import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, TOPUP_ENABLED, isPaymentReady, resolveSpendKeys, resolveLimits, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
 import { config } from '../config';
 import { checkOpenAiBalance } from '../utils/openaiBalance';
 import { companyKey } from '../uiHelpers';
+import { groupOrDrop } from '../pipeline/locationGrouping';
+import { fetchCompanyLogos } from '../pipeline/companyLogos';
+import { checkAndProfileCompany, type EnrichmentOutput } from '../pipeline/companyEnrichment';
+import { invalidateJobsDatesCache } from './jobs';
 import { getCompanyProfile, getCompanyUserContext, buildCompanyLinks } from './company';
-import { newStatusId, todayIn, profileTimezone, listStatuses, statusMap, setJobStatus, recomputeCurrent,
-         jobHistory, shortcuts, MAX_STATUSES, MAX_STATUS_NAME, STATUS_TYPES, ASSIGNABLE_TYPES, TYPE_META, type StatusType, type StatusRow } from '../statuses';
+import { newStatusId, incomingStatusId, todayIn, profileTimezone, listStatuses, statusMap, setJobStatus, recomputeCurrent,
+         jobHistory, shortcuts, idsOfTypes, legacyApplied, MAX_STATUSES, MAX_STATUS_NAME, STATUS_TYPES, ASSIGNABLE_TYPES, TYPE_META, type StatusType, type StatusRow } from '../statuses';
 import OpenAI from 'openai';
 
 const router = Router();
@@ -450,6 +454,10 @@ router.post('/profiles/:id/delete', (req: Request, res: Response) => {
     db.prepare('DELETE FROM run_job_logs WHERE run_id IN (SELECT id FROM search_runs WHERE profile_id = ?)').run(targetId);
     db.prepare('DELETE FROM search_runs WHERE profile_id = ?').run(targetId);
     db.prepare('DELETE FROM job_profile_states WHERE profile_id = ?').run(targetId);
+    // Jobs this profile added by hand. They are private to it by construction (nobody else has a
+    // state row), so deleting them is correct — and without this they linger forever as unreachable
+    // rows that `ON DELETE SET NULL` has stripped of their owner (manual_jobs.md §9.1).
+    db.prepare('DELETE FROM jobs WHERE created_by_profile_id = ?').run(targetId);
     db.prepare('DELETE FROM search_groups WHERE profile_id = ?').run(targetId);
     db.prepare('DELETE FROM settings WHERE profile_id = ?').run(targetId);
     db.prepare('DELETE FROM cvs WHERE profile_id = ?').run(targetId);
@@ -1368,6 +1376,430 @@ router.patch('/jobs/:id/notes', (req: Request, res: Response) => {
     UPDATE job_profile_states SET user_notes = ? WHERE job_id = ? AND profile_id = ?
   `).run(notes || null, id, req.profile.id).changes;
   if (changes === 0) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
+  res.json({ success: true });
+});
+
+
+// ══ Manually added jobs (manual_jobs.md) ═══════════════════════════════════════════════════════
+//
+// Four endpoints. The save cannot be one atomic step: a SQLite transaction is synchronous, the
+// company lookup is a 2–10s network call, and the "Did you mean X?" fork needs the **user** to
+// answer before we know what to save. So the company is resolved first (`/company/check`, writes
+// nothing) and `/jobs/manual` takes an already-resolved name and does everything in one
+// synchronous transaction with no awaits inside it.
+
+/** This is a tracking tool; nobody legitimately adds twenty a day (§8.3). */
+const MANUAL_JOBS_PER_DAY = 20;
+/** Stop waiting for the model and save under what was typed. The save is never blocked by the AI. */
+const COMPANY_CHECK_TIMEOUT_MS = 8_000;
+/** How long a checked payload is held for the save that follows it. */
+const PENDING_COMPANY_TTL_MS = 15 * 60_000;
+
+/**
+ * The checked-but-not-yet-saved company payloads, held **server-side** and keyed by
+ * `profile + companyKey`. Deliberately never passed back through the browser: `companies` is a
+ * shared table, so a crafted save request could otherwise write its own description onto a row
+ * every other user reads. A cache miss creates the company unenriched — never trust the client.
+ */
+const pendingCompanies = new Map<string, { display: string; profile: EnrichmentOutput; at: number }>();
+
+function pendingKey(profileId: number, key: string): string { return profileId + '|' + key; }
+
+function takePendingCompany(profileId: number, key: string): { display: string; profile: EnrichmentOutput } | null {
+  const hit = pendingCompanies.get(pendingKey(profileId, key));
+  if (!hit) return null;
+  if (Date.now() - hit.at > PENDING_COMPANY_TTL_MS) { pendingCompanies.delete(pendingKey(profileId, key)); return null; }
+  return hit;
+}
+
+function putPendingCompany(profileId: number, key: string, display: string, profile: EnrichmentOutput): void {
+  // Opportunistic sweep — this map only ever holds a handful of entries, one per form in flight.
+  for (const [k, v] of pendingCompanies) if (Date.now() - v.at > PENDING_COMPANY_TTL_MS) pendingCompanies.delete(k);
+  pendingCompanies.set(pendingKey(profileId, key), { display, profile, at: Date.now() });
+}
+
+/**
+ * A company name a user may type. Letters, digits and the punctuation real names use — which
+ * excludes `:` and `@`, so a URL or an email address cannot become a company. Rejected, never
+ * truncated: a silently shortened name is a different company (§8.4).
+ */
+const COMPANY_NAME_RE = /^[\p{L}\p{N} &.,\-'()/+]+$/u;
+
+/** Manual adds made today, in the profile's own timezone. Counted from `created_at` — the real
+ *  clock — never `fetched_at`, which holds whatever date the user typed into the form (§8.3). */
+function manualAddsToday(profileId: number): number {
+  const startOfDay = todayIn(profileTimezone(profileId)) + 'T00:00:00.000Z';
+  return (getDb().prepare(
+    'SELECT COUNT(*) as c FROM jobs WHERE created_by_profile_id = ? AND created_at >= ?',
+  ).get(profileId, startOfDay) as { c: number }).c;
+}
+
+/** The name we show for a company we already hold, so the field confirms what the user landed on. */
+function knownCompanyDisplay(key: string): string | null {
+  const row = getDb().prepare('SELECT display_name FROM companies WHERE company = ?').get(key) as
+    { display_name: string | null } | undefined;
+  return row ? (row.display_name || key) : null;
+}
+
+/** Is this name one we already trust — a company row, or an ATS board's company name? */
+function nameIsKnown(name: string): { known: true; display: string } | { known: false } {
+  const key = companyKey(name);
+  const company = knownCompanyDisplay(key);
+  if (company) return { known: true, display: company };
+  const board = getDb().prepare(
+    'SELECT company_name FROM ats_boards WHERE LOWER(TRIM(company_name)) = ? LIMIT 1',
+  ).get(key) as { company_name: string } | undefined;
+  return board ? { known: true, display: board.company_name } : { known: false };
+}
+
+/**
+ * GET /api/company-suggest?q= — the ~7k names we already trust (`companies` + `ats_boards`), as a
+ * nudge while typing. Free, no AI, and not a gate: a name that matches nothing is still allowed.
+ * It also quietly narrows the `Citi` / `Citigroup` split that keeps a manual job out of its own
+ * company's dedup candidate set (§6).
+ */
+router.get('/company-suggest', (req: Request, res: Response) => {
+  const q = companyKey(String(req.query.q || ''));
+  if (q.length < 2) { res.json({ names: [] }); return; }
+  const like = q.replace(/[%_]/g, '') + '%';
+  const rows = getDb().prepare(`
+    SELECT name FROM (
+      SELECT COALESCE(display_name, company) AS name FROM companies WHERE company LIKE ?
+      UNION
+      SELECT company_name AS name FROM ats_boards WHERE company_name IS NOT NULL AND LOWER(TRIM(company_name)) LIKE ?
+    )
+    ORDER BY LENGTH(name) ASC, name COLLATE NOCASE ASC
+    LIMIT 8
+  `).all(like, like) as Array<{ name: string }>;
+  res.json({ names: rows.map((r) => r.name).filter(Boolean) });
+});
+
+/**
+ * POST /api/company/check — resolve one company name. **Writes nothing.**
+ *
+ * A name we already know costs nothing and says so; a name we don't gets one isolated hard-model
+ * call that fills the company card and checks the spelling at the same time (§5, §14). Fired on
+ * submit, once — not on blur, not while typing: both spend calls on names the user has not
+ * finished.
+ */
+router.post('/company/check', async (req: Request, res: Response) => {
+  const db = getDb();
+  const profileId = req.profile.id;
+  const typed = String((req.body as Record<string, unknown>).name ?? '').trim();
+
+  if (!typed || typed.length > 120 || !COMPANY_NAME_RE.test(typed)) {
+    res.status(400).json({ error: 'Enter the company name as it is written — letters, digits and ordinary punctuation.' });
+    return;
+  }
+  if (manualAddsToday(profileId) >= MANUAL_JOBS_PER_DAY) {
+    res.status(429).json({ error: `You can add ${MANUAL_JOBS_PER_DAY} jobs a day. Try again tomorrow.` });
+    return;
+  }
+
+  // 1 — a key we already hold. Attach, write nothing, no AI call. The common path, and it is free.
+  const known = nameIsKnown(typed);
+  if (known.known) { res.json({ status: 'known', name: known.display }); return; }
+
+  // 2 — an unknown name. Keys through the same chokepoint as the pipeline, so the $0.50
+  // `MIN_RUN_CREDITS` floor and the own-keys rule apply here too. A refusal is not an error: the
+  // company is simply created unenriched and the job still saves.
+  let openAiKey: string;
+  try {
+    ({ openAiKey } = resolveSpendKeys(db, profileId));
+  } catch (err) {
+    res.json({ status: 'unchecked', reason: err instanceof PaymentError ? 'no_credits' : 'failed', name: typed });
+    return;
+  }
+  if (!openAiKey) { res.json({ status: 'unchecked', reason: 'failed', name: typed }); return; }
+
+  const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow | undefined;
+  const model = settings?.ai_model_hard?.trim() || FALLBACK_AI_MODEL;
+  const limits = resolveLimits(db, profileId);
+
+  let checked: Awaited<ReturnType<typeof checkAndProfileCompany>>;
+  try {
+    // The timeout races the call rather than aborting it: an in-flight request still releases its
+    // gate slot when it settles, and a save must never wait on the model (§3).
+    checked = await Promise.race([
+      checkAndProfileCompany(typed, model, openAiKey, limits.openAiConcurrencyFor(model)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), COMPANY_CHECK_TIMEOUT_MS)),
+    ]);
+  } catch (err) {
+    const reason = (err as Error).message === 'timeout' ? 'timeout' : 'failed';
+    if (reason === 'failed') console.warn('[manual] company check failed:', (err as Error).message);
+    res.json({ status: 'unchecked', reason, name: typed });
+    return;
+  }
+
+  recordManualAiCost(db, profileId, model, checked.usage);
+
+  // 3 — a correction came back. **Always ask.** An earlier draft attached the job silently whenever
+  // the corrected name was one we already held, on the reasoning that a correction pointing at a
+  // real company is probably right. It isn't reliably: the model expanded "Johnson & John" into
+  // "Johnson & Johnson" — against its own instruction not to expand a name — and the job was filed
+  // under a company the user never typed, with nothing on screen to say so. The case where the
+  // correction lands on a big, well-known company is exactly the case where a wrong one does the
+  // most damage, so it is the last place to skip the question. The cost is one extra click on a
+  // path that only ever runs for a name we do not already hold.
+  if (checked.nameCorrection) {
+    const already = nameIsKnown(checked.nameCorrection);
+    // The profile fields describe the CORRECTED company, so they are held under its key — and only
+    // when that company is new, because an existing row is never rewritten (§8.2). Declining the
+    // suggestion creates the typed company unenriched, which is the honest outcome.
+    if (!already.known) {
+      putPendingCompany(profileId, companyKey(checked.nameCorrection), checked.nameCorrection, checked.profile);
+    }
+    res.json({ status: 'suggestion', typed, suggested: already.known ? already.display : checked.nameCorrection });
+    return;
+  }
+
+  putPendingCompany(profileId, companyKey(typed), typed, checked.profile);
+  res.json({ status: 'checked', name: typed });
+});
+
+/**
+ * Bill the manual company check. **No `search_runs` row**, unlike the CV comparison: this call
+ * belongs to no run, and a synthetic row would corrupt the run counts, the runs-per-day chart and
+ * the Start page's last-run logic. The known cost is that the spend leaves `credits_balance` and
+ * appears in no cost report — recorded and deferred (§11), not overlooked. Amounts are tiny: at
+ * most twenty small calls a day per profile.
+ */
+function recordManualAiCost(
+  db: ReturnType<typeof getDb>,
+  profileId: number,
+  model: string,
+  usage: { inputTokens: number; cachedInputTokens: number; outputTokens: number },
+): void {
+  try {
+    const cost = calcOpenAiCost(model, usage.inputTokens, usage.cachedInputTokens, usage.outputTokens) ?? 0;
+    if (cost <= 0) return;
+    const s = db.prepare('SELECT use_jh_credits, credits_balance FROM settings WHERE profile_id = ?').get(profileId) as
+      { use_jh_credits: number; credits_balance: number } | undefined;
+    if ((s?.use_jh_credits ?? 1) === 0) return;   // own keys — nothing to deduct
+    const balance = s?.credits_balance ?? 0;
+    db.prepare('UPDATE settings SET credits_balance = ?, credits_overspent_usd = credits_overspent_usd + ? WHERE profile_id = ?')
+      .run(Math.max(0, balance - cost), Math.max(0, cost - balance), profileId);
+  } catch (err) {
+    console.warn('[manual] Failed to record company check cost:', (err as Error).message);
+  }
+}
+
+/**
+ * POST /api/jobs/manual — create the job. One synchronous transaction, no awaits inside it.
+ *
+ * `company` arrives already resolved: the answer to any suggestion is applied before we are called.
+ * Everything is validated and **rejected, never truncated** — a silently shortened title is a
+ * different job (§8.4).
+ */
+router.post('/jobs/manual', (req: Request, res: Response) => {
+  const db = getDb();
+  const profileId = req.profile.id;
+  const b = req.body as Record<string, unknown>;
+
+  const fail = (error: string) => res.status(400).json({ error });
+
+  const origin = String(b.origin ?? '');
+  if (origin !== 'incoming' && origin !== 'applied') return fail('Choose how this job came to you.');
+
+  const title = String(b.title ?? '').trim();
+  if (!title) return fail('The job title is required.');
+  if (title.length > 200) return fail('Keep the job title to 200 characters or fewer.');
+
+  const company = String(b.company ?? '').trim();
+  if (!company) return fail('The company name is required.');
+  if (company.length > 120) return fail('Keep the company name to 120 characters or fewer.');
+  if (!COMPANY_NAME_RE.test(company)) return fail('Enter the company name as it is written — letters, digits and ordinary punctuation.');
+
+  // The country has to be one of ours, or the job lands under a filter value nothing else uses.
+  const country = lookupCountry(String(b.country ?? '').trim().toLowerCase());
+  if (!country) return fail('Pick a country from the list.');
+
+  // Required, because a NULL `group_id` drops the job out of per-role Stats entirely. The one
+  // exception is a profile with no roles at all, which has nothing to pick.
+  const roles = db.prepare('SELECT id FROM search_groups WHERE profile_id = ?').all(profileId) as Array<{ id: number }>;
+  let groupId: number | null = null;
+  if (roles.length > 0) {
+    groupId = Number(b.role_id);
+    if (!Number.isFinite(groupId) || !roles.some((r) => r.id === groupId)) return fail('Pick which role this job is for.');
+  }
+
+  const date = String(b.date ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date + 'T00:00:00Z'))) return fail('Pick a date.');
+  const today = todayIn(profileTimezone(profileId));
+  if (date > today) return fail('That date is in the future.');
+  const twoYearsAgo = new Date(Date.parse(today + 'T00:00:00Z') - 730 * 86400000).toISOString().slice(0, 10);
+  if (date < twoYearsAgo) return fail('That date is more than two years ago.');
+
+  const url = String(b.url ?? '').trim();
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('scheme');
+    } catch { return fail('That link does not look like a web address.'); }
+  }
+
+  const description = String(b.description ?? '').trim();
+  if (description.length > 20_000) return fail('That description is too long — keep it under 20,000 characters.');
+  const note = String(b.note ?? '').trim();
+  if (note.length > 20_000) return fail('That note is too long — keep it under 20,000 characters.');
+
+  if (manualAddsToday(profileId) >= MANUAL_JOBS_PER_DAY) {
+    res.status(429).json({ error: `You can add ${MANUAL_JOBS_PER_DAY} jobs a day. Try again tomorrow.` });
+    return;
+  }
+
+  const key = companyKey(company);
+  const pending = takePendingCompany(profileId, key);
+  const companyExists = !!db.prepare('SELECT 1 FROM companies WHERE company = ?').get(key);
+  const nowIso = new Date().toISOString();
+  const postingId = 'manual-' + randomUUID();
+
+  // `New` opens the history of a job the user applied to themselves; `Incoming` opens one that came
+  // to them. Both steps carry the FORM date, and both are written directly with `source = 'manual'`
+  // — `setJobStatus` is for later moves and would stamp today (§16).
+  const newId = newStatusId(profileId);
+  const appliedId = idsOfTypes(profileId, ['applied'])[0] ?? null;
+  const incomingId = incomingStatusId(profileId) ?? newId;
+  const steps: number[] = origin === 'incoming'
+    ? [incomingId]
+    : (appliedId ? [newId, appliedId] : [newId]);
+  const finalStatus = steps[steps.length - 1];
+  const finalType = (db.prepare('SELECT type FROM statuses WHERE id = ?').get(finalStatus) as { type: StatusType }).type;
+
+  let jobId = 0;
+  try {
+    db.transaction(() => {
+      // 1 — the company. An existing row is NEVER touched: a user can therefore not change what
+      // anyone else sees about a real company (§8.2). Only a brand-new name creates a row, and it
+      // carries `created_by_profile_id` so one query can wipe a bad actor's whole footprint.
+      if (!companyExists) {
+        db.prepare(`
+          INSERT INTO companies (company, display_name, fetched_at, short_description, employee_count,
+                                 employee_range, is_agency, source_note, enrich_status, enrich_attempted_at,
+                                 enriched_at, created_by_profile_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          key, pending ? pending.display : company, nowIso,
+          pending?.profile.short_description || null,
+          pending?.profile.employee_count ?? null,
+          pending?.profile.employee_range || null,
+          pending?.profile.is_agency == null ? null : (pending.profile.is_agency ? 1 : 0),
+          pending?.profile.source_note || null,
+          pending ? 'complete' : null,
+          pending ? nowIso : null,
+          pending ? nowIso : null,
+          profileId,
+        );
+      }
+
+      // 2 — the job. `fetched_at` is the FORM date, not now: `job_status_events` may never be dated
+      // before the job arrived (PRD §7.24), and stamping "now" while dating the history in the past
+      // would break the job from birth. `created_at` is the real clock, and it is what the daily cap
+      // counts. `description` is '' because the column is NOT NULL — the real text lives in
+      // `job_descriptions`.
+      jobId = Number(db.prepare(`
+        INSERT INTO jobs (linkedin_job_id, job_source, provider, title, company, location, country,
+                          description, url, posted_date, fetched_at, created_by_profile_id, created_at)
+        VALUES (?, 'Manual', 'manual', ?, ?, NULL, ?, '', ?, NULL, ?, ?, ?)
+      `).run(postingId, title, company, country, url || null, date, profileId, nowIso).lastInsertRowid);
+
+      // 3 — the posting row. **This is what makes the merge work**: `filterDuplicatesByUrl` reads
+      // `job_postings`, so a later scrape of the same link collides with this row before any
+      // scoring and costs nothing (§6). The unique index is on (job_source, posting_job_id), and a
+      // `manual-<uuid>` key can never collide with anything a provider produces.
+      db.prepare(
+        'INSERT INTO job_postings (job_id, job_source, posting_job_id, url, apply_url, location, created_at) VALUES (?, ?, ?, ?, NULL, NULL, ?)',
+      ).run(jobId, 'Manual', postingId, url || null, nowIso);
+
+      // 4 — the country filter reads `job_countries` (lowercase); the location cell reads
+      // `job_locations` (the display label).
+      groupOrDrop(jobId, { labels: [country], countries: [country.toLowerCase()] });
+
+      if (description) {
+        db.prepare('INSERT INTO job_descriptions (job_id, description_text, updated_at) VALUES (?, ?, ?)')
+          .run(jobId, description, nowIso);
+      }
+
+      // 5 — the state row. `STRONG_MATCH` is written deliberately: the whole app gates on it, and a
+      // manually added job was scored by a human. `ai_score` is 0 — the column is NOT NULL, and the
+      // card suppresses the *number* rather than the chip while it stays 0 (§3).
+      db.prepare(`
+        INSERT INTO job_profile_states (job_id, profile_id, group_id, fetched_at, ai_score, ai_verdict,
+                                        original_ai_verdict, is_duplicate, seen, applied, status_id, user_notes)
+        VALUES (?, ?, ?, ?, 0, 'STRONG_MATCH', NULL, 0, 0, ?, ?, ?)
+      `).run(jobId, profileId, groupId, date, legacyApplied(finalType), finalStatus, note || null);
+
+      const insertEvent = db.prepare(
+        "INSERT INTO job_status_events (profile_id, job_id, status_id, changed_at, source) VALUES (?, ?, ?, ?, 'manual')",
+      );
+      // Same-day steps keep insertion order (`ORDER BY changed_at, id` — D52), so `Applied` ends up
+      // current even though both steps carry the same date.
+      for (const statusId of steps) insertEvent.run(profileId, jobId, statusId, date);
+    });
+  } catch (err) {
+    console.error('[manual] Failed to add job:', (err as Error).message);
+    res.status(500).json({ error: 'Could not save this job. Try again.' });
+    return;
+  }
+
+  invalidateJobsDatesCache(profileId);
+
+  // The free favicon fetch — Google's favicon service, no LLM. With no ATS board row it guesses
+  // `<name>.com`, so expect roughly half to come back logo-less. Fire and forget; never blocks.
+  if (!companyExists) {
+    fetchCompanyLogos(db, [{ company, ats: 'manual' }]).catch(() => {});
+  }
+
+  res.json({ success: true, job_id: jobId });
+});
+
+/**
+ * DELETE /api/jobs/:id — the app's only job-delete control. Manual jobs, by their creator, and only
+ * while the pipeline has not adopted them.
+ *
+ * **A merged job cannot be deleted, and that is a fact rather than a policy.** The cascade would
+ * remove the `job_postings` row that tells dedup "we already have this one", so the next run would
+ * re-fetch that posting as brand new, re-score it (paid), and the job would be back by morning. The
+ * control stays visible and answers — a control that silently disappears teaches nothing (§7).
+ */
+router.delete('/jobs/:id', (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid job id.' }); return; }
+  const db = getDb();
+  const profileId = req.profile.id;
+
+  const job = db.prepare(`
+    SELECT j.id, j.company, j.job_source, j.created_by_profile_id, j.merged_from
+    FROM jobs j JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = ?
+    WHERE j.id = ?
+  `).get(profileId, id) as
+    { id: number; company: string; job_source: string; created_by_profile_id: number | null; merged_from: string | null } | undefined;
+
+  if (!job || job.job_source !== 'Manual' || job.created_by_profile_id !== profileId) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  if (job.merged_from) { res.status(409).json({ error: 'merged' }); return; }
+
+  const key = companyKey(job.company);
+  db.transaction(() => {
+    // `job_profile_states.duplicate_of_job_id REFERENCES jobs(id)` has **no ON DELETE clause** and
+    // foreign keys are on, so a job of the user's own that was marked duplicate-of this one would
+    // make the delete throw. NULL those references first — globally, not just this profile's.
+    db.prepare('UPDATE job_profile_states SET duplicate_of_job_id = NULL WHERE duplicate_of_job_id = ?').run(id);
+    // Everything else FKs `jobs(id)` with ON DELETE CASCADE — state, events, countries, locations,
+    // postings, description all go with this one statement.
+    db.prepare('DELETE FROM jobs WHERE id = ?').run(id);
+    // Keep the base self-cleaning: drop a company this user created that now has no jobs at all.
+    // "No jobs" means globally, across every profile — the narrower reading would delete a company
+    // another user's jobs still point at.
+    const orphan = !db.prepare('SELECT 1 FROM jobs WHERE LOWER(TRIM(company)) = ? LIMIT 1').get(key);
+    if (orphan) {
+      db.prepare('DELETE FROM companies WHERE company = ? AND created_by_profile_id = ?').run(key, profileId);
+    }
+  });
+
+  invalidateJobsDatesCache(profileId);
   res.json({ success: true });
 });
 

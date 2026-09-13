@@ -233,6 +233,10 @@
               <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">5</span>
               <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Company Enrichment</span><span class="block text-[11px] text-gray-500 mt-0.5">One call per new company</span></span>
             </button>
+            <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="5" onclick="pickPrompt(5)">
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">6</span>
+              <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Company Name Check</span><span class="block text-[11px] text-gray-500 mt-0.5">When you add a job by hand</span></span>
+            </button>
           </div>
 
           <!-- editor -->
@@ -576,6 +580,43 @@ Description: {description — up to 1,500 chars each}
   "is_agency":         boolean | null
   "source_note":       string
 }</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- COMPANY NAME CHECK PANEL — read-only; this prompt is not user-editable either -->
+            <div class="pm-panel flex-col h-full" data-pi="5">
+              <div class="pm-head flex items-start gap-2 px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+                <button type="button" class="pm-back items-center text-blue-600 mt-0.5" onclick="backPrompts()" aria-label="Back">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-gray-900">Company Name Check</h3>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-purple-600 bg-purple-50 rounded px-1.5 py-0.5">Hard model</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-0.5">Sent together with the company profile prompt when you add a job by hand, and only for a company name we don't already have. Two panels, one call — you are charged once.</p>
+                </div>
+              </div>
+              <div class="pm-body flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+                <div>
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <p class="text-xs font-medium text-gray-600">Added after the Company Enrichment instruction</p>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
+                  </div>
+                  <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed"><%= companyNameCheckPrompt %></pre>
+                  <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">This one writes into company details everyone shares, so it stays fixed — an edited version could rename a company for every user.</p>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <p class="text-xs font-medium text-gray-600">Required response format</p>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Fixed</span>
+                  </div>
+                  <pre class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500 font-mono whitespace-pre-wrap leading-relaxed">The Company Enrichment schema, plus one field:
+{
+  "name_correction":   string | null
+}</pre>
+                  <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">A correction that matches a company we already have attaches the job to it. A correction we don't recognise is offered to you as a choice — the app never renames anything on its own.</p>
                 </div>
               </div>
             </div>
