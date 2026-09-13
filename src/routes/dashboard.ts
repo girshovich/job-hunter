@@ -49,7 +49,7 @@ router.get('/', (req: Request, res: Response) => {
   //
   // Every query below is filtered on `fetched_at >= lastRunAt` and nothing else, so a job the user
   // added by hand and dated today would be counted as something the last run found. It has no run
-  // behind it at all — `job_source != 'Manual'` keeps this page describing runs (manual_jobs.md
+  // behind it at all — `job_source != 'Manual'` keeps this page describing runs (PRD §7.26
   // §10.1).
   const lastRunAt = lastRun?.ran_at ?? null;
 

@@ -33,7 +33,7 @@ function formatDate(iso) {
   return formatDateTimeToMinutes(iso, tz);
 }
 const detailVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
-// A job the user typed in themselves (manual_jobs.md). `_mergedManual` is one the pipeline has
+// A job the user typed in themselves (PRD §7.26). `_mergedManual` is one the pipeline has
 // since found for itself — it keeps the "Added manually" badge, but it can no longer be deleted.
 const _isManual = job.job_source === 'Manual';
 const _mergedManual = _isManual && !!job.merged_from;
@@ -541,7 +541,7 @@ function renderLinks(raw) {
   </div>
   <% } %>
 
-  <%# ── Delete (manual_jobs.md §7) ──────────────────────────────────────────────────────────
+  <%# ── Delete (PRD §7.26) ──────────────────────────────────────────────────────────
       Manual jobs only, by their creator, and no edit — a typo'd title is fixed by deleting and
       re-adding. A quiet link, last thing in the column, well away from the exits: nothing else in
       the app deletes a job.

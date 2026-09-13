@@ -381,7 +381,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
       },
     };
 
-    // ── Adopting a manual job (manual_jobs.md §6) ─────────────────────────────────────────────
+    // ── Adopting a manual job (PRD §7.26) ─────────────────────────────────────────────
     //
     // The user added "PM at Stripe" by hand; three weeks later we scrape that exact posting. Rather
     // than show a second card, the scraped details are poured into the card they already have — it
@@ -874,7 +874,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           // two genuinely different openings can share a title at one company, and a false merge
           // silently swallows a real status history. Measured before it was written: of 1,980 real
           // candidates on the live base, none is excluded by this clause; it only ever bites a
-          // manually added job the user gave no description (manual_jobs.md §6).
+          // manually added job the user gave no description (PRD §7.26).
           const dbCandidates = db.prepare(`
             SELECT j.id, j.title, COALESCE(jd.description_text, j.description) AS description FROM jobs j
             JOIN job_profile_states jps ON jps.job_id = j.id

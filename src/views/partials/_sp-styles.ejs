@@ -177,4 +177,171 @@
   @media(max-width:900px){.sp-act{grid-template-columns:1fr}.sp-actcell{border-right:0;border-bottom:1px solid var(--line)}.sp-actcell:last-child{border-bottom:0}}
   @media(max-width:1100px){.sp-kpi-grid{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:560px){.sp-kpi-grid{grid-template-columns:1fr}}
+
+  /* ══ Stats rebuild (new_stats.md) — additions only; nothing above is modified, because this
+     kit is shared with Admin → Stats. ══════════════════════════════════════════════════════ */
+
+  /* Application Pipeline. Four nodes, three connectors. No mark encodes a quantity as a length:
+     each gate's length was the percentage printed above it, the three were normalised to three
+     different denominators so they never compared, and the unfilled remainder read as progress
+     toward a target this funnel does not have (D1). The denominator is written instead. */
+  .sp-fnl{display:grid;align-items:start;
+    grid-template-columns:auto minmax(96px,1fr) auto minmax(96px,1fr) auto minmax(96px,1fr) auto}
+  .sp-fnode{text-align:center;padding:0 8px;min-width:88px}
+  .sp-fnode-l{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .sp-fnode-n{font-size:32px;font-weight:800;letter-spacing:-.025em;line-height:1.05;
+    font-variant-numeric:tabular-nums;color:var(--ink);margin-top:7px}
+  .sp-fgate{padding:0 8px;margin-top:12px}
+  .sp-fgate-p{display:flex;align-items:baseline;justify-content:center;gap:5px;flex-wrap:wrap;line-height:1;
+    font-size:13.5px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+  .sp-fgate-den{font-size:11px;font-weight:700;color:var(--faintest)}
+  .sp-fgate-arrow{display:flex;align-items:center;margin-top:9px}
+  .sp-fgate-shaft{flex:1;min-width:0;height:2px;background:#d6dae2}
+  .sp-fgate-head{flex:none;display:block;color:#d6dae2}
+
+  /* Progressed-by-country / by-role tiles. One surface for every tile: a sequential ramp would
+     have to pick thresholds, and a good conversion rate differs by person and market, so the
+     tint would encode the app's opinion rather than the data (D5a). Sort carries the ranking. */
+  .sp-cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;align-items:start}
+  .sp-ctile{aspect-ratio:1;display:flex;flex-direction:column;justify-content:space-between;
+    padding:10px;border-radius:10px;border:1px solid var(--line2);background:#fbfcfe}
+  /* Two lines reserved whether the name needs them or not, so every figure in the grid sits on
+     one baseline; clamped at three, because a user-named role has no length limit. */
+  .sp-ctile-c{font-size:11.5px;font-weight:800;line-height:1.28;min-height:2.56em;letter-spacing:-.005em;
+    color:var(--ink);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .sp-ctile-m{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+  .sp-ctile-n{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1;
+    font-variant-numeric:tabular-nums;color:var(--ink)}
+  .sp-ctile-p{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--faintest)}
+  .sp-ctile-d{font-size:10px;font-weight:600;color:var(--fainter);font-variant-numeric:tabular-nums;margin-top:4px}
+  /* A tile where something actually moved. Flat, one colour, and binary — zero against one-or-more
+     is categorical, not a threshold, which is why this survives the argument that killed the ramp.
+     The tone is the In Progress status colour the job rail already taught, and it is the pairing
+     DS §1.1 names outright: `--green2` is "ink (text on soft)". Contrast on `--green-soft`:
+     `--green2` 4.55:1, and the denominator moves to `--muted` (5.47:1) because `--fainter` is
+     2.38:1 there — legible on white, not on this. */
+  .sp-ctile.hit{background:var(--green-soft);border-color:var(--green-border)}
+  .sp-ctile.hit .sp-ctile-c,.sp-ctile.hit .sp-ctile-n,.sp-ctile.hit .sp-ctile-p{color:var(--green2)}
+  .sp-ctile.hit .sp-ctile-d{color:var(--muted)}
+  .sp-cmore-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:10px;
+    height:34px;background:#fff;border:1px solid var(--line2);border-radius:9px;font:inherit;font-size:12px;
+    font-weight:700;color:var(--muted);cursor:pointer}
+  .sp-cmore-btn:hover{background:#fafbfc;color:var(--ink2)}
+  .sp-cmore-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* The §4 filter-trigger button as a class — lifted from views/jobs.ejs, same metrics. */
+  .sp-filterbtn{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;font-size:12px;font-weight:700;
+    border-radius:9px;cursor:pointer;white-space:nowrap;color:var(--muted);background:#fff;
+    border:1px solid var(--line2);font-family:inherit}
+  .sp-filterbtn.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-border)}
+  .sp-filterbtn svg{flex:none}
+  .sp-rangebtn,.sp-filterbtn{cursor:pointer}
+  .sp-rangebtn:focus-visible,.sp-filterbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .sp-bardiv{width:1px;height:20px;background:var(--line2);flex:none;margin:0 2px}
+  /* A card holding a popover cannot clip its own overflow, or the calendar and the filter menus
+     are cut off at its edge. The clipping moves to the block BELOW the controls, which is the
+     only part that needs it — a table whose last row carries a background would otherwise square
+     off the card's bottom corners. */
+  .sp-cardfoot{overflow:hidden;border-radius:0 0 var(--radius-card,16px) var(--radius-card,16px)}
+  /* §4 multi-select menu, same metrics as the one on Matches / All Jobs. */
+  .sp-menu{display:none;position:absolute;top:38px;left:0;z-index:30;background:#fff;border:1px solid #e4e6ec;
+    border-radius:12px;box-shadow:var(--shadow-dropdown);padding:6px;width:250px;max-height:340px;overflow-y:auto}
+  .sp-menurow{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer}
+  .sp-menurow.on{background:var(--accent-soft)}
+  .sp-menurow .nm{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--ink)}
+  .sp-menurow.on .nm{font-weight:800}
+  .sp-cb{width:16px;height:16px;border-radius:4px;border:1px solid var(--line2);flex:none;background:#fff}
+  .sp-cb.on{background:var(--accent);border-color:var(--accent);position:relative}
+  .sp-cb.on::after{content:'';position:absolute;left:5px;top:1.5px;width:4px;height:8px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+
+  /* Count over share, in one cell — what lets the month table carry 13 columns. */
+  .sp-num{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink2);font-size:13px;line-height:1.25}
+  .sp-pct{display:block;font-size:11px;font-weight:700;color:var(--faintest);
+    font-variant-numeric:tabular-nums;margin-top:2px}
+  .sp-rowdim td{color:var(--faintest)}
+  /* The type dot rides WITH the name. Set to display:block it put a coloured dot alone on a line,
+     which reads as a bullet for a missing word; the name wraps instead. */
+  .sp-stagedot{width:8px;height:8px;border-radius:3px;display:inline-block;vertical-align:middle;
+    margin-right:7px;flex:none}
+
+  /* Dense month table. The base header is `white-space:nowrap`, and at the 13-column ceiling
+     "HIRING MANAGER" alone claims ~95px — enough to force the sideways scrolling DS §6.3
+     reserves for charts. Wrapping the header is the whole fix. */
+  .sp-tbl-dense thead th{white-space:normal;font-size:9.5px;padding:9px 5px;line-height:1.25;vertical-align:bottom}
+  .sp-tbl-dense thead th.l{padding-left:16px;white-space:nowrap}
+  .sp-tbl-dense tbody td{padding:11px 5px;font-size:12.5px}
+  .sp-tbl-dense tbody td.l{padding-left:16px}
+  .sp-tbl-dense .sp-num{font-size:12.5px}
+  .sp-tbl-dense .sp-pct{font-size:10px}
+  .sp-tbl-dense tfoot td{padding:10px 5px;font-size:11.5px;line-height:1.3}
+  .sp-tbl-dense tfoot td.l{padding-left:16px}
+  .sp-tbl-dense tfoot td span{display:block;font-size:10px;color:var(--faintest);font-weight:700}
+  .sp-tbl-dense .sp-stagedot{width:7px;height:7px;margin-right:5px}
+  /* The table always spans its card, so its header band and row rules reach both edges — a table
+     that stops mid-card reads as a broken block floating inside a whole one. What varies is the
+     COLUMNS, not the table: each figure column asks for 76px and the label column takes whatever
+     is left, so a few statuses sit as a compact group at the right edge and many are squeezed
+     evenly by `table-layout:fixed`. An earlier `max-width` capped the whole table instead, which
+     fixed the two-column case by breaking every other one. */
+  .sp-tbl-months,.sp-tbl.sp-tbl-sum{width:100%;max-width:none;table-layout:fixed}
+  /* Two behaviours, one threshold. With MANY statuses the label column is pinned at 24% and the
+     figures divide the rest evenly, so the table justifies across the card. With FEW, pinning the
+     label would inflate each figure column to 200px+ and strand a single number in it — so the
+     figures take a fixed 130px and the label absorbs the slack, leaving them a compact group at
+     the right edge. `.sp-tbl-tight` is set by the view at <= 5 figure columns, which is where an
+     even share would otherwise exceed ~160px.
+     (A single `min(160px, calc((100% - 260px)/var(--cols)))` would express both, but a percentage
+     inside min() is not resolvable for a table column and the whole declaration is dropped —
+     every column then falls back to auto and comes out equal, label included.) */
+  .sp-tbl-months thead th.l,.sp-tbl.sp-tbl-sum thead th.l{width:24%}
+  .sp-tbl-tight thead th.l{width:auto}
+  .sp-tbl-tight thead th:not(.l){width:130px}
+
+  /* Reflowed figure grid. A two-line label ("HIRING MANAGER") otherwise pushes its own chip down
+     while a one-line neighbour's stays up, so the figures zig-zag across the row. Stretching each
+     cell to the row height and pinning the label to the top and the chip to the bottom puts every
+     figure on one line, whatever its label does. Scoped to `.sp-figs` — plain `.sp-cday-*` is
+     shared with Admin Stats' cohort grid, whose labels are all one line and must not move. */
+  .sp-cday-g.sp-figs .sp-cday-c{display:flex;flex-direction:column;justify-content:space-between}
+  .sp-cday-g.sp-figs .sp-cday-l{margin-bottom:0}
+  /* Fixed layout sizes from the header alone, so a status named as one long unbroken word would
+     spill its cell rather than widen it. */
+  .sp-tbl-dense thead th{overflow-wrap:anywhere}
+
+  /* Applications by status — the month table's totals row given its own card. Two classes, so it
+     out-specifies .sp-tbl-dense, which is declared above and would otherwise silently win. */
+  .sp-tbl.sp-tbl-sum tbody td{padding:14px 12px 6px;text-align:center;font-size:15px;font-weight:800;
+    color:var(--ink);border-top:1px solid var(--line2);background:#fbfcfe;font-variant-numeric:tabular-nums}
+  .sp-tbl.sp-tbl-sum tbody td.l{text-align:left;padding-left:20px;font-size:13px}
+  .sp-tbl.sp-tbl-sum tbody tr.sp-pctrow td{border-top:0;padding-top:0;padding-bottom:14px;
+    font-size:12px;font-weight:700;color:var(--faintest)}
+  .sp-tbl.sp-tbl-sum tbody tr.sp-pctrow td.l{font-size:12px;font-weight:700;color:var(--faint)}
+  .sp-tbl.sp-tbl-sum tbody tr:hover{background:#fbfcfe}
+
+  @media(max-width:767px){
+    /* The funnel turns its corner: nodes stack and each connector stands up, so the arrow still
+       points the way the flow goes. */
+    .sp-fnl{grid-template-columns:1fr}
+    .sp-fnode{text-align:left;padding:0;min-width:0}
+    .sp-fnode-n{margin-top:4px;font-size:28px}
+    .sp-fgate{display:grid;grid-template-columns:11px 1fr;gap:14px;align-items:center;padding:10px 0;margin-top:0}
+    .sp-fgate-p{grid-column:2;justify-content:flex-start}
+    .sp-fgate-arrow{grid-column:1;grid-row:1;flex-direction:column;align-items:center;height:46px;margin-top:0}
+    .sp-fgate-shaft{width:2px;flex:1;height:auto}
+    .sp-fgate-head{transform:rotate(90deg)}
+    /* Six tiles — two rows of three — then the overflow control. */
+    .sp-cgrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .sp-ctile{padding:9px}
+    .sp-ctile-c{font-size:11px;-webkit-line-clamp:3}
+    .sp-ctile-n{font-size:19px}
+    .sp-tile-over-6{display:none}
+    .sp-cgrid.expanded .sp-tile-over-6{display:flex}
+  }
+  /* Past the cap for this breakpoint — 12 on desktop, 6 on phones. The tail is in the DOM, so
+     revealing it costs no request. */
+  .sp-tile-over-12{display:none}
+  .sp-cgrid.expanded .sp-tile-over-12{display:flex}
+  /* The control appears only where something is actually hidden: at 7–12 tiles that is phones only. */
+  @media(min-width:768px){.sp-cgrid:not(:has(.sp-tile-over-12)) + .sp-tile-more{display:none}}
 </style>

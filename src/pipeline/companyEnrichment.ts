@@ -194,7 +194,7 @@ export async function enrichCompanies(
   return { tokenUsage, enriched, failed };
 }
 
-// ── Manual add: the one-time check (manual_jobs.md §5, §14) ──────────────────────────────────
+// ── Manual add: the one-time check (PRD §7.26, §7.6) ──────────────────────────────────
 //
 // Two constants, joined only at the call site. `COMPANY_ENRICHMENT_PROMPT` above is NOT edited and
 // this one knows only about `name_correction` — restating the five enrichment fields in a second

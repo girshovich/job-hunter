@@ -456,7 +456,7 @@ router.post('/profiles/:id/delete', (req: Request, res: Response) => {
     db.prepare('DELETE FROM job_profile_states WHERE profile_id = ?').run(targetId);
     // Jobs this profile added by hand. They are private to it by construction (nobody else has a
     // state row), so deleting them is correct — and without this they linger forever as unreachable
-    // rows that `ON DELETE SET NULL` has stripped of their owner (manual_jobs.md §9.1).
+    // rows that `ON DELETE SET NULL` has stripped of their owner (PRD §7.26, §8).
     db.prepare('DELETE FROM jobs WHERE created_by_profile_id = ?').run(targetId);
     db.prepare('DELETE FROM search_groups WHERE profile_id = ?').run(targetId);
     db.prepare('DELETE FROM settings WHERE profile_id = ?').run(targetId);
@@ -1380,7 +1380,7 @@ router.patch('/jobs/:id/notes', (req: Request, res: Response) => {
 });
 
 
-// ══ Manually added jobs (manual_jobs.md) ═══════════════════════════════════════════════════════
+// ══ Manually added jobs (PRD §7.26) ═══════════════════════════════════════════════════════
 //
 // Four endpoints. The save cannot be one atomic step: a SQLite transaction is synchronous, the
 // company lookup is a 2–10s network call, and the "Did you mean X?" fork needs the **user** to

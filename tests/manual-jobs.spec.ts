@@ -1,5 +1,5 @@
 /**
- * E2E: manually added jobs (manual_jobs.md §13).
+ * E2E: manually added jobs (PRD §7.26).
  *
  * Each test covers a failure the spec was written around — the two origins and the history each
  * writes, the status trap that would relabel every scraped job "Incoming", the Start page counting

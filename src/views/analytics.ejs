@@ -1,34 +1,274 @@
 <%- include('partials/_sp-styles') %>
 
-<!-- Stats page -->
+<%
+// One rule for every percentage on the page (new_stats.md D6c): one decimal, dropped when it is
+// a zero. The `< 0.1` test runs on the RAW value — rounding first would turn 0.04% into a zero
+// it is not. Money is the one exemption and keeps two decimals.
+function pct(num, den) {
+  if (!den) return null;                       // no denominator → em dash, never 0%
+  const v = num / den * 100;
+  if (v === 0) return '0%';
+  if (v < 0.1) return '&lt;0.1%';
+  const r = Math.round(v * 10) / 10;
+  return (r === Math.round(r) ? r : r.toFixed(1)) + '%';
+}
+function num(n) { return n.toLocaleString('en-US'); }
+
+const chev = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="opacity:.7"><path d="m6 9 6 6 6-6"/></svg>';
+const TYPE_DOT = { applied: 'var(--sky-ink)', progress: 'var(--green)', offer: 'var(--gold)', rejected: 'var(--red)' };
+
+const STAGES = [
+  { label: 'All jobs',   n: funnel.all },
+  { label: 'Strong',     n: funnel.strong,     of: 'all jobs', den: funnel.all },
+  { label: 'Applied',    n: funnel.applied,    of: 'strong',   den: funnel.strong },
+  { label: 'Progressed', n: funnel.progressed, of: 'applied',  den: funnel.applied },
+];
+%>
+
 <div>
   <h1 class="sp-h1">Stats</h1>
   <p class="sp-date">How your job search is performing</p>
 </div>
 
-<!-- ── Overall numbers ── -->
-<div class="sp-kpi-grid">
-  <div class="sp-card sp-kpi">
-    <div class="sp-kpi-n" style="color:var(--accent)"><%= totals.applied %></div>
-    <div class="sp-kpi-l">Applied</div>
-    <div class="sp-kpi-sub"><%= totals.strong > 0 ? Math.round(totals.applied / totals.strong * 100) : 0 %>% of strong matches</div>
-  </div>
-  <div class="sp-card sp-kpi">
-    <div class="sp-kpi-n" style="color:var(--ink)"><%= totals.strong %></div>
-    <div class="sp-kpi-l">Strong Matches</div>
-    <div class="sp-kpi-sub">total found</div>
-  </div>
-  <div class="sp-card sp-kpi">
-    <div class="sp-kpi-n" style="color:var(--faint)"><%= totals.total %></div>
-    <div class="sp-kpi-l">Total Jobs Saved</div>
-    <div class="sp-kpi-sub">all verdicts (deduplicated)</div>
+<!-- ── Application Pipeline ── -->
+<div class="sp-card" style="margin-top:22px;overflow:hidden">
+  <div class="sp-hd"><div class="sp-title">Application Pipeline</div></div>
+  <div class="sp-pad" style="padding-top:24px;padding-bottom:24px">
+    <div class="sp-fnl">
+      <% STAGES.forEach((st, i) => { %>
+        <% if (i > 0) { %>
+        <div class="sp-fgate">
+          <div class="sp-fgate-p">
+            <% const p = pct(st.n, st.den); %>
+            <%- p === null ? '<span class="sp-na">&mdash;</span>' : p %><span class="sp-fgate-den">of <%= st.of %></span>
+          </div>
+          <div class="sp-fgate-arrow">
+            <div class="sp-fgate-shaft"></div>
+            <svg class="sp-fgate-head" width="9" height="11" viewBox="0 0 9 11" aria-hidden="true"><path d="M0 0l9 5.5-9 5.5z" fill="currentColor"/></svg>
+          </div>
+        </div>
+        <% } %>
+        <div class="sp-fnode">
+          <div class="sp-fnode-l"><%= st.label %></div>
+          <div class="sp-fnode-n"><%= num(st.n) %></div>
+        </div>
+      <% }); %>
+    </div>
   </div>
 </div>
 
-<!-- ── Status Breakdown ── -->
-<% if (totals.total > 0) { %>
 <%
-  const STATUS_CONFIG = {
+// One tile grid, two callers.
+function tileGrid(id, tiles) {
+  if (tiles.length === 0) return '<div class="sp-empty">Nothing applied to yet.</div>';
+  // Twelve show on desktop and six on phones. Everything past the cap is rendered and CSS-hidden
+  // rather than fetched: the tail is a few hundred bytes, and a route that only fires once a user
+  // has applied in 13+ countries would be a pending state, an error state and a retry nobody ever
+  // exercises (new_stats.md §7). Dropping the tail outright would lose data silently.
+  let out = '<div class="sp-cgrid" id="' + id + '">';
+  tiles.forEach((t, i) => {
+    const rate = pct(t.progressed, t.applications);
+    const over = i >= 12 ? ' sp-tile-over-12' : (i >= 6 ? ' sp-tile-over-6' : '');
+    // Names clamp to two lines on desktop, so the full one has to stay reachable on hover.
+    out += '<div class="sp-ctile' + (t.progressed > 0 ? ' hit' : '') + over
+      + '" title="' + escapeHtml(t.label) + '">'
+      + '<div class="sp-ctile-c">' + escapeHtml(t.label) + '</div>'
+      + '<div><div class="sp-ctile-m"><span class="sp-ctile-n">' + t.progressed + '</span>'
+      + '<span class="sp-ctile-p">' + (rate === null ? '&mdash;' : rate) + '</span></div>'
+      + '<div class="sp-ctile-d">of ' + t.applications + ' applied</div></div></div>';
+  });
+  out += '</div>';
+  if (tiles.length > 6) {
+    // One label for both breakpoints — "N more" would be wrong on one of them.
+    out += '<button type="button" class="sp-cmore-btn sp-tile-more" data-grid="' + id + '">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9l-7 7-7-7"/></svg>'
+      + 'Show all ' + tiles.length + '</button>';
+  }
+  return out;
+}
+%>
+
+<!-- ── Progressed by country ── -->
+<div class="sp-card" style="margin-top:20px;overflow:hidden">
+  <div class="sp-hd">
+    <div class="sp-title">Progressed by country</div>
+    <div class="sp-sub">Applications that reached an In Progress or Offer status, against everything you sent there. All time.</div>
+  </div>
+  <div class="sp-pad"><%- tileGrid('sp-grid-country', countryTiles) %></div>
+</div>
+
+<!-- ── Progressed by role ── -->
+<div class="sp-card" style="margin-top:20px;overflow:hidden">
+  <div class="sp-hd"><div class="sp-title">Progressed by role</div></div>
+  <div class="sp-pad"><%- tileGrid('sp-grid-role', roleTiles) %></div>
+</div>
+
+<%
+function headCells() {
+  return columns.map(c =>
+    '<th><span class="sp-stagedot" style="background:' + (TYPE_DOT[c.type] || 'var(--faint)') + '"></span>'
+    + escapeHtml(c.label) + '</th>').join('');
+}
+%>
+
+<!-- ── Applications by status — all time, no range, no filters ── -->
+<div class="sp-card" style="margin-top:20px;overflow:hidden">
+  <div class="sp-hd">
+    <div class="sp-title">Applications by status</div>
+    <div class="sp-sub">Every application you have ever made and the furthest each one got. All time — no range, no filters.</div>
+  </div>
+  <% if (columns.length === 0) { %>
+  <div class="sp-empty">No applications yet.</div>
+  <% } else { %>
+  <div class="sp-cohort-desktop">
+    <table class="sp-tbl sp-tbl-sum sp-tbl-dense <%= columns.length <= 5 ? 'sp-tbl-tight' : '' %>">
+      <thead><tr><th class="l"></th><%- headCells() %></tr></thead>
+      <tbody>
+        <tr><td class="l">All applications</td><% allTimeRow.cells.forEach(v => { %><td><%= v %></td><% }); %></tr>
+        <tr class="sp-pctrow"><td class="l">%</td>
+          <% allTimeRow.cells.forEach(v => { const p = pct(v, allTimeRow.applied); %>
+          <td><%- p === null ? '<span class="sp-na">&mdash;</span>' : p %></td>
+          <% }); %>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- Below 768px the figure columns fall to ~45px, where even "RECRUITER" breaks mid-word.
+       Same answer as the month table: reflow, not scroll (DS §6.3). -->
+  <div class="sp-cohort-mobile">
+    <div class="sp-cday">
+      <div class="sp-cday-h">
+        <span class="sp-cday-d">All applications</span>
+        <span class="sp-cday-n"><%= allTimeRow.applied %> applied</span>
+      </div>
+      <div class="sp-cday-g sp-figs">
+        <% allTimeRow.cells.forEach((v, i) => { if (i === 0) return; %>
+        <div class="sp-cday-c">
+          <div class="sp-cday-l"><%= columns[i].label %></div>
+          <div class="sp-cday-v" style="<%= columns[i].type === 'offer' ? 'background:var(--amber-soft);color:var(--gold-ink)' : columns[i].type === 'rejected' ? 'background:var(--red-soft);color:var(--red-ink)' : 'background:var(--green-soft);color:var(--green2)' %>"><%= v %> · <%- pct(v, allTimeRow.applied) %></div>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ── Applications by month ── -->
+<div class="sp-card" style="margin-top:20px">
+  <div class="sp-hd">
+    <div class="sp-title">Applications by month</div>
+    <div class="sp-sub">A row is the month you <b style="font-weight:700;color:var(--muted)">applied</b>. Apply in July and reach Recruiter in August, and both land on the July row.</div>
+  </div>
+
+  <div style="padding:0 20px">
+    <div class="sp-bar">
+      <div style="position:relative;flex:none">
+        <button type="button" class="sp-rangebtn active" id="sp-range-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" style="margin-right:6px"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+          <%= rangeLabel %>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="margin-left:6px"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="sp-range-menu" style="display:none;position:absolute;top:38px;left:0;z-index:30;background:#fff;border:1px solid #e4e6ec;border-radius:14px;box-shadow:var(--shadow-dropdown);padding:14px">
+          <div class="date-cal" style="width:288px"></div>
+        </div>
+      </div>
+      <div style="position:relative;flex:none">
+        <button type="button" class="sp-filterbtn <%= selectedRoles.length ? 'active' : '' %>" data-menu="role">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="12" height="4" rx="1"/><rect x="3" y="16" width="7" height="4" rx="1"/></svg>
+          <span><%= selectedRoles.length === 0 ? 'Role' : (selectedRoles.length === 1 ? ((roleOptions.find(r => String(r.id) === selectedRoles[0]) || {}).name || '1 role') : selectedRoles.length + ' roles') %></span>
+          <%- chev %>
+        </button>
+        <div class="sp-menu" data-for="role"></div>
+      </div>
+      <div style="position:relative;flex:none">
+        <button type="button" class="sp-filterbtn <%= selectedCountries.length ? 'active' : '' %>" data-menu="country">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+          <span><%= selectedCountries.length === 0 ? 'Country' : (selectedCountries.length === 1 ? selectedCountries[0] : selectedCountries.length + ' countries') %></span>
+          <%- chev %>
+        </button>
+        <div class="sp-menu" data-for="country"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sp-cardfoot">
+  <% if (columns.length === 0) { %>
+  <div class="sp-empty">No applications in this range.</div>
+  <% } else { %>
+  <div class="sp-cohort-desktop">
+    <table class="sp-tbl sp-tbl-months sp-tbl-dense <%= columns.length <= 5 ? 'sp-tbl-tight' : '' %>">
+      <thead><tr><th class="l">Month</th><%- headCells() %></tr></thead>
+      <tbody>
+        <% monthRows.forEach(r => { %>
+        <tr>
+          <td class="l"><%= r.label %></td>
+          <% r.cells.forEach((v, i) => { %>
+            <% if (v === null) { %><td><span class="sp-na">&mdash;</span></td>
+            <% } else if (i === 0) { %><td><span class="sp-num" style="color:var(--sky-ink)"><%= v %></span></td>
+            <% } else { %><td><span class="sp-num"><%= v %></span><span class="sp-pct"><%- pct(v, r.applied) %></span></td><% } %>
+          <% }); %>
+        </tr>
+        <% }); %>
+        <% if (undatedCount > 0) { %>
+        <tr class="sp-rowdim">
+          <td class="l" style="color:var(--muted);font-weight:600">Undated<span style="font-weight:500;color:var(--faintest)"> · applied before tracking</span></td>
+          <% columns.forEach((c, i) => { %>
+            <% if (i === 0) { %><td><span class="sp-num" style="color:var(--faint)"><%= undatedCount %></span></td>
+            <% } else { %><td><span class="sp-na">&mdash;</span></td><% } %>
+          <% }); %>
+        </tr>
+        <% } %>
+      </tbody>
+      <% if (monthRows.length + (undatedCount > 0 ? 1 : 0) > 1) { %>
+      <tfoot><tr>
+        <td class="l">Total shown</td>
+        <% totalRow.cells.forEach((v, i) => { %>
+          <% if (i === 0) { %><td><%= v %></td>
+          <% } else { %><td><%= v %> <span><%- pct(v, totalRow.applied) %></span></td><% } %>
+        <% }); %>
+      </tr></tfoot>
+      <% } %>
+    </table>
+  </div>
+
+  <!-- Below 768px: reflow, not scroll (DS §6.3). -->
+  <div class="sp-cohort-mobile">
+    <% monthRows.forEach(r => { %>
+    <div class="sp-cday">
+      <div class="sp-cday-h">
+        <span class="sp-cday-d"<%- r.applied === 0 ? ' style="color:var(--muted)"' : '' %>><%= r.label %></span>
+        <span class="sp-cday-n"><%= r.applied %> applied</span>
+      </div>
+      <% if (r.applied > 0) { %>
+      <div class="sp-cday-g sp-figs">
+        <% r.cells.forEach((v, i) => { if (i === 0) return; %>
+        <div class="sp-cday-c">
+          <div class="sp-cday-l"><%= columns[i].label %></div>
+          <div class="sp-cday-v" style="<%= columns[i].type === 'offer' ? 'background:var(--amber-soft);color:var(--gold-ink)' : columns[i].type === 'rejected' ? 'background:var(--red-soft);color:var(--red-ink)' : 'background:var(--green-soft);color:var(--green2)' %>"><%= v %> · <%- pct(v, r.applied) %></div>
+        </div>
+        <% }); %>
+      </div>
+      <% } %>
+    </div>
+    <% }); %>
+    <% if (undatedCount > 0) { %>
+    <div class="sp-cday">
+      <div class="sp-cday-h">
+        <span class="sp-cday-d" style="color:var(--muted)">Undated · applied before tracking</span>
+        <span class="sp-cday-n"><%= undatedCount %> applied</span>
+      </div>
+    </div>
+    <% } %>
+  </div>
+  <% } %>
+  </div>
+</div>
+
+<!-- ── All Jobs by verdict ── -->
+<% if (statusBreakdown.length > 0) { %>
+<%
+  const VERDICT = {
     STRONG_MATCH: { label: formatVerdictLabel('STRONG_MATCH'), bar: 'var(--green)' },
     WEAK_MATCH:   { label: formatVerdictLabel('WEAK_MATCH'),   bar: 'var(--amber)' },
     NO_MATCH:     { label: formatVerdictLabel('NO_MATCH'),     bar: 'var(--red)' },
@@ -36,164 +276,75 @@
     BLACKLISTED:  { label: formatVerdictLabel('BLACKLISTED'),  bar: '#9ca3af' },
     UNKNOWN:      { label: formatVerdictLabel('UNKNOWN'),      bar: '#d1d5db' },
   };
-  const STATUS_ORDER = ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH', 'DUPLICATE', 'BLACKLISTED'];
+  const ORDER = ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH', 'DUPLICATE', 'BLACKLISTED'];
   const sbMap = {};
   statusBreakdown.forEach(s => { sbMap[s.status] = s.count; });
-  const orderedBreakdown = STATUS_ORDER.filter(k => sbMap[k]).map(k => ({ status: k, count: sbMap[k] }));
-  statusBreakdown.forEach(s => { if (!STATUS_ORDER.includes(s.status) && s.count > 0) orderedBreakdown.push(s); });
-  const totalCount = orderedBreakdown.reduce((a, s) => a + s.count, 0) || 1;
+  const ordered = ORDER.filter(k => sbMap[k]).map(k => ({ status: k, count: sbMap[k] }));
+  statusBreakdown.forEach(s => { if (!ORDER.includes(s.status) && s.count > 0) ordered.push(s); });
+  const verdictTotal = ordered.reduce((a, s) => a + s.count, 0) || 1;
 %>
-<div class="sp-card sp-pad" style="margin-top:20px">
-  <div class="sp-title">All Results by Status</div>
-  <!-- Stacked proportional bar -->
-  <div class="sp-statbar">
-    <% orderedBreakdown.forEach(s => {
-       const cfg = STATUS_CONFIG[s.status] || { label: formatVerdictLabel(s.status), bar: '#d1d5db' };
-       const pct = Math.round(s.count / totalCount * 100);
-    %>
-    <% if (pct > 0) { %>
-    <div style="width:<%= pct %>%;background:<%= cfg.bar %>;" title="<%= cfg.label %>: <%= s.count %> (<%= pct %>%)">
-      <% if (pct >= 8) { %><%= pct %>%<% } %>
+<div class="sp-card" style="margin-top:20px;overflow:hidden">
+  <div class="sp-pad" style="padding-bottom:22px">
+    <div class="sp-title">All Jobs by verdict</div>
+    <div class="sp-statbar">
+      <% ordered.forEach(s => {
+         const cfg = VERDICT[s.status] || { label: formatVerdictLabel(s.status), bar: '#d1d5db' };
+         const w = Math.round(s.count / verdictTotal * 100); %>
+      <% if (w > 0) { %>
+      <div style="width:<%= w %>%;background:<%= cfg.bar %>;" title="<%= cfg.label %>: <%= s.count %>">
+        <% if (w >= 8) { %><%- pct(s.count, verdictTotal) %><% } %>
+      </div>
+      <% } %>
+      <% }); %>
     </div>
-    <% } %>
-    <% }); %>
-  </div>
-  <!-- Legend -->
-  <div class="sp-statlegend">
-    <% orderedBreakdown.forEach(s => {
-       const cfg = STATUS_CONFIG[s.status] || { label: formatVerdictLabel(s.status), bar: '#d1d5db' };
-    %>
-    <div class="sp-statleg">
-      <span class="sp-statdot" style="background:<%= cfg.bar %>"></span>
-      <%= cfg.label %>: <b style="color:<%= cfg.bar %>;margin-left:2px"><%= s.count %></b>
-    </div>
-    <% }); %>
-  </div>
-</div>
-<% } %>
-
-<!-- ── By Role + By Country ── -->
-<div class="sp-grid2">
-
-  <!-- By Role -->
-  <div class="sp-card" style="overflow:hidden">
-    <div class="sp-hd">
-      <div class="sp-title">By Role</div>
-      <div class="sp-sub">Strong matches found and applied per role</div>
-    </div>
-    <% if (groupStats.length === 0) { %>
-    <div class="sp-empty">No roles yet.</div>
-    <% } else { %>
-    <table class="sp-tbl sp-roles-desktop">
-      <thead>
-        <tr><th class="l">Role</th><th>Found</th><th>Strong</th><th>Applied</th><th>Rate</th></tr>
-      </thead>
-      <tbody>
-        <% groupStats.forEach(g => { %>
-        <% const rate = g.strong > 0 ? Math.round(g.applied / g.strong * 100) : 0; %>
-        <tr>
-          <td class="l"><%= g.name %></td>
-          <td><%= g.total %></td>
-          <td class="sp-t-strong"><%= g.strong %></td>
-          <td class="sp-t-applied"><%= g.applied %></td>
-          <td>
-            <div class="sp-rate-wrap">
-              <div class="sp-rate-bar"><span style="width:<%= rate %>%"></span></div>
-              <span class="sp-rate-pct"><%= rate %>%</span>
-            </div>
-          </td>
-        </tr>
-        <% }); %>
-      </tbody>
-    </table>
-    <!-- Phones: the 5-column table can't fit — same rows as utility rows (DS §6). -->
-    <div class="sp-roles-mobile">
-      <% groupStats.forEach(g => { %>
-      <% const rate = g.strong > 0 ? Math.round(g.applied / g.strong * 100) : 0; %>
-      <div class="sp-rolerow">
-        <div class="sp-rolename"><%= g.name %></div>
-        <div class="sp-rolemeta">
-          <span>Found <b><%= g.total %></b></span>
-          <span>Strong <b class="sp-t-strong"><%= g.strong %></b></span>
-          <span>Applied <b class="sp-t-applied"><%= g.applied %></b></span>
-        </div>
-        <div class="sp-rolerate">
-          <div class="sp-rate-bar"><span style="width:<%= rate %>%"></span></div>
-          <span class="sp-rate-pct"><%= rate %>%</span>
-        </div>
+    <div class="sp-statlegend">
+      <% ordered.forEach(s => { const cfg = VERDICT[s.status] || { label: formatVerdictLabel(s.status), bar: '#d1d5db' }; %>
+      <div class="sp-statleg">
+        <span class="sp-statdot" style="background:<%= cfg.bar %>"></span>
+        <%= cfg.label %>: <b style="color:<%= cfg.bar %>;margin-left:2px"><%= s.count %></b>
       </div>
       <% }); %>
     </div>
-    <% } %>
   </div>
-
-  <!-- By Country -->
-  <div class="sp-card" style="overflow:hidden">
-    <div class="sp-hd">
-      <div class="sp-title">By Country</div>
-      <div class="sp-sub">Where strong matches are located</div>
-    </div>
-    <% if (countryStats.length === 0) { %>
-    <div class="sp-empty">No data yet.</div>
-    <% } else { %>
-    <% const maxCountryStrong = countryStats[0] ? countryStats[0].strong : 1; %>
-    <% const COUNTRY_VISIBLE = 4; const countryHidden = Math.max(0, countryStats.length - COUNTRY_VISIBLE); %>
-    <ul id="country-list" class="sp-clist jh-scroll">
-      <% countryStats.forEach(c => { %>
-      <li class="sp-crow">
-        <span class="sp-cname"><%= c.country %></span>
-        <div class="sp-cbar"><span style="width:<%= Math.round(c.strong / maxCountryStrong * 100) %>%"></span></div>
-        <span class="sp-cval"><%= c.strong %></span>
-        <span class="sp-capp"><% if (c.applied > 0) { %><%= c.applied %> applied<% } %></span>
-      </li>
-      <% }); %>
-    </ul>
-    <% if (countryHidden > 0) { %>
-    <div id="country-more" class="sp-cmore" onclick="document.getElementById('country-list').style.maxHeight='none';this.style.display='none';">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9l-7 7-7-7"/></svg>
-      <%= countryHidden %> more countr<%= countryHidden === 1 ? 'y' : 'ies' %>
-    </div>
-    <% } %>
-    <% } %>
-  </div>
-
+  <p class="sp-note">Counts <b><%= num(verdictTotal) %></b> rows, duplicates included. The funnel above starts from <b><%= num(funnel.all) %></b> — the same set, less the duplicates.</p>
 </div>
+<% } %>
 
 <!-- ── Daily Strong Matches — last 14 days ── -->
 <div class="sp-card sp-pad" style="margin-top:20px">
   <div class="sp-title">Daily Strong Matches — last 14 days</div>
-  <div class="sp-sub">AI strong matches kept vs. promoted/demoted by you</div>
   <div id="quality-legend" class="sp-qlegend"></div>
-  <div style="overflow-x:auto" class="jh-scroll">
+  <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x">
     <div id="quality-chart" style="display:flex;align-items:flex-end;gap:6px;"></div>
-  </div>
+  </div></div>
 </div>
 
-<!-- ── Monthly Strong Matches — last 12 months ── -->
+<!-- ── Costs — daily or monthly ── -->
 <div class="sp-card sp-pad" style="margin-top:20px">
-  <div class="sp-title">Monthly Strong Matches — last 12 months</div>
-  <div class="sp-sub">AI strong matches kept vs. promoted/demoted by you</div>
-  <div id="quality-monthly-legend" class="sp-qlegend"></div>
-  <div style="overflow-x:auto" class="jh-scroll">
-    <div id="quality-monthly-chart" style="display:flex;align-items:flex-end;gap:6px;"></div>
+  <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px"><div class="sp-title" id="cost-title">Costs — last 14 days</div></div>
+    <div style="display:flex;gap:8px;flex:none">
+      <button type="button" class="sp-rangebtn active" id="cost-d">Daily</button>
+      <button type="button" class="sp-rangebtn" id="cost-m">Monthly</button>
+    </div>
   </div>
-</div>
-
-<!-- ── Daily costs — last 14 days ── -->
-<div class="sp-card sp-pad" style="margin-top:20px">
-  <div class="sp-title">Daily costs — last 14 days</div>
-  <div class="sp-sub">Fetch and AI spend per day</div>
   <div id="cost-legend" class="sp-qlegend"></div>
-  <div style="overflow-x:auto" class="jh-scroll">
+  <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x">
     <div id="cost-chart" style="display:flex;align-items:flex-end;gap:6px;"></div>
-  </div>
+  </div></div>
 </div>
 
 <script>
-const QUALITY_RAW         = <%- JSON.stringify(strongQualityRaw) %>;
-const QUALITY_MONTHLY_RAW = <%- JSON.stringify(strongQualityMonthlyRaw) %>;
-const COST_RAW            = <%- JSON.stringify(dailyCostRaw) %>;
-const COST_DAYS           = <%- JSON.stringify(costDays) %>;
+const QUALITY_RAW = <%- JSON.stringify(strongQualityRaw) %>;
+const COST_DAILY  = <%- JSON.stringify(dailyCostRaw) %>;
+const COST_MONTHLY= <%- JSON.stringify(monthlyCostRaw) %>;
+const COST_DAYS   = <%- JSON.stringify(costDays) %>;
+const COST_MONTHS = <%- JSON.stringify(costMonths) %>;
+const SP_ROLES    = <%- JSON.stringify(roleOptions) %>;
+const SP_COUNTRIES= <%- JSON.stringify(countryOptions) %>;
+const SP_SEL      = { role: <%- JSON.stringify(selectedRoles) %>, country: <%- JSON.stringify(selectedCountries) %> };
+const SP_FROM     = '<%= rangeFrom %>-01';
+const SP_TO       = '<%= rangeTo %>-01';
 
 <%- include('partials/_stacked-chart') %>
 
@@ -208,45 +359,123 @@ const QUALITY_SPEC = {
   tipSuffix: ' strong matches',
   colW: 36,
 };
-// order[0] renders as the topmost segment — AI above, Fetch below.
+// Money is the one exemption to the page's percentage rule: two decimals, because a cent is the
+// unit a bill is read in. A non-zero amount under half a cent says so rather than printing $0.00.
+const money = v => (v > 0 && v < 0.005) ? '<$0.01' : '$' + v.toFixed(2);
 const COST_SPEC = {
   order:  ['ai', 'fetch'],
-  config: {
-    ai:    { label: 'AI',    color: 'var(--sky-ink)' },
-    fetch: { label: 'Fetch', color: 'var(--sky-border)' },
-  },
-  fmt: v => '$' + v.toFixed(3),
+  config: { ai: { label: 'AI', color: 'var(--sky-ink)' }, fetch: { label: 'Fetch', color: 'var(--sky-border)' } },
+  fmt: money,
   tipSuffix: '',
-  colW: 46,   // a "$0.302" label needs more room than a count before it collides when scrolled
+  colW: 46,
 };
 
-
-renderStackedChart(
-  'quality-chart', 'quality-legend', QUALITY_RAW,
-  getLastNDays(14),
+renderStackedChart('quality-chart', 'quality-legend', QUALITY_RAW, getLastNDays(14),
   d => { const p = d.split('-'); return MN[parseInt(p[1])-1] + ' ' + parseInt(p[2]); },
-  row => row.day,
-  QUALITY_SPEC
-);
-renderStackedChart(
-  'quality-monthly-chart', 'quality-monthly-legend', QUALITY_MONTHLY_RAW,
-  getLastNMonths(12),
-  m => MN[parseInt(m.slice(5))-1] + '<br>\'' + m.slice(2,4),
-  row => row.month,
-  QUALITY_SPEC
-);
-// Days come from the server, already in the profile's timezone.
-renderStackedChart(
-  'cost-chart', 'cost-legend', COST_RAW,
-  COST_DAYS,
-  d => { const p = d.split('-'); return MN[parseInt(p[1])-1] + ' ' + parseInt(p[2]); },
-  row => row.day,
-  COST_SPEC
-);
+  row => row.day, QUALITY_SPEC);
 
-// Scroll charts to show the most recent (rightmost) data on load
-['quality-chart', 'quality-monthly-chart', 'cost-chart'].forEach(id => {
+function drawCost(mode) {
+  const daily = mode === 'd';
+  renderStackedChart('cost-chart', 'cost-legend',
+    daily ? COST_DAILY : COST_MONTHLY,
+    daily ? COST_DAYS : COST_MONTHS,
+    daily ? (d => { const p = d.split('-'); return MN[parseInt(p[1])-1] + ' ' + parseInt(p[2]); })
+          : (m => MN[parseInt(m.slice(5))-1] + '<br>\'' + m.slice(2,4)),
+    row => row.day, COST_SPEC);
+  document.getElementById('cost-title').textContent = daily ? 'Costs — last 14 days' : 'Costs — last 12 months';
+  document.getElementById('cost-d').classList.toggle('active', daily);
+  document.getElementById('cost-m').classList.toggle('active', !daily);
+}
+drawCost('d');
+document.getElementById('cost-d').addEventListener('click', () => drawCost('d'));
+document.getElementById('cost-m').addEventListener('click', () => drawCost('m'));
+
+['quality-chart', 'cost-chart'].forEach(id => {
   const el = document.getElementById(id);
-  if (el && el.parentElement) el.parentElement.scrollLeft = el.parentElement.scrollWidth;
+  if (el && el.parentElement) requestAnimationFrame(() => { el.parentElement.scrollLeft = el.parentElement.scrollWidth; });
 });
+
+// ── Tile overflow: the hidden six are already in the DOM below 768px, so revealing them costs
+//    nothing. Nothing is fetched; the cap only exists to keep the phone grid two rows deep.
+document.querySelectorAll('.sp-tile-more').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById(btn.dataset.grid).classList.add('expanded');
+    btn.hidden = true;
+  });
+});
+
+// ── Filters: same multi-select idiom as Matches/All Jobs, server-nav on apply ────────────────
+function spNav(params) {
+  const u = new URL(window.location.href);
+  Object.entries(params).forEach(([k, v]) => { v ? u.searchParams.set(k, v) : u.searchParams.delete(k); });
+  window.location.href = u.toString();
+}
+document.querySelectorAll('.sp-filterbtn[data-menu]').forEach(btn => {
+  const kind = btn.dataset.menu;
+  const menu = btn.parentElement.querySelector('.sp-menu[data-for="' + kind + '"]');
+  const opts = kind === 'role'
+    ? SP_ROLES.map(r => ({ v: String(r.id), label: r.name }))
+    : SP_COUNTRIES.map(c => ({ v: c, label: c }));
+  let sel = SP_SEL[kind].slice();
+  function render() {
+    menu.innerHTML = '<div class="sp-menurow" data-all="1"><span class="sp-cb' + (sel.length === 0 ? ' on' : '') + '"></span>'
+      + '<span class="nm">All ' + (kind === 'role' ? 'roles' : 'countries') + '</span></div>'
+      + opts.map(o => '<div class="sp-menurow' + (sel.includes(o.v) ? ' on' : '') + '" data-v="' + o.v.replace(/"/g, '&quot;') + '">'
+        + '<span class="sp-cb' + (sel.includes(o.v) ? ' on' : '') + '"></span>'
+        + '<span class="nm">' + o.label.replace(/</g, '&lt;') + '</span></div>').join('');
+  }
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = menu.style.display === 'block';
+    document.querySelectorAll('.sp-menu').forEach(m => { m.style.display = 'none'; });
+    if (!open) { render(); menu.style.display = 'block'; }
+  });
+  menu.addEventListener('click', e => {
+    e.stopPropagation();
+    const row = e.target.closest('.sp-menurow');
+    if (!row) return;
+    if (row.dataset.all) sel = [];
+    else {
+      const v = row.dataset.v;
+      sel = sel.includes(v) ? sel.filter(x => x !== v) : sel.concat([v]);
+    }
+    render();
+  });
+  menu._apply = () => {
+    if (sel.slice().sort().join(',') !== SP_SEL[kind].slice().sort().join(',')) spNav({ [kind]: sel.join(',') });
+  };
+});
+document.addEventListener('click', () => {
+  document.querySelectorAll('.sp-menu').forEach(m => {
+    if (m.style.display === 'block') { m.style.display = 'none'; if (m._apply) m._apply(); }
+  });
+});
+
+// ── Range: the shared calendar (partials/_date-cal), capped at 12 months ──────────────────────
+// layout.ejs includes _date-cal AFTER the page body, so window.JHCal does not exist while this
+// script runs. Resolve it inside the handler — by the time anyone can click, the page has parsed.
+(function () {
+  const btn = document.getElementById('sp-range-btn');
+  const menu = document.getElementById('sp-range-menu');
+  if (!btn || !menu) return;
+  let cal = null;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
+    if (!cal && window.JHCal) {
+      cal = JHCal.attach({
+        root: menu.querySelector('.date-cal'),
+        from: SP_FROM, to: SP_TO,
+        maxSpan: 366,                       // 12 months, in days — the cap this table is built on
+        note: 'Up to 12 months at a time.',
+        onApply: (f, t) => spNav({ from: f.slice(0, 7), to: t.slice(0, 7) }),
+        onClear: () => spNav({ from: null, to: null }),
+      });
+    }
+    menu.style.display = 'block';
+    if (cal) cal.render();                  // the API asks for a render on each open
+  });
+  menu.addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => { menu.style.display = 'none'; });
+})();
 </script>

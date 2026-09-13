@@ -250,7 +250,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
 
   const settings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
 
-  // Everything the "Add a job" modal needs (manual_jobs.md §2). It lives in the layout — the detail
+  // Everything the "Add a job" modal needs (PRD §7.26). It lives in the layout — the detail
   // pane re-injects its partial, which would duplicate ids — but it is rendered only where these
   // options are present, so no other page carries 250 country options it never shows.
   const addJobOptions = {

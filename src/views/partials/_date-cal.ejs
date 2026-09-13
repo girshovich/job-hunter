@@ -15,7 +15,9 @@
 //                                                     // the Clear/Apply footer is not drawn
 //     backLabel: 'Back to the step',                  // optional (single mode): a link above the
 //                                                     // grid, calling onBack
-//     note: 'Future dates are blocked.',              // optional: a line under the grid
+//     note: 'Future dates are blocked.',              // optional: a line under the grid.
+//                                                     //   In range mode it words the maxSpan cap,
+//                                                     //   e.g. 'Up to 12 months at a time.'
 //     onApply(from, to) { ... },                      // Apply pressed
 //     onClear()         { ... },                      // Clear pressed
 //     onPick(date)      { ... },                      // single mode: a day was clicked
@@ -141,7 +143,8 @@ window.JHCal = window.JHCal || (function () {
         + '</div>'
         + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">' + dows + '</div>'
         + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">' + cells + '</div>'
-        + (st.maxSpan ? '<div style="font-size:11px;color:var(--faintest);font-weight:600;margin-top:9px">Up to ' + st.maxSpan + ' days at a time.</div>' : '')
+        + (st.maxSpan ? '<div style="font-size:11px;color:var(--faintest);font-weight:600;margin-top:9px">'
+            + (st.note || 'Up to ' + st.maxSpan + ' days at a time.') + '</div>' : '')
         + footer;
     };
 

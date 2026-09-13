@@ -3,7 +3,7 @@
  */
 
 // `Manual` is the one source no provider produces: the user typed the job in themselves
-// (manual_jobs.md §3). It never reaches `providerToSource` — nothing fetches it — but it is a real
+// (PRD §7.26). It never reaches `providerToSource` — nothing fetches it — but it is a real
 // `jobs.job_source` value and every display map has to know the word.
 export type JobSource = 'LinkedIn' | 'Indeed' | 'StepStone' | 'Greenhouse' | 'Ashby' | 'Lever' | 'Telegram' | 'Manual';
 

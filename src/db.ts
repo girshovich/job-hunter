@@ -38,7 +38,7 @@ export interface StatusRow {
  * `applied` 0/1/2 onto them and the New pile is the whole review loop. The other seven are
  * ordinary rows, leaving four of the fifteen slots for the user's own.
  *
- * `Incoming` is the fourth built-in and the second of type `new` (manual_jobs.md §4) — a deliberate
+ * `Incoming` is the fourth built-in and the second of type `new` (PRD §7.24) — a deliberate
  * exception to the rule that only one status carries each of the three migrated types. It is **last
  * on purpose**: `newStatusId()` falls back to the lowest `sort_order` among built-in `new` rows, so
  * seeding it anywhere before `New` would make the pipeline stamp every scraped job "Incoming".
@@ -2544,7 +2544,7 @@ The full post text is stored as the job description — do not repeat or summari
     throw err;
   }
 
-  // ── Manually added jobs (manual_jobs.md §9.1) ───────────────────────────────────────────────
+  // ── Manually added jobs (PRD §7.26, §8) ───────────────────────────────────────────────
   //
   // Three migrations, and all three are **fatal**, against the house style above. The others here
   // degrade to a missing column nothing reads yet; nothing in this feature works without all of

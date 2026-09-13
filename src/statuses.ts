@@ -95,7 +95,7 @@ export function statusMap(profileId: number): Map<number, StatusRow> {
 /**
  * The built-in `New` row. Written by the fetch, never picked, always first in a history (D34).
  *
- * **Two layers, deliberately.** `Incoming` is a second built-in of type `new` (manual_jobs.md §4),
+ * **Two layers, deliberately.** `Incoming` is a second built-in of type `new` (PRD §7.24),
  * so "the first built-in `new` status by sort order" stopped being a unique description of `New`.
  * Get this wrong and nothing errors — the pipeline just starts stamping every scraped job
  * "Incoming" and the app quietly relabels itself. So: match the name first, and keep the sort-order
@@ -121,7 +121,7 @@ export function newStatusId(profileId: number): number {
 
 /**
  * The built-in `Incoming` row — the opening step of a job the user added as *Incoming*
- * (manual_jobs.md §4). Resolved by name among this profile's built-in `new` statuses, which is the
+ * (PRD §7.24). Resolved by name among this profile's built-in `new` statuses, which is the
  * mirror of `newStatusId()`'s first layer. Returns null if the migration has not run for this
  * profile; callers fall back to `New` rather than refuse the save.
  */
@@ -188,6 +188,27 @@ export function parseStatusParam(profileId: number, raw: string): number[] | nul
  */
 export function everAppliedSql(jps = 'jps'): string {
   const types = APPLIED_TYPES.map((t) => `'${t}'`).join(',');
+  return `(EXISTS (
+      SELECT 1 FROM job_status_events e JOIN statuses es ON es.id = e.status_id
+      WHERE e.job_id = ${jps}.job_id AND e.profile_id = ${jps}.profile_id AND es.type IN (${types})
+    ) OR EXISTS (
+      SELECT 1 FROM statuses cs WHERE cs.id = ${jps}.status_id AND cs.type IN (${types})
+    ))`;
+}
+
+/** The types that mean "this moved past being sent" — In Progress or an Offer. */
+export const PROGRESSED_TYPES: StatusType[] = ['progress', 'offer'];
+
+/**
+ * "Has this job ever moved past Applied?" — the Progressed stage of the Stats funnel.
+ *
+ * Same two halves as `everAppliedSql`, and for the same reasons: the events half is the truth,
+ * the current-status half covers rows migrated before history existed. Neither half filters
+ * `archived_at` — a stage you stopped using still happened, and archiving a status must never
+ * shrink a number that was already banked (new_stats.md A3).
+ */
+export function everProgressedSql(jps = 'jps'): string {
+  const types = PROGRESSED_TYPES.map((t) => `'${t}'`).join(',');
   return `(EXISTS (
       SELECT 1 FROM job_status_events e JOIN statuses es ON es.id = e.status_id
       WHERE e.job_id = ${jps}.job_id AND e.profile_id = ${jps}.profile_id AND es.type IN (${types})
