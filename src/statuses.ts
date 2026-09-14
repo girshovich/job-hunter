@@ -52,11 +52,16 @@ export const TYPE_META: Record<StatusType, {
 /** The types that mean "this became an application" — the arithmetic behind every Applied count. */
 export const APPLIED_TYPES: StatusType[] = STATUS_TYPES.filter((t) => TYPE_META[t].countsApplied);
 
-/** The three sidebar shortcuts, defined by type so a status created today lands in the right one. */
-export const PRESETS: Array<{ id: string; label: string; buckets: Array<'new' | 'dead' | 'applied' | 'live' | 'ended'> }> = [
-  { id: 'new',   label: 'New',        buckets: ['new'] },
-  { id: 'act',   label: 'In Progress', buckets: ['live'] },
-  { id: 'touch', label: 'Progress History', buckets: ['live', 'ended'] },
+/**
+ * The three sidebar shortcuts, defined by type so a status created today lands in the right one.
+ * `ever` is the mode each one needs: Progress History is the In Progress statuses *ever held*, so
+ * a job that reached Recruiter and was then rejected stays in it. New and In Progress read the
+ * status held now — New "ever" would be every job, since every job starts at New.
+ */
+export const PRESETS: Array<{ id: string; label: string; buckets: Array<'new' | 'dead' | 'applied' | 'live' | 'ended'>; ever: boolean }> = [
+  { id: 'new',   label: 'New',        buckets: ['new'],  ever: false },
+  { id: 'act',   label: 'In Progress', buckets: ['live'], ever: false },
+  { id: 'touch', label: 'Progress History', buckets: ['live'], ever: true },
 ];
 
 /**
@@ -174,6 +179,26 @@ export function parseStatusParam(profileId: number, raw: string): number[] | nul
   if (ids.length === 0) return null;
   // Sorted so `?status=b,a` and `?status=a,b` are one cache entry, not two (FL9).
   return Array.from(new Set(ids)).sort((a, b) => a - b);
+}
+
+/**
+ * The Status filter's WHERE fragment. `ever = false` is the status held now; `ever = true` is
+ * "Include past statuses" — any step in the history, **or** the status held now, because a job
+ * migrated from the old column has no step for its current status (same two halves as
+ * `everAppliedSql`).
+ *
+ * `jps` is the alias of `job_profile_states` in the calling query.
+ */
+export function statusFilterSql(ids: number[], ever: boolean, jps = 'jps'): { sql: string; params: number[] } {
+  const marks = ids.map(() => '?').join(',');
+  if (!ever) return { sql: `${jps}.status_id IN (${marks})`, params: ids };
+  return {
+    sql: `(${jps}.status_id IN (${marks}) OR EXISTS (
+      SELECT 1 FROM job_status_events e
+      WHERE e.job_id = ${jps}.job_id AND e.profile_id = ${jps}.profile_id AND e.status_id IN (${marks})
+    ))`,
+    params: [...ids, ...ids],
+  };
 }
 
 /**
@@ -315,6 +340,7 @@ export interface Shortcut {
   id: string;
   label: string;
   ids: number[];
+  ever: boolean;
   href: string;
   count: number;
 }
@@ -332,22 +358,24 @@ export function shortcuts(profileId: number): Shortcut[] {
   const db = getDb();
   return PRESETS.map((p) => {
     const ids = idsOfPreset(profileId, p.id);
+    const filter = statusFilterSql(ids, p.ever);
     const count = ids.length === 0 ? 0 : (db.prepare(`
       SELECT COUNT(*) as c FROM job_profile_states jps
       WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
-        AND jps.status_id IN (${ids.map(() => '?').join(',')})
-    `).get(profileId, ...ids) as { c: number }).c;
-    return { id: p.id, label: p.label, ids, count, href: '/jobs?status=' + ids.join(',') };
+        AND ${filter.sql}
+    `).get(profileId, ...filter.params) as { c: number }).c;
+    return { id: p.id, label: p.label, ids, ever: p.ever, count, href: '/jobs?status=' + ids.join(',') + (p.ever ? '&ever=1' : '') };
   });
 }
 
 /**
- * Which shortcut, if any, the current selection happens to be. Take one status out of a preset's
- * set and the sidebar stops claiming you are in that view — because you are not (FL4).
+ * Which shortcut, if any, the current selection happens to be — same ids **and** same mode. Take
+ * one status out of a preset's set, or flip the mode, and the sidebar stops claiming you are in
+ * that view — because you are not (FL4).
  */
-export function activeShortcut(list: Shortcut[], selected: number[] | null): string | null {
+export function activeShortcut(list: Shortcut[], selected: number[] | null, ever: boolean): string | null {
   if (selected === null) return 'all';
   const want = selected.slice().sort((a, b) => a - b).join(',');
-  const hit = list.find((s) => s.ids.slice().sort((a, b) => a - b).join(',') === want);
+  const hit = list.find((s) => s.ever === ever && s.ids.slice().sort((a, b) => a - b).join(',') === want);
   return hit ? hit.id : null;
 }

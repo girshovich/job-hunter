@@ -951,6 +951,8 @@ router.patch('/jobs/:id/verdict', (req: Request, res: Response) => {
     res.status(403).json({ success: false, error: 'Forbidden' });
     return;
   }
+  // The Matches/All Jobs date list is cached per filter; a verdict change moves a job in or out of Matches.
+  invalidateJobsDatesCache(req.profile.id);
 
   res.json({ success: true, matchesCount: getMatchesCount(req.profile.id) });
 });
@@ -1022,6 +1024,7 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
     internalJobId = jobId;
   }
 
+  invalidateJobsDatesCache(profileId);
   res.json({ success: true, internal_job_id: internalJobId, matchesCount: getMatchesCount(profileId) });
 });
 
@@ -1077,6 +1080,8 @@ router.patch('/jobs/:id/status', (req: Request, res: Response) => {
 
   const ok = setJobStatus(profileId, id, statusId, todayIn(profileTimezone(profileId)));
   if (!ok) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
+  // The Matches/All Jobs date list is cached per filter; a status move changes what a Status filter holds.
+  invalidateJobsDatesCache(profileId);
   res.json({ success: true, ...statusPayload(profileId, id) });
 });
 
@@ -1171,6 +1176,7 @@ router.patch('/history/:id', (req: Request, res: Response) => {
       .run(nextStatusId, nextDate, eventId, profileId);
     recomputeCurrent(profileId, ev.job_id);
   });
+  invalidateJobsDatesCache(profileId);
   res.json({ success: true, ...statusPayload(profileId, ev.job_id) });
 });
 
@@ -1190,6 +1196,7 @@ router.delete('/history/:id', (req: Request, res: Response) => {
     db.prepare('DELETE FROM job_status_events WHERE id = ? AND profile_id = ?').run(eventId, profileId);
     recomputeCurrent(profileId, ev.job_id);
   });
+  invalidateJobsDatesCache(profileId);
   res.json({ success: true, ...statusPayload(profileId, ev.job_id) });
 });
 

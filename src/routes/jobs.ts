@@ -9,7 +9,7 @@ import { getDb, type JobWithState, type SettingsRow } from '../db';
 import { getPreferredCountries, lookupCountry, getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { loadJobDetail } from './jobDetail';
 import { companyKey } from '../uiHelpers';
-import { listStatuses, parseStatusParam, idsOfPreset, PRESETS, TYPE_META, STATUS_TYPES, todayIn, type StatusRow } from '../statuses';
+import { listStatuses, parseStatusParam, statusFilterSql, idsOfPreset, PRESETS, TYPE_META, STATUS_TYPES, todayIn, type StatusRow } from '../statuses';
 
 const router = Router();
 const PAGE_DATES = 10; // number of distinct run-dates shown per page
@@ -64,52 +64,66 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   const statusIds = parseStatusParam(profileId, statusParam);
   // Sorted ids, so `?status=b,a` and `?status=a,b` are one cache entry rather than two (FL9).
   const statusKey = statusIds ? statusIds.join(',') : '';
+  // "Include past statuses": match any step in a job's history, not just the status held now.
+  // Kept in the URL even with no status ticked, so it survives moving between Matches and All Jobs.
+  const ever = q.ever === '1';
   const dateFrom = q.df ? String(q.df) : '';
   const dateTo = q.dt ? String(q.dt) : '';
 
   // ── Build WHERE clause ──
   // Blacklisted/Filtered are not offered in the Verdict filter, so they must never appear on
   // Matches/All Jobs — not even under "All verdicts". Exclude them for every request.
-  const where: string[] = ['jps.profile_id = ?', "jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED')"];
-  const params: (string | number)[] = [profileId];
+  // Each clause is tagged with the filter it belongs to, so a menu can count within every filter
+  // on the page except its own (`whereExcept`) and its numbers match what ticking a row would show.
+  type FilterKey = 'base' | 'verdict' | 'role' | 'company' | 'country' | 'date' | 'status';
+  const clauses: Array<{ key: FilterKey; sql: string; params: (string | number)[] }> = [
+    { key: 'base', sql: "jps.profile_id = ? AND jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED')", params: [profileId] },
+  ];
   if (verdict === 'DUPLICATE') {
-    where.push('jps.is_duplicate = 1');
+    clauses.push({ key: 'verdict', sql: 'jps.is_duplicate = 1', params: [] });
   } else if (verdict) {
-    where.push('jps.ai_verdict = ? AND jps.is_duplicate = 0');
-    params.push(verdict);
+    clauses.push({ key: 'verdict', sql: 'jps.ai_verdict = ? AND jps.is_duplicate = 0', params: [verdict] });
   }
   if (roleIds.length || roleOther) {
     const parts: string[] = [];
+    const roleParams: (string | number)[] = [];
     if (roleIds.length) {
       parts.push(`jps.group_id IN (${roleIds.map(() => '?').join(',')})`);
-      params.push(...roleIds);
+      roleParams.push(...roleIds);
     }
     if (roleOther) {
       parts.push('(jps.group_id IS NULL OR jps.group_id NOT IN (SELECT id FROM search_groups WHERE profile_id = ?))');
-      params.push(profileId);
+      roleParams.push(profileId);
     }
-    where.push('(' + parts.join(' OR ') + ')');
+    clauses.push({ key: 'role', sql: '(' + parts.join(' OR ') + ')', params: roleParams });
   }
   if (companyTerm) {
-    if (companyIsExact) { where.push('LOWER(TRIM(j.company)) = ?'); params.push(companyKey(companyTerm)); }
-    else { where.push('j.company LIKE ?'); params.push('%' + companyTerm + '%'); }
+    if (companyIsExact) clauses.push({ key: 'company', sql: 'LOWER(TRIM(j.company)) = ?', params: [companyKey(companyTerm)] });
+    else clauses.push({ key: 'company', sql: 'j.company LIKE ?', params: ['%' + companyTerm + '%'] });
   }
   // Country: match against the multi-country list (job_countries) so a job open in several
   // countries is found under any of them; values are stored lowercase.
   if (countries.length) {
-    where.push(`EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id AND jc.country IN (${countries.map(() => '?').join(',')}))`);
-    params.push(...countries.map((c) => c.toLowerCase()));
+    clauses.push({
+      key: 'country',
+      sql: `EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id AND jc.country IN (${countries.map(() => '?').join(',')}))`,
+      params: countries.map((c) => c.toLowerCase()),
+    });
   }
+  if (dateFrom) clauses.push({ key: 'date', sql: 'DATE(jps.fetched_at) >= ?', params: [dateFrom] });
+  if (dateTo) clauses.push({ key: 'date', sql: 'DATE(jps.fetched_at) <= ?', params: [dateTo] });
   if (statusIds) {
-    where.push(`jps.status_id IN (${statusIds.map(() => '?').join(',')})`);
-    params.push(...statusIds);
+    const statusFilter = statusFilterSql(statusIds, ever);
+    clauses.push({ key: 'status', sql: statusFilter.sql, params: statusFilter.params });
   }
-  if (dateFrom) { where.push('DATE(jps.fetched_at) >= ?'); params.push(dateFrom); }
-  if (dateTo) { where.push('DATE(jps.fetched_at) <= ?'); params.push(dateTo); }
-  const whereSql = where.join(' AND ');
+  const whereExcept = (skip: FilterKey | null) => {
+    const kept = clauses.filter((c) => c.key !== skip);
+    return { sql: kept.map((c) => c.sql).join(' AND '), params: kept.flatMap((c) => c.params) };
+  };
+  const { sql: whereSql, params } = whereExcept(null);
 
   // ── Distinct fetch dates matching the filters (cached per profile+filter signature) ──
-  const cacheKey = profileId + '|' + JSON.stringify({ verdictParam, roleIds, roleOther, company, countries, statusKey, dateFrom, dateTo });
+  const cacheKey = profileId + '|' + JSON.stringify({ verdictParam, roleIds, roleOther, company, countries, statusKey, ever, dateFrom, dateTo });
   let allDates = datesCache.get(cacheKey);
   if (!allDates) {
     allDates = db.prepare(`
@@ -178,38 +192,72 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
       jobs: groupJobs,
     }));
 
-  // ── Filter option lists (unfiltered counts, like the mockup) ──
+  // ── Filter option lists — each menu counts within every filter on the page except its own ──
   const NOT_BL = "jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED')";
+  // Every role is listed, a zero included; "Other" only when it holds jobs or is ticked.
+  const noRole = whereExcept('role');
   const roleOptions = db.prepare(`
-    SELECT sg.id, sg.group_name, COUNT(jps.job_id) as cnt
+    SELECT sg.id, sg.group_name, COALESCE(rc.cnt, 0) as cnt
     FROM search_groups sg
-    LEFT JOIN job_profile_states jps ON jps.group_id = sg.id AND jps.profile_id = sg.profile_id AND ${NOT_BL}
+    LEFT JOIN (
+      SELECT jps.group_id, COUNT(*) as cnt FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+      WHERE ${noRole.sql} GROUP BY jps.group_id
+    ) rc ON rc.group_id = sg.id
     WHERE sg.profile_id = ?
-    GROUP BY sg.id ORDER BY sg.id ASC
-  `).all(profileId) as Array<{ id: number; group_name: string; cnt: number }>;
+    ORDER BY sg.id ASC
+  `).all(...noRole.params, profileId) as Array<{ id: number; group_name: string; cnt: number }>;
   const orphanCount = (db.prepare(`
-    SELECT COUNT(*) as c FROM job_profile_states jps
-    WHERE jps.profile_id = ? AND ${NOT_BL}
+    SELECT COUNT(*) as c FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+    WHERE ${noRole.sql}
       AND (jps.group_id IS NULL OR jps.group_id NOT IN (SELECT id FROM search_groups WHERE profile_id = ?))
-  `).get(profileId, profileId) as { c: number }).c;
+  `).get(...noRole.params, profileId) as { c: number }).c;
   // Country options come from the multi-country list (job_countries, lowercase); display a
   // capitalized label (recognition map, else title-case) matching the EXISTS filter above.
+  // Every country among this profile's jobs is listed, a zero included, so the menu doesn't shrink
+  // as other filters narrow the list — plus any ticked country that matches none, at 0.
   const titleCase = (s: string) => s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
-  const countryOptions = (db.prepare(`
-    SELECT jc.country as value, COUNT(*) as cnt
-    FROM job_countries jc JOIN job_profile_states jps ON jps.job_id = jc.job_id
-    WHERE jps.profile_id = ? AND ${NOT_BL} AND jc.country IS NOT NULL AND jc.country <> ''
-    GROUP BY jc.country ORDER BY cnt DESC
-  `).all(profileId) as Array<{ value: string; cnt: number }>).map((c) => ({
+  const noCountry = whereExcept('country');
+  const countryRows = db.prepare(`
+    SELECT ac.country as value, COALESCE(fc.cnt, 0) as cnt
+    FROM (
+      SELECT DISTINCT jc.country FROM job_countries jc JOIN job_profile_states jps ON jps.job_id = jc.job_id
+      WHERE jps.profile_id = ? AND ${NOT_BL} AND jc.country IS NOT NULL AND jc.country <> ''
+    ) ac
+    LEFT JOIN (
+      SELECT jc.country, COUNT(*) as cnt
+      FROM job_countries jc JOIN job_profile_states jps ON jps.job_id = jc.job_id JOIN jobs j ON j.id = jps.job_id
+      WHERE ${noCountry.sql} AND jc.country IS NOT NULL AND jc.country <> ''
+      GROUP BY jc.country
+    ) fc ON fc.country = ac.country
+    ORDER BY cnt DESC, ac.country ASC
+  `).all(profileId, ...noCountry.params) as Array<{ value: string; cnt: number }>;
+  for (const c of countries.map((v) => v.toLowerCase())) {
+    if (!countryRows.some((r) => r.value === c)) countryRows.push({ value: c, cnt: 0 });
+  }
+  const countryOptions = countryRows.map((c) => ({
     value: c.value,
     label: lookupCountry(c.value) ?? titleCase(c.value),
     cnt: c.cnt,
   }));
-  // Status menu: every live status, its own count, grouped by type in the view (D45).
-  const statusRows = db.prepare(`
-    SELECT status_id, COUNT(*) as cnt FROM job_profile_states jps
-    WHERE jps.profile_id = ? AND ${NOT_BL} GROUP BY status_id
-  `).all(profileId) as Array<{ status_id: number | null; cnt: number }>;
+  // Status menu: every live status, its own count, grouped by type in the view (D45). The counts
+  // follow the switch — with past statuses included, a status counts every job that ever held it.
+  const noStatus = whereExcept('status');
+  const statusRows = (ever
+    ? db.prepare(`
+      SELECT status_id, COUNT(*) as cnt FROM (
+        SELECT e.job_id, e.status_id FROM job_status_events e
+        JOIN job_profile_states jps ON jps.job_id = e.job_id AND jps.profile_id = e.profile_id
+        JOIN jobs j ON j.id = jps.job_id
+        WHERE ${noStatus.sql}
+        UNION
+        SELECT jps.job_id, jps.status_id FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+        WHERE ${noStatus.sql}
+      ) GROUP BY status_id
+    `).all(...noStatus.params, ...noStatus.params)
+    : db.prepare(`
+      SELECT jps.status_id, COUNT(*) as cnt FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+      WHERE ${noStatus.sql} GROUP BY jps.status_id
+    `).all(...noStatus.params)) as Array<{ status_id: number | null; cnt: number }>;
   const statusCountById = new Map<number, number>();
   let statusTotal = 0;
   for (const r of statusRows) {
@@ -270,7 +318,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     // `status` carries the RESOLVED ids, not the raw param: the view's chip, its checkboxes and
     // its "did this change" comparison all have to agree with what the query actually ran, or the
     // `applied` alias would render as an empty selection (D49, FL9).
-    filters: { verdict: verdictParam, roleIds, roleOther, company, countries, status: statusKey, df: dateFrom, dt: dateTo },
+    filters: { verdict: verdictParam, roleIds, roleOther, company, countries, status: statusKey, ever, df: dateFrom, dt: dateTo },
     roleOptions, orphanCount, countryOptions, statusCounts, statusOptions,
     newCount, totalUnfiltered,
     page, totalPages, pageNewest, pageOldest,

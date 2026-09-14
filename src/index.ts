@@ -152,8 +152,11 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     .sort((a, b) => STATUS_TYPES.indexOf(a.type) - STATUS_TYPES.indexOf(b.type))
     .map((st) => ({ id: st.id, name: st.name, type: st.type, typeLabel: TYPE_META[st.type].label, order: st.sort_order }));
   res.locals.activeShortcut = req.path === '/jobs'
-    ? activeShortcut(shortcutList, parseStatusParam(pid, String(req.query.status || '')))
+    ? activeShortcut(shortcutList, parseStatusParam(pid, String(req.query.status || '')), req.query.ever === '1')
     : null;
+  // "Include past statuses" is carried by the Matches and All Jobs links, so turning it on in one
+  // list keeps it on in the other. The shortcuts set their own mode and do not take it.
+  res.locals.everQuery = (req.path === '/jobs' || req.path === '/history') && req.query.ever === '1' ? '?ever=1' : '';
   next();
 });
 

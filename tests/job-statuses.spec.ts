@@ -59,6 +59,29 @@ function pickJob(type: string): number {
   return row.id;
 }
 
+/**
+ * A job whose stored status is the one its newest step names — so the rail draws a real closing
+ * step with a date, not a derived current (D8). `pickJob` deliberately returns a migrated job for
+ * the D8 specs; the rail specs need the opposite. `before` keeps out jobs whose own history already
+ * runs past the dates the caller is about to add — those steps would stay the newest and the job
+ * would render derived again. Jobs an earlier spec has written to are skipped for the same reason.
+ */
+function pickTrackedJob(type: string, before: string): number {
+  const rows = db.prepare(`
+    SELECT jps.job_id AS id FROM job_profile_states jps JOIN statuses s ON s.id = jps.status_id
+    WHERE jps.profile_id = ? AND s.type = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+      AND jps.status_id = (SELECT e.status_id FROM job_status_events e
+                            WHERE e.profile_id = jps.profile_id AND e.job_id = jps.job_id
+                            ORDER BY e.changed_at DESC, e.id DESC LIMIT 1)
+      AND (SELECT MAX(e.changed_at) FROM job_status_events e
+            WHERE e.profile_id = jps.profile_id AND e.job_id = jps.job_id) < ?
+    ORDER BY jps.job_id
+  `).all(PROFILE_ID, type, before) as Array<{ id: number }>;
+  const row = rows.find((r) => !originalState.has(r.id));
+  if (!row) throw new Error(`No untouched non-derived fixture job at status type ${type} before ${before}`);
+  return row.id;
+}
+
 // Everything this run creates or changes, so afterAll can put it back precisely.
 const createdEvents: number[] = [];
 const createdStatuses: number[] = [];
@@ -506,6 +529,241 @@ test('a shortcut fills the filter with real ids and stops highlighting off-prese
   await expect(page.locator('.sb-subitem.active')).toHaveCount(0);
 });
 
+// ── Include past statuses ──────────────────────────────────────────────────────────────────
+
+test('Include past statuses finds a job by a status it held before', async ({ page }) => {
+  await auth(page);
+  const job = pickJob('applied');
+  addStep(job, 'progress', '2026-09-03');
+  addStep(job, 'rejected', '2026-09-04');
+  const recruiter = statusIdOfType('progress');
+  const recruiterName = (db.prepare('SELECT name FROM statuses WHERE id = ?').get(recruiter) as { name: string }).name;
+  // One fetch day keeps the job on page one whatever else that day holds.
+  const day = (db.prepare('SELECT DATE(fetched_at) AS d FROM job_profile_states WHERE job_id = ? AND profile_id = ?')
+    .get(job, PROFILE_ID) as { d: string }).d;
+  const base = `/jobs?verdict=all&df=${day}&dt=${day}&status=${recruiter}`;
+
+  await page.goto(base);
+  await expect(page.locator(`.jobcard[data-id="${job}"]`)).toHaveCount(0);
+
+  await page.goto(`${base}&ever=1`);
+  await expect(page.locator(`.jobcard[data-id="${job}"]`)).toHaveCount(1);
+  await expect(page.locator('[data-filter="status"] .fb-label').first()).toHaveText(`${recruiterName} · ever`);
+});
+
+test('a job moved into the Status filter shows on the next load, not the next run', async ({ page }) => {
+  await auth(page);
+  const recruiter = statusIdOfType('progress');
+  // A New job on a day where nothing sits at Recruiter yet, so that day's list starts empty.
+  const row = db.prepare(`
+    SELECT jps.job_id AS id, DATE(jps.fetched_at) AS d FROM job_profile_states jps JOIN statuses s ON s.id = jps.status_id
+    WHERE jps.profile_id = ? AND s.type = 'new' AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+      AND jps.fetched_at IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM job_profile_states o WHERE o.profile_id = jps.profile_id
+                        AND o.status_id = ? AND DATE(o.fetched_at) = DATE(jps.fetched_at))
+    ORDER BY jps.job_id LIMIT 1
+  `).get(PROFILE_ID, recruiter) as { id: number; d: string };
+  const url = `/jobs?verdict=all&df=${row.d}&dt=${row.d}&status=${recruiter}`;
+
+  await page.goto(url);
+  await expect(page.locator(`.jobcard[data-id="${row.id}"]`)).toHaveCount(0);
+
+  remember(row.id);
+  const res = await page.request.patch(`/api/jobs/${row.id}/status`, {
+    headers: { Cookie: `jh_session=${token}`, 'Content-Type': 'application/json' },
+    data: { status_id: recruiter },
+  });
+  expect(res.ok()).toBe(true);
+  const ev = db.prepare('SELECT MAX(id) AS id FROM job_status_events WHERE job_id = ? AND profile_id = ?')
+    .get(row.id, PROFILE_ID) as { id: number };
+  createdEvents.push(ev.id);
+
+  await page.goto(url);
+  await expect(page.locator(`.jobcard[data-id="${row.id}"]`)).toHaveCount(1);
+});
+
+test('Status menu counts are taken within the other filters, and follow the switch', async ({ page }) => {
+  await auth(page);
+  const newId = (db.prepare("SELECT id FROM statuses WHERE profile_id = ? AND name = 'New' AND is_builtin = 1")
+    .get(PROFILE_ID) as { id: number }).id;
+  const recruiter = statusIdOfType('progress');
+  const count = (where: string, ...args: number[]) => (db.prepare(`
+    SELECT COUNT(*) AS c FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+    WHERE jps.profile_id = ? AND jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED') AND ${where}
+  `).get(PROFILE_ID, ...args) as { c: number }).c;
+  const STRONG = "jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0";
+  const menuCount = (id: number) => page.evaluate(
+    (v) => (window as any).__filterOpts.status.find((o: { v: string }) => o.v === v).count, String(id),
+  );
+
+  // Matches is Strong by default, so its New row counts Strong jobs only.
+  await page.goto('/jobs');
+  expect(await menuCount(newId)).toBe(count(`${STRONG} AND jps.status_id = ?`, newId));
+
+  // All Jobs shows every verdict, and so does its count.
+  await page.goto('/history');
+  expect(await menuCount(newId)).toBe(count('jps.status_id = ?', newId));
+
+  // With past statuses included, a row counts every job that ever held it.
+  await page.goto('/jobs?ever=1');
+  expect(await menuCount(recruiter)).toBe(count(`${STRONG} AND (jps.status_id = ? OR EXISTS (
+    SELECT 1 FROM job_status_events e WHERE e.job_id = jps.job_id AND e.profile_id = jps.profile_id AND e.status_id = ?))`,
+  recruiter, recruiter));
+});
+
+test('Role and Country counts are taken within every filter but their own', async ({ page }) => {
+  await auth(page);
+  const live = (db.prepare(
+    "SELECT id FROM statuses WHERE profile_id = ? AND archived_at IS NULL AND type IN ('progress','offer')",
+  ).all(PROFILE_ID) as Array<{ id: number }>).map((r) => r.id);
+  const marks = live.map(() => '?').join(',');
+  // Progress History: Strong, non-duplicate, ever held an In Progress or Offer status.
+  const PH = `jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 AND (jps.status_id IN (${marks}) OR EXISTS (
+    SELECT 1 FROM job_status_events e WHERE e.job_id = jps.job_id AND e.profile_id = jps.profile_id AND e.status_id IN (${marks})))`;
+  const base = `FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+    WHERE jps.profile_id = ? AND jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED') AND ${PH}`;
+  const opts = (kind: string) => page.evaluate((k) => (window as any).__filterOpts[k], kind) as
+    Promise<Array<{ v: string; count: number }>>;
+
+  const roles = db.prepare(`SELECT jps.group_id AS id, COUNT(*) AS c ${base} AND jps.group_id IS NOT NULL
+    GROUP BY jps.group_id ORDER BY c DESC`).all(PROFILE_ID, ...live, ...live) as Array<{ id: number; c: number }>;
+  const topCountry = db.prepare(`SELECT jc.country AS v, COUNT(*) AS c FROM job_countries jc
+    JOIN job_profile_states jps ON jps.job_id = jc.job_id JOIN jobs j ON j.id = jps.job_id
+    WHERE jps.profile_id = ? AND jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED') AND ${PH} AND jc.country <> ''
+    GROUP BY jc.country ORDER BY c DESC LIMIT 1`).get(PROFILE_ID, ...live, ...live) as { v: string; c: number };
+  expect(roles.length).toBeGreaterThan(0);
+
+  const ph = `/jobs?status=${live.join(',')}&ever=1`;
+  await page.goto(ph);
+  const roleOpts = await opts('roles');
+  for (const r of roles) expect(roleOpts.find((o) => o.v === String(r.id))!.count).toBe(r.c);
+  expect((await opts('country')).find((o) => o.v === topCountry.v)!.count).toBe(topCountry.c);
+
+  // Ticking a role doesn't zero the others: the Role menu ignores its own filter.
+  await page.goto(`${ph}&roles=${roles[0].id}`);
+  const ticked = await opts('roles');
+  for (const r of roles) expect(ticked.find((o) => o.v === String(r.id))!.count).toBe(r.c);
+
+  // Countries with no jobs under the other filters stay listed, at 0, so the menu doesn't shrink.
+  // Checked on the Strong-match day that spans the fewest countries.
+  const STRONG_ROW = "jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0";
+  const day = (db.prepare(`SELECT DATE(jps.fetched_at) AS d FROM job_profile_states jps
+    JOIN job_countries jc ON jc.job_id = jps.job_id
+    WHERE ${STRONG_ROW} AND jps.fetched_at IS NOT NULL AND jc.country <> ''
+    GROUP BY d ORDER BY COUNT(DISTINCT jc.country) ASC LIMIT 1`).get(PROFILE_ID) as { d: string }).d;
+  const emptyHere = db.prepare(`SELECT DISTINCT jc.country AS v FROM job_countries jc
+    JOIN job_profile_states jps ON jps.job_id = jc.job_id
+    WHERE jps.profile_id = ? AND jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED') AND jc.country <> ''
+      AND jc.country NOT IN (SELECT jc2.country FROM job_countries jc2 JOIN job_profile_states jps ON jps.job_id = jc2.job_id
+        WHERE ${STRONG_ROW} AND DATE(jps.fetched_at) = ? AND jc2.country IS NOT NULL)
+    LIMIT 1`).get(PROFILE_ID, PROFILE_ID, day) as { v: string };
+  await page.goto(`/jobs?df=${day}&dt=${day}`);
+  expect((await opts('country')).find((o) => o.v === emptyHere.v)!.count).toBe(0);
+
+  // A ticked country with nothing under the other filters stays in its menu, at 0.
+  await page.goto(`${ph}&country=zz-nowhere`);
+  expect((await opts('country')).find((o) => o.v === 'zz-nowhere')!.count).toBe(0);
+});
+
+test('a job whose verdict changes to Strong shows in Matches on the next load', async ({ page }) => {
+  await auth(page);
+  // A Weak job on a day with no Strong jobs, so that day's Matches list starts empty.
+  const row = db.prepare(`
+    SELECT jps.job_id AS id, DATE(jps.fetched_at) AS d, jps.ai_verdict AS verdict, jps.is_duplicate AS dup
+    FROM job_profile_states jps
+    WHERE jps.profile_id = ? AND jps.ai_verdict = 'WEAK_MATCH' AND jps.is_duplicate = 0 AND jps.fetched_at IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM job_profile_states o WHERE o.profile_id = jps.profile_id
+                        AND o.ai_verdict = 'STRONG_MATCH' AND DATE(o.fetched_at) = DATE(jps.fetched_at))
+    ORDER BY jps.job_id LIMIT 1
+  `).get(PROFILE_ID) as { id: number; d: string; verdict: string; dup: number };
+  const url = `/jobs?df=${row.d}&dt=${row.d}`;
+  try {
+    await page.goto(url);
+    await expect(page.locator(`.jobcard[data-id="${row.id}"]`)).toHaveCount(0);
+
+    const res = await page.request.patch(`/api/jobs/${row.id}/verdict`, {
+      headers: { Cookie: `jh_session=${token}`, 'Content-Type': 'application/json' },
+      data: { verdict: 'STRONG_MATCH' },
+    });
+    expect(res.ok()).toBe(true);
+
+    await page.goto(url);
+    await expect(page.locator(`.jobcard[data-id="${row.id}"]`)).toHaveCount(1);
+  } finally {
+    db.prepare('UPDATE job_profile_states SET ai_verdict = ?, is_duplicate = ? WHERE job_id = ? AND profile_id = ?')
+      .run(row.verdict, row.dup, row.id, PROFILE_ID);
+  }
+});
+
+test('Progress History is the In Progress statuses ever held; off-preset highlights Matches', async ({ page }) => {
+  await auth(page);
+  await page.goto('/jobs');
+  const inProgress = await page.locator('.sb-subnav a').nth(1).getAttribute('href');
+  const history = await page.locator('.sb-subnav a').nth(2).getAttribute('href');
+  expect(inProgress).toMatch(/^\/jobs\?status=\d+(,\d+)*$/);
+  // The same statuses as In Progress, read through their history.
+  expect(history).toBe(`${inProgress}&ever=1`);
+
+  const ids = inProgress!.split('=')[1].split(',').map(Number);
+  const marks = ids.map(() => '?').join(',');
+  const expected = (db.prepare(`
+    SELECT COUNT(*) AS c FROM job_profile_states jps
+    WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+      AND (jps.status_id IN (${marks}) OR EXISTS (SELECT 1 FROM job_status_events e
+        WHERE e.job_id = jps.job_id AND e.profile_id = jps.profile_id AND e.status_id IN (${marks})))
+  `).get(PROFILE_ID, ...ids, ...ids) as { c: number }).c;
+  await expect(page.locator('.sb-subcount[data-shortcut="touch"]')).toHaveText(String(expected));
+
+  await page.goto(history!);
+  await expect(page.locator('.sb-subitem.active')).toHaveText(/Progress History/);
+  await page.goto(inProgress!);
+  await expect(page.locator('.sb-subitem.active')).toHaveText(/In Progress/);
+
+  // Untick one status from the preset: no shortcut claims the view, and the parent Matches does.
+  await page.goto(`/jobs?status=${ids.slice(1).join(',')}&ever=1`);
+  await expect(page.locator('.sb-subitem.active')).toHaveCount(0);
+  await expect(page.locator('a.sb-item.active:not(.sb-subitem)')).toHaveText(/Matches/);
+});
+
+test('the switch applies from the menu, keeps All Jobs on All Jobs, and is carried between them', async ({ page }) => {
+  await auth(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/history');
+
+  const trigger = page.locator('[data-filter="status"]:visible');
+  const menu = page.locator('[data-menu="status"]:visible');
+  await trigger.click();
+  await expect(menu).toContainText('Choose statuses');
+  await expect(menu).not.toContainText('All statuses');
+  await expect(menu.getByRole('button', { name: 'Clear' })).toHaveCount(0);
+
+  await menu.locator('.ever-switch').click();
+  await expect(menu.locator('.ever-switch')).toHaveAttribute('aria-checked', 'true');
+  await expect(trigger.locator('.fb-label')).toHaveText('Status · ever');
+  await menu.locator('div[onclick*="toggleMulti"]', { hasText: 'Recruiter' }).click();
+  await expect(menu.getByRole('button', { name: 'Clear' })).toHaveCount(1);
+
+  // Closing the menu applies it — on All Jobs, not Matches.
+  await Promise.all([page.waitForURL(/\/history\?/), page.evaluate(() => document.body.click())]);
+  const url = new URL(page.url());
+  expect(url.pathname).toBe('/history');
+  expect(url.searchParams.get('ever')).toBe('1');
+  expect(url.searchParams.get('status')).toBe(String(statusIdOfType('progress')));
+  await expect(page.locator('a.sb-item.active:not(.sb-subitem)')).toHaveText(/All Jobs/);
+
+  // Clear drops the statuses and keeps the switch.
+  await page.locator('[data-filter="status"]:visible').click();
+  await page.locator('[data-menu="status"]:visible').getByRole('button', { name: 'Clear' }).click();
+  await Promise.all([page.waitForURL((u) => !u.searchParams.has('status')), page.evaluate(() => document.body.click())]);
+  expect(new URL(page.url()).pathname).toBe('/history');
+  expect(new URL(page.url()).searchParams.get('ever')).toBe('1');
+
+  // The two list links carry the switch; the shortcuts set their own mode.
+  await expect(page.locator('a.sb-item[href="/jobs?ever=1"]')).toHaveCount(1);
+  await expect(page.locator('a.sb-item[href="/history?ever=1"]')).toHaveCount(1);
+  expect(await page.locator('.sb-subnav a').first().getAttribute('href')).not.toContain('ever');
+});
+
 // ── NV, LC, DP: the surfaces ───────────────────────────────────────────────────────────────
 
 test('the nav never scrolls and always fits, at every height (NV1, NV2, NV11)', async ({ page }) => {
@@ -609,7 +867,7 @@ test('the step editor does all three jobs, and never offers New (DP7, DP5)', asy
 test('the rail is one row at three, four and nine steps on a phone (MB1, MB3)', async ({ page }) => {
   await auth(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  const job = pickJob('applied');
+  const job = pickTrackedJob('applied', '2026-08-01');
 
   const measure = async () => {
     await page.goto(`/job/${job}`);

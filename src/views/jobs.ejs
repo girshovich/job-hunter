@@ -20,9 +20,10 @@ function daysSinceLocal(iso){
 // already use. Never a type or bucket name: those are not things the user can pick (D45, FL2).
 const statusSel = f.status ? String(f.status).split(',').map(Number).filter(n => statusOptions.some(o => o.id === n)) : [];
 const statusActive = statusSel.length > 0;
-const statusLabel = !statusActive ? 'Status'
+// "Include past statuses" rides on the label, so a closed menu still says which reading is on.
+const statusLabel = (!statusActive ? 'Status'
   : (statusSel.length === 1 ? (statusOptions.find(o => o.id === statusSel[0]) || {}).name || '1 status'
-                            : statusSel.length + ' statuses');
+                            : statusSel.length + ' statuses')) + (f.ever ? ' · ever' : '');
 const rolesActive = (f.roleIds.length > 0) || f.roleOther;
 const verdictActive = f.verdict !== 'all';
 const countryActive = f.countries.length > 0;
@@ -335,7 +336,7 @@ window.__dateFilter = { df: '<%= f.df %>', dt: '<%= f.dt %>' };
 window.__selectedJobId = <%= selectedJobId || 'null' %>;
 window.__fromKey = '<%= fromKey %>';
 window.__filterOpts = {
-  roles: <%- JSON.stringify(roleOptions.map(r => ({ v: String(r.id), label: r.group_name || ('Role ' + r.id), count: r.cnt })).concat(orphanCount > 0 ? [{ v: 'other', label: 'Other', count: orphanCount }] : [])) %>,
+  roles: <%- JSON.stringify(roleOptions.map(r => ({ v: String(r.id), label: r.group_name || ('Role ' + r.id), count: r.cnt })).concat(orphanCount > 0 || f.roleOther ? [{ v: 'other', label: 'Other', count: orphanCount }] : [])) %>,
   country: <%- JSON.stringify(countryOptions.map(c => ({ v: c.value, label: c.label, count: c.cnt }))) %>,
   status: <%- JSON.stringify(statusOptions.map(o => ({ v: String(o.id), label: o.name, count: o.cnt, type: o.type, typeLabel: o.typeLabel, dot: o.dot }))) %>
 };
@@ -398,7 +399,8 @@ window.JH = (function(){
   const _pending = {
     roles: <%- JSON.stringify(f.roleIds.map(String).concat(f.roleOther ? ['other'] : [])) %>,
     country: <%- JSON.stringify(f.countries) %>,
-    status: <%- JSON.stringify(statusSel.map(String)) %>
+    status: <%- JSON.stringify(statusSel.map(String)) %>,
+    ever: <%- JSON.stringify(!!f.ever) %>
   };
   function escJs(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   // ── Detail pane: swap in the job-detail fragment instead of re-navigating the whole page ──
@@ -461,14 +463,32 @@ window.JH = (function(){
   });
   const CHK_W = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
   const CHK_A = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
-  const ALL_LABEL = { roles: 'All roles', country: 'All countries', status: 'All statuses' };
+  const ALL_LABEL = { roles: 'All roles', country: 'All countries' };
   function buildRows(kind){
     const opts = (window.__filterOpts[kind]) || [];
     const sel = _pending[kind];
     const allActive = sel.length === 0;
-    let html = '<div onclick="event.stopPropagation();JH.clearMulti(\''+kind+'\')" style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer;background:'+(allActive?'var(--accent-soft)':'transparent')+'">'
-      + '<span style="flex:1;font-size:12.5px;font-weight:'+(allActive?'800':'600')+';color:var(--ink)">'+(ALL_LABEL[kind]||'All')+'</span>'
-      + (allActive?CHK_A:'') + '</div>';
+    let html;
+    if (kind === 'status') {
+      // No "All statuses" row here: a heading, a Clear link once something is ticked, and the
+      // "Include past statuses" switch — pinned, so they stay put while the list scrolls.
+      const on = _pending.ever;
+      html = '<div style="position:sticky;top:-6px;z-index:1;margin:-6px -6px 2px;padding:6px 6px 4px;background:#fff;border-bottom:1px solid var(--line)">'
+        + '<div style="display:flex;align-items:baseline;gap:8px;padding:8px 9px 2px">'
+        +   '<span style="flex:1;font-size:12.5px;font-weight:800;color:var(--ink)">Choose statuses</span>'
+        +   (allActive ? '' : '<button type="button" onclick="event.stopPropagation();JH.clearMulti(\'status\')" style="padding:0;border:0;background:transparent;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer">Clear</button>')
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:12px;padding:8px 9px 7px">'
+        +   '<div style="flex:1;min-width:0"><div id="ever-label" style="font-size:12.5px;font-weight:700;color:var(--ink)">Include past statuses</div>'
+        +   '<div style="margin-top:1px;font-size:11px;line-height:1.35;color:var(--faint)">See jobs that held these statuses before</div></div>'
+        +   '<button type="button" class="ever-switch" role="switch" aria-checked="'+on+'" aria-labelledby="ever-label" onclick="event.stopPropagation();JH.toggleEver()" style="flex:none;position:relative;width:40px;height:20px;padding:0;border:0;border-radius:999px;cursor:pointer;background:'+(on?'var(--green)':'#d6dae2')+'">'
+        +     '<span style="position:absolute;top:1px;left:1px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transform:translateX('+(on?'20px':'0')+')"></span></button>'
+        + '</div></div>';
+    } else {
+      html = '<div onclick="event.stopPropagation();JH.clearMulti(\''+kind+'\')" style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer;background:'+(allActive?'var(--accent-soft)':'transparent')+'">'
+        + '<span style="flex:1;font-size:12.5px;font-weight:'+(allActive?'800':'600')+';color:var(--ink)">'+(ALL_LABEL[kind]||'All')+'</span>'
+        + (allActive?CHK_A:'') + '</div>';
+    }
     let lastType = null;
     opts.forEach(function(o){
       const checked = sel.indexOf(String(o.v)) >= 0;
@@ -510,6 +530,7 @@ window.JH = (function(){
       this.updateMultiLabel(kind);
     },
     clearMulti(kind){ _pending[kind] = []; this.renderMultiMenu(kind); this.updateMultiLabel(kind); },
+    toggleEver(){ _pending.ever = !_pending.ever; this.renderMultiMenu('status'); this.updateMultiLabel('status'); },
     renderMultiMenu(kind){ document.querySelectorAll('[data-menu="' + kind + '"]').forEach(function(m){ m.innerHTML = buildRows(kind); }); },
     updateMultiLabel(kind){
       const sel = _pending[kind];
@@ -517,7 +538,7 @@ window.JH = (function(){
       let label;
       const one = () => (window.__filterOpts[kind].find(o => String(o.v) === String(sel[0])) || {}).label || sel[0];
       if (kind === 'roles') label = sel.length === 0 ? 'Role' : (sel.length === 1 ? one() : sel.length + ' roles');
-      else if (kind === 'status') label = sel.length === 0 ? 'Status' : (sel.length === 1 ? one() : sel.length + ' statuses');
+      else if (kind === 'status') label = (sel.length === 0 ? 'Status' : (sel.length === 1 ? one() : sel.length + ' statuses')) + (_pending.ever ? ' · ever' : '');
       else label = sel.length === 0 ? 'Country' : (sel.length === 1 ? one() : sel.length + ' countries');
       document.querySelectorAll('[data-filter="' + kind + '"]').forEach(function(btn){
         const lbl = btn.querySelector('.fb-label'); if (lbl) lbl.textContent = label;
@@ -535,11 +556,13 @@ window.JH = (function(){
       const pr = _pending.roles.slice().sort();
       const pc = _pending.country.slice().sort();
       const ps = _pending.status.slice().sort();
-      if (pr.join(',') !== curR.join(',') || pc.join(',') !== curC.join(',') || ps.join(',') !== curS.join(',')) {
+      const everChanged = _pending.ever !== <%- JSON.stringify(!!f.ever) %>;
+      if (pr.join(',') !== curR.join(',') || pc.join(',') !== curC.join(',') || ps.join(',') !== curS.join(',') || everChanged) {
         nav({
           roles: _pending.roles.join(',') || null,
           country: _pending.country.join(',') || null,
           status: _pending.status.join(',') || null,
+          ever: _pending.ever ? '1' : null,
         });
         return true;
       }
