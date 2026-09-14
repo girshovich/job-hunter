@@ -109,20 +109,33 @@ async function auth(page: Page) {
 
 // ── DM2, DM3: the migration ────────────────────────────────────────────────────────────────
 
-test('every profile has the ten defaults, in order, with three built-ins (DM2)', () => {
+test('every profile has the thirteen defaults, with four built-ins (DM2)', () => {
+  // Asserted as a **set**, not a `sort_order` slice. The same list arrives by two routes that write
+  // different orders: a fresh profile is seeded straight from `DEFAULT_STATUSES` (0…12), while a
+  // migrated one keeps the original numbering and has `Final`/`Other stage` appended at MAX+1 by
+  // `v_statuses_v2`. Both are correct; only the membership is. `Hard skills` is the renamed
+  // `Team call` and `Hiring manager` the re-cased `Hiring Manager` — neither had ever been used.
+  const DEFAULTS = [
+    'New', 'Not applying', 'Applied', 'Recruiter', 'Hiring manager', 'Hard skills',
+    'Case', 'Final', 'Other stage', 'Offer', 'Rejected', 'I declined', 'Incoming',
+  ];
   const profiles = db.prepare('SELECT id FROM profiles').all() as Array<{ id: number }>;
   expect(profiles.length).toBeGreaterThan(0);
   for (const { id } of profiles) {
-    // The seeded ten only: `sort_order` 0-9 is what the migration wrote. Anything the user has
-    // added since sits above that, and a user adding a status must never fail this assertion.
-    const seeded = db.prepare(
-      'SELECT name, type, is_builtin FROM statuses WHERE profile_id = ? AND sort_order < 10 ORDER BY sort_order',
+    const live = db.prepare(
+      'SELECT name, type, is_builtin FROM statuses WHERE profile_id = ? AND archived_at IS NULL',
     ).all(id) as Array<{ name: string; type: string; is_builtin: number }>;
-    expect(seeded.map((r) => r.name)).toEqual([
-      'New', 'Not applying', 'Applied', 'Recruiter', 'Hiring Manager',
-      'Case', 'Team call', 'Offer', 'Rejected', 'I declined',
-    ]);
-    expect(seeded.filter((r) => r.is_builtin === 1).map((r) => r.name)).toEqual(['New', 'Not applying', 'Applied']);
+
+    // Every default is present exactly once. A user-added status is allowed on top, so this is a
+    // subset check plus a no-duplicates check, never an equality on the whole list.
+    for (const name of DEFAULTS) {
+      expect(live.filter((r) => r.name === name)).toHaveLength(1);
+    }
+    expect(live.filter((r) => r.is_builtin === 1).map((r) => r.name).sort())
+      .toEqual(['Applied', 'Incoming', 'New', 'Not applying']);
+    // The rename left nothing behind under the old names.
+    expect(live.map((r) => r.name)).not.toContain('Team call');
+    expect(live.map((r) => r.name)).not.toContain('Hiring Manager');
   }
 });
 

@@ -33,24 +33,32 @@ export interface StatusRow {
 }
 
 /**
- * The eleven statuses every profile starts with (application_status.md §4.1, D32). The first three
+ * The thirteen statuses every profile starts with (application_status.md §4.1, D32). The first three
  * are `is_builtin` — undeletable and un-retypeable, because the migration maps the old
- * `applied` 0/1/2 onto them and the New pile is the whole review loop. The other seven are
- * ordinary rows, leaving four of the fifteen slots for the user's own.
+ * `applied` 0/1/2 onto them and the New pile is the whole review loop. The other nine are
+ * ordinary rows, leaving two of the fifteen slots for the user's own.
  *
  * `Incoming` is the fourth built-in and the second of type `new` (PRD §7.24) — a deliberate
  * exception to the rule that only one status carries each of the three migrated types. It is **last
  * on purpose**: `newStatusId()` falls back to the lowest `sort_order` among built-in `new` rows, so
  * seeding it anywhere before `New` would make the pipeline stamp every scraped job "Incoming".
+ *
+ * `Hard skills` is the former `Team call`, renamed by `v_statuses_v2` rather than added alongside it:
+ * the old name shipped but was never used — nought jobs and nought history events on every profile —
+ * so renaming keeps the list at thirteen instead of fourteen. Renaming is safe by construction,
+ * because the app understands a status through its `type` and never its name; the only two
+ * name-based lookups are `newStatusId()` ('New') and `incomingStatusId()` ('Incoming').
  */
 export const DEFAULT_STATUSES: Array<{ name: string; type: StatusType; builtin?: boolean }> = [
   { name: 'New',            type: 'new',      builtin: true },
   { name: 'Not applying',   type: 'wont',     builtin: true },
   { name: 'Applied',        type: 'applied',  builtin: true },
   { name: 'Recruiter',      type: 'progress' },
-  { name: 'Hiring Manager', type: 'progress' },
+  { name: 'Hiring manager', type: 'progress' },
+  { name: 'Hard skills',    type: 'progress' },
   { name: 'Case',           type: 'progress' },
-  { name: 'Team call',      type: 'progress' },
+  { name: 'Final',          type: 'progress' },
+  { name: 'Other stage',    type: 'progress' },
   { name: 'Offer',          type: 'offer' },
   { name: 'Rejected',       type: 'rejected' },
   { name: 'I declined',     type: 'rejected' },
@@ -2587,11 +2595,18 @@ The full post text is stored as the job description — do not repeat or summari
     throw err;
   }
 
-  // The 11th built-in status, for every profile that already exists. `seedStatusesForProfile`
+  // The built-in `Incoming` status, for every profile that already exists. `seedStatusesForProfile`
   // cannot do this — it returns early for any profile that already has rows, which is all of them,
   // so the feature would work perfectly on a fresh dev database and silently do nothing in
-  // production. One plain INSERT … SELECT instead, with no per-profile existence check: nobody has
-  // this status yet, and the `_migrations` row is what stops it running twice.
+  // production.
+  //
+  // **The `NOT EXISTS` clause is not belt-and-braces.** `v_statuses` runs first and calls
+  // `seedStatusesForProfile`, which writes all of `DEFAULT_STATUSES` — and `Incoming` has been in
+  // that list since this shipped. On a database where *both* migrations run in the same boot, the
+  // unconditional INSERT this used to be gave every profile a **second, undeletable `Incoming`**.
+  // That never showed on a database that had already run `v_statuses` against the older ten-status
+  // default, which is every database this had met until the production one. Measured on a copy of
+  // it: 587 profiles, 1,174 `Incoming` rows.
   //
   // `sort_order` is MAX+1 per profile, i.e. **after** `New` — see DEFAULT_STATUSES. That ordering
   // also protects a rollback: the old `newStatusId()` picks the lowest-sorted built-in `new` row,
@@ -2607,13 +2622,111 @@ The full post text is stored as the job description — do not repeat or summari
                  (SELECT COALESCE(MAX(s.sort_order), -1) + 1 FROM statuses s WHERE s.profile_id = p.id),
                  1
           FROM profiles p
-        `).run(INCOMING_STATUS_NAME);
+          WHERE NOT EXISTS (
+            SELECT 1 FROM statuses s WHERE s.profile_id = p.id AND s.name = ?
+          )
+        `).run(INCOMING_STATUS_NAME, INCOMING_STATUS_NAME);
         db.exec(`INSERT INTO _migrations VALUES ('v_status_incoming')`);
         console.log(`[db] Migration v_status_incoming: "${INCOMING_STATUS_NAME}" seeded for ${res.changes} profile(s)`);
       });
     }
   } catch (err) {
     console.error('[db] Migration v_status_incoming FAILED — refusing to start:', (err as Error).message);
+    throw err;
+  }
+
+  // ── v_statuses_v2 ───────────────────────────────────────────────────────────────────────────
+  // Three interview stages the default list was missing: `Hard skills`, `Final` and `Other stage`.
+  //
+  // **One rename, two inserts — not three inserts.** `Team call` shipped in the original defaults
+  // and was never used: nought jobs and nought history events on every profile. Renaming it to
+  // `Hard skills` therefore rewrites nothing, and keeps the list at thirteen of fifteen rather than
+  // fourteen. `Hiring Manager` → `Hiring manager` is the same operation for the same reason — the
+  // capital M was the odd one out in a list that is otherwise sentence case.
+  //
+  // Renaming is safe by construction: the app reads a status through its `type`, never its name
+  // (PRD §7.24, principle 30). The only two name-based lookups are `newStatusId()` ('New') and
+  // `incomingStatusId()` ('Incoming'), and neither name is touched.
+  //
+  // Three things this has to get right:
+  //
+  //  1. **The rename can produce a duplicate.** There is no unique index on
+  //     `statuses(profile_id, name)`, and a profile that archived `Team call` and then re-created it
+  //     holds two rows. Renaming both would leave two `Hard skills`. So the duplicates are merged:
+  //     jobs and history events are repointed at the survivor — the live row, else the lowest id —
+  //     before the extra row is deleted. Nothing loses its history.
+  //  2. **The guard reads live rows only.** An archived status is one the user retired, not one they
+  //     invented, and `listStatuses()` draws the same line. A guard over every row would refuse to
+  //     start on a database that has ever archived anything.
+  //  3. **`NOT EXISTS` on every insert.** `seedStatusesForProfile` writes the whole of
+  //     `DEFAULT_STATUSES`, which now contains `Final` and `Other stage`, so on a fresh database this
+  //     migration must find them already present and do nothing. That is the same trap
+  //     `v_status_incoming` fell into above.
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_statuses_v2'`).get();
+    if (!done) {
+      db.transaction(() => {
+        // Every name this migration expects to meet — the old defaults plus the new ones, since a
+        // fresh database is seeded with the new list before this runs.
+        const KNOWN = [
+          'New', 'Not applying', 'Applied', 'Recruiter', 'Hiring Manager', 'Hiring manager',
+          'Case', 'Team call', 'Hard skills', 'Final', 'Other stage', 'Offer', 'Rejected', 'I declined',
+          INCOMING_STATUS_NAME,
+        ];
+        const stray = db.prepare(`
+          SELECT profile_id, name FROM statuses
+          WHERE archived_at IS NULL AND name NOT IN (${KNOWN.map(() => '?').join(',')})
+        `).all(...KNOWN) as Array<{ profile_id: number; name: string }>;
+        if (stray.length > 0) {
+          throw new Error(
+            `refusing to rewrite a list that has been customised — ${stray.length} unexpected live ` +
+            `status(es), e.g. profile ${stray[0].profile_id} has "${stray[0].name}"`,
+          );
+        }
+
+        const renamed = ['Hiring Manager', 'Team call'].reduce((n, from) => {
+          const to = from === 'Team call' ? 'Hard skills' : 'Hiring manager';
+          return n + db.prepare('UPDATE statuses SET name = ? WHERE name = ?').run(to, from).changes;
+        }, 0);
+
+        // Merge any duplicate the rename created. Live row wins; otherwise the lowest id.
+        const dupes = db.prepare(`
+          SELECT profile_id, name FROM statuses
+          GROUP BY profile_id, name HAVING COUNT(*) > 1
+        `).all() as Array<{ profile_id: number; name: string }>;
+        let merged = 0;
+        for (const d of dupes) {
+          const rows = db.prepare(`
+            SELECT id FROM statuses WHERE profile_id = ? AND name = ?
+            ORDER BY (archived_at IS NULL) DESC, id ASC
+          `).all(d.profile_id, d.name) as Array<{ id: number }>;
+          const [keep, ...drop] = rows.map((r) => r.id);
+          for (const id of drop) {
+            db.prepare('UPDATE job_profile_states SET status_id = ? WHERE status_id = ?').run(keep, id);
+            db.prepare('UPDATE job_status_events  SET status_id = ? WHERE status_id = ?').run(keep, id);
+            db.prepare('DELETE FROM statuses WHERE id = ?').run(id);
+            merged++;
+          }
+        }
+
+        const added = ['Final', 'Other stage'].reduce((n, name) => n + db.prepare(`
+          INSERT INTO statuses (profile_id, name, type, sort_order, is_builtin)
+          SELECT p.id, ?, 'progress',
+                 (SELECT COALESCE(MAX(s.sort_order), -1) + 1 FROM statuses s WHERE s.profile_id = p.id),
+                 0
+          FROM profiles p
+          WHERE NOT EXISTS (SELECT 1 FROM statuses s WHERE s.profile_id = p.id AND s.name = ?)
+        `).run(name, name).changes, 0);
+
+        db.exec(`INSERT INTO _migrations VALUES ('v_statuses_v2')`);
+        console.log(
+          `[db] Migration v_statuses_v2: ${renamed} renamed, ${merged} duplicate(s) merged, ${added} added`,
+        );
+      });
+    }
+  } catch (err) {
+    console.error('[db] Migration v_statuses_v2 FAILED — refusing to start:', (err as Error).message);
     throw err;
   }
 }
