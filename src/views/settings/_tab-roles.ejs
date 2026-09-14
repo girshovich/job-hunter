@@ -65,6 +65,7 @@
       @media (max-width: 767px) {
         .stat-type, .stat-head-type { width: 112px; }   /* 'Not applying' + its caret */
         .stat-use { display: none; }
+        .stat-name, .stat-type { font-size: 16px; }   /* below 16px iOS Safari zooms on focus */
       }
       .stat-type:hover:not(:disabled) { border-color: var(--line2); background: #fff; }
       .stat-type:focus { border-color: var(--accent-border); background: #fff; }
