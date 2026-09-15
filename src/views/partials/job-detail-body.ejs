@@ -59,6 +59,7 @@ const _isNewJob = _curType === 'new';
 // A Rejected-type status closes the line: nothing can be added after it until that step is
 // changed or deleted, and it carries no elapsed counter on either surface (D35, D37).
 const _ended = _curType === 'rejected';
+const _showGdprHelp = _ended && !(_cur && String(_cur.name || '').trim().toLowerCase() === 'i declined');
 const _elapsed = Number(locals.elapsedDays);
 // A status the log has no step for — a job migrated from the old three-state column. It is drawn
 // as the closing step with no date, because there is no honest date to draw (D8). It opens no
@@ -80,6 +81,55 @@ function _stepDate(iso) {
   return isNaN(d.getTime()) ? String(iso)
     : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
 }
+function _gdprDateLong(iso) {
+  const d = new Date(String(iso || '').slice(0, 10) + 'T12:00:00Z');
+  return isNaN(d.getTime()) ? 'Unknown'
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+const _gdprAppliedStep = _hist.find(function (step) { return step.type === 'applied'; })
+  || _hist.find(function (step) { return ['progress', 'offer'].includes(step.type); });
+const _gdprAppliedOn = _gdprAppliedStep ? _gdprDateLong(_gdprAppliedStep.changed_at) : 'Unknown';
+const _gdprRoleName = job.title || 'the role';
+const _gdprCompanyName = job.company || 'the company';
+const _gdprPrompt = [
+  'Company: ' + _gdprCompanyName,
+  '',
+  'Role: ' + _gdprRoleName,
+  '',
+  'Applied on: ' + _gdprAppliedOn,
+  '',
+  "I want to understand why the company I applied to rejected my application, for this I want to send a GDPR request. I will send you company, role name, and application data. Your task: 1) search online for the company's privacy / DPO email or request form, 2) write recipient email, subject and body of the GDPR request email.",
+  '',
+  'Response should be in the format of email ready to be sent or copy-pasted:',
+  '',
+  'Recipients: recipient email or form link you found',
+  '',
+  'Subject: GDPR Article 15 access request: role_name',
+  '',
+  'Body: Dear company_name Data Protection Officer,',
+  '',
+  'I applied for the role_name position on dd month yyyy using this email address and subsequently received a rejection.',
+  '',
+  'Please treat this as a formal access request under Articles 12 and 15 GDPR.',
+  '',
+  'Please provide an electronic copy of all personal data processed in connection with my application, including:',
+  '',
+  '- my complete applicant record and status history, including processing timestamps;',
+  '- recruiter and hiring-manager notes, comments, ratings, tags and assessments concerning me;',
+  '- any recorded rejection reason, decision code or assessment against the role requirements;',
+  '- any applicant-specific scores, rankings, classifications or recommendations;',
+  '- records indicating whether my location, availability, expected salary, technical background, AI experience or people-management experience influenced the decision;',
+  '- records showing whether and when my application was reviewed by a person;',
+  '- the sources, recipients, processors and applicable retention periods.',
+  '',
+  'Please confirm whether automated rules, profiling, CV parsing or AI-assisted tools were used to screen or assess my application. If Article 22 GDPR applied, please provide meaningful information about the logic involved and the significance and consequences of that processing.',
+  '',
+  'I am requesting existing applicant-specific data and decision records, rather than asking company_name to create a new explanation. Where third-party information must be protected, please redact it rather than withholding the remaining personal data.',
+  '',
+  'If any requested category is withheld, please identify the category and legal basis. Please also preserve the relevant application and decision records while this request is being processed.',
+  '',
+  'Kind regards'
+].join('\n');
 %>
 <%
 // ── Full description: real sanitized-HTML renderer (R2 — never the mockup placeholder) ──
@@ -422,6 +472,16 @@ function renderLinks(raw) {
                   data-job-id="<%= job.id %>" data-status-id="<%= _cur ? _cur.id : '' %>">+</button>
         <% } %>
       </div>
+      <% if (_showGdprHelp) { %>
+      <div class="gdpr-help" aria-label="GDPR request helper">
+        <div class="gdpr-row">
+          <button type="button" class="gdpr-open-btn" onclick="openGdprChatgpt()" title="Open ChatGPT with prompt">
+            <span>Send GDPR request</span>
+          </button>
+          <span class="gdpr-instruction"><span class="gdpr-before">Sorry you got rejected. Ask them the reason behind it. </span><span class="gdpr-after"><span class="gdpr-mobile-line">Click to open ChatGPT with the prompt pasted.</span> Then: <strong>send prompt &rarr; click "Open in email" <svg class="gdpr-email-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg> &rarr; send.</strong> Or <button type="button" class="gdpr-copy-link" onclick="copyGdprPrompt(this)" data-reset-label="copy-paste prompt manually" data-copied-label="prompt copied" title="Copy GDPR prompt"><span>copy-paste prompt manually</span></button>.</span></span>
+        </div>
+      </div>
+      <% } %>
     </div>
     <% } %>
 
@@ -630,6 +690,7 @@ function renderLinks(raw) {
 // this partial and re-runs the script on each open; const would throw on redeclaration.
 var _jobId = <%= job.id %>;
 var _companyName = <%- JSON.stringify(job.company) %>;
+var _gdprPrompt = <%- JSON.stringify(_gdprPrompt) %>;
 
 function renderMdJs(text) {
   if (!text) return '';
@@ -638,6 +699,51 @@ function renderMdJs(text) {
     escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     return '<p>' + escaped.replace(/\n/g, '<br>') + '</p>';
   }).join('');
+}
+
+function setGdprCopyLabel(btn, label, copied) {
+  if (!btn) return;
+  var labelEl = btn.querySelector('span');
+  if (labelEl) labelEl.textContent = label;
+  else btn.textContent = label;
+  btn.classList.toggle('is-copied', !!copied);
+}
+
+function copyGdprWithFallback(text) {
+  var area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.top = '-9999px';
+  document.body.appendChild(area);
+  area.select();
+  var copied = document.execCommand('copy');
+  document.body.removeChild(area);
+  return copied;
+}
+
+async function copyGdprPrompt(btn) {
+  var ok = false;
+  var resetLabel = btn ? (btn.dataset.resetLabel || 'Copy') : 'Copy';
+  var copiedLabel = btn ? (btn.dataset.copiedLabel || 'Copied') : 'Copied';
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(_gdprPrompt);
+      ok = true;
+    } else {
+      ok = copyGdprWithFallback(_gdprPrompt);
+    }
+  } catch (e) {
+    ok = copyGdprWithFallback(_gdprPrompt);
+  }
+
+  setGdprCopyLabel(btn, ok ? copiedLabel : 'copy failed', ok);
+  window.setTimeout(function () { setGdprCopyLabel(btn, resetLabel, false); }, ok ? 1700 : 2400);
+}
+
+function openGdprChatgpt() {
+  var url = 'https://chatgpt.com/?prompt=' + encodeURIComponent(_gdprPrompt);
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function openCvModal() {
