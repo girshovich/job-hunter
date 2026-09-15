@@ -62,6 +62,22 @@ export interface AdminDaily {
   topFailers: TopFailer[];
 }
 
+/** One column of the DAU/WAU chart. `partial` marks the current week, which the clock cut short —
+ *  it under-counts by construction and must never be read as a drop. Days are never partial. */
+export interface ActiveBucket {
+  k: string;        // day: YYYY-MM-DD. week: the Monday of that ISO week.
+  n: number;        // distinct non-admin profiles active in the bucket
+  partial: boolean;
+}
+
+export interface AdminActive {
+  days: ActiveBucket[];
+  weeks: ActiveBucket[];
+  since: string | null;   // first day ever recorded, or null if nothing is
+  dayFrom: string;        // start of the day window BEFORE trimming, so the card can tell
+                          // "nobody was here" from "we were not recording yet"
+}
+
 export interface TopFailer {
   id: number;
   email: string;
@@ -358,4 +374,101 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
     byHour,
     topFailers,
   };
+}
+
+// ── DAU / WAU: distinct profiles with logged-in activity ──────────────────────
+/** Day mode shows this many days back, ending today. */
+export const DAU_DAYS = 14;
+/** Week mode shows this many Mon-Sun weeks, ending with the current, partial one. */
+export const WAU_WEEKS = 12;
+
+/**
+ * Unlike every other figure on this page this one reads `profile_active_days` rather than
+ * `search_runs`, and it breaks BOTH of the page's other rules on purpose:
+ *
+ *  1. **Admins are counted, like anyone else.** Everywhere else `is_admin = 1` is excluded
+ *     because admin *runs* are test runs and crons. Presence is not a run — the operator opening
+ *     their own product is a person being there, which is what this chart measures. So there is
+ *     no join to `profiles` at all, and the queries stay entirely inside `idx_pad_day`.
+ *  2. **It owns its window and ignores the Daily range.** That is why the card sits ABOVE the
+ *     range bar. Weekly needs a quarter to say anything, and MAX_WINDOW_DAYS caps the Daily half
+ *     at 30 — a cap that guards queries bounded by RUN VOLUME. This one is bounded by
+ *     (profiles x days) and reads ~84 rows per profile at most, so the cap does not apply to it.
+ *
+ * Two more things a reader can get wrong, both stated on the card:
+ *  - **Days bucket in the PROFILE's timezone**, written by `touchProfileActivity` from the day the
+ *    user was living in. Every other card buckets admin-local, which is the other reason this one
+ *    is not filed under "Daily".
+ *  - **Uniques do not add up.** WAU is not the sum of its DAU — one person on five days is five
+ *    DAU and one WAU — so the two series are counted separately and neither derives from the other.
+ *
+ * There is no backfill (see the migration), so `since` is returned for the card to state and empty
+ * leading buckets are trimmed rather than drawn as a run of zeroes that reads like a collapse.
+ */
+export function getAdminActive(): AdminActive {
+  const db = getDb();
+  const today = todayInAdminTz();
+  const todayT = Date.parse(today + 'T00:00:00Z');
+
+  const dayFrom = iso(todayT - (DAU_DAYS - 1) * DAY_MS);
+  // Anchored on Mondays, so the window always starts on a week boundary and a truncated FIRST
+  // week cannot occur. The last week is the current one and is short by construction.
+  const weekFrom = iso(mondayOf(today) - (WAU_WEEKS - 1) * 7 * DAY_MS);
+
+  // PK (profile_id, day) makes one row per profile per day, so COUNT(*) is already a distinct
+  // count of profiles. The week query cannot use that shortcut — a profile has up to 7 rows in
+  // a week — hence COUNT(DISTINCT).
+  const dayRows = db.prepare(`
+    SELECT day AS k, COUNT(*) AS n FROM profile_active_days
+    WHERE day BETWEEN ? AND ? GROUP BY 1
+  `).all(dayFrom, today) as { k: string; n: number }[];
+
+  // `weekday 0` lands on the coming Sunday (or stays put if the day IS Sunday); minus six days is
+  // therefore the Monday of that ISO week — Monday-first, the convention the date picker uses.
+  const weekRows = db.prepare(`
+    SELECT date(day, 'weekday 0', '-6 days') AS k, COUNT(DISTINCT profile_id) AS n
+    FROM profile_active_days WHERE day BETWEEN ? AND ? GROUP BY 1
+  `).all(weekFrom, today) as { k: string; n: number }[];
+
+  // No join, so this is an index seek rather than a scan looking for the first non-admin row.
+  const since = (db.prepare(`SELECT MIN(day) AS d FROM profile_active_days`)
+    .get() as { d: string | null }).d;
+
+  const dayCount = new Map(dayRows.map((r) => [r.k, r.n]));
+  const weekCount = new Map(weekRows.map((r) => [r.k, r.n]));
+
+  // Every day in the window gets a column whether or not anyone was there: a gap mid-series is
+  // the finding, and dropping it would silently close the distance between the days either side.
+  const days: ActiveBucket[] = [];
+  for (let t = Date.parse(dayFrom + 'T00:00:00Z'); t <= todayT; t += DAY_MS) {
+    const k = iso(t);
+    days.push({ k, n: dayCount.get(k) ?? 0, partial: false });
+  }
+
+  const weeks: ActiveBucket[] = [];
+  for (let t = Date.parse(weekFrom + 'T00:00:00Z'); t <= todayT; t += 7 * DAY_MS) {
+    const k = iso(t);
+    weeks.push({ k, n: weekCount.get(k) ?? 0, partial: iso(t + 6 * DAY_MS) > today });
+  }
+
+  return { days: trimEdges(days), weeks: trimEdges(weeks), since, dayFrom };
+}
+
+const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+/** The Monday of the ISO week containing `day`, as epoch ms. */
+function mondayOf(day: string): number {
+  const t = Date.parse(day + 'T00:00:00Z');
+  return t - ((new Date(t).getUTCDay() + 6) % 7) * DAY_MS;
+}
+
+/** Drop empty buckets at BOTH ends, keep every one between. Leading zeroes are almost always
+ *  "before tracking started" and trailing ones "nothing yet today" — neither is a measurement.
+ *  A zero with data on both sides is one, and keeps its place on the axis. */
+function trimEdges(b: ActiveBucket[]): ActiveBucket[] {
+  let lo = 0;
+  let hi = b.length - 1;
+  while (lo <= hi && b[lo].n === 0) lo++;
+  while (hi >= lo && b[hi].n === 0) hi--;
+  return b.slice(lo, hi + 1);
 }

@@ -2434,6 +2434,35 @@ The full post text is stored as the job description — do not repeat or summari
     console.warn('[db] Migration v_schedule_inactivity failed (non-fatal):', (err as Error).message);
   }
 
+  // v_profile_active_days: the per-day presence LOG, beside the presence SCALARS above.
+  //
+  // `active_days_count` is a counter and `active_day_last` holds one day — enough for the reaper,
+  // which only asks "how long since last seen" and "did they ever come back", and both are
+  // answerable without dates. Admin Stats DAU/WAU needs the (profile, day) pairs that the counter's
+  // `+ 1` throws away, so they are appended here instead (§7.22).
+  //
+  // ON DELETE CASCADE is required, not a preference: `/api/profiles/:id/delete` ends its
+  // transaction with `DELETE FROM profiles` under `PRAGMA foreign_keys = ON`, and a NO ACTION
+  // reference would raise "FOREIGN KEY constraint failed" and break account deletion outright.
+  // A deleted profile therefore leaves the historical chart, exactly as it already leaves every
+  // other Admin Stats figure — all of which join `profiles`.
+  //
+  // No backfill. `active_day_last` holds only each profile's MOST RECENT day, so seeding from it
+  // would state 1 active user on a day that really had ten — a chart that reads as a collapse.
+  // The series simply starts on deploy day; `MIN(day)` is what the card reports as its start.
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS profile_active_days (
+        profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        day        TEXT    NOT NULL,
+        PRIMARY KEY (profile_id, day)
+      );
+      CREATE INDEX IF NOT EXISTS idx_pad_day ON profile_active_days(day);
+    `);
+  } catch (err) {
+    console.warn('[db] Migration v_profile_active_days failed (non-fatal):', (err as Error).message);
+  }
+
   // v_statuses: custom job statuses replace the three-state `applied` column
   // (application_status.md §12.2). Four steps, in this order — the seed has to exist before
   // anything can point at it.
@@ -3199,14 +3228,24 @@ export function createProfile(db: Database, email: string): { id: number; create
   return { id: newId, createdAt: now };
 }
 
+/** Formatters, kept rather than rebuilt: the auth gate asks for the local day on EVERY authed
+ *  request, and constructing one costs ~27 us against ~0.6 us to reuse it. One entry per timezone
+ *  in use, so the map is bounded by the number of distinct `settings.timezone` values. */
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+
 /** `YYYY-MM-DD` for `when` as seen in `tz`, falling back to UTC for a timezone SQLite/ICU rejects. */
-function localDay(when: Date, tz: string): string {
-  const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
-  try {
-    return new Intl.DateTimeFormat('en-CA', { ...opts, timeZone: tz }).format(when);
-  } catch {
-    return new Intl.DateTimeFormat('en-CA', { ...opts, timeZone: 'UTC' }).format(when);
+export function localDay(when: Date, tz: string): string {
+  let fmt = dayFormatters.get(tz);
+  if (!fmt) {
+    const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+    try {
+      fmt = new Intl.DateTimeFormat('en-CA', { ...opts, timeZone: tz });
+    } catch {
+      fmt = new Intl.DateTimeFormat('en-CA', { ...opts, timeZone: 'UTC' });
+    }
+    dayFormatters.set(tz, fmt);
   }
+  return fmt.format(when);
 }
 
 /**
@@ -3235,6 +3274,7 @@ export function touchProfileActivity(db: Database, profileId: number): void {
 
     const now = new Date();
     const today = localDay(now, row.timezone || 'UTC');
+
     if (row.active_day_last === today) {
       db.prepare('UPDATE profiles SET last_active_at = ? WHERE id = ?').run(now.toISOString(), profileId);
     } else {
@@ -3247,6 +3287,22 @@ export function touchProfileActivity(db: Database, profileId: number): void {
     if (row.activity_warned_at) {
       db.prepare('UPDATE settings SET activity_warned_at = NULL WHERE profile_id = ?').run(profileId);
     }
+
+    // The presence LOG (§7.22), written LAST and nowhere else. Order is load-bearing: the gate
+    // re-enters this function on every request until `active_day_last` reaches today, so a throw
+    // from here ahead of the writes above would leave the day unrecorded, re-arm that condition on
+    // the next request, and turn the gate's once-an-hour session write into a per-request one —
+    // while `last_active_at`, the reaper's only signal (§7.9), silently froze. Everything the
+    // reaper reads is committed before this line can fail.
+    //
+    // Outside the branch above, not inside it: on the day the migration lands every already-active
+    // profile has `active_day_last` set to today and would otherwise record nothing until tomorrow.
+    // An INSERT the row already holds is an indexed no-op on the (profile_id, day) key.
+    //
+    // Admins are NOT skipped. Unlike every other Admin Stats figure this one counts the operator
+    // as a user, so the row has to exist for them too (§7.22).
+    db.prepare('INSERT OR IGNORE INTO profile_active_days (profile_id, day) VALUES (?, ?)')
+      .run(profileId, today);
   } catch (err) {
     console.warn('[activity] touchProfileActivity failed (non-fatal):', (err as Error).message);
   }

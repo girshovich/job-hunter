@@ -174,8 +174,8 @@
     <div class="jh-card">
       <div class="flex items-center gap-4 px-6 py-4">
         <div class="flex-1 min-w-0">
-          <div class="stg-h2">Customize AI prompts</div>
-          <p class="stg-sub">Scoring, duplicate checks, CV comparison — 5 advanced prompts.</p>
+          <div class="stg-h2">See AI prompts</div>
+          <p class="stg-sub">Scoring, duplicate checks, etc.</p>
         </div>
         <button type="button" onclick="openPromptsModal()"
                 class="stg-btn stg-btn-secondary stg-btn-sm" style="min-width:5.5rem">
@@ -204,7 +204,7 @@
       <div class="stg-modal relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[90vh] flex flex-col overflow-hidden">
 
         <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-          <h2 class="font-semibold text-gray-900 text-base">Customize AI prompts</h2>
+          <h2 class="font-semibold text-gray-900 text-base">See AI prompts</h2>
           <button type="button" onclick="tryClosePromptsModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Close">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
@@ -225,16 +225,13 @@
               <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">3</span>
               <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Duplicate Check</span><span class="block text-[11px] text-gray-500 mt-0.5">Detects reposts</span></span>
             </button>
-            <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="3" onclick="pickPrompt(3)">
-              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">4</span>
-              <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">CV Comparison</span><span class="block text-[11px] text-gray-500 mt-0.5">CV vs. job description</span></span>
-            </button>
+            <%# CV Comparison (panel data-pi="3") is hidden from the list; its panel stays in the modal. %>
             <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="4" onclick="pickPrompt(4)">
-              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">5</span>
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">4</span>
               <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Company Enrichment</span><span class="block text-[11px] text-gray-500 mt-0.5">One call per new company</span></span>
             </button>
             <button type="button" class="pm-item flex items-start gap-2.5 w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:bg-white transition-colors" data-pi="5" onclick="pickPrompt(5)">
-              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">6</span>
+              <span class="flex-none w-5 h-5 rounded-md bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center mt-0.5">5</span>
               <span class="min-w-0"><span class="pm-item-title block text-xs font-semibold text-gray-800">Company Name Check</span><span class="block text-[11px] text-gray-500 mt-0.5">When you add a job by hand</span></span>
             </button>
           </div>

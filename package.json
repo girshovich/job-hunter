@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "dev": "ts-node --transpile-only src/index.ts",
     "typecheck": "tsc --noEmit",
-    "images": "node scripts/optimize-images.js"
+    "images": "node scripts/optimize-images.js",
+    "test:unit": "DATABASE_PATH=\"$(mktemp -d)/test.db\" ts-node --transpile-only unit/activeUsers.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",

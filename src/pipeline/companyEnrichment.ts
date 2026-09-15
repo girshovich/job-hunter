@@ -26,7 +26,7 @@ export interface EnrichmentOutput {
   source_note: string;
 }
 
-// Fixed, not user-editable — shown read-only in Settings → AI → Customize AI prompts.
+// Fixed, not user-editable — shown read-only in Settings → AI → See AI prompts.
 // Keeping it constant also lets the whole system message hit the prompt cache on every call.
 export const COMPANY_ENRICHMENT_PROMPT = `You produce short, factual company profiles for a job seeker. Answer only with the structured fields.
 

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
-import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, TOPUP_ENABLED, touchProfileActivity, warnOnSplitApifyTokens } from './db';
+import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, localDay, TOPUP_ENABLED, touchProfileActivity, warnOnSplitApifyTokens } from './db';
 import { shortcuts, activeShortcut, parseStatusParam, listStatuses, TYPE_META, STATUS_TYPES } from './statuses';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
@@ -78,20 +78,37 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(session.profile_id) as ProfileRow | undefined;
+  // `settings.timezone` rides along on the profile lookup rather than costing a second query: the
+  // day check below needs it on every request, and the join is on an indexed primary key.
+  const profile = db.prepare(`
+    SELECT p.*, s.timezone FROM profiles p
+    LEFT JOIN settings s ON s.profile_id = p.id
+    WHERE p.id = ?
+  `).get(session.profile_id) as (ProfileRow & { timezone: string | null }) | undefined;
   if (!profile) {
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly`);
     res.redirect('/welcome');
     return;
   }
 
-  // Extend session (rolling 30 days) — only when last_active is stale, to cut write pressure
+  // Extend session (rolling 30 days) — only when last_active is stale, to cut write pressure.
+  //
+  // The local day having rolled over is the second trigger, and it is not redundant with the
+  // first: a visit at 23:50 followed by one at 00:10 is half an hour apart, so the staleness test
+  // alone would record nothing and the new day would be lost. That under-counted
+  // `active_days_count`, which decides the reaper's 10- vs 30-day track — a user who *did* come
+  // back could stay at 1 and be paused on the short one — and it dropped the same day from the
+  // Admin Stats DAU/WAU series (§7.22).
+  //
+  // The test itself is free: `active_day_last` came back on the row above and the formatter is
+  // cached, so a request on a day already recorded does no extra read and no write at all.
   const lastActiveMs = session.last_active ? new Date(session.last_active).getTime() : 0;
-  if (Date.now() - lastActiveMs > 3_600_000) {
+  const dayRolled = profile.active_day_last !== localDay(new Date(), profile.timezone || 'UTC');
+  if (dayRolled || Date.now() - lastActiveMs > 3_600_000) {
     const newExpiry = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
     const now = new Date().toISOString();
     db.prepare('UPDATE sessions SET expires_at = ?, last_active = ? WHERE id = ?').run(newExpiry, now, session.id);
-    // Same hourly beat, mirrored onto the profile so it survives a logout — see touchProfileActivity.
+    // Mirrored onto the profile so it survives a logout — see touchProfileActivity.
     touchProfileActivity(db, session.profile_id);
   }
 

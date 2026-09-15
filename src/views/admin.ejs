@@ -733,6 +733,24 @@
     </div>
   </div>
 
+  <!-- DAU / WAU -->
+  <div class="sp-card">
+    <div class="sp-hd" style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div class="sp-title" id="sp-act-title">Active users per day</div>
+        <div class="sp-sub" id="sp-act-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex:none">
+        <button type="button" class="sp-rangebtn active" id="sp-act-d">14 days</button>
+        <button type="button" class="sp-rangebtn" id="sp-act-w">12 weeks</button>
+      </div>
+    </div>
+    <div class="sp-pad">
+      <div id="sp-act-legend" style="display:none"></div>
+      <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x" style="padding-bottom:4px"><div id="sp-act-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div></div>
+    </div>
+  </div>
+
   <!-- ── Daily ─────────────────────────────────────────────────────────────── -->
   <div class="sp-bar">
     <div class="sp-daily-h">Daily</div>
@@ -775,19 +793,19 @@
       <div id="sp-ok-legend" style="display:none"></div>
       <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x" style="padding-bottom:4px"><div id="sp-ok-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div></div>
     </div>
+    <% if (daily.topFailers.length) { %>
     <div class="sp-fa">
       <div class="sp-fa-h">Top-3 users with failed runs (with &ge;&nbsp;5 runs)</div>
-      <% if (!daily.topFailers.length) { %>
-        <div class="sp-fa-empty">Every run finished cleanly in this range.</div>
-      <% } else { daily.topFailers.forEach(function (f) { %>
+      <% daily.topFailers.forEach(function (f) { %>
         <div class="sp-fa-row">
           <span class="sp-fa-id">#<%= f.id %></span>
           <span class="sp-fa-who" title="<%= f.email %>"><%= f.email %></span>
           <span class="sp-fa-share"><%= f.share %>%</span>
           <span class="sp-fa-own"><b class="<%= f.ownRate < 80 ? 'bad' : '' %>"><%= f.ownRate.toFixed(1) %>%</b> own success</span>
         </div>
-      <% }); } %>
+      <% }); %>
     </div>
+    <% } %>
   </div>
 
   <!-- Job sources -->
@@ -874,6 +892,7 @@
   <%- include('partials/_stacked-chart') %>
   <%- include('partials/_date-cal') %>
 
+  const SP_ACT = <%- JSON.stringify(active) %>;
   const SP_DAYS = <%- JSON.stringify(daily.days) %>;
   const SP_HOURS = <%- JSON.stringify(daily.byHour) %>;
   const SP_FROM = <%- JSON.stringify(daily.from) %>, SP_TO = <%- JSON.stringify(daily.to) %>;
@@ -900,6 +919,17 @@
     tipSuffix: '', colW: 36,
     tipLabel: d => spLabel(d),
   };
+  // Presence, not work — so it takes the same sky family as Runs per day rather than a verdict
+  // colour. One series: the card title names it and the legend stays hidden.
+  const SP_ACT_SPEC = {
+    order: ['n'],
+    config: { n: { label: 'Active users', color: 'var(--sky-ink)' } },
+    // ' active', not ' users': the suffix is concatenated raw, and at this base size a day with
+    // one active user is the common case — " 1 users" would be the reading most of the time.
+    fmt: v => String(v), tipSuffix: ' active', colW: 36,
+    tipLabel: k => k,
+  };
+
   function spNines(ok, total) {
     if (!total) return null;
     const fail = (total - ok) / total;
@@ -1055,6 +1085,8 @@
     });
     spChart('sp-runs-chart', 'sp-runs-legend', runsRaw, periods, labels, SP_RUNS_SPEC, 'No runs in this range.');
 
+    drawActive(spActMode);
+
     // A day with no finished runs has no rate — it draws nothing, not a zero.
     const okRaw = [];
     SP_DAYS.forEach(r => { const n = spNines(r.ok, r.runs); if (n !== null) okRaw.push({ key: r.d, category: 'ok', count: n }); });
@@ -1081,6 +1113,49 @@
       ['sp-runs-chart', 'sp-ok-chart', 'sp-hour-chart'].forEach(spFitColValues);
     });
   }
+
+  // 14 days / 12 weeks. Both series come from the server already counted: a week's uniques are
+  // NOT the sum of its days (one person on five days is 5 DAU and 1 WAU), so unlike the Costs
+  // chart this toggle cannot re-bucket one dataset in the browser.
+  let spActMode = 'd';
+  function drawActive(mode) {
+    spActMode = mode;
+    const week = mode === 'w';
+    const buckets = week ? SP_ACT.weeks : SP_ACT.days;
+    document.getElementById('sp-act-d').classList.toggle('active', !week);
+    document.getElementById('sp-act-w').classList.toggle('active', week);
+    document.getElementById('sp-act-title').textContent =
+      week ? 'Active users per week' : 'Active users per day';
+
+    const keys = buckets.map(b => b.k);
+    const raw = buckets.filter(b => b.n > 0).map(b => ({ key: b.k, category: 'n', count: b.n }));
+    // The axis carries the short date either way — "Week of Aug 10" wraps to two lines in a
+    // column this wide and collides with its neighbours. The tooltip says which it is instead.
+    const partial = new Set(buckets.filter(b => b.partial).map(b => b.k));
+    SP_ACT_SPEC.tipLabel = k => (week ? 'Week of ' : '') + spLabel(k)
+      + (partial.has(k) ? ' \u00b7 partial' : '');
+
+    // Days can be missing because nobody came, or because we were not recording yet. Only the
+    // second needs explaining, so it is said only while the series is younger than the window.
+    const young = SP_ACT.since && SP_ACT.since > SP_ACT.dayFrom ? ' Tracking started ' + spLabel(SP_ACT.since) + '.' : '';
+    document.getElementById('sp-act-sub').textContent = week
+      ? 'Distinct users per Mon\u2013Sun week. A week is not the sum of its days.'
+      : 'Distinct users with logged-in activity, in each user\u2019s own timezone.' + young;
+
+    spChart('sp-act-chart', 'sp-act-legend', raw, keys, spThin(keys, spLabel, true), SP_ACT_SPEC,
+      'No activity recorded yet.');
+
+    // Opens on the newest column, like every other dated chart on this page (DS §6.1). After
+    // layout, not during it — scrollWidth is not final in the tick that sets innerHTML.
+    requestAnimationFrame(() => {
+      const el = document.getElementById('sp-act-chart');
+      if (el && el.parentElement) el.parentElement.scrollLeft = el.parentElement.scrollWidth;
+      spWatchEdges('sp-act-chart');
+      spFitColValues('sp-act-chart');
+    });
+  }
+  document.getElementById('sp-act-d').addEventListener('click', () => drawActive('d'));
+  document.getElementById('sp-act-w').addEventListener('click', () => drawActive('w'));
 
   // Range picker — the shared DS §4 calendar, capped to the daily window.
   let _spCal = null;

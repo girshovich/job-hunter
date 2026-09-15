@@ -9,7 +9,7 @@ import { getDb, resolveLimits, type SettingsRow, type DeletedProfileRow } from '
 import { describeAccountLimits } from '../pipeline/limitTables';
 import { getCanonicalCountries } from '../pipeline/locationNormalizer';
 import { getAtsSchedules } from '../pipeline/atsScheduler';
-import { getAdminTotals, getAdminDaily, presetWindow, MAX_WINDOW_DAYS } from './adminStats';
+import { getAdminTotals, getAdminDaily, getAdminActive, presetWindow, MAX_WINDOW_DAYS } from './adminStats';
 
 const router = Router();
 
@@ -41,6 +41,9 @@ router.get('/', (req: Request, res: Response) => {
         preset ? win.to : String(req.query.to || win.to),
       )
     : null;
+  // Owns its own windows (14 days / 12 weeks) and answers to no range control, which is why its
+  // card sits above the Daily bar rather than inside it.
+  const active = wantsStats ? getAdminActive() : null;
 
   // has_own_keys is a storage fact, not a mode: it says both BYO columns are filled, not that the
   // profile runs on them — `use_jh_credits` decides that, and a profile (the admin's typically) can
@@ -78,6 +81,7 @@ router.get('/', (req: Request, res: Response) => {
     atsSchedules: getAtsSchedules(),
     totals,
     daily,
+    active,
     maxWindowDays: MAX_WINDOW_DAYS,
     // The admin row is the one every credits profile resolves to, so this describes the account
     // those users are actually running on.
