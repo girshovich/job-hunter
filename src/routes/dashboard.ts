@@ -168,7 +168,6 @@ router.get('/history', (req: Request, res: Response) =>
     title: 'All Jobs',
     basePath: '/history',
     fromKey: 'history',
-    showSubtitle: false,
   }),
 );
 

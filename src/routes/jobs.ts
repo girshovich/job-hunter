@@ -21,7 +21,6 @@ export interface JobListOpts {
   title: string;                          // page + list-header title
   basePath: string;                       // where "Clear all filters" navigates (route mount path)
   fromKey: string;                        // ?from= value used by the mobile card → /job/:id link
-  showSubtitle: boolean;                  // show the "N new" list-header subtitle
 }
 
 // Per-(profile+filter) cache of distinct fetch dates — only changes after a pipeline run.
@@ -215,6 +214,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   // capitalized label (recognition map, else title-case) matching the EXISTS filter above.
   // Every country among this profile's jobs is listed, a zero included, so the menu doesn't shrink
   // as other filters narrow the list — plus any ticked country that matches none, at 0.
+  // Sorted A→Z by the displayed label, so a row stays put as the counts change.
   const titleCase = (s: string) => s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
   const noCountry = whereExcept('country');
   const countryRows = db.prepare(`
@@ -229,7 +229,6 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
       WHERE ${noCountry.sql} AND jc.country IS NOT NULL AND jc.country <> ''
       GROUP BY jc.country
     ) fc ON fc.country = ac.country
-    ORDER BY cnt DESC, ac.country ASC
   `).all(profileId, ...noCountry.params) as Array<{ value: string; cnt: number }>;
   for (const c of countries.map((v) => v.toLowerCase())) {
     if (!countryRows.some((r) => r.value === c)) countryRows.push({ value: c, cnt: 0 });
@@ -238,7 +237,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     value: c.value,
     label: lookupCountry(c.value) ?? titleCase(c.value),
     cnt: c.cnt,
-  }));
+  })).sort((a, b) => a.label.localeCompare(b.label));
   // Status menu: every live status, its own count, grouped by type in the view (D45). The counts
   // follow the switch — with past statuses included, a status counts every job that ever held it.
   const noStatus = whereExcept('status');
@@ -276,12 +275,10 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   statusOptions.sort((a, b) => STATUS_TYPES.indexOf(a.type) - STATUS_TYPES.indexOf(b.type));
   const statusCounts = { all: statusTotal };
 
-  // "N new" subtitle = jobs of type `new` across the whole filtered set. Counted the same way as
-  // the sidebar badge and the shortcut counts, so the three can never disagree (NR3).
-  const newCount = (db.prepare(`
+  // List-header count = every job matching the filters on the page (reads "Matches 44").
+  const totalCount = (db.prepare(`
     SELECT COUNT(*) as c FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
-    LEFT JOIN statuses ns ON ns.id = jps.status_id
-    WHERE ${whereSql} AND COALESCE(ns.type, 'new') = 'new'
+    WHERE ${whereSql}
   `).get(...params) as { c: number }).c;
 
   // Truly-empty (no non-blacklisted jobs in account at all) vs filtered-empty
@@ -312,7 +309,6 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     title: opts.title,
     basePath: opts.basePath,
     fromKey: opts.fromKey,
-    showSubtitle: opts.showSubtitle,
     fullBleed: true,
     dateGroups,
     // `status` carries the RESOLVED ids, not the raw param: the view's chip, its checkboxes and
@@ -320,7 +316,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     // `applied` alias would render as an empty selection (D49, FL9).
     filters: { verdict: verdictParam, roleIds, roleOther, company, countries, status: statusKey, ever, df: dateFrom, dt: dateTo },
     roleOptions, orphanCount, countryOptions, statusCounts, statusOptions,
-    newCount, totalUnfiltered,
+    totalCount, totalUnfiltered,
     page, totalPages, pageNewest, pageOldest,
     selectedJobId, pane,
     timezone: settings?.timezone || 'UTC',
@@ -336,7 +332,6 @@ router.get('/', (req: Request, res: Response) =>
     title: 'Matches',
     basePath: '/jobs',
     fromKey: 'jobs',
-    showSubtitle: true,
   }),
 );
 

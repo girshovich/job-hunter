@@ -54,9 +54,12 @@ function menuRow(onclick, dot, label, count, active){
     + (active ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>' : '')
     + '</div>';
 }
-function multiMenu(kind, width){
+function multiMenu(kind, width, head){
   // Rows are filled client-side by JH.renderMultiMenu on open (single source of truth in JS).
-  return '<div class="filter-menu" data-menu="'+kind+'" style="display:none;position:absolute;top:38px;left:0;z-index:30;background:#fff;border:1px solid #e4e6ec;border-radius:12px;box-shadow:var(--shadow-dropdown);padding:6px;width:'+width+'px;max-height:340px;overflow-y:auto"></div>';
+  // A `head` (the Country search) sits outside the re-rendered rows, so typing keeps its focus.
+  return '<div class="filter-menu" data-menu="'+kind+'" style="display:none;position:absolute;top:38px;left:0;z-index:30;background:#fff;border:1px solid #e4e6ec;border-radius:12px;box-shadow:var(--shadow-dropdown);padding:6px;width:'+width+'px;max-height:340px;overflow-y:auto">'
+    + (head ? head + '<div class="menu-rows"></div>' : '')
+    + '</div>';
 }
 function renderFilterBar(){
   // Roles (multi)
@@ -79,6 +82,13 @@ function renderFilterBar(){
   // Country (multi)
   const countryIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
   const countryLabel = !countryActive ? 'Country' : (f.countries.length === 1 ? (countryLabelMap[f.countries[0]] || f.countries[0]) : f.countries.length + ' countries');
+  // Search box (DS §4 text/search input), pinned above the scrolling rows.
+  const countrySearch = '<div style="position:sticky;top:-6px;z-index:1;margin:-6px -6px 4px;padding:6px;background:#fff;border-bottom:1px solid var(--line)">'
+    + '<div class="country-search" style="display:flex;align-items:center;gap:7px;padding:0 11px;height:33px;background:#fff;border:1px solid var(--line2);border-radius:9px">'
+    + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1ad" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
+    + '<input class="country-search-input" oninput="JH.searchCountry(this.value)" placeholder="Search countries" autocomplete="off" style="flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:12px;font-weight:600;color:var(--ink)"/>'
+    + '<span class="country-search-clear" onclick="event.stopPropagation();JH.searchCountry(\'\')" style="display:none;cursor:pointer;color:var(--faintest)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg></span>'
+    + '</div></div>';
 
   // Status (multi — D45). Rows are filled client-side by JH.renderMultiMenu, like Role and Country.
   const statusIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>';
@@ -95,7 +105,7 @@ function renderFilterBar(){
       + companyBox
     + '</div>'
     + '<div style="display:flex;gap:7px;margin-top:8px;flex-wrap:wrap">'
-      + '<div style="position:relative;flex:none">'+filterBtn('country', countryIcon, countryLabel, countryActive)+multiMenu('country', 240)+'</div>'
+      + '<div style="position:relative;flex:none">'+filterBtn('country', countryIcon, countryLabel, countryActive)+multiMenu('country', 240, countrySearch)+'</div>'
       + '<div style="position:relative;flex:none">'+filterBtn('status', statusIcon, statusLabel, statusActive)+multiMenu('status', 250)+'</div>'
       + '<div style="position:relative;flex:none">'
         + '<button type="button" class="filter-btn" data-filter="date" onclick="JH.toggleMenu(this)" style="display:inline-flex;align-items:center;gap:6px;padding:7px 11px;font-size:12px;font-weight:700;border-radius:9px;cursor:pointer;white-space:nowrap;'+(dateActive?'color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border)':'color:var(--muted);background:#fff;border:1px solid var(--line2)')+'">'+dateIcon+'<span>'+esc(dateLabel)+'</span>'+chev()+'</button>'
@@ -259,7 +269,7 @@ function renderList(){
     <div class="jh-jobs-head">
       <div style="display:flex;align-items:baseline;gap:10px">
         <h1 style="margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--ink)"><%= title %></h1>
-        <% if (showSubtitle) { %><span style="font-size:13px;color:var(--faint);font-weight:600"><%= newCount %> new</span><% } %>
+        <span style="font-size:13px;color:var(--faint);font-weight:600"><%= totalCount %></span>
         <span style="flex:1"></span>
         <%# Outline, not filled: the green "Run once" in the sidebar is this page's loud action, and
             two primaries on one screen would argue. Below 768px the label shortens to "Add". %>
@@ -464,10 +474,14 @@ window.JH = (function(){
   const CHK_W = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
   const CHK_A = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 6"/></svg>';
   const ALL_LABEL = { roles: 'All roles', country: 'All countries' };
+  // Country search text; accents folded so "cote" finds "Côte d'Ivoire".
+  let _countryQuery = '';
+  const fold = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   function buildRows(kind){
     const opts = (window.__filterOpts[kind]) || [];
     const sel = _pending[kind];
     const allActive = sel.length === 0;
+    const q = kind === 'country' ? fold(_countryQuery.trim()) : '';
     let html;
     if (kind === 'status') {
       // No "All statuses" row here: a heading, a Clear link once something is ticked, and the
@@ -484,14 +498,20 @@ window.JH = (function(){
         +   '<button type="button" class="ever-switch" role="switch" aria-checked="'+on+'" aria-labelledby="ever-label" onclick="event.stopPropagation();JH.toggleEver()" style="flex:none;position:relative;width:40px;height:20px;padding:0;border:0;border-radius:999px;cursor:pointer;background:'+(on?'var(--green)':'#d6dae2')+'">'
         +     '<span style="position:absolute;top:1px;left:1px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transform:translateX('+(on?'20px':'0')+')"></span></button>'
         + '</div></div>';
+    } else if (q) {
+      html = ''; // "All countries" steps aside while searching
     } else {
       html = '<div onclick="event.stopPropagation();JH.clearMulti(\''+kind+'\')" style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer;background:'+(allActive?'var(--accent-soft)':'transparent')+'">'
         + '<span style="flex:1;font-size:12.5px;font-weight:'+(allActive?'800':'600')+';color:var(--ink)">'+(ALL_LABEL[kind]||'All')+'</span>'
         + (allActive?CHK_A:'') + '</div>';
     }
     let lastType = null;
+    let shown = 0;
     opts.forEach(function(o){
       const checked = sel.indexOf(String(o.v)) >= 0;
+      // Ticked countries stay visible while searching, so a selection never silently vanishes.
+      if (q && !checked && fold(o.label).indexOf(q) < 0) return;
+      shown++;
       const val = String(o.v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       // Statuses are grouped under their type heading — fifteen flat rows is a wall (§9).
       if (kind === 'status' && o.type !== lastType){
@@ -505,6 +525,7 @@ window.JH = (function(){
         + '<span style="font-size:11.5px;color:var(--faintest);font-weight:600">'+o.count+'</span>'
         + '</div>';
     });
+    if (q && !shown) html += '<div style="padding:10px 9px;font-size:12.5px;font-weight:600;color:var(--faint)">No countries match</div>';
     return html;
   }
   return {
@@ -518,8 +539,23 @@ window.JH = (function(){
         menu.style.display = 'block';
         if (menu.querySelector('.date-cal')) this.renderCal();
         const kind = menu.getAttribute('data-menu');
-        if (kind) this.renderMultiMenu(kind);
+        if (kind === 'country') {
+          this.searchCountry(''); // each open starts unfiltered
+          // Desktop only: on a phone, focusing would pop the keyboard over the list.
+          if (window.innerWidth >= 768) menu.querySelector('.country-search-input').focus();
+        } else if (kind) this.renderMultiMenu(kind);
       }
+    },
+    searchCountry(val){
+      _countryQuery = val;
+      const filled = val.trim() !== '';
+      document.querySelectorAll('[data-menu="country"]').forEach(function(m){
+        const input = m.querySelector('.country-search-input');
+        if (input.value !== val) input.value = val;
+        m.querySelector('.country-search').style.borderColor = filled ? 'var(--accent-border)' : 'var(--line2)';
+        m.querySelector('.country-search-clear').style.display = filled ? 'inline-flex' : 'none';
+      });
+      this.renderMultiMenu('country');
     },
     setVerdict(v){ nav({ verdict: v }); },
     toggleMulti(kind, value){
@@ -531,7 +567,7 @@ window.JH = (function(){
     },
     clearMulti(kind){ _pending[kind] = []; this.renderMultiMenu(kind); this.updateMultiLabel(kind); },
     toggleEver(){ _pending.ever = !_pending.ever; this.renderMultiMenu('status'); this.updateMultiLabel('status'); },
-    renderMultiMenu(kind){ document.querySelectorAll('[data-menu="' + kind + '"]').forEach(function(m){ m.innerHTML = buildRows(kind); }); },
+    renderMultiMenu(kind){ document.querySelectorAll('[data-menu="' + kind + '"]').forEach(function(m){ (m.querySelector('.menu-rows') || m).innerHTML = buildRows(kind); }); },
     updateMultiLabel(kind){
       const sel = _pending[kind];
       const active = sel.length > 0;
