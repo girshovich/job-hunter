@@ -240,29 +240,29 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
   })).sort((a, b) => a.label.localeCompare(b.label));
   // Status menu: every live status, its own count, grouped by type in the view (D45). The counts
   // follow the switch — with past statuses included, a status counts every job that ever held it.
+  // Both readings are sent, so flipping the switch re-counts the open menu before the filter applies.
   const noStatus = whereExcept('status');
-  const statusRows = (ever
-    ? db.prepare(`
-      SELECT status_id, COUNT(*) as cnt FROM (
-        SELECT e.job_id, e.status_id FROM job_status_events e
-        JOIN job_profile_states jps ON jps.job_id = e.job_id AND jps.profile_id = e.profile_id
-        JOIN jobs j ON j.id = jps.job_id
-        WHERE ${noStatus.sql}
-        UNION
-        SELECT jps.job_id, jps.status_id FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
-        WHERE ${noStatus.sql}
-      ) GROUP BY status_id
-    `).all(...noStatus.params, ...noStatus.params)
-    : db.prepare(`
-      SELECT jps.status_id, COUNT(*) as cnt FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
-      WHERE ${noStatus.sql} GROUP BY jps.status_id
-    `).all(...noStatus.params)) as Array<{ status_id: number | null; cnt: number }>;
-  const statusCountById = new Map<number, number>();
-  let statusTotal = 0;
-  for (const r of statusRows) {
-    if (r.status_id != null) statusCountById.set(r.status_id, r.cnt);
-    statusTotal += r.cnt;
-  }
+  type StatusCountRow = { status_id: number | null; cnt: number };
+  const statusRowsEver = db.prepare(`
+    SELECT status_id, COUNT(*) as cnt FROM (
+      SELECT e.job_id, e.status_id FROM job_status_events e
+      JOIN job_profile_states jps ON jps.job_id = e.job_id AND jps.profile_id = e.profile_id
+      JOIN jobs j ON j.id = jps.job_id
+      WHERE ${noStatus.sql}
+      UNION
+      SELECT jps.job_id, jps.status_id FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+      WHERE ${noStatus.sql}
+    ) GROUP BY status_id
+  `).all(...noStatus.params, ...noStatus.params) as StatusCountRow[];
+  const statusRowsNow = db.prepare(`
+    SELECT jps.status_id, COUNT(*) as cnt FROM job_profile_states jps JOIN jobs j ON j.id = jps.job_id
+    WHERE ${noStatus.sql} GROUP BY jps.status_id
+  `).all(...noStatus.params) as StatusCountRow[];
+  const countsById = (rows: StatusCountRow[]) =>
+    new Map(rows.filter((r) => r.status_id != null).map((r) => [r.status_id as number, r.cnt]));
+  const statusCountById = countsById(statusRowsNow);
+  const statusCountEverById = countsById(statusRowsEver);
+  const statusTotal = (ever ? statusRowsEver : statusRowsNow).reduce((sum, r) => sum + r.cnt, 0);
   const statusOptions = listStatuses(profileId).map((st: StatusRow) => ({
     id: st.id,
     name: st.name,
@@ -270,6 +270,7 @@ export function renderJobList(req: Request, res: Response, opts: JobListOpts): v
     typeLabel: TYPE_META[st.type].label,
     dot: TYPE_META[st.type].dot,
     cnt: statusCountById.get(st.id) ?? 0,
+    cntEver: statusCountEverById.get(st.id) ?? 0,
   }));
   // Keep the menu in the user's own order but grouped, so each type heading appears once.
   statusOptions.sort((a, b) => STATUS_TYPES.indexOf(a.type) - STATUS_TYPES.indexOf(b.type));

@@ -592,8 +592,9 @@ test('Status menu counts are taken within the other filters, and follow the swit
     WHERE jps.profile_id = ? AND jps.ai_verdict NOT IN ('BLACKLISTED', 'FILTERED') AND ${where}
   `).get(PROFILE_ID, ...args) as { c: number }).c;
   const STRONG = "jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0";
-  const menuCount = (id: number) => page.evaluate(
-    (v) => (window as any).__filterOpts.status.find((o: { v: string }) => o.v === v).count, String(id),
+  // Both readings ship with the page: `count` is the status held now, `countEver` includes the past.
+  const menuCount = (id: number, field: 'count' | 'countEver' = 'count') => page.evaluate(
+    ([v, k]) => (window as any).__filterOpts.status.find((o: { v: string }) => o.v === v)[k], [String(id), field],
   );
 
   // Matches is Strong by default, so its New row counts Strong jobs only.
@@ -606,7 +607,7 @@ test('Status menu counts are taken within the other filters, and follow the swit
 
   // With past statuses included, a row counts every job that ever held it.
   await page.goto('/jobs?ever=1');
-  expect(await menuCount(recruiter)).toBe(count(`${STRONG} AND (jps.status_id = ? OR EXISTS (
+  expect(await menuCount(recruiter, 'countEver')).toBe(count(`${STRONG} AND (jps.status_id = ? OR EXISTS (
     SELECT 1 FROM job_status_events e WHERE e.job_id = jps.job_id AND e.profile_id = jps.profile_id AND e.status_id = ?))`,
   recruiter, recruiter));
 });

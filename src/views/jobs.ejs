@@ -348,7 +348,7 @@ window.__fromKey = '<%= fromKey %>';
 window.__filterOpts = {
   roles: <%- JSON.stringify(roleOptions.map(r => ({ v: String(r.id), label: r.group_name || ('Role ' + r.id), count: r.cnt })).concat(orphanCount > 0 || f.roleOther ? [{ v: 'other', label: 'Other', count: orphanCount }] : [])) %>,
   country: <%- JSON.stringify(countryOptions.map(c => ({ v: c.value, label: c.label, count: c.cnt }))) %>,
-  status: <%- JSON.stringify(statusOptions.map(o => ({ v: String(o.id), label: o.name, count: o.cnt, type: o.type, typeLabel: o.typeLabel, dot: o.dot }))) %>
+  status: <%- JSON.stringify(statusOptions.map(o => ({ v: String(o.id), label: o.name, count: o.cnt, countEver: o.cntEver, type: o.type, typeLabel: o.typeLabel, dot: o.dot }))) %>
 };
 // When the status changes, the card must drop or gain the New tint and the dim — the .jobcard CSS
 // derives both from data-status-type — and a job that leaves New swaps its exit strip for a chip.
@@ -522,7 +522,7 @@ window.JH = (function(){
         + '<span style="width:16px;height:16px;flex:none;border-radius:5px;display:grid;place-items:center;border:1.5px solid '+(checked?'var(--accent)':'#cfd4dd')+';background:'+(checked?'var(--accent)':'#fff')+'">'+(checked?CHK_W:'')+'</span>'
         + (o.dot ? '<span style="width:8px;height:8px;flex:none;border-radius:2px;background:'+o.dot+'"></span>' : '')
         + '<span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--ink)">'+escJs(o.label)+'</span>'
-        + '<span style="font-size:11.5px;color:var(--faintest);font-weight:600">'+o.count+'</span>'
+        + '<span style="font-size:11.5px;color:var(--faintest);font-weight:600">'+(kind === 'status' && _pending.ever ? o.countEver : o.count)+'</span>'
         + '</div>';
     });
     if (q && !shown) html += '<div style="padding:10px 9px;font-size:12.5px;font-weight:600;color:var(--faint)">No countries match</div>';
