@@ -61,14 +61,14 @@ const STAGES = [
 // One tile grid, two callers.
 function tileGrid(id, tiles) {
   if (tiles.length === 0) return '<div class="sp-empty">Nothing applied to yet.</div>';
-  // Twelve show on desktop and six on phones. Everything past the cap is rendered and CSS-hidden
+  // Sixteen show on desktop and six on phones. Everything past the cap is rendered and CSS-hidden
   // rather than fetched: the tail is a few hundred bytes, and a route that only fires once a user
-  // has applied in 13+ countries would be a pending state, an error state and a retry nobody ever
+  // has applied in 17+ countries would be a pending state, an error state and a retry nobody ever
   // exercises (new_stats.md §7). Dropping the tail outright would lose data silently.
   let out = '<div class="sp-cgrid" id="' + id + '">';
   tiles.forEach((t, i) => {
     const rate = pct(t.progressed, t.applications);
-    const over = i >= 12 ? ' sp-tile-over-12' : (i >= 6 ? ' sp-tile-over-6' : '');
+    const over = i >= 16 ? ' sp-tile-over-16' : (i >= 6 ? ' sp-tile-over-6' : '');
     // Names clamp to two lines on desktop, so the full one has to stay reachable on hover.
     out += '<div class="sp-ctile' + (t.progressed > 0 ? ' hit' : '') + over
       + '" title="' + escapeHtml(t.label) + '">'
@@ -80,9 +80,9 @@ function tileGrid(id, tiles) {
   out += '</div>';
   if (tiles.length > 6) {
     // One label for both breakpoints — "N more" would be wrong on one of them.
-    out += '<button type="button" class="sp-cmore-btn sp-tile-more" data-grid="' + id + '">'
+    out += '<button type="button" class="sp-cmore-btn sp-tile-more" data-grid="' + id + '" data-count="' + tiles.length + '" aria-expanded="false">'
       + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9l-7 7-7-7"/></svg>'
-      + 'Show all ' + tiles.length + '</button>';
+      + '<span class="sp-tile-more-label">Show all ' + tiles.length + '</span></button>';
   }
   return out;
 }
@@ -399,8 +399,11 @@ document.getElementById('cost-m').addEventListener('click', () => drawCost('m'))
 //    nothing. Nothing is fetched; the cap only exists to keep the phone grid two rows deep.
 document.querySelectorAll('.sp-tile-more').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.getElementById(btn.dataset.grid).classList.add('expanded');
-    btn.hidden = true;
+    const grid = document.getElementById(btn.dataset.grid);
+    const expanded = !grid.classList.contains('expanded');
+    grid.classList.toggle('expanded', expanded);
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    btn.querySelector('.sp-tile-more-label').textContent = expanded ? 'Show less' : 'Show all ' + btn.dataset.count;
   });
 });
 

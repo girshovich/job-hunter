@@ -227,6 +227,8 @@
     font-weight:700;color:var(--muted);cursor:pointer}
   .sp-cmore-btn:hover{background:#fafbfc;color:var(--ink2)}
   .sp-cmore-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .sp-cmore-btn svg{transition:transform .14s ease}
+  .sp-cmore-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
 
   /* The §4 filter-trigger button as a class — lifted from views/jobs.ejs, same metrics. */
   .sp-filterbtn{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;font-size:12px;font-weight:700;
@@ -337,10 +339,10 @@
     .sp-tile-over-6{display:none}
     .sp-cgrid.expanded .sp-tile-over-6{display:flex}
   }
-  /* Past the cap for this breakpoint — 12 on desktop, 6 on phones. The tail is in the DOM, so
+  /* Past the cap for this breakpoint — 16 on desktop, 6 on phones. The tail is in the DOM, so
      revealing it costs no request. */
-  .sp-tile-over-12{display:none}
-  .sp-cgrid.expanded .sp-tile-over-12{display:flex}
-  /* The control appears only where something is actually hidden: at 7–12 tiles that is phones only. */
-  @media(min-width:768px){.sp-cgrid:not(:has(.sp-tile-over-12)) + .sp-tile-more{display:none}}
+  .sp-tile-over-16{display:none}
+  .sp-cgrid.expanded .sp-tile-over-16{display:flex}
+  /* The control appears only where something is actually hidden: at 7–16 tiles that is phones only. */
+  @media(min-width:768px){.sp-cgrid:not(:has(.sp-tile-over-16)) + .sp-tile-more{display:none}}
 </style>
