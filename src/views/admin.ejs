@@ -770,7 +770,7 @@
       </div>
     </div>
     <div class="sp-pad">
-      <div id="sp-act-legend" style="display:none"></div>
+      <div id="sp-act-legend" style="display:none;flex-wrap:wrap;gap:8px 18px;margin-bottom:14px"></div>
       <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x" style="padding-bottom:4px"><div id="sp-act-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div></div>
     </div>
   </div>
@@ -780,13 +780,13 @@
     <div class="sp-hd">
       <div>
         <div class="sp-title">Days Active per Week</div>
+        <div class="sp-sub">Avg. Active Days per User (7d Rolling)</div>
       </div>
     </div>
     <div class="sp-pad">
       <div id="sp-weekdays-legend" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:14px"></div>
       <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x" style="padding-bottom:4px"><div id="sp-weekdays-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div></div>
     </div>
-    <p class="sp-note">Avg. Active Days per User (7d Rolling)</p>
   </div>
 
   <!-- ── Daily ─────────────────────────────────────────────────────────────── -->
@@ -958,12 +958,13 @@
     tipSuffix: '', colW: 36,
     tipLabel: d => spLabel(d),
   };
-  // Active-user maturity is a nominal lifecycle split, so it uses distinct DS tokens rather than
-  // a single blue ramp: accent for new, sky for returning/info, green for loyal.
+  // Active-user maturity reads as a simple progression: pale cyan for a first touch, ocean for a
+  // repeat habit forming, green for loyal. All three are DS token families and stay distinct in
+  // small stacked bars.
   const SP_ACT_SPEC = {
     order: ['first', 'returning', 'loyal'],
     config: {
-      first: { label: 'First time', color: 'var(--accent)' },
+      first: { label: 'First time', color: 'var(--sky-border)' },
       returning: { label: 'Returning', color: 'var(--sky-ink)' },
       loyal: { label: 'Loyal 7d+', color: 'var(--green)' },
     },
@@ -973,15 +974,15 @@
     tipLabel: k => k,
   };
 
-  // Frequency is ordered magnitude, so DS §6.1 points to the sequential accent ramp rather than
-  // categorical verdict colours. The darkest bar means "more days", not "better outcome".
+  // Frequency is ordered, but the all-blue ramp is too subtle once stacked. This keeps the low
+  // buckets in the sky family, then uses amber as the warm "nearly daily" step before green.
   const SP_WEEKDAYS_SPEC = {
     order: ['once', 'twoThree', 'fourFive', 'sixSeven'],
     config: {
-      once: { label: '1', color: '#e2ebff' },
-      twoThree: { label: '2-3', color: '#c3d5ff' },
-      fourFive: { label: '4-5', color: '#95b4ff' },
-      sixSeven: { label: '6-7', color: 'var(--accent)' },
+      once: { label: '1', color: 'var(--sky-border)' },
+      twoThree: { label: '2-3', color: 'var(--sky-ink)' },
+      fourFive: { label: '4-5', color: 'var(--amber)' },
+      sixSeven: { label: '6-7', color: 'var(--green)' },
     },
     fmt: v => String(v), tipSuffix: ' users', colW: 36,
     tipLabel: k => k,
@@ -1076,8 +1077,9 @@
       return;
     }
     if (empty) empty.remove();
-    // One series needs no legend — the card title names it.
-    legend.style.display = spec.order.length > 1 ? '' : 'none';
+    // One series needs no legend — the card title names it. Multi-series legends render as a
+    // horizontal row across every Stats chart that uses the shared helper.
+    legend.style.display = spec.order.length > 1 ? 'flex' : 'none';
     wrap.style.display = '';
     renderStackedChart(chartId, legendId, raw, periods, k => labels[k], row => row.key, spec);
   }
