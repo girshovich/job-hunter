@@ -959,6 +959,7 @@
     order: ['ok'],
     config: { ok: { label: 'Finished cleanly', color: 'var(--green)' } },
     fmt: v => ((1 - Math.pow(10, -v)) * 100).toFixed(1) + '%',
+    valueFmt: v => Math.round((1 - Math.pow(10, -v)) * 100) + '%',
     tipSuffix: '', colW: 36,
     tipLabel: d => spLabel(d),
   };
