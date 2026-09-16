@@ -108,6 +108,11 @@
       background: var(--accent);
       border-radius: 999px; padding: 1px 8px;
     }
+    .sb-count-muted {
+      margin-left: auto; font-size: 11px; font-weight: 700;
+      color: var(--faintest); font-variant-numeric: tabular-nums;
+      background: transparent; border-radius: 0; padding: 0;
+    }
 
     /* ── Nav middle section ─────────────────────────────────────────
        It does NOT scroll. It used to, behind a 0px scrollbar, which meant that when the column
@@ -143,6 +148,10 @@
     /* The shortcut counts sit where a role count would: quiet, right-aligned, tabular. */
     .sb-subcount { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--faintest); font-variant-numeric: tabular-nums; }
     .sb-subitem.active .sb-subcount { color: var(--accent); }
+    .sb-subcount.hot {
+      color: #fff; background: var(--accent); border-radius: 999px; padding: 1px 8px;
+    }
+    .sb-subitem.active .sb-subcount.hot { color: #fff; }
 
     /* ── Footer: two compact rows (D41) ─────────────────────────── */
     .sb-compact {
@@ -852,16 +861,15 @@
           </span>
           Start
         </a>
-        <%# Matches is a link, never a group: clicking it shows everything. Its badge keeps counting
-            New only — the badge answers "what is waiting for me", not "how many rows are behind
-            this link" (D40). %>
+        <%# Matches is a link, never a group: clicking it shows everything. Its quiet count ignores
+            active filters and status; the separate New shortcut carries the attention count. %>
         <a href="/jobs<%= locals.everQuery || '' %>" class="sb-item <%= title === 'Matches' && !locals.activeShortcut ? 'active' : (title === 'Matches' && locals.activeShortcut === 'all' ? 'active' : '') %>">
           <span class="ico">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
           </span>
           Matches
           <% const mc = typeof matchesCount === 'undefined' ? 0 : matchesCount; %>
-          <span class="sb-count" id="sb-matches-count" <%= mc > 0 ? '' : 'hidden' %>><%= mc %></span>
+          <span class="sb-count-muted" id="sb-matches-count"><%= mc %></span>
         </a>
         <%# Three shortcuts, always expanded and never collapsible — these are filters kept in
             view, not a menu. Each is a preset over the ordinary Status filter, so its href carries
@@ -869,7 +877,7 @@
         <div class="sb-subnav">
           <% (locals.shortcuts || []).forEach(function (sc) { %>
           <a href="<%= sc.href %>" class="sb-item sb-subitem <%= title === 'Matches' && locals.activeShortcut === sc.id ? 'active' : '' %>">
-            <span class="sb-subdot"></span><%= sc.label %><span class="sb-subcount" data-shortcut="<%= sc.id %>"><%= sc.count %></span>
+            <span class="sb-subdot"></span><%= sc.label %><span class="sb-subcount <%= sc.id === 'new' ? 'hot' : '' %>" data-shortcut="<%= sc.id %>"><%= sc.count %></span>
           </a>
           <% }); %>
         </div>
@@ -3162,13 +3170,11 @@
       if (btn) { e.stopPropagation(); openVerdictDropdown(btn); }
     });
 
-    // The sidebar Matches badge counts un-applied strong matches, so both the verdict and the
-    // applied endpoints return the recomputed number — repaint it instead of reloading the page.
+    // The sidebar Matches badge is the unfiltered total; the New shortcut carries the to-do count.
     function updateMatchesBadge(count) {
       const el = document.getElementById('sb-matches-count');
       if (!el || typeof count !== 'number') return;
       el.textContent = String(count);
-      el.hidden = count === 0;
     }
 
     /** The three Matches shortcut counts, repainted from the same response as the badge. */
@@ -3205,6 +3211,7 @@
         const data = await res.json();
         if (data.success) {
           updateMatchesBadge(data.matchesCount);
+          updateShortcutCounts(data.shortcutCounts);
           if (data.internal_job_id && !btn.dataset.jobId) {
             btn.dataset.jobId = String(data.internal_job_id);
           }

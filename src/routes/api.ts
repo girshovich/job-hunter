@@ -954,7 +954,11 @@ router.patch('/jobs/:id/verdict', (req: Request, res: Response) => {
   // The Matches/All Jobs date list is cached per filter; a verdict change moves a job in or out of Matches.
   invalidateJobsDatesCache(req.profile.id);
 
-  res.json({ success: true, matchesCount: getMatchesCount(req.profile.id) });
+  res.json({
+    success: true,
+    matchesCount: getMatchesCount(req.profile.id),
+    shortcutCounts: shortcuts(req.profile.id).map((sc) => ({ id: sc.id, count: sc.count })),
+  });
 });
 
 // PATCH /api/run-log/:id/verdict — override verdict for a run log entry; inserts into jobs table if not yet stored
@@ -1025,14 +1029,19 @@ router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
   }
 
   invalidateJobsDatesCache(profileId);
-  res.json({ success: true, internal_job_id: internalJobId, matchesCount: getMatchesCount(profileId) });
+  res.json({
+    success: true,
+    internal_job_id: internalJobId,
+    matchesCount: getMatchesCount(profileId),
+    shortcutCounts: shortcuts(profileId).map((sc) => ({ id: sc.id, count: sc.count })),
+  });
 });
 
 // ── Job status ──────────────────────────────────────────────────────────────────────────────
 //
 // Replaces PATCH /api/jobs/:id/applied. One transaction points the job at the status and appends
-// the move to the diary (§12.4), and the response keeps the old contract — `matchesCount`, which
-// layout.ejs repaints without a reload.
+// the move to the diary (§12.4); the response repaints both the parent Matches total and the
+// status shortcut counts without a reload.
 
 /** Everything the card, the chip and the rail need to repaint after a change. */
 function statusPayload(profileId: number, jobId: number) {
@@ -1045,9 +1054,7 @@ function statusPayload(profileId: number, jobId: number) {
   const current = row?.status_id != null ? map.get(row.status_id) ?? null : null;
   return {
     matchesCount: getMatchesCount(profileId),
-    // The three sidebar shortcut counts, recomputed on the same request. They are derived from the
-    // status that just changed, so leaving them stale would contradict the badge sitting directly
-    // above them — and it is the same query the layout already runs on every page load.
+    // The three sidebar shortcut counts, recomputed on the same request.
     shortcutCounts: shortcuts(profileId).map((sc) => ({ id: sc.id, count: sc.count })),
     status: current ? { id: current.id, name: current.name, type: current.type } : null,
     history,

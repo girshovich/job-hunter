@@ -1,5 +1,5 @@
 /**
- * E2E: the sidebar "Matches" badge recounts live when a job's applied status or
+ * E2E: the sidebar "Matches" total and shortcut counts repaint live when a job's status or
  * verdict changes on the Matches page — without a page reload.
  *
  * Runs against the real DB, so it mints its own session (deleted by exact token)
@@ -58,9 +58,16 @@ test.afterAll(() => {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
 });
 
-// The badge means "still needs an action from me" — status of type `new` (application_status.md
-// D40), not the old `applied = 0`.
-function dbCount(): number {
+// The parent badge means all recorded Matches, ignoring status and active page filters.
+function dbMatchesCount(): number {
+  return (db.prepare(`
+    SELECT COUNT(*) as c FROM job_profile_states jps
+    WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+  `).get(PROFILE_ID) as { c: number }).c;
+}
+
+// The New shortcut means "still needs an action from me" — status of type `new`.
+function dbNewCount(): number {
   return (db.prepare(`
     SELECT COUNT(*) as c FROM job_profile_states jps LEFT JOIN statuses s ON s.id = jps.status_id
     WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
@@ -69,6 +76,7 @@ function dbCount(): number {
 }
 
 const badge = (page: Page) => page.locator('#sb-matches-count');
+const newShortcut = (page: Page) => page.locator('.sb-subcount[data-shortcut="new"]');
 
 // Marks the document so a full page reload becomes detectable.
 async function markNoReload(page: Page) {
@@ -95,18 +103,22 @@ async function openMatches(page: Page) {
   return page.locator(`.jobcard[data-id="${jobId}"]`);
 }
 
-test('status change updates the badge without reloading', async ({ page }) => {
+test('status change updates shortcut counts without reloading', async ({ page }) => {
   const card = await openMatches(page);
   const jobId = await card.getAttribute('data-id');
-  const before = dbCount();
-  await expect(badge(page)).toHaveText(String(before));
+  const matchesBefore = dbMatchesCount();
+  const newBefore = dbNewCount();
+  await expect(badge(page)).toHaveText(String(matchesBefore));
+  await expect(newShortcut(page)).toHaveText(String(newBefore));
   await markNoReload(page);
 
   // A New card carries the three exits; "I applied" is the one that sets a status directly.
   await card.locator('.exit-btn', { hasText: 'I applied' }).click();
 
-  await expect(badge(page)).toHaveText(String(before - 1));
-  expect(dbCount()).toBe(before - 1);
+  await expect(badge(page)).toHaveText(String(matchesBefore));
+  await expect(newShortcut(page)).toHaveText(String(newBefore - 1));
+  expect(dbMatchesCount()).toBe(matchesBefore);
+  expect(dbNewCount()).toBe(newBefore - 1);
   await assertNoReload(page);
 
   // Back to New — and the only way back is deleting the step, because `New` is written by the
@@ -117,29 +129,36 @@ test('status change updates the badge without reloading', async ({ page }) => {
   ).get(Number(jobId), PROFILE_ID) as { id: number };
   const res = await page.request.delete(`/api/history/${newest.id}`);
   expect(res.ok()).toBeTruthy();
-  expect(dbCount()).toBe(before);
+  expect(dbMatchesCount()).toBe(matchesBefore);
+  expect(dbNewCount()).toBe(newBefore);
 });
 
 test('verdict change updates the badge without reloading', async ({ page }) => {
   const card = await openMatches(page);
-  const before = dbCount();
-  await expect(badge(page)).toHaveText(String(before));
+  const matchesBefore = dbMatchesCount();
+  const newBefore = dbNewCount();
+  await expect(badge(page)).toHaveText(String(matchesBefore));
+  await expect(newShortcut(page)).toHaveText(String(newBefore));
   await markNoReload(page);
 
   await card.locator('.verdict-btn:not(.corrlink)').click();
   await page.locator('#verdict-dropdown button', { hasText: 'Weak' }).click();
   await page.locator('#jh-confirm-modal button', { hasText: 'Confirm' }).click();
 
-  await expect(badge(page)).toHaveText(String(before - 1));
-  expect(dbCount()).toBe(before - 1);
+  await expect(badge(page)).toHaveText(String(matchesBefore - 1));
+  await expect(newShortcut(page)).toHaveText(String(newBefore - 1));
+  expect(dbMatchesCount()).toBe(matchesBefore - 1);
+  expect(dbNewCount()).toBe(newBefore - 1);
   await assertNoReload(page);
 
   // Back to Strong — the badge must climb again.
   await card.locator('.verdict-btn:not(.corrlink)').click();
   await page.locator('#verdict-dropdown button', { hasText: 'Strong' }).click();
   await page.locator('#jh-confirm-modal button', { hasText: 'Confirm' }).click();
-  await expect(badge(page)).toHaveText(String(before));
-  expect(dbCount()).toBe(before);
+  await expect(badge(page)).toHaveText(String(matchesBefore));
+  await expect(newShortcut(page)).toHaveText(String(newBefore));
+  expect(dbMatchesCount()).toBe(matchesBefore);
+  expect(dbNewCount()).toBe(newBefore);
   await assertNoReload(page);
 });
 
@@ -152,13 +171,13 @@ test('run-log verdict endpoint returns the fresh count', async ({ request }) => 
     JOIN search_runs sr ON sr.id = rjl.run_id
     JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id AND j.job_source = 'LinkedIn'
     JOIN job_profile_states jps ON jps.job_id = j.id AND jps.profile_id = sr.profile_id
-    WHERE sr.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0 AND jps.applied = 0
+    WHERE sr.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
     ORDER BY rjl.id DESC LIMIT 1
   `).get(PROFILE_ID) as { log_id: number; log_verdict: string; job_id: number } | undefined;
-  test.skip(!log, 'No run-log entry tied to an un-applied strong match');
+  test.skip(!log, 'No run-log entry tied to a strong match');
 
   remember(log!.job_id);
-  const before = dbCount();
+  const before = dbMatchesCount();
 
   const res = await request.patch(`/api/run-log/${log!.log_id}/verdict`, {
     data: { verdict: 'WEAK_MATCH' },
@@ -166,7 +185,7 @@ test('run-log verdict endpoint returns the fresh count', async ({ request }) => 
   });
   expect(res.ok()).toBeTruthy();
   expect(await res.json()).toMatchObject({ success: true, matchesCount: before - 1 });
-  expect(dbCount()).toBe(before - 1);
+  expect(dbMatchesCount()).toBe(before - 1);
 
   db.prepare('UPDATE run_job_logs SET ai_verdict = ? WHERE id = ?').run(log!.log_verdict, log!.log_id);
 });

@@ -232,14 +232,13 @@ export function getDb(): Database {
   return _db;
 }
 
-// Sidebar "Matches" badge count. Shared by the layout middleware and the verdict/applied
-// endpoints so a status change can return the fresh number without a page reload.
+// Sidebar "Matches" badge count. It deliberately ignores page filters and status: the parent nav
+// item answers "how many recorded matches exist", while the New shortcut answers "what needs me".
 export function getMatchesCount(profileId: number): number {
   return (getDb().prepare(
     `SELECT COUNT(*) as c FROM job_profile_states jps
-      LEFT JOIN statuses s ON s.id = jps.status_id
       WHERE jps.profile_id = ? AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
-        AND COALESCE(s.type, 'new') = 'new'`,
+    `,
   ).get(profileId) as { c: number }).c;
 }
 
