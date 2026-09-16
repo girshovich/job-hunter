@@ -2259,7 +2259,7 @@ The full post text is stored as the job description — do not repeat or summari
         'job posting mostly written in any language besides the Preferred languages, or knowledge of any language besides the Preferred languages is stated as mandatory',
         "current location isn't in one of the Preferred locations countries, and the job description explicitly says no visa or relocation help provided, and no remote work allowed",
         'job is in one of these industries: gambling, betting',
-        "salary figures are stated and they are lower than 70k euro annually or the equivalent in another currency (if salary not mentioned, that's not a blocker)",
+        "salary figures are stated and their highest end is lower than 70k euro annually or the equivalent in another currency (if salary not mentioned, that's not a blocker)",
         'job is a fixed-term contract',
       ].join('\n');
       const seededStates = '{"language":true,"relocation":true,"industry":true,"salary":true,"contract":true,"other":false}';

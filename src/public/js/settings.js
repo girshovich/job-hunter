@@ -25,7 +25,7 @@ function disqualifierFragments() {
     language: 'job posting mostly written in any language besides the Preferred languages, or knowledge of any language besides the Preferred languages is stated as mandatory',
     relocation: "current location isn't in one of the Preferred locations countries, and the job description explicitly says no visa or relocation help provided, and no remote work allowed",
     industry: hate ? ('job is in one of these industries: ' + hate) : '',
-    salary: salary ? ('salary figures are stated and they are lower than ' + salary + " annually or the equivalent in another currency (if salary not mentioned, that's not a blocker)") : '',
+    salary: salary ? ('salary figures are stated and their highest end is lower than ' + salary + " annually or the equivalent in another currency (if salary not mentioned, that's not a blocker)") : '',
     other: other,
   };
 }
@@ -1412,4 +1412,3 @@ function initSettings(activeTab, initialGroups) {
     }
   });
 }
-
