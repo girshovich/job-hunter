@@ -55,14 +55,11 @@ router.get('/', (req: Request, res: Response) => {
            COALESCE(s.credits_balance, 0) AS credits_balance,
            COALESCE(s.credits_overspent_usd, 0) AS credits_overspent_usd,
            (TRIM(COALESCE(s.user_openai_api_key, '')) != ''
-            AND TRIM(COALESCE(s.user_apify_api_token, '')) != '') AS has_own_keys,
-           (p.active_day_last IS NOT NULL OR EXISTS (
-             SELECT 1 FROM sessions sess WHERE sess.profile_id = p.id LIMIT 1
-           )) AS has_activity_evidence
+            AND TRIM(COALESCE(s.user_apify_api_token, '')) != '') AS has_own_keys
     FROM profiles p
     LEFT JOIN settings s ON s.profile_id = p.id
     ORDER BY p.id ASC
-  `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; last_active_at: string | null; active_day_last: string | null; credits_balance: number; credits_overspent_usd: number; has_own_keys: number; has_activity_evidence: number }>;
+  `).all() as Array<{ id: number; email: string; is_admin: number; created_at: string; last_active_at: string | null; active_day_last: string | null; credits_balance: number; credits_overspent_usd: number; has_own_keys: number }>;
 
   // Tombstones of deleted accounts (`/api/profiles/:id/delete`). They carry no email, so they cannot
   // render as rows in the list above — they exist so the total-ever count stays answerable and so the

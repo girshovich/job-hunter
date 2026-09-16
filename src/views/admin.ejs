@@ -2,16 +2,20 @@
 <%- include('partials/_stg-styles') %>
 <%
   const _ADMIN_DAY_MS = 86400000;
-  function parseAdminStamp(iso) {
-    if (!iso) return NaN;
-    const s = String(iso).trim();
-    return new Date(/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s.replace(' ', 'T') + 'Z').getTime();
+  const _ADMIN_TZ = (settings && settings.timezone) || 'UTC';
+  function adminTodayKey() {
+    try {
+      return new Date().toLocaleDateString('en-CA', { timeZone: _ADMIN_TZ });
+    } catch {
+      return new Date().toISOString().slice(0, 10);
+    }
   }
-  function lastSeenLabel(iso, hasActivityEvidence) {
-    if (!iso || !hasActivityEvidence) return 'n/a';
-    const t = parseAdminStamp(iso);
+  function lastSeenLabel(activeDay) {
+    if (!activeDay) return 'n/a';
+    const t = Date.parse(String(activeDay) + 'T00:00:00Z');
     if (!Number.isFinite(t)) return 'n/a';
-    const days = Math.max(0, Math.floor((Date.now() - t) / _ADMIN_DAY_MS));
+    const today = adminTodayKey();
+    const days = Math.max(0, Math.round((Date.parse(today + 'T00:00:00Z') - t) / _ADMIN_DAY_MS));
     return days === 0 ? 'today' : days + 'd';
   }
 %>
@@ -207,7 +211,7 @@
         <div class="flex items-center justify-between gap-2 sm:contents">
         <!-- Credits editor -->
         <div class="flex items-center gap-1.5 flex-shrink-0">
-          <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" title="<%= p.last_active_at || '' %>">last seen <%= lastSeenLabel(p.last_active_at, p.has_activity_evidence) %></span>
+          <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" title="<%= p.last_active_at || '' %>">last seen <%= lastSeenLabel(p.active_day_last) %></span>
           <span class="text-[10px] text-gray-500 font-medium">$</span>
           <input type="number" step="0.01" min="0"
                  value="<%= Number(p.credits_balance || 0).toFixed(2) %>"
@@ -840,7 +844,7 @@
           <span class="sp-fa-who" title="<%= f.email %>"><%= f.email %></span>
           <span class="sp-fa-share"><%= f.share %>%</span>
           <span class="sp-fa-own"><b class="<%= f.ownRate < 80 ? 'bad' : '' %>"><%= f.ownRate.toFixed(1) %>%</b> own success</span>
-          <span class="sp-fa-seen" title="<%= f.lastActiveAt || '' %>">last seen <%= lastSeenLabel(f.lastActiveAt, f.hasActivityEvidence) %></span>
+          <span class="sp-fa-seen" title="<%= f.lastActiveAt || '' %>">last seen <%= lastSeenLabel(f.activeDayLast) %></span>
         </div>
       <% }); %>
     </div>
@@ -962,7 +966,8 @@
   // repeat habit forming, green for loyal. All three are DS token families and stay distinct in
   // small stacked bars.
   const SP_ACT_SPEC = {
-    order: ['first', 'returning', 'loyal'],
+    order: ['loyal', 'returning', 'first'],
+    legendOrder: ['first', 'returning', 'loyal'],
     config: {
       first: { label: 'First time', color: 'var(--sky-border)' },
       returning: { label: 'Returning', color: 'var(--sky-ink)' },
@@ -977,7 +982,8 @@
   // Frequency is ordered, but the all-blue ramp is too subtle once stacked. This keeps the low
   // buckets in the sky family, then uses amber as the warm "nearly daily" step before green.
   const SP_WEEKDAYS_SPEC = {
-    order: ['once', 'twoThree', 'fourFive', 'sixSeven'],
+    order: ['sixSeven', 'fourFive', 'twoThree', 'once'],
+    legendOrder: ['once', 'twoThree', 'fourFive', 'sixSeven'],
     config: {
       once: { label: '1', color: 'var(--sky-border)' },
       twoThree: { label: '2-3', color: 'var(--sky-ink)' },

@@ -53,6 +53,7 @@ if (!window.__jhTipMove) { window.__jhTipMove = true; document.addEventListener(
 // The specs themselves live in the page that owns the chart.
 function renderStackedChart(containerId, legendId, rawData, periods, getLabel, getKey, spec) {
   const ORDER = spec.order, CFG = spec.config;
+  const LEGEND_ORDER = spec.legendOrder || ORDER;
   const dataMap = {};
   for (const p of periods) { dataMap[p] = {}; ORDER.forEach(c => { dataMap[p][c] = 0; }); }
   for (const row of rawData) {
@@ -83,7 +84,7 @@ function renderStackedChart(containerId, legendId, rawData, periods, getLabel, g
       segs += `<div style="width:100%;height:${segH}px;background:${CFG[c].color};flex-shrink:0;"></div>`;
     }
     // With one category the head already states it — a row beneath would just repeat itself.
-    const tipLines = (ORDER.length === 1 ? [] : ORDER.filter(c => cats[c] > 0)).map(c =>
+    const tipLines = (ORDER.length === 1 ? [] : LEGEND_ORDER.filter(c => cats[c] > 0)).map(c =>
       `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CFG[c].color};margin-right:5px;vertical-align:middle;"></span>${CFG[c].label}: <b>${spec.fmt(cats[c])}</b>`
     ).join('<br>');
     const label = getLabel(p);
@@ -102,7 +103,7 @@ function renderStackedChart(containerId, legendId, rawData, periods, getLabel, g
     </div>`;
   }).join('');
 
-  document.getElementById(legendId).innerHTML = ORDER.map(c =>
+  document.getElementById(legendId).innerHTML = LEGEND_ORDER.map(c =>
     `<div style="display:flex;align-items:center;gap:4px;">
        <div style="width:10px;height:10px;border-radius:2px;background:${CFG[c].color};flex-shrink:0;"></div>
        <span style="font-size:11px;color:#6b7280;">${CFG[c].label}</span>

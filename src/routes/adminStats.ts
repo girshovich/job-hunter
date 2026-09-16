@@ -103,7 +103,7 @@ export interface TopFailer {
   id: number;
   email: string;
   lastActiveAt: string | null;
-  hasActivityEvidence: number;
+  activeDayLast: string | null;
   failed: number;      // this profile's runs that finished without success
   finished: number;    // this profile's runs that reached an outcome
   share: number;       // % of every failed run in the window
@@ -358,9 +358,7 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
   const failerRows = db.prepare(`
     SELECT r.profile_id AS id, p.email AS email,
            MAX(p.last_active_at) AS lastActiveAt,
-           MAX(CASE WHEN p.active_day_last IS NOT NULL OR EXISTS (
-             SELECT 1 FROM sessions sess WHERE sess.profile_id = p.id LIMIT 1
-           ) THEN 1 ELSE 0 END) AS hasActivityEvidence,
+           MAX(p.active_day_last) AS activeDayLast,
            SUM(CASE WHEN r.status != 'success' THEN 1 ELSE 0 END) AS failed,
            COUNT(*) AS finished
     FROM search_runs r
@@ -371,7 +369,7 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
     HAVING failed > 0 AND finished >= ${MIN_RUNS}
     ORDER BY failed DESC, finished DESC
     LIMIT 3
-  `).all(...windowArgs) as { id: number; email: string; lastActiveAt: string | null; hasActivityEvidence: number; failed: number; finished: number }[];
+  `).all(...windowArgs) as { id: number; email: string; lastActiveAt: string | null; activeDayLast: string | null; failed: number; finished: number }[];
 
   // The share denominator is every failure in the window, including profiles under the floor —
   // so three rows showing 41/23/14 correctly means the rest is spread elsewhere.
@@ -382,7 +380,7 @@ export function getAdminDaily(fromIn: string, toIn: string): AdminDaily {
     id: r.id,
     email: r.email,
     lastActiveAt: r.lastActiveAt,
-    hasActivityEvidence: r.hasActivityEvidence,
+    activeDayLast: r.activeDayLast,
     failed: r.failed,
     finished: r.finished,
     share: allFailed > 0 ? Math.round((r.failed / allFailed) * 100) : 0,
