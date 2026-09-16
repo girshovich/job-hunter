@@ -103,6 +103,29 @@ async function openMatches(page: Page) {
   return page.locator(`.jobcard[data-id="${jobId}"]`);
 }
 
+test('New shortcut is only hot when its count is above zero', async ({ page }) => {
+  await openMatches(page);
+  const count = dbNewCount();
+
+  if (count > 0) {
+    await expect(newShortcut(page)).toHaveClass(/hot/);
+  } else {
+    await expect(newShortcut(page)).not.toHaveClass(/hot/);
+  }
+
+  await page.evaluate(() => {
+    (window as any).updateShortcutCounts([{ id: 'new', count: 0 }]);
+  });
+  await expect(newShortcut(page)).toHaveText('0');
+  await expect(newShortcut(page)).not.toHaveClass(/hot/);
+  await expect(newShortcut(page)).toHaveClass(/is-zero/);
+
+  await page.evaluate((n) => {
+    (window as any).updateShortcutCounts([{ id: 'new', count: n }]);
+  }, Math.max(1, count));
+  await expect(newShortcut(page)).toHaveClass(/hot/);
+});
+
 test('status change updates shortcut counts without reloading', async ({ page }) => {
   const card = await openMatches(page);
   const jobId = await card.getAttribute('data-id');

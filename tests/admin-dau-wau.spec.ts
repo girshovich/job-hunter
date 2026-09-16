@@ -73,12 +73,12 @@ test('the card sits above the Daily range bar it does not obey', async ({ page }
 
 test('the switch changes the series, not just the buttons', async ({ page }) => {
   await expect(page.locator('#sp-act-title')).toHaveText('Active users per day');
-  await expect(page.locator('#sp-act-sub')).toContainText('own timezone');
+  await expect(page.locator('#sp-act-sub')).toContainText('in their timezone');
   const dayLabel = await page.locator('#sp-act-chart > div').last().textContent();
 
   await page.click('#sp-act-w');
   await expect(page.locator('#sp-act-title')).toHaveText('Active users per week');
-  await expect(page.locator('#sp-act-sub')).toContainText('not the sum of its days');
+  await expect(page.locator('#sp-act-sub')).toContainText('Loyal = 7 or more days active ever.');
   expect(await page.locator('#sp-act-chart > div').last().textContent()).not.toBe(dayLabel);
 
   await page.click('#sp-act-d');
@@ -98,4 +98,10 @@ test('the tooltip reads correctly at one active user', async ({ page }) => {
     (els) => els.map((e) => JSON.parse(e.getAttribute('data-qtip') as string).totalText));
   expect(tips.some((t) => /^\d+ active$/.test(t))).toBe(true);
   expect(tips.some((t) => t.endsWith(' users'))).toBe(false);
+});
+
+test('the days-active-per-week chart renders with the requested caption', async ({ page }) => {
+  await expect(page.getByText('Days Active per Week')).toBeVisible();
+  await expect(page.locator('#sp-weekdays-chart > div').first()).toBeVisible();
+  await expect(page.getByText('Avg. Active Days per User (7d Rolling)')).toBeVisible();
 });

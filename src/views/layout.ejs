@@ -148,6 +148,7 @@
     /* The shortcut counts sit where a role count would: quiet, right-aligned, tabular. */
     .sb-subcount { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--faintest); font-variant-numeric: tabular-nums; }
     .sb-subitem.active .sb-subcount { color: var(--accent); }
+    .sb-subitem.active .sb-subcount.is-zero { color: var(--faintest); }
     .sb-subcount.hot {
       color: #fff; background: var(--accent); border-radius: 999px; padding: 1px 8px;
     }
@@ -876,8 +877,9 @@
             the real status ids its types resolve to (D40, D45). %>
         <div class="sb-subnav">
           <% (locals.shortcuts || []).forEach(function (sc) { %>
+          <% const isHotNew = sc.id === 'new' && Number(sc.count) > 0; %>
           <a href="<%= sc.href %>" class="sb-item sb-subitem <%= title === 'Matches' && locals.activeShortcut === sc.id ? 'active' : '' %>">
-            <span class="sb-subdot"></span><%= sc.label %><span class="sb-subcount <%= sc.id === 'new' ? 'hot' : '' %>" data-shortcut="<%= sc.id %>"><%= sc.count %></span>
+            <span class="sb-subdot"></span><%= sc.label %><span class="sb-subcount <%= isHotNew ? 'hot' : '' %> <%= sc.id === 'new' && !isHotNew ? 'is-zero' : '' %>" data-shortcut="<%= sc.id %>"><%= sc.count %></span>
           </a>
           <% }); %>
         </div>
@@ -3182,7 +3184,13 @@
       if (!Array.isArray(counts)) return;
       counts.forEach(function (c) {
         const el = document.querySelector('.sb-subcount[data-shortcut="' + c.id + '"]');
-        if (el) el.textContent = String(c.count);
+        if (!el) return;
+        el.textContent = String(c.count);
+        if (c.id === 'new') {
+          const isHot = Number(c.count) > 0;
+          el.classList.toggle('hot', isHot);
+          el.classList.toggle('is-zero', !isHot);
+        }
       });
     }
 

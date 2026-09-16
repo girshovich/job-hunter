@@ -30,12 +30,14 @@ db.exec(`DELETE FROM profiles;
   INSERT INTO profiles (id, email, is_admin, created_at) VALUES
     (1,'admin@x.io',1,'2026-01-01T00:00:00Z'),
     (2,'a@x.io',0,'2026-01-01T00:00:00Z'),
-    (3,'b@x.io',0,'2026-01-01T00:00:00Z');`);
-db.exec(`INSERT OR REPLACE INTO settings (profile_id, timezone) VALUES (1,'UTC'),(2,'UTC'),(3,'UTC');`);
+    (3,'b@x.io',0,'2026-01-01T00:00:00Z'),
+    (4,'c@x.io',0,'2026-01-01T00:00:00Z');`);
+db.exec(`INSERT OR REPLACE INTO settings (profile_id, timezone) VALUES (1,'UTC'),(2,'UTC'),(3,'UTC'),(4,'UTC');`);
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'UTC' });
 const todayT = Date.parse(today + 'T00:00:00Z');
 const dayAgo = (n: number) => iso(todayT - n * DAY);
+const daysSinceMonday = (new Date(todayT).getUTCDay() + 6) % 7;
 
 function seed(pairs: Array<[number, number]>): void {
   db.exec('DELETE FROM profile_active_days');
@@ -91,6 +93,7 @@ test('admins are counted here, unlike everywhere else on the page', () => {
   const a = getAdminActive();
   assert.equal(a.days.length, 1, 'the admin alone still draws a column');
   assert.equal(a.days[0].n, 1);
+  assert.equal(a.days[0].first, 1);
 });
 
 test('since and dayFrom let the card tell "nobody came" from "not recording yet"', () => {
@@ -106,5 +109,51 @@ test('nothing recorded draws nothing rather than a row of zeroes', () => {
   const a = getAdminActive();
   assert.deepEqual(a.days, []);
   assert.deepEqual(a.weeks, []);
+  assert.deepEqual(a.daysPerWeek, []);
   assert.equal(a.since, null);
+});
+
+test('DAU segments first-time, returning and loyal users by cumulative active days', () => {
+  seed([
+    [2, 6], [2, 5], [2, 4], [2, 3], [2, 2], [2, 1], [2, 0],
+    [3, 2], [3, 1], [3, 0],
+    [1, 0],
+  ]);
+  const todayBucket = getAdminActive().days.find((d) => d.k === dayAgo(0))!;
+  assert.equal(todayBucket.n, 3);
+  assert.equal(todayBucket.first, 1, 'admin is on its first recorded active day');
+  assert.equal(todayBucket.returning, 1, 'three cumulative days is returning');
+  assert.equal(todayBucket.loyal, 1, 'seven cumulative days is loyal');
+});
+
+test('WAU segments first-time users in their first active week', () => {
+  seed([
+    [2, 9], [2, 8], [2, 7],
+    [2, 0],
+    [3, 0],
+  ]);
+  const thisMonday = iso(todayT - daysSinceMonday * DAY);
+  const week = getAdminActive().weeks.find((w) => w.k === thisMonday)!;
+  assert.equal(week.n, 2);
+  assert.equal(week.first, 1, 'profile 3 first appeared this week');
+  assert.equal(week.returning, 1, 'profile 2 returned this week with fewer than seven days total');
+});
+
+test('days active per week buckets users by active-day frequency', () => {
+  const prevWeekStartBack = daysSinceMonday + 7;
+  const backs = (count: number) => Array.from({ length: count }, (_, i) => prevWeekStartBack - i);
+  seed([
+    ...backs(1).map((back): [number, number] => [1, back]),
+    ...backs(3).map((back): [number, number] => [2, back]),
+    ...backs(5).map((back): [number, number] => [3, back]),
+    ...backs(7).map((back): [number, number] => [4, back]),
+  ]);
+  const prevMonday = iso(todayT - prevWeekStartBack * DAY);
+  const week = getAdminActive().daysPerWeek.find((w) => w.k === prevMonday)!;
+  assert.equal(week.n, 4);
+  assert.equal(week.once, 1);
+  assert.equal(week.twoThree, 1);
+  assert.equal(week.fourFive, 1);
+  assert.equal(week.sixSeven, 1);
+  assert.equal(week.avg, 4);
 });

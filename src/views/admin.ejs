@@ -1,5 +1,20 @@
 <!-- ==================== ADMIN PAGE ==================== -->
 <%- include('partials/_stg-styles') %>
+<%
+  const _ADMIN_DAY_MS = 86400000;
+  function parseAdminStamp(iso) {
+    if (!iso) return NaN;
+    const s = String(iso).trim();
+    return new Date(/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s.replace(' ', 'T') + 'Z').getTime();
+  }
+  function lastSeenLabel(iso, hasActivityEvidence) {
+    if (!iso || !hasActivityEvidence) return 'n/a';
+    const t = parseAdminStamp(iso);
+    if (!Number.isFinite(t)) return 'n/a';
+    const days = Math.max(0, Math.floor((Date.now() - t) / _ADMIN_DAY_MS));
+    return days === 0 ? 'today' : days + 'd';
+  }
+%>
 <div class="adm stg-page">
 
   <h1 class="stg-h1" style="margin-bottom:20px">Admin: <%= ({ general: 'General', sources: 'Sources', locations: 'Locations', stats: 'Stats' })[adminTab] || 'General' %></h1>
@@ -172,7 +187,12 @@
             <%= p.email.charAt(0).toUpperCase() %>
           </div>
           <div class="min-w-0 flex-1">
-            <p class="text-sm text-gray-900 font-medium truncate"><%= p.email.split('@')[0] %></p>
+            <div class="flex items-center gap-1 min-w-0">
+              <p class="text-sm text-gray-900 font-medium truncate"><%= p.email.split('@')[0] %></p>
+              <% if (p.is_admin) { %>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium flex-shrink-0">admin</span>
+              <% } %>
+            </div>
             <p class="text-xs text-gray-400 truncate"><span class="font-mono">#<%= p.id %></span> · <%= p.email %></p>
           </div>
           <% if (p.credits_overspent_usd > 0) { %>
@@ -182,18 +202,13 @@
           <% if (p.has_own_keys) { %>
           <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium flex-shrink-0"
                 title="Own OpenAI + Apify keys are saved on this profile. Saved, not validated — and not necessarily in use: the payment mode decides that.">keys saved</span>
-          <% } else { %>
-          <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 font-medium flex-shrink-0"
-                title="No own API keys saved on this profile — it spends the operator's keys whenever it is on credits.">no keys saved</span>
-          <% } %>
-          <% if (p.is_admin) { %>
-          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium flex-shrink-0">admin</span>
           <% } %>
         </div>
         <div class="flex items-center justify-between gap-2 sm:contents">
         <!-- Credits editor -->
         <div class="flex items-center gap-1.5 flex-shrink-0">
-          <span class="text-[10px] text-gray-500 font-medium">Credits $</span>
+          <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" title="<%= p.last_active_at || '' %>">last seen <%= lastSeenLabel(p.last_active_at, p.has_activity_evidence) %></span>
+          <span class="text-[10px] text-gray-500 font-medium">$</span>
           <input type="number" step="0.01" min="0"
                  value="<%= Number(p.credits_balance || 0).toFixed(2) %>"
                  class="w-20 rounded border border-gray-300 px-2 py-1 text-xs font-mono text-right focus:ring-1 focus:ring-blue-500"
@@ -700,6 +715,12 @@
     }
     const srcTotal = daily.bySource.reduce((a, r) => a + r[1], 0);
     const fmtDay = (iso) => { const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
+    const totalUsers = Number(totals.users || 0);
+    const nonAdminUsers = Number(totals.nonAdminUsers ?? totals.users ?? 0);
+    const adminUsers = Number(totals.adminUsers ?? 0);
+    const totalRuns = Number(totals.runs || 0);
+    const nonAdminRuns = Number(totals.nonAdminRuns ?? totals.runs ?? 0);
+    const adminRuns = Number(totals.adminRuns ?? 0);
   %>
 
   <!-- ── Totals: all time, no date filter ──────────────────────────────────── -->
@@ -707,29 +728,32 @@
   <div class="sp-kpi-grid sp-kpi-4" style="margin-top:0">
     <div class="sp-card sp-kpi-left">
       <div class="sp-kpi-l" style="margin-top:0">Users</div>
-      <div class="sp-kpi-n"><%= totals.users.toLocaleString('en-US') %></div>
-      <div class="sp-kpi-sub">Live non-admin profiles.</div>
+      <div class="sp-kpi-n"><%= totalUsers.toLocaleString('en-US') %></div>
+      <div class="sp-kpi-sub"><%= nonAdminUsers.toLocaleString('en-US') %> user<%= nonAdminUsers === 1 ? '' : 's' %> + admin</div>
     </div>
     <div class="sp-card sp-kpi-left">
       <div class="sp-kpi-l" style="margin-top:0">Own API keys</div>
       <div class="sp-kpi-row">
         <div class="sp-kpi-n"><%= totals.ownKeys.toLocaleString('en-US') %></div>
-        <% if (totals.users > 0) { %><span class="sp-kpi-of"><%= Math.round(totals.ownKeys / totals.users * 100) %>%</span><% } %>
+        <% if (totalUsers > 0) { %><span class="sp-kpi-of"><%= Math.round(totals.ownKeys / totalUsers * 100) %>%</span><% } %>
       </div>
-      <div class="sp-kpi-sub">Both keys saved. The rest run on JH credits.</div>
+      <div class="sp-kpi-sub">Both keys saved</div>
     </div>
     <div class="sp-card sp-kpi-left">
       <div class="sp-kpi-l" style="margin-top:0">Activated</div>
       <div class="sp-kpi-row">
         <div class="sp-kpi-n"><%= totals.activated.toLocaleString('en-US') %></div>
-        <% if (totals.users > 0) { %><span class="sp-kpi-of"><%= Math.round(totals.activated / totals.users * 100) %>%</span><% } %>
+        <% if (totalUsers > 0) { %><span class="sp-kpi-of"><%= Math.round(totals.activated / totalUsers * 100) %>%</span><% } %>
       </div>
-      <div class="sp-kpi-sub">Users who ever ran a search.</div>
+      <div class="sp-kpi-sub">Profiles that ever ran a search</div>
     </div>
     <div class="sp-card sp-kpi-left">
-      <div class="sp-kpi-l" style="margin-top:0">Runs</div>
-      <div class="sp-kpi-n"><%= totals.runs.toLocaleString('en-US') %></div>
-      <div class="sp-kpi-sub">Searches ever run by users.</div>
+      <div class="sp-kpi-l" style="margin-top:0">Searches ever run</div>
+      <div class="sp-kpi-n"><%= totalRuns.toLocaleString('en-US') %></div>
+      <div class="sp-kpi-sub" style="margin-top:8px;font-weight:700;color:var(--faint)">
+        <div><b style="color:var(--ink2);font-weight:800"><%= nonAdminRuns.toLocaleString('en-US') %></b> users</div>
+        <div style="margin-top:2px"><b style="color:var(--ink2);font-weight:800"><%= adminRuns.toLocaleString('en-US') %></b> admin</div>
+      </div>
     </div>
   </div>
 
@@ -749,6 +773,20 @@
       <div id="sp-act-legend" style="display:none"></div>
       <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x" style="padding-bottom:4px"><div id="sp-act-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div></div>
     </div>
+  </div>
+
+  <!-- Days active per week -->
+  <div class="sp-card">
+    <div class="sp-hd">
+      <div>
+        <div class="sp-title">Days Active per Week</div>
+      </div>
+    </div>
+    <div class="sp-pad">
+      <div id="sp-weekdays-legend" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:14px"></div>
+      <div class="sp-scrollwrap"><div class="jh-scroll sp-scroll-x" style="padding-bottom:4px"><div id="sp-weekdays-chart" style="display:flex;gap:6px;align-items:flex-end"></div></div></div>
+    </div>
+    <p class="sp-note">Avg. Active Days per User (7d Rolling)</p>
   </div>
 
   <!-- ── Daily ─────────────────────────────────────────────────────────────── -->
@@ -802,6 +840,7 @@
           <span class="sp-fa-who" title="<%= f.email %>"><%= f.email %></span>
           <span class="sp-fa-share"><%= f.share %>%</span>
           <span class="sp-fa-own"><b class="<%= f.ownRate < 80 ? 'bad' : '' %>"><%= f.ownRate.toFixed(1) %>%</b> own success</span>
+          <span class="sp-fa-seen" title="<%= f.lastActiveAt || '' %>">last seen <%= lastSeenLabel(f.lastActiveAt, f.hasActivityEvidence) %></span>
         </div>
       <% }); %>
     </div>
@@ -919,14 +958,32 @@
     tipSuffix: '', colW: 36,
     tipLabel: d => spLabel(d),
   };
-  // Presence, not work — so it takes the same sky family as Runs per day rather than a verdict
-  // colour. One series: the card title names it and the legend stays hidden.
+  // Active-user maturity is a nominal lifecycle split, so it uses distinct DS tokens rather than
+  // a single blue ramp: accent for new, sky for returning/info, green for loyal.
   const SP_ACT_SPEC = {
-    order: ['n'],
-    config: { n: { label: 'Active users', color: 'var(--sky-ink)' } },
+    order: ['first', 'returning', 'loyal'],
+    config: {
+      first: { label: 'First time', color: 'var(--accent)' },
+      returning: { label: 'Returning', color: 'var(--sky-ink)' },
+      loyal: { label: 'Loyal 7d+', color: 'var(--green)' },
+    },
     // ' active', not ' users': the suffix is concatenated raw, and at this base size a day with
     // one active user is the common case — " 1 users" would be the reading most of the time.
     fmt: v => String(v), tipSuffix: ' active', colW: 36,
+    tipLabel: k => k,
+  };
+
+  // Frequency is ordered magnitude, so DS §6.1 points to the sequential accent ramp rather than
+  // categorical verdict colours. The darkest bar means "more days", not "better outcome".
+  const SP_WEEKDAYS_SPEC = {
+    order: ['once', 'twoThree', 'fourFive', 'sixSeven'],
+    config: {
+      once: { label: '1', color: '#e2ebff' },
+      twoThree: { label: '2-3', color: '#c3d5ff' },
+      fourFive: { label: '4-5', color: '#95b4ff' },
+      sixSeven: { label: '6-7', color: 'var(--accent)' },
+    },
+    fmt: v => String(v), tipSuffix: ' users', colW: 36,
     tipLabel: k => k,
   };
 
@@ -1087,6 +1144,21 @@
 
     drawActive(spActMode);
 
+    const weekDayPeriods = SP_ACT.daysPerWeek.map(r => r.k);
+    const weekDayLabels = spThin(weekDayPeriods, spLabel, true);
+    const weekDayRaw = [];
+    const weekDayAvg = {};
+    SP_ACT.daysPerWeek.forEach(r => {
+      weekDayAvg[r.k] = r.avg;
+      ['once', 'twoThree', 'fourFive', 'sixSeven'].forEach(c => {
+        if (r[c] > 0) weekDayRaw.push({ key: r.k, category: c, count: r[c] });
+      });
+    });
+    SP_WEEKDAYS_SPEC.tipLabel = k => 'Week of ' + spLabel(k)
+      + (weekDayAvg[k] ? ' · avg ' + weekDayAvg[k].toFixed(1) + ' days/user' : '');
+    spChart('sp-weekdays-chart', 'sp-weekdays-legend', weekDayRaw, weekDayPeriods, weekDayLabels,
+      SP_WEEKDAYS_SPEC, 'No activity recorded yet.');
+
     // A day with no finished runs has no rate — it draws nothing, not a zero.
     const okRaw = [];
     SP_DAYS.forEach(r => { const n = spNines(r.ok, r.runs); if (n !== null) okRaw.push({ key: r.d, category: 'ok', count: n }); });
@@ -1105,12 +1177,12 @@
     // the point, and scrolling past midnight would hide the morning.
     // After layout, not during it — scrollWidth is not final in the tick that sets innerHTML.
     requestAnimationFrame(() => {
-      ['sp-runs-chart', 'sp-ok-chart'].forEach(id => {
+      ['sp-runs-chart', 'sp-ok-chart', 'sp-weekdays-chart'].forEach(id => {
         const el = document.getElementById(id);
         if (el && el.parentElement) el.parentElement.scrollLeft = el.parentElement.scrollWidth;
       });
-      ['sp-runs-chart', 'sp-ok-chart', 'sp-hour-chart'].forEach(spWatchEdges);
-      ['sp-runs-chart', 'sp-ok-chart', 'sp-hour-chart'].forEach(spFitColValues);
+      ['sp-runs-chart', 'sp-ok-chart', 'sp-hour-chart', 'sp-weekdays-chart'].forEach(spWatchEdges);
+      ['sp-runs-chart', 'sp-ok-chart', 'sp-hour-chart', 'sp-weekdays-chart'].forEach(spFitColValues);
     });
   }
 
@@ -1128,19 +1200,20 @@
       week ? 'Active users per week' : 'Active users per day';
 
     const keys = buckets.map(b => b.k);
-    const raw = buckets.filter(b => b.n > 0).map(b => ({ key: b.k, category: 'n', count: b.n }));
+    const raw = [];
+    buckets.forEach(b => {
+      ['first', 'returning', 'loyal'].forEach(c => {
+        if (b[c] > 0) raw.push({ key: b.k, category: c, count: b[c] });
+      });
+    });
     // The axis carries the short date either way — "Week of Aug 10" wraps to two lines in a
     // column this wide and collides with its neighbours. The tooltip says which it is instead.
     const partial = new Set(buckets.filter(b => b.partial).map(b => b.k));
     SP_ACT_SPEC.tipLabel = k => (week ? 'Week of ' : '') + spLabel(k)
       + (partial.has(k) ? ' \u00b7 partial' : '');
 
-    // Days can be missing because nobody came, or because we were not recording yet. Only the
-    // second needs explaining, so it is said only while the series is younger than the window.
-    const young = SP_ACT.since && SP_ACT.since > SP_ACT.dayFrom ? ' Tracking started ' + spLabel(SP_ACT.since) + '.' : '';
-    document.getElementById('sp-act-sub').textContent = week
-      ? 'Distinct users per Mon\u2013Sun week. A week is not the sum of its days.'
-      : 'Distinct users with logged-in activity, in each user\u2019s own timezone.' + young;
+    document.getElementById('sp-act-sub').textContent =
+      'Users with logged-in activity in their timezone. Loyal = 7 or more days active ever.';
 
     spChart('sp-act-chart', 'sp-act-legend', raw, keys, spThin(keys, spLabel, true), SP_ACT_SPEC,
       'No activity recorded yet.');
@@ -1850,17 +1923,30 @@ async function createProfile() {
     const handle = email.split('@')[0];
     const div = document.createElement('div');
     div.id = 'profile-row-' + data.profile.id;
-    div.className = 'flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200';
+    div.className = 'flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200';
     div.innerHTML = `
-      <div class="flex items-center gap-2 min-w-0">
+      <div class="flex items-center gap-2 min-w-0 flex-1">
         <div class="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${escHtml(initial)}</div>
-        <div class="min-w-0">
-          <p class="text-sm text-gray-900 font-medium truncate">${escHtml(handle)}</p>
-          <p class="text-xs text-gray-400 truncate">${escHtml(email)}</p>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1 min-w-0">
+            <p class="text-sm text-gray-900 font-medium truncate">${escHtml(handle)}</p>
+          </div>
+          <p class="text-xs text-gray-400 truncate"><span class="font-mono">#${data.profile.id}</span> · ${escHtml(email)}</p>
         </div>
       </div>
-      <button type="button" onclick="deleteProfile(${data.profile.id}, '${escHtml(email)}')"
-              class="text-xs text-red-500 hover:text-red-700 hover:underline flex-shrink-0">Delete</button>`;
+      <div class="flex items-center justify-between gap-2 sm:contents">
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap">last seen n/a</span>
+          <span class="text-[10px] text-gray-500 font-medium">$</span>
+          <input type="number" step="0.01" min="0" value="0.00"
+                 class="w-20 rounded border border-gray-300 px-2 py-1 text-xs font-mono text-right focus:ring-1 focus:ring-blue-500"
+                 id="credits-input-${data.profile.id}" />
+          <button type="button" onclick="setUserCredits(${data.profile.id}, this)"
+                  class="stg-btn stg-btn-secondary stg-btn-sm">Set</button>
+        </div>
+        <button type="button" onclick="deleteProfile(${data.profile.id}, '${escHtml(email)}')"
+                class="text-xs text-red-500 hover:text-red-700 hover:underline flex-shrink-0">Delete</button>
+      </div>`;
     list.appendChild(div);
     input.value = '';
     msgEl.textContent = 'Profile created. They can now log in with their email.';
