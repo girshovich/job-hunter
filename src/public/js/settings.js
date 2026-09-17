@@ -418,7 +418,10 @@ function openGroupModal(id) {
 
   modal.classList.remove('hidden');
   autoGrowIn(modal);
-  document.getElementById('modal-locations').focus();
+  // Focus on the next tick, not this one: WebKit intermittently refuses focus on an element that
+  // was display:none a moment ago, so the popup opened focused-and-zoomed or not at random. Same
+  // 40ms the Add Job modal uses (layout.ejs).
+  setTimeout(() => document.getElementById('modal-locations').focus(), 40);
 
   // Lazily resolve locations to flag provider coverage gaps
   const locVal = document.getElementById('modal-locations').value.trim();
