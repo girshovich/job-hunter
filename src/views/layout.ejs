@@ -1180,8 +1180,9 @@
        re-injected as raw HTML on every selection change, which would duplicate these IDs. -->
   <div id="jh-company-modal" class="hidden fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="JHCompanyModal.close()"></div>
+    <!-- dvh, not vh: iOS counts vh toolbar-free, so the sheet bottom sat under the Safari toolbar. vh first = pre-2022 fallback. -->
     <div class="relative bg-white w-full max-w-lg overflow-hidden flex flex-col"
-         style="border-radius:16px 16px 0 0;box-shadow:var(--shadow-modal);max-height:88vh">
+         style="border-radius:16px 16px 0 0;box-shadow:var(--shadow-modal);max-height:88vh;max-height:88dvh">
       <style>@media (min-width:768px){#jh-company-modal > div:last-child{border-radius:var(--radius-modal)!important}}</style>
 
       <div style="display:flex;align-items:flex-start;gap:11px;padding:16px 20px;border-bottom:1px solid var(--line)">
@@ -1235,8 +1236,9 @@
   <% if (locals.addJobOptions) { %>
   <div id="jh-addjob-modal" class="hidden fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="JHAddJob.close()"></div>
+    <!-- dvh, not vh: iOS counts vh toolbar-free, so the sheet bottom sat under the Safari toolbar. vh first = pre-2022 fallback. -->
     <div class="relative bg-white w-full max-w-lg overflow-hidden flex flex-col"
-         style="border-radius:16px 16px 0 0;box-shadow:var(--shadow-modal);max-height:90vh">
+         style="border-radius:16px 16px 0 0;box-shadow:var(--shadow-modal);max-height:90vh;max-height:90dvh">
       <style>
         @media (min-width:768px){#jh-addjob-modal > div:last-child{border-radius:var(--radius-modal)!important}}
         #jh-addjob-modal .aj-fld { display:flex; flex-direction:column; gap:6px; }

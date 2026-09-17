@@ -201,7 +201,9 @@
     <!-- ==================== AI PROMPTS MODAL ==================== -->
     <div id="prompts-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="tryClosePromptsModal()"></div>
-      <div class="stg-modal relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[90vh] flex flex-col overflow-hidden">
+      <!-- dvh, not vh: iOS counts vh toolbar-free, so the footer sat under the Safari toolbar. vh first = pre-2022 fallback. -->
+      <div class="stg-modal relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden"
+           style="height:90vh;height:90dvh">
 
         <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <h2 class="font-semibold text-gray-900 text-base">See AI prompts</h2>
