@@ -26,7 +26,8 @@ const stats: Parameters<typeof buildEmailHtml>[1] = {
 
 test('with a base URL: credit, hosted PNG marks with alt text, Hipolink line', () => {
   const html = buildEmailHtml([], stats, 'Today', 'https://anotherjob.app');
-  assert.ok(html.includes('>Job Search</a> · made by'));
+  assert.ok(html.includes('Sent by <a href="https://anotherjob.app"'));
+  assert.ok(html.includes('>anotherjob.app</a> · made by'));
   assert.ok(html.includes('made by Mikhail Girshovich'));
   assert.ok(html.includes('https://anotherjob.app/email/linkedin.png'));
   assert.ok(html.includes('alt="LinkedIn"'));
@@ -49,6 +50,7 @@ test('transactional footer keeps the plain fallback for an invalid site URL', ()
 
 test('without a base URL: no images, text links instead, Hipolink line kept', () => {
   const html = buildEmailHtml([], stats, 'Today', '');
+  assert.ok(html.includes('Sent by Job Search · made by'));
   assert.ok(!html.includes('<img'));
   assert.ok(html.includes('>LinkedIn</a>'));
   assert.ok(html.includes('>Email</a>'));
