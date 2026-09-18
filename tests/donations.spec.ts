@@ -144,12 +144,12 @@ test('P1 desktop: credit with both marks and Donate at the end of the pane', asy
   await expect(credit.locator('.don-btn')).toBeVisible();
 });
 
-test('P1 mobile: the credit is hidden on the phone job page', async ({ page }) => {
+test('P1 standalone job page: no job-end credit on any width (it lives in the footer, §4.7)', async ({ page }) => {
   const jobId = jobOrSkip();
   await page.setViewportSize(PHONE);
   await page.goto(`/job/${jobId}`);
-  await expect(page.locator('.jd-credit')).toHaveCount(1);
-  await expect(page.locator('.jd-credit')).toBeHidden();
+  await expect(page.locator('.jd-credit')).toHaveCount(0);
+  await expect(page.locator('.af-credit')).toBeHidden();
 });
 
 test('P1 Delete shares the credit line, wraps in a narrow pane, and still opens its panel', async ({ page }) => {
@@ -499,4 +499,64 @@ test('welcome scrolled to the end: legal card level with the sidebar account row
   });
   expect(d).toBeLessThanOrEqual(2);
   await page.close();
+});
+
+test('standalone job page desktop: credit in the legal footer; Donate opens the panel', async ({ page }) => {
+  const jobId = jobOrSkip();
+  await page.setViewportSize(DESKTOP);
+  await page.goto(`/job/${jobId}`);
+  const foot = page.locator('footer.app-footer .af-credit');
+  await expect(foot).toBeVisible();
+  await expect(foot.locator('.af-name')).toHaveText('Mikhail Girshovich');
+  await expect(foot.locator('a.mk').nth(0)).toHaveAttribute('href', 'https://www.linkedin.com/in/girshovich/');
+  await expect(foot.locator('a.mk').nth(1)).toHaveAttribute('href', 'mailto:mikhail@girshovich.me');
+  await expect(foot.locator('a[href="/terms"]')).toBeVisible();
+  const h = await foot.evaluate((el) => el.getBoundingClientRect().height);
+  expect(h).toBeCloseTo(38, 0);
+  await foot.locator('.af-don').click();
+  await expect(page.locator('#jh-donate')).toBeVisible();
+
+  // Other pages keep the plain legal footer.
+  await page.goto('/');
+  await expect(page.locator('footer.app-footer')).toBeVisible();
+  await expect(page.locator('.af-credit')).toHaveCount(0);
+});
+
+test('every app-footer page: the card spans the body and sits on the sidebar bottom row', async ({ page }) => {
+  const jobId = jobOrSkip();
+  await page.setViewportSize(DESKTOP);
+  const urls = ['/', `/job/${jobId}`, '/analytics', '/settings', '/admin', '/reports', '/run-diff',
+    '/admin/telegram-posts', '/admin/unresolved-locations', '/terms', '/privacy'];
+  for (const url of urls) {
+    const body = '.app-page > *';
+    await page.goto(url);
+    const m = await page.evaluate((sel) => {
+      const main = document.querySelector('.app-main') as HTMLElement; main.scrollTop = main.scrollHeight;
+      const kids = Array.from(document.querySelectorAll(sel)).map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0);
+      const card = document.querySelector('.app-footer > div')!.getBoundingClientRect();
+      // The avatar sits on the credits pill's line in credits mode and on the account row otherwise.
+      const row = document.querySelector('.sb-av-btn')!.getBoundingClientRect();
+      return {
+        l: Math.min(...kids.map((r) => r.left)), r: Math.max(...kids.map((r) => r.right)),
+        cl: card.left, cr: card.right, cmid: (card.top + card.bottom) / 2, rowMid: (row.top + row.bottom) / 2,
+      };
+    }, body);
+    expect(Math.abs(m.cl - m.l), url).toBeLessThanOrEqual(1);
+    expect(Math.abs(m.cr - m.r), url).toBeLessThanOrEqual(1);
+    expect(Math.abs(m.cmid - m.rowMid), url).toBeLessThanOrEqual(3);
+  }
+});
+
+test('Pricing and Refunds pages are gone, signed in and signed out', async ({ page, browser }) => {
+  for (const url of ['/pricing', '/refunds']) {
+    const r = await page.request.get('http://localhost:3000' + url, { maxRedirects: 0 });
+    expect(r.status(), url).toBe(404);
+    const anon = await browser.newContext();
+    const a = await anon.request.get('http://localhost:3000' + url, { maxRedirects: 0 });
+    expect(a.status(), 'signed out ' + url).not.toBe(200);
+    await anon.close();
+  }
+  // The pages that stay still render.
+  expect((await page.request.get('http://localhost:3000/terms')).status()).toBe(200);
+  expect((await page.request.get('http://localhost:3000/privacy')).status()).toBe(200);
 });

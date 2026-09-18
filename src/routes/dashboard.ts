@@ -195,7 +195,9 @@ router.get('/job/:id', (req: Request, res: Response) => {
     res.status(404).render('404', { title: 'Not Found' });
     return;
   }
-  res.render('job-detail', { ...detail, title: detail.job.title });
+  // The maker credit moves from the end of the job into the legal footer here (donations.md §4.7):
+  // this page has the footer right under the job, so one credit, not two.
+  res.render('job-detail', { ...detail, title: detail.job.title, showMakerCredit: false, footerCredit: true, footerAlign: 'job' });
 });
 
 export { router as dashboardRouter };

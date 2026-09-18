@@ -4,10 +4,8 @@ import { getDb, type SessionRow } from '../db';
 import { hashToken } from './auth';
 
 const PUBLIC_PAGE_META = {
-  '/pricing': { view: 'public/pricing', standaloneView: 'public/standalone-pricing', title: 'Pricing' },
   '/terms': { view: 'public/terms', standaloneView: 'public/standalone-terms', title: 'Terms' },
   '/privacy': { view: 'public/privacy', standaloneView: 'public/standalone-privacy', title: 'Privacy' },
-  '/refunds': { view: 'public/refunds', standaloneView: 'public/standalone-refunds', title: 'Refunds' },
 } as const;
 
 const PUBLIC_PATHS = Object.keys(PUBLIC_PAGE_META) as Array<keyof typeof PUBLIC_PAGE_META>;
