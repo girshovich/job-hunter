@@ -58,12 +58,25 @@ function escapeHtml(str: string | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
+export function emailFooterSenderHtml(appUrl: string | null | undefined): string {
+  const value = appUrl?.trim();
+  if (!value) return 'Job Search';
+
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return 'Job Search';
+    return `<a href="${escapeHtml(value)}" style="color:#4373ff;text-decoration:none;font-weight:600;">${escapeHtml(url.hostname)}</a>`;
+  } catch {
+    return 'Job Search';
+  }
+}
+
 /**
  * Shared shell for transactional emails (login code aside — that one is
  * header-less, see auth.ts). `headerMode` picks the brand-white or alert-red
  * header; the caller supplies the inner card body.
  */
-export function emailFrame(headerMode: 'brand' | 'alert', bodyHtml: string): string {
+export function emailFrame(headerMode: 'brand' | 'alert', bodyHtml: string, appUrl: string): string {
   const header = headerMode === 'alert'
     ? `<div style="background:#ef6d70;border:1px solid #fcd9d6;border-radius:16px;padding:20px 24px;text-align:center;">
         <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;color:#000000;">Yet Another Job Search</h1>
@@ -80,7 +93,7 @@ export function emailFrame(headerMode: 'brand' | 'alert', bodyHtml: string): str
     <div style="background:#ffffff;border:1px solid #ebedf1;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,0.05);padding:24px;margin-top:16px;">
       ${bodyHtml}
     </div>
-    <p style="text-align:center;color:#8a91a0;font-size:12px;margin-top:24px;">Sent by Job Search</p>
+    <p style="text-align:center;color:#8a91a0;font-size:12px;margin-top:24px;">Sent by ${emailFooterSenderHtml(appUrl)}</p>
   </div>
 </body>
 </html>`;
@@ -328,6 +341,7 @@ export async function sendTopUpRequest(
   message: string,
   resendApiKey: string,
   emailFrom: string,
+  appUrl: string,
 ): Promise<void> {
   const escaped = message
     .replace(/&/g, '&amp;')
@@ -338,7 +352,7 @@ export async function sendTopUpRequest(
       <p style="color:#3a4250;font-size:14px;line-height:1.6;margin:0 0 16px;">
         <strong>${userEmail}</strong> · current balance $${balance.toFixed(2)}
       </p>
-      <pre style="white-space:pre-wrap;font-family:inherit;color:#131722;font-size:14px;line-height:1.6;background:#fbfcfe;border:1px solid #e7e9ee;border-radius:12px;padding:16px;margin:0;">${escaped}</pre>`);
+      <pre style="white-space:pre-wrap;font-family:inherit;color:#131722;font-size:14px;line-height:1.6;background:#fbfcfe;border:1px solid #e7e9ee;border-radius:12px;padding:16px;margin:0;">${escaped}</pre>`, appUrl);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
@@ -357,6 +371,7 @@ export async function sendLowCreditsEmail(
   balance: number,
   resendApiKey: string,
   emailFrom: string,
+  appUrl: string,
 ): Promise<void> {
   const html = emailFrame('alert', `
       <h3 style="margin:0 0 12px;font-size:18px;font-weight:800;color:#000000;letter-spacing:-0.01em;">Your Job Search credits are low</h3>
@@ -370,7 +385,7 @@ export async function sendLowCreditsEmail(
       </p>
       <a href="#" style="display:inline-block;background:#4373ff;color:#fff;text-decoration:none;padding:11px 20px;border-radius:11px;font-size:14px;font-weight:700;margin-top:12px;">
         Top up credits
-      </a>`);
+      </a>`, appUrl);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
@@ -428,7 +443,7 @@ export async function sendScheduleInactivityWarning(
       <p style="color:#000000;font-size:14px;line-height:1.6;margin:0;">
         Nothing gets deleted. Your roles, settings and everything already found stay exactly where they
         are &mdash; ${invite}
-      </p>${closer}`);
+      </p>${closer}`, appUrl);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
@@ -445,6 +460,7 @@ export async function sendRateLimitAlert(
   recipientEmail: string,
   resendApiKey: string,
   emailFrom: string,
+  appUrl: string,
 ): Promise<void> {
   const html = emailFrame('alert', `
       <h3 style="margin:0 0 12px;font-size:18px;font-weight:800;color:#000000;letter-spacing:-0.01em;">OpenAI rate limit hit during scoring</h3>
@@ -452,7 +468,7 @@ export async function sendRateLimitAlert(
         A pipeline run hit an OpenAI rate limit (HTTP 429) after automatic retries, so some jobs were left unscored.
         This usually means the shared account's tier limit was exceeded during the morning spike.
         Concurrency is sized from the account's own rate-limit headers, so this is usually real contention rather than a misconfiguration &mdash; several runs scoring at once, or another workload sharing the key. The measured limits and the date they were read are shown under the API keys in Admin &rarr; General.
-      </p>`);
+      </p>`, appUrl);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({
@@ -470,6 +486,7 @@ export async function sendDiscoveryEmptyAlert(
   label: string,
   resendApiKey: string,
   emailFrom: string,
+  appUrl: string,
 ): Promise<void> {
   const html = emailFrame('alert', `
       <h3 style="margin:0 0 12px;font-size:18px;font-weight:800;color:#000000;letter-spacing:-0.01em;">${label} returned zero companies</h3>
@@ -477,7 +494,7 @@ export async function sendDiscoveryEmptyAlert(
         A scheduled ${label} run completed but produced <strong>no records at all</strong> — neither new nor
         already-known companies. This usually signals an upstream contract break (the source dataset moved,
         emptied, or changed schema) rather than a normal no-op. Check the server logs and the discovery source.
-      </p>`);
+      </p>`, appUrl);
 
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({

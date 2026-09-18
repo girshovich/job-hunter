@@ -60,7 +60,7 @@ async function alertIfDiscoveryEmpty(label: string, result: { inserted: number; 
     const db = getDb();
     const admin = db.prepare('SELECT id, email FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number; email?: string } | undefined;
     const settings = admin
-      ? db.prepare('SELECT resend_api_key, email_from FROM settings WHERE profile_id = ?').get(admin.id) as { resend_api_key?: string; email_from?: string } | undefined
+      ? db.prepare('SELECT resend_api_key, email_from, app_url FROM settings WHERE profile_id = ?').get(admin.id) as { resend_api_key?: string; email_from?: string; app_url?: string } | undefined
       : undefined;
     const email       = admin?.email;
     const resendApiKey = settings?.resend_api_key?.trim() || config.resendApiKey;
@@ -69,7 +69,7 @@ async function alertIfDiscoveryEmpty(label: string, result: { inserted: number; 
       console.warn(`[${label}] Returned empty but admin email/Resend not configured — alert skipped`);
       return;
     }
-    await sendDiscoveryEmptyAlert(email, label, resendApiKey, emailFrom);
+    await sendDiscoveryEmptyAlert(email, label, resendApiKey, emailFrom, settings?.app_url?.trim() || '');
   } catch (err) {
     console.error(`[${label}] Failed to send empty-discovery alert:`, err);
   }

@@ -10,7 +10,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEmailHtml } from '../src/pipeline/emailReport';
+import { buildEmailHtml, emailFooterSenderHtml, emailFrame } from '../src/pipeline/emailReport';
 
 // Built like the `mockStats` literal in `sendTestEmail`.
 const stats: Parameters<typeof buildEmailHtml>[1] = {
@@ -26,6 +26,7 @@ const stats: Parameters<typeof buildEmailHtml>[1] = {
 
 test('with a base URL: credit, hosted PNG marks with alt text, Hipolink line', () => {
   const html = buildEmailHtml([], stats, 'Today', 'https://anotherjob.app');
+  assert.ok(html.includes('>Job Search</a> · made by'));
   assert.ok(html.includes('made by Mikhail Girshovich'));
   assert.ok(html.includes('https://anotherjob.app/email/linkedin.png'));
   assert.ok(html.includes('alt="LinkedIn"'));
@@ -33,6 +34,17 @@ test('with a base URL: credit, hosted PNG marks with alt text, Hipolink line', (
   assert.ok(html.includes('alt="Email"'));
   assert.ok(html.includes('href="https://hipolink.net/girshovich/tips"'));
   assert.ok(html.includes('&#9829; Support the project'));
+});
+
+test('transactional footer links the configured site domain', () => {
+  const html = emailFrame('brand', '<p>Test</p>', 'https://anotherjob.app/app');
+  assert.ok(html.includes('Sent by <a href="https://anotherjob.app/app"'));
+  assert.ok(html.includes('>anotherjob.app</a>'));
+});
+
+test('transactional footer keeps the plain fallback for an invalid site URL', () => {
+  assert.equal(emailFooterSenderHtml('javascript:alert(1)'), 'Job Search');
+  assert.ok(emailFrame('brand', '<p>Test</p>', '').includes('Sent by Job Search'));
 });
 
 test('without a base URL: no images, text links instead, Hipolink line kept', () => {

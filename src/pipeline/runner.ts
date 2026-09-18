@@ -276,6 +276,13 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
 
     const resendApiKey = settings.resend_api_key || config.resendApiKey;
     const emailFrom = settings.email_from || config.emailFrom;
+    const adminAppUrl = ((db.prepare(`
+      SELECT s.app_url
+      FROM settings s
+      JOIN profiles p ON p.id = s.profile_id
+      WHERE p.is_admin = 1
+      LIMIT 1
+    `).get() as { app_url?: string } | undefined)?.app_url ?? '').trim();
 
     // Load all search groups for this profile
     const groups = db.prepare('SELECT * FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as SearchGroupRow[];
@@ -534,7 +541,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         const profileEmailRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(profileId) as { email: string } | undefined;
         const recipientEmail = profileEmailRow?.email || '';
         if (recipientEmail && resendApiKey && emailFrom) {
-          sendLowCreditsEmail(recipientEmail, newBalance, resendApiKey, emailFrom).catch((err) => {
+          sendLowCreditsEmail(recipientEmail, newBalance, resendApiKey, emailFrom, adminAppUrl).catch((err) => {
             console.warn('[runner] Failed to send low credits email:', (err as Error).message);
           });
         }
@@ -843,7 +850,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
           if (alertEmail && resendApiKey && emailFrom
               && Date.now() - (lastRateLimitAlert.get(alertEmail) ?? 0) > RATE_LIMIT_ALERT_COOLDOWN_MS) {
             lastRateLimitAlert.set(alertEmail, Date.now());
-            sendRateLimitAlert(alertEmail, resendApiKey, emailFrom).catch((e) => console.error('[runner] rate-limit alert failed:', e));
+            sendRateLimitAlert(alertEmail, resendApiKey, emailFrom, adminAppUrl).catch((e) => console.error('[runner] rate-limit alert failed:', e));
           }
         }
       }
@@ -1326,10 +1333,6 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         if (!recipientEmail) {
           console.warn('[runner] No profile email configured, skipping email report.');
         } else {
-          const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
-          const appUrl = adminProfile
-            ? ((db.prepare('SELECT app_url FROM settings WHERE profile_id = ?').get(adminProfile.id) as { app_url?: string } | undefined)?.app_url?.trim() ?? '')
-            : '';
           const sessionStats: RunStats = {
             jobsFetched: sessionFetched,
             jobsScored: sessionScored,
@@ -1345,7 +1348,7 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
             stats: sessionStats,
             trigger,
             cronSchedule: settings.cron_schedule,
-            appUrl,
+            appUrl: adminAppUrl,
             recipientEmail,
             resendApiKey,
             emailFrom,
@@ -1394,13 +1397,13 @@ async function runPipelineInner(trigger: 'scheduled' | 'manual', profileId: numb
         const balanceRow = db.prepare('SELECT credits_balance FROM settings WHERE profile_id = ?').get(profileId) as { credits_balance: number } | undefined;
         const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
         const adminSettings = adminProfile
-          ? db.prepare('SELECT resend_api_key, email_from FROM settings WHERE profile_id = ?').get(adminProfile.id) as { resend_api_key: string; email_from: string } | undefined
+          ? db.prepare('SELECT resend_api_key, email_from, app_url FROM settings WHERE profile_id = ?').get(adminProfile.id) as { resend_api_key: string; email_from: string; app_url: string } | undefined
           : undefined;
         const key  = adminSettings?.resend_api_key || config.resendApiKey;
         const from = adminSettings?.email_from     || config.emailFrom;
         // Stopping the schedule in the same breath means this can only fire once — no cooldown needed.
         if (recipientEmail && key && from) {
-          sendLowCreditsEmail(recipientEmail, balanceRow?.credits_balance ?? 0, key, from).catch((e) => {
+          sendLowCreditsEmail(recipientEmail, balanceRow?.credits_balance ?? 0, key, from, adminSettings?.app_url?.trim() || '').catch((e) => {
             console.warn('[runner] Failed to send low credits email:', (e as Error).message);
           });
         }

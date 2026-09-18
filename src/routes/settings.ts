@@ -173,7 +173,7 @@ router.post('/', async (req: Request, res: Response) => {
 
         const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
         const adminSettings = adminProfile
-          ? db.prepare('SELECT resend_api_key, email_from FROM settings WHERE profile_id = ?').get(adminProfile.id) as { resend_api_key: string; email_from: string } | undefined
+          ? db.prepare('SELECT resend_api_key, email_from, app_url FROM settings WHERE profile_id = ?').get(adminProfile.id) as { resend_api_key: string; email_from: string; app_url: string } | undefined
           : undefined;
 
         if (!adminSettings?.resend_api_key) {
@@ -199,7 +199,7 @@ router.post('/', async (req: Request, res: Response) => {
       </a>
       <p style="color:#8a91a0;font-size:12px;line-height:1.6;margin:20px 0 0;">
         If you didn't request this, ignore this email — your address won't change.
-      </p>`),
+      </p>`, adminSettings.app_url),
         });
         if (sendErr) throw new Error(`Failed to send confirmation email: ${sendErr.message}`);
 

@@ -244,17 +244,24 @@ router.post('/topup-request', async (req: Request, res: Response) => {
     const emailFrom = settings.email_from || config.emailFrom;
     const profileRow = db.prepare('SELECT email FROM profiles WHERE id = ?').get(req.profile.id) as { email: string } | undefined;
     // Same operator lookup the rate-limit alert uses.
-    const adminEmail = (db.prepare('SELECT email FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { email?: string } | undefined)?.email;
-    if (!adminEmail) {
+    const admin = db.prepare(`
+      SELECT p.email, s.app_url
+      FROM profiles p
+      LEFT JOIN settings s ON s.profile_id = p.id
+      WHERE p.is_admin = 1
+      LIMIT 1
+    `).get() as { email?: string; app_url?: string } | undefined;
+    if (!admin?.email) {
       return res.status(500).json({ success: false, error: 'Could not send your request. Please use Telegram.' });
     }
     await sendTopUpRequest(
-      adminEmail,
+      admin.email,
       profileRow?.email || '',
       Number(settings.credits_balance || 0),
       message.slice(0, 2000),
       resendApiKey,
       emailFrom,
+      admin.app_url?.trim() || '',
     );
     res.json({ success: true });
   } catch (err) {

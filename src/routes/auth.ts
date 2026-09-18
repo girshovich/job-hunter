@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import { Resend } from 'resend';
 import { getDb, createProfile, touchProfileActivity, type ProfileRow, type OtpCodeRow, type SessionRow, type EmailChangeRequestRow } from '../db';
+import { emailFooterSenderHtml } from '../pipeline/emailReport';
 
 export const SESSION_COOKIE = 'jh_session';
 export const SESSION_DAYS = 30;
@@ -205,7 +206,7 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
 
   const adminProfile = db.prepare('SELECT id FROM profiles WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
   const adminSettings = adminProfile
-    ? db.prepare('SELECT resend_api_key, email_from FROM settings WHERE profile_id = ?').get(adminProfile.id) as { resend_api_key: string; email_from: string } | undefined
+    ? db.prepare('SELECT resend_api_key, email_from, app_url FROM settings WHERE profile_id = ?').get(adminProfile.id) as { resend_api_key: string; email_from: string; app_url: string } | undefined
     : undefined;
 
   if (!adminSettings?.resend_api_key) {
@@ -240,7 +241,7 @@ router.post('/welcome/request', async (req: Request, res: Response) => {
         Or <a href="${loginLink}" style="color:#4373ff;text-decoration:none;font-weight:600;">click here to log in</a> in a new tab — no code needed.
       </p>
     </div>
-    <p style="text-align:center;color:#8a91a0;font-size:12px;margin-top:24px;">Sent by Job Search</p>
+    <p style="text-align:center;color:#8a91a0;font-size:12px;margin-top:24px;">Sent by ${emailFooterSenderHtml(adminSettings.app_url)}</p>
   </div>
 </body>
 </html>`,
