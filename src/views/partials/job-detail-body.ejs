@@ -66,6 +66,8 @@ const _elapsed = Number(locals.elapsedDays);
 // editor: there is no row behind it to edit. The first real move writes one and it becomes an
 // ordinary step like any other.
 const _derived = locals.derivedCurrent === true;
+// Maker credit at the foot of the column (donations.md §4.1). The Run Logs drawer opts out.
+const _showCredit = locals.showMakerCredit !== false;
 // The status control shows on a job that is strong OR already tracked, so promoting a weak match
 // in All Jobs visibly changes that card rather than being a dead end (§8.3, LC4). Defined here
 // because the exits (header card) and the rail (tracking card) are now in different blocks.
@@ -482,6 +484,14 @@ function renderLinks(raw) {
         </div>
       </div>
       <% } %>
+      <%# Offer ask (donations.md §4.2): always shown while the current type is offer. Never together
+          with the GDPR helper above — that one needs rejected. %>
+      <% if (_showStatus && _curType === 'offer') { %>
+      <div class="offer-ask">
+        <button type="button" class="offer-ask-btn" onclick="jhOpenDonate(event)"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.7-9.4-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.4 12c-1.9 4.3-9.4 9-9.4 9Z"/></svg> Donate</button>
+        <span class="offer-ask-txt">Congratulations on the offer. If anotherjob.app helped get you here, I'd be glad of a donation. <span class="sig">— <%= maker.shortName %></span></span>
+      </div>
+      <% } %>
     </div>
     <% } %>
 
@@ -609,16 +619,29 @@ function renderLinks(raw) {
       It stays visible on a job that has since merged, and answers instead of vanishing. A control
       that silently disappears teaches nothing, and the reason here is *it won't work*, never *it
       isn't yours* — which would only invite "but I made it". %>
-  <% if (_isManual && job.created_by_profile_id) { %>
-  <div id="jd-delete-wrap" style="padding:2px;">
+  <% const _hasDelete = _isManual && job.created_by_profile_id; %>
+  <% if (_showCredit || _hasDelete) { %>
+  <div id="jd-delete-wrap" class="jd-foot">
     <%# Right-aligned: it trails the column rather than leading it, which is where a last-resort
-        action belongs — and it keeps the left edge, where every card's content starts, clean. %>
-    <div style="display:flex;justify-content:flex-end;">
-      <button type="button" id="jd-delete-link" onclick="openDeletePanel()"
-              style="font-size:12.5px;font-weight:700;color:var(--red-ink);background:transparent;border:0;padding:6px 2px;cursor:pointer;">
+        action belongs — and it keeps the left edge, where every card's content starts, clean.
+        The maker credit (desktop only, donations.md §4.1) shares the line on the left. %>
+    <div class="jd-foot-row">
+      <% if (_showCredit) { %>
+      <p class="jd-credit">Made by <%= maker.name %>
+      <span class="mk-pair">
+        <a class="mk" href="<%= maker.linkedin %>" target="_blank" rel="noopener" title="LinkedIn" aria-label="<%= maker.name %> on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#0A66C2"/><g transform="translate(6.2 5.6) scale(.52)" fill="#fff"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3V9Zm7 0h3.8v1.7h.05c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.78 2.5 4.78 5.76V21h-4v-5.6c0-1.34-.03-3.06-1.9-3.06-1.9 0-2.2 1.46-2.2 2.96V21h-4V9Z"/></g></svg></a>
+        <a class="mk" href="mailto:<%= maker.email %>" title="<%= maker.email %>" aria-label="Email <%= maker.name %>"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#5AA2F6"/><rect x="6.3" y="8" width="11.4" height="8.2" rx="1.1" fill="#fff"/><path d="M6.7 8.6 12 12.7l5.3-4.1" fill="none" stroke="#5AA2F6" stroke-width="1.3" stroke-linejoin="round"/></svg></a>
+      </span>
+        <button type="button" class="don-btn" onclick="jhOpenDonate(event)"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.7-9.4-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.4 12c-1.9 4.3-9.4 9-9.4 9Z"/></svg> Donate</button>
+      </p>
+      <% } %>
+      <% if (_hasDelete) { %>
+      <button type="button" id="jd-delete-link" onclick="openDeletePanel()" class="jd-del-btn">
         Delete this job
       </button>
+      <% } %>
     </div>
+    <% if (_hasDelete) { %>
     <div id="jd-delete-panel" class="hidden">
       <% if (_mergedManual) { %>
       <div style="border:1px solid var(--line2);background:var(--panel, #f7f8fa);border-radius:11px;padding:12px 13px;">
@@ -638,6 +661,7 @@ function renderLinks(raw) {
       </div>
       <% } %>
     </div>
+    <% } %>
   </div>
   <% } %>
 

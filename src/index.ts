@@ -21,6 +21,7 @@ import { startAtsDiscoveryCron, startLeverDiscoveryCron, startAtsValidationCron,
 import { startScheduleReaperCron } from './pipeline/scheduleReaper';
 import compression from 'compression';
 import { uiHelpers } from './uiHelpers';
+import { MAKER } from './maker';
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.locals.iconVersion = crypto
   .update(fs.readFileSync(path.join(__dirname, 'public', 'icon.ico')))
   .digest('hex')
   .slice(0, 8);
+app.locals.maker = MAKER;
 
 // Link scrapers (LinkedIn et al.) fetch og:image from their own servers, so it has to be an
 // absolute URL. Behind nginx the original scheme only survives in X-Forwarded-Proto.

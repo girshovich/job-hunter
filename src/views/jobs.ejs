@@ -321,7 +321,9 @@ function renderList(){
 
   <!-- Detail pane (desktop only; mobile cards navigate to /job/:id) -->
   <section id="jh-detail" class="jh-scroll jh-jobs-detail">
-    <div style="max-width:900px;margin:0;padding:18px clamp(14px,1.5vw,22px) 40px">
+    <%# 14px bottom, not 40: scrolled to the end, the maker credit line (donations.md §4.1) lands on
+        the same row as the list column's legal bar and the sidebar credits pill. %>
+    <div style="max-width:900px;margin:0;padding:18px clamp(14px,1.5vw,22px) 14px">
       <div id="jh-pane">
         <% if (pane) { %>
           <%# Spread, not a hand-listed set: `loadJobDetail` owns what the partial needs, and the two

@@ -292,7 +292,7 @@ router.get('/job/:id/detail', (req: Request, res: Response) => {
   const detail = loadJobDetail(req.profile.id, id);
   if (!detail) { res.status(404).send(''); return; }
 
-  req.app.render('partials/job-detail-body', { ...uiHelpers, ...detail }, (err: Error, html: string) => {
+  req.app.render('partials/job-detail-body', { ...uiHelpers, ...detail, showMakerCredit: false }, (err: Error, html: string) => {
     if (err) { res.status(500).send(''); return; }
     res.send(html);
   });

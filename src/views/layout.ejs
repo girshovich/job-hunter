@@ -593,6 +593,149 @@
       .rfold:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-soft); border-style: solid; }
     }
 
+    /* ── Donations (donations.md) ── maker credit, Donate button, Donate panel, Offer ask.
+       Plain CSS on purpose: no new Tailwind classes, so the compiled stylesheet does not change. */
+    .mk-pair { display: inline-flex; gap: 5px; }
+    .mk {
+      display: inline-flex; width: 20px; height: 20px; border-radius: 50%; flex: none;
+      transition: transform .12s, box-shadow .12s;
+    }
+    .mk svg { width: 20px; height: 20px; display: block; }
+    .mk:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(16,24,40,.18); }
+    .don-btn {
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+      height: 26px; padding: 0 12px; border-radius: 8px; font-size: 12px; font-weight: 800;
+      border: 1px solid var(--green-border); background: var(--green-soft); color: var(--green2);
+      cursor: pointer; font-family: inherit;
+    }
+    .don-btn.big { height: 32px; padding: 0 14px; border-radius: 10px; font-size: 13px; }
+    .don-btn:hover { background: #e6f3ec; }
+    .don-btn:focus-visible, .offer-ask-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+    .jh-donate { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; }
+    .jh-donate[hidden] { display: none !important; }
+    .jh-donate-scrim {
+      position: absolute; inset: 0; width: 100%; border: 0; padding: 0;
+      background: rgba(19,23,34,.44); cursor: pointer;
+    }
+    .jh-donate-box {
+      position: relative; width: 384px; max-width: calc(100% - 32px);
+      max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); overflow-y: auto;
+      background: #fff; border-radius: var(--radius-modal); box-shadow: var(--shadow-modal);
+    }
+    .dn-head {
+      padding: 17px 20px 15px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .dn-head .face { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex: none; }
+    .dn-head .who { flex: 1; min-width: 0; }
+    .dn-head h3 { font-size: 14.5px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); margin: 0; }
+    .dn-head p { font-size: 12px; font-weight: 500; color: var(--muted); line-height: 1.5; margin: 5px 0 0; }
+    .dn-head p b { color: var(--ink2); font-weight: 800; }
+    .dn-x {
+      width: 26px; height: 26px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+      border: 0; background: none; border-radius: 7px; color: var(--faintest); cursor: pointer; padding: 0;
+    }
+    .dn-x:hover { background: #f4f5f7; color: var(--muted); }
+    .dn-x svg { width: 15px; height: 15px; }
+    .dn-body { padding: 15px 20px 18px; display: flex; flex-direction: column; }
+    .dn-li { background: #eff6fc; border: 1px solid #cfe3f5; border-radius: 13px; padding: 12px 14px 13px; }
+    .dn-li .h { font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #0a66c2; margin-bottom: 9px; }
+    .dn-li .n { font-size: 11.5px; font-weight: 600; color: #35618c; margin: 8px 0 0; }
+    .dn-sep { height: 1px; background: var(--line); margin: 15px 0; }
+    .dn-mail .h { font-size: 12.5px; font-weight: 700; color: var(--ink2); margin-bottom: 9px; }
+    .dn-mail .n { font-size: 11px; font-weight: 600; color: var(--faint); margin: 7px 0 0; }
+    .dn-give { background: var(--green-soft); border: 1px solid var(--green-border); border-radius: 13px; padding: 12px 14px 13px; }
+    .dn-give .h { font-size: 12.5px; font-weight: 800; color: var(--green2); margin-bottom: 10px; }
+    .dn-give .s { font-size: 11px; font-weight: 700; color: var(--green2); opacity: .75; text-align: center; margin: 7px 0 0; }
+    .dn-give .alt {
+      font-size: 11px; font-weight: 600; color: var(--muted); line-height: 1.75;
+      margin: 11px 0 0; padding-top: 10px; border-top: 1px solid var(--green-border);
+    }
+    .dn-give .alt a { color: var(--green2); font-weight: 700; }
+    .dn-give .alt em { font-style: normal; color: var(--faintest); }
+    .dn-give .fine { font-size: 10.5px; font-weight: 600; color: var(--faint); margin: 9px 0 0; }
+    @media (min-width: 380px) { .jh-donate .one { white-space: nowrap; } }
+    .dn-cta {
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+      height: 42px; border-radius: 11px; font-size: 13.5px; font-weight: 700;
+      text-decoration: none; border: 0;
+    }
+    .dn-cta svg { flex: none; }
+    .dn-cta.li { background: #0a66c2; color: #fff; }
+    .dn-cta.li:hover { background: #07539e; }
+    .dn-cta.soft { background: #eef1f6; color: var(--ink2); height: 38px; font-size: 13px; }
+    .dn-cta.soft:hover { background: #e6eaf1; }
+    .dn-cta.fill { background: var(--green); color: #fff; }
+    .dn-cta.fill:hover { background: var(--green2); }
+    .dn-cta .ext { opacity: .55; }
+
+    .jd-foot { padding: 2px; }
+    .jd-foot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 26px; }
+    /* The credit wraps only when the pane is narrower than it (~314px, a 1024px window): Donate then
+       drops under the name. From ~1040px up it is one line. */
+    .jd-credit {
+      margin: 0; display: flex; align-items: center; flex-wrap: wrap; row-gap: 8px; white-space: nowrap;
+      font-size: 12.5px; font-weight: 600; color: var(--faint); line-height: 20px;
+    }
+    .jd-credit .mk-pair { margin-left: 9px; }
+    .jd-credit .don-btn { margin-left: 12px; }
+    .jd-del-btn {
+      margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--red-ink);
+      background: transparent; border: 0; padding: 6px 2px; cursor: pointer; font-family: inherit;
+    }
+
+    .offer-ask {
+      margin-top: 10px; display: grid; grid-template-columns: max-content minmax(0, 1fr);
+      align-items: center; gap: 10px;
+    }
+    .offer-ask-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-width: 132px; height: 26px; padding: 0 10px;
+      border: 1px solid var(--green-border); border-radius: 8px; background: var(--green-soft);
+      color: var(--green2); font-size: 12px; font-weight: 800; font-family: inherit;
+      white-space: nowrap; cursor: pointer;
+    }
+    .offer-ask-btn:hover { background: #e6f3ec; }
+    .offer-ask-txt { min-width: 0; color: var(--ink); font-size: 12px; line-height: 1.4; }
+    .offer-ask-txt .sig { color: var(--muted); font-weight: 700; }
+
+    .sb-pop-credit { padding: 6px 9px 5px; }
+    .sb-pop-credit .t { font-size: 11.5px; font-weight: 600; color: var(--faint); white-space: nowrap; }
+    .sb-pop-credit .r { display: flex; align-items: center; margin-top: 7px; }
+    .sb-pop-credit .don-btn { margin-left: auto; }
+
+    .ps-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 20px; padding-top: 8px; border-top: 1px solid var(--line);
+    }
+    /* 4px in from the panel edge: with the links' 8px padding, "Privacy" ends on the same 28px
+       line as Admin's label above and the Donate button below. */
+    .ps-legal { display: flex; gap: 2px; margin-right: 4px; }
+    .ps-legal a { padding: 6px 8px; font-size: 11.5px; font-weight: 600; border-radius: 6px; }
+    .ps-credit {
+      display: flex; align-items: center; margin: 10px -16px -24px; padding: 12px 28px 16px;
+      border-top: 1px solid var(--line); background: #fafbfc; border-radius: 0;
+    }
+    .ps-credit .t { font-size: 12px; font-weight: 600; color: var(--faint); white-space: nowrap; }
+    .ps-credit .mk-pair { margin-left: 9px; }
+    .ps-credit .don-btn { margin-left: auto; }
+    @media (max-width: 379px) {
+      .ps-credit { flex-wrap: wrap; row-gap: 8px; }
+      .ps-credit .t { flex-basis: 100%; }
+      .ps-credit .mk-pair { margin-left: 0; }
+    }
+    @media (max-width: 767px) {
+      .jd-credit { display: none; }
+      .offer-ask { grid-template-columns: 1fr; align-items: start; gap: 8px; }
+      .jh-donate { place-items: end stretch; }
+      .jh-donate-box {
+        width: 100%; max-width: none; border-radius: 18px 18px 0 0;
+        max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
+      }
+      .dn-body { padding-bottom: 26px; }
+    }
+
     /* One editor doing all three jobs: change the status, move the date, delete the step (D30). */
     .stepedit { width: 258px; padding: 12px; }
     .stepedit .et { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-bottom: 9px; }
@@ -1026,6 +1169,18 @@
               Log out
             </button>
           </form>
+          <%# Maker credit below Log out (donations.md §4.3a). %>
+          <div class="sb-pop-sep"></div>
+          <div class="sb-pop-credit">
+            <div class="t">Made by <%= maker.name %></div>
+            <div class="r">
+              <span class="mk-pair">
+            <a class="mk" href="<%= maker.linkedin %>" target="_blank" rel="noopener" title="LinkedIn" aria-label="<%= maker.name %> on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#0A66C2"/><g transform="translate(6.2 5.6) scale(.52)" fill="#fff"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3V9Zm7 0h3.8v1.7h.05c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.78 2.5 4.78 5.76V21h-4v-5.6c0-1.34-.03-3.06-1.9-3.06-1.9 0-2.2 1.46-2.2 2.96V21h-4V9Z"/></g></svg></a>
+            <a class="mk" href="mailto:<%= maker.email %>" title="<%= maker.email %>" aria-label="Email <%= maker.name %>"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#5AA2F6"/><rect x="6.3" y="8" width="11.4" height="8.2" rx="1.1" fill="#fff"/><path d="M6.7 8.6 12 12.7l5.3-4.1" fill="none" stroke="#5AA2F6" stroke-width="1.3" stroke-linejoin="round"/></svg></a>
+          </span>
+              <button type="button" class="don-btn" onclick="jhOpenDonate(event)"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.7-9.4-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.4 12c-1.9 4.3-9.4 9-9.4 9Z"/></svg> Donate</button>
+            </div>
+          </div>
         </div>
         <script>
           // Default: land on AI Setup, which opens the top-up form on arrival.
@@ -1043,7 +1198,9 @@
         <div class="app-page<%= locals.fullBleed ? ' full' : '' %>">
           <%- body %>
         </div>
-        <footer class="app-footer hidden md:block<%= locals.fullBleed ? ' hidden' : '' %>">
+        <%# Full-bleed pages (Matches, All Jobs) carry their own legal bar in the list column. `md:block`
+            is left off there, not overridden: a second `hidden` loses to `md:block` at desktop widths. %>
+        <footer class="app-footer hidden<%= locals.fullBleed ? '' : ' md:block' %>">
           <div class="bg-white border border-gray-200 rounded-xl shadow-sm px-6 py-2.5 flex items-center justify-end gap-3 text-xs">
             <a href="/terms" class="<%= title === 'Terms' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Terms</a>
             <a href="/privacy" class="<%= title === 'Privacy' ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700' %> transition-colors">Privacy</a>
@@ -1100,35 +1257,30 @@
         <% } %>
       </div>
       <div class="border-t pt-3 space-y-0.5" style="border-color:var(--line);">
-        <div class="flex gap-2">
+        <%# Two edges for the whole sheet: Settings, Log out and the credit share the left one;
+            Admin, Terms · Privacy and Donate share the right one. %>
+        <div class="flex justify-between gap-2">
         <a href="/settings" onclick="closeProfileSheet()"
-           class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors" style="color:var(--muted);">
+           class="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors" style="color:var(--muted);">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span class="text-sm font-medium">Settings</span>
         </a>
         <% if (activeProfile.isAdmin) { %>
         <a href="/admin" onclick="closeProfileSheet()"
-           class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors" style="color:var(--muted);">
+           class="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors" style="color:var(--muted);">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/></svg>
           <span class="text-sm font-medium">Admin</span>
         </a>
         <% } %>
         </div>
-        <div class="px-3 pt-1 pb-0.5">
-          <div class="flex items-center gap-1.5">
-            <p class="text-[10px] uppercase tracking-wide" style="color:var(--muted);">Legal</p>
-            <div class="flex-1 h-px" style="background:var(--line);"></div>
-          </div>
-          <div class="mt-1 flex items-center gap-1">
-            <a href="/terms" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Terms' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100' %> transition-colors" style="<%= title !== 'Terms' ? 'color:var(--muted)' : '' %>">Terms</a>
-            <a href="/privacy" onclick="closeProfileSheet()"
-               class="px-2 py-1 rounded-md text-[11px] font-medium text-center <%= title === 'Privacy' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100' %> transition-colors" style="<%= title !== 'Privacy' ? 'color:var(--muted)' : '' %>">Privacy</a>
-          </div>
-        </div>
-        <form method="POST" action="/logout">
+      </div>
+      <%# Log out + Terms · Privacy, then the maker credit (donations.md §4.3b). Both are direct
+          children of this panel, never inside the space-y-0.5 wrapper above: its sibling margin
+          would flatten the 20px gap, and the credit's negative margins cancel THIS panel's padding. %>
+      <div class="ps-foot">
+        <form method="POST" action="/logout" style="display:contents">
           <button type="submit"
-                  class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-600 hover:bg-gray-100 transition-colors">
+                  class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-600 hover:bg-gray-100 transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
@@ -1136,6 +1288,61 @@
             <span class="text-sm font-medium">Log out</span>
           </button>
         </form>
+        <span class="ps-legal">
+          <a href="/terms" onclick="closeProfileSheet()"
+             class="<%= title === 'Terms' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100' %> transition-colors" style="<%= title !== 'Terms' ? 'color:var(--muted)' : '' %>">Terms</a>
+          <a href="/privacy" onclick="closeProfileSheet()"
+             class="<%= title === 'Privacy' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100' %> transition-colors" style="<%= title !== 'Privacy' ? 'color:var(--muted)' : '' %>">Privacy</a>
+        </span>
+      </div>
+      <div class="ps-credit">
+        <span class="t">Made by <%= maker.name %></span>
+        <span class="mk-pair">
+            <a class="mk" href="<%= maker.linkedin %>" target="_blank" rel="noopener" title="LinkedIn" aria-label="<%= maker.name %> on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#0A66C2"/><g transform="translate(6.2 5.6) scale(.52)" fill="#fff"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3V9Zm7 0h3.8v1.7h.05c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.78 2.5 4.78 5.76V21h-4v-5.6c0-1.34-.03-3.06-1.9-3.06-1.9 0-2.2 1.46-2.2 2.96V21h-4V9Z"/></g></svg></a>
+            <a class="mk" href="mailto:<%= maker.email %>" title="<%= maker.email %>" aria-label="Email <%= maker.name %>"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#5AA2F6"/><rect x="6.3" y="8" width="11.4" height="8.2" rx="1.1" fill="#fff"/><path d="M6.7 8.6 12 12.7l5.3-4.1" fill="none" stroke="#5AA2F6" stroke-width="1.3" stroke-linejoin="round"/></svg></a>
+          </span>
+        <button type="button" class="don-btn big" onclick="jhOpenDonate(event)"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.7-9.4-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.4 12c-1.9 4.3-9.4 9-9.4 9Z"/></svg> Donate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Donate panel (donations.md §3.4): one for every Donate button — a modal on desktop, a bottom sheet on mobile -->
+  <div id="jh-donate" class="jh-donate" hidden role="dialog" aria-modal="true" aria-labelledby="jh-donate-title">
+    <button type="button" class="jh-donate-scrim" tabindex="-1" aria-label="Close" onclick="jhCloseDonate()"></button>
+    <div class="jh-donate-box">
+      <div class="dn-head">
+        <img class="face" src="<%= maker.photo %>" alt="" width="42" height="42">
+        <div class="who">
+          <h3 id="jh-donate-title"><%= maker.name %></h3>
+          <p>I built anotherjob.app and I run it on my own. Server is <b>€25</b>, I hope it does you some good.</p>
+        </div>
+        <button type="button" class="dn-x" aria-label="Close" onclick="jhCloseDonate()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div class="dn-body">
+        <div class="dn-li">
+          <div class="h">Free, and it helps most</div>
+          <a class="dn-cta li" href="<%= maker.linkedin %>" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3V9Zm7 0h3.8v1.7h.05c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.78 2.5 4.78 5.76V21h-4v-5.6c0-1.34-.03-3.06-1.9-3.06-1.9 0-2.2 1.46-2.2 2.96V21h-4V9Z"/></svg> Connect on LinkedIn <svg class="ext" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <p class="n one">Job-market insights from the app’s own data.</p>
+        </div>
+        <div class="dn-sep"></div>
+        <div class="dn-mail">
+          <div class="h">Something broken, or an idea?</div>
+          <a class="dn-cta soft" href="mailto:<%= maker.email %>"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="2.8" y="5" width="18.4" height="14" rx="2.5"/><path d="m3.4 6.6 8.6 6 8.6-6"/></svg> Write me</a>
+          <p class="n one"><%= maker.email %> — I read every one.</p>
+        </div>
+        <div class="dn-sep"></div>
+        <div class="dn-give">
+          <div class="h one">Donate to support the project</div>
+          <a class="dn-cta fill" href="<%= maker.tributeTelegram %>" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.7 3.3 2.9 10.6c-1 .4-1 1.8 0 2.2l4.6 1.5 1.8 5.5c.3.9 1.4 1.1 2 .4l2.6-2.7 4.7 3.5c.7.5 1.7.1 1.9-.8l3.1-15c.2-1-.8-1.7-1.9-1.9Z"/></svg> Donate from €1 with Tribute <svg class="ext" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <p class="s">Apple Pay or card, inside Telegram · fastest</p>
+          <p class="alt">
+            Not on Telegram? <a href="<%= maker.tributeWeb %>" target="_blank" rel="noopener">Pay by card in browser</a> <em>(email verification)</em><br>
+            Payment not working? <a href="<%= maker.hipolink %>" target="_blank" rel="noopener">Try Hipolink</a> <em>(international checkout)</em>
+          </p>
+          <% if (locals.useJhCredits) { %>
+          <p class="fine one">Separate from credits — your balance won’t change.</p>
+          <% } %>
+        </div>
       </div>
     </div>
   </div>
@@ -3580,6 +3787,63 @@
     function closeProfileSheet() {
       document.getElementById('profile-sheet').classList.add('hidden');
     }
+
+    // ── Donate panel (donations.md §3.4) ──
+    (function () {
+      var opener = null;   // element focused before opening — focus returns here on close
+
+      function panel() { return document.getElementById('jh-donate'); }
+      function isOpen() { var d = panel(); return !!d && !d.hidden; }
+      function focusables(d) {
+        // Tab stops inside the box only — the scrim button is excluded so Tab never lands on it.
+        return Array.prototype.slice.call(
+          d.querySelectorAll('.jh-donate-box a[href], .jh-donate-box button:not([disabled])')
+        ).filter(function (el) { return el.offsetParent !== null; });
+      }
+
+      window.jhOpenDonate = function (ev) {
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        opener = (ev && ev.currentTarget) || document.activeElement || null;
+        var m = document.getElementById('sb-profile-menu'); if (m) m.classList.add('hidden');
+        var s = document.getElementById('profile-sheet');   if (s) s.classList.add('hidden');
+        var d = panel(); if (!d) return;
+        d.hidden = false;
+        // PRD §7.17: defer focus one tick — WebKit refuses focus on an element shown a moment ago.
+        setTimeout(function () { var x = d.querySelector('.dn-x'); if (x) x.focus(); }, 0);
+      };
+
+      window.jhCloseDonate = function () {
+        var d = panel(); if (!d || d.hidden) return;
+        d.hidden = true;
+        // Return focus to the trigger if it's still in the document and visible. The trigger
+        // may live in the profile menu/sheet, which opening closed; then leave focus alone.
+        if (opener && document.contains(opener) && opener.offsetParent !== null) {
+          try { opener.focus(); } catch (e) {}
+        }
+        opener = null;
+      };
+
+      // CAPTURE phase, registered on window: it runs before the existing Escape handlers
+      // (profile menu, step editor, Run Logs drawer, company modal). While the panel is open,
+      // Escape closes ONLY the panel and stops there, so whatever is underneath stays open.
+      window.addEventListener('keydown', function (e) {
+        if (!isOpen()) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          window.jhCloseDonate();
+          return;
+        }
+        if (e.key === 'Tab') {                       // focus trap
+          var d = panel(), f = focusables(d);
+          if (!f.length) return;
+          var first = f[0], last = f[f.length - 1];
+          if (!d.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }, true);
+    })();
 
     // ── The sidebar column: Settings, the onboarding widget, and making them fit ──────────
     //

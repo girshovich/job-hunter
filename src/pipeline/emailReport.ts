@@ -4,6 +4,7 @@
 
 import { Resend } from 'resend';
 import { getDb, type JobWithState } from '../db';
+import { MAKER } from '../maker';
 
 interface RunStats {
   jobsFetched: number;
@@ -85,7 +86,7 @@ export function emailFrame(headerMode: 'brand' | 'alert', bodyHtml: string): str
 </html>`;
 }
 
-function buildEmailHtml(
+export function buildEmailHtml(
   jobs: JobWithState[],
   stats: RunStats,
   heading: string,
@@ -93,6 +94,11 @@ function buildEmailHtml(
 ): string {
   const baseUrl = appUrl.replace(/\/$/, '');
   const escapedBaseUrl = escapeHtml(baseUrl);
+  // Maker contacts in the footer (donations.md §4.4). PNG marks, not SVG — Gmail strips SVG; with
+  // no base URL there is nowhere to host them, so they fall back to text links.
+  const iconsHtml = baseUrl
+    ? ` <a href="${MAKER.linkedin}" style="text-decoration:none;"><img src="${escapedBaseUrl}/email/linkedin.png" width="18" height="18" alt="LinkedIn" style="vertical-align:middle;border:0;margin-left:4px;"></a><a href="mailto:${MAKER.email}" style="text-decoration:none;"><img src="${escapedBaseUrl}/email/mail.png" width="18" height="18" alt="Email" style="vertical-align:middle;border:0;margin-left:4px;"></a>`
+    : ` · <a href="${MAKER.linkedin}" style="color:#4373ff;text-decoration:none;font-weight:600;">LinkedIn</a> · <a href="mailto:${MAKER.email}" style="color:#4373ff;text-decoration:none;font-weight:600;">Email</a>`;
   const ctaHtml = baseUrl
     ? `<div style="text-align:center;margin-top:16px;">
         <a href="${escapedBaseUrl}/jobs" style="display:inline-block;background:#4373ff;color:white;text-decoration:none;padding:12px 26px;border-radius:11px;font-size:14px;font-weight:700;">
@@ -193,7 +199,10 @@ function buildEmailHtml(
 
     <!-- Footer -->
     <p class="jh-footer" style="text-align:center;color:#8a91a0;font-size:12px;line-height:1.6;margin:26px 4px 0;">
-      Sent by Job Search${baseUrl ? ` · <a href="${escapedBaseUrl}" style="color:#4373ff;text-decoration:none;font-weight:600;">${escapedBaseUrl}</a>` : ''}
+      Sent by ${baseUrl ? `<a href="${escapedBaseUrl}" style="color:#4373ff;text-decoration:none;font-weight:600;">Job Search</a>` : 'Job Search'} · made by ${escapeHtml(MAKER.name)}${iconsHtml}
+    </p>
+    <p style="text-align:center;font-size:12px;line-height:1.6;margin:6px 4px 0;">
+      <a href="${MAKER.hipolink}" style="color:#178049;font-weight:700;text-decoration:underline;">&#9829; Support the project</a>
     </p>
   </div>
 </body>
