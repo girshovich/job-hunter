@@ -212,7 +212,7 @@ export function buildEmailHtml(
 
     <!-- Footer -->
     <p class="jh-footer" style="text-align:center;color:#8a91a0;font-size:12px;line-height:1.6;margin:26px 4px 0;">
-      Sent by ${emailFooterSenderHtml(appUrl)} · made by ${escapeHtml(MAKER.name)}${iconsHtml}
+      ${emailFooterSenderHtml(appUrl)} · by ${escapeHtml(MAKER.name)}${iconsHtml}
     </p>
     <p style="text-align:center;font-size:12px;line-height:1.6;margin:6px 4px 0;">
       <a href="${MAKER.hipolink}" style="color:#178049;font-weight:700;text-decoration:underline;">&#9829; Support the project</a>
