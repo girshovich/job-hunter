@@ -214,10 +214,13 @@
       font-size: 13px; font-weight: 700; font-family: inherit;
       display: grid; place-items: center; position: relative; cursor: pointer;
     }
-    .sb-av-btn .adm {
-      position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px;
-      border-radius: 50%; background: var(--red); border: 2px solid #fff;
+    /* The chevron says "this opens a menu" — the same glyph the own-keys account row ends with. */
+    .sb-av-btn .chev {
+      position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; box-sizing: border-box;
+      border-radius: 50%; background: #fff; border: 1px solid var(--line2); color: var(--muted);
+      display: grid; place-items: center;
     }
+    .sb-av-btn:hover, .sb-av-btn:focus-visible { box-shadow: 0 0 0 3px var(--accent-border); outline: none; }
     /* Own-keys profiles: the account takes the row the balance would have had, at the same height. */
     .sb-acct {
       display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; height: 34px;
@@ -1145,7 +1148,7 @@
           </span>
           <button type="button" class="sb-av-btn" onclick="jhToggleProfileMenu(event)" title="<%= activeProfile.email %>" aria-label="Account">
             <%= activeProfile.displayName.charAt(0).toUpperCase() %>
-            <% if (activeProfile.isAdmin) { %><span class="adm"></span><% } %>
+            <span class="chev"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
           </button>
           <% } else { %>
           <%# No balance to show, so the row the pill would have taken is the full account row —
@@ -1153,7 +1156,6 @@
           <button type="button" class="sb-acct" onclick="jhToggleProfileMenu(event)" title="<%= activeProfile.email %>">
             <span class="sb-av-btn as-part">
               <%= activeProfile.displayName.charAt(0).toUpperCase() %>
-              <% if (activeProfile.isAdmin) { %><span class="adm"></span><% } %>
             </span>
             <span class="sb-acct-meta">
               <span class="sb-acct-email"><%= activeProfile.email %></span>
