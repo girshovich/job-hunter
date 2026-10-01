@@ -26,9 +26,10 @@ export interface JobDetailLocals {
   statuses: StatusRow[];
   /** The job's current status, or null if it somehow has none. Archived rows resolve too. */
   currentStatus: StatusRow | null;
-  /** Days since the newest step. `-1` when the count is suppressed — a Rejected-type status, or
-   *  a status the log has no step for (a job migrated from the old `applied` column). */
-  elapsedDays: number;
+  /** Days since the newest step, negative when it is dated ahead of today. `null` when the count
+   *  is suppressed — a Rejected-type status, or a status the log has no step for (a job migrated
+   *  from the old `applied` column). */
+  elapsedDays: number | null;
   /** True when the current status has no step of its own, so the rail must derive it (D8). */
   derivedCurrent: boolean;
   /** Emitted by the `Applied N×` chip's link, regenerated on every render (D49). */
@@ -99,7 +100,7 @@ export function loadJobDetail(profileId: number, id: number): JobDetailLocals | 
   const derivedCurrent = !!currentStatus && currentStatus.type !== 'new'
     && (!newest || newest.status_id !== currentStatus.id);
   const elapsedDays = (!currentStatus || currentStatus.type === 'rejected' || !newest || derivedCurrent)
-    ? -1
+    ? null
     : daysSince(newest.changed_at, profileTimezone(profileId));
 
   return {

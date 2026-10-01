@@ -56,8 +56,8 @@ window.JHCal = window.JHCal || (function () {
       note: opts.note || '',
       onPick: opts.onPick || function () {},
       onBack: opts.onBack || function () {},
-      // Future dates are greyed out everywhere by default — no surface in this app has data
-      // dated ahead of today, so offering one is offering an empty result.
+      // Future dates are greyed out by default — a filter over data dated ahead of today offers an
+      // empty result. Status steps opt out: an interview can be booked ahead (allowFuture).
       maxToday: opts.allowFuture !== true,
       onApply: opts.onApply || function () {},
       onClear: opts.onClear || function () {},
@@ -92,7 +92,9 @@ window.JHCal = window.JHCal || (function () {
       const startDow = (first.getDay() + 6) % 7;              // Monday-first
       const total = new Date(st.y, st.m + 1, 0).getDate();
       const today = new Date();
-      const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate());
+      // The profile's own day when the layout gave one (JH_TODAY) — the server judges "future" in
+      // the profile's timezone, so the browser's clock would disagree around midnight or abroad.
+      const todayStr = window.JH_TODAY || ymd(today.getFullYear(), today.getMonth(), today.getDate());
 
       let cells = '';
       for (let i = 0; i < startDow; i++) cells += '<div></div>';
@@ -105,10 +107,12 @@ window.JHCal = window.JHCal || (function () {
           || (st.maxSpan && st.from && !st.to && ds > st.from && span(st.from, ds) > st.maxSpan);
         const bg = isEnd ? 'var(--accent)' : inRange ? 'var(--accent-soft)' : 'transparent';
         const col = isEnd ? '#fff' : tooFar ? 'var(--faintest)' : 'var(--ink)';
+        // Today wears a ring, so before and after read at a glance. A selected day keeps its fill.
+        const ring = ds === todayStr && !isEnd ? 'box-shadow:inset 0 0 0 1.5px var(--accent);' : '';
         const click = tooFar ? '' : 'onclick="event.stopPropagation();JHCal.day(\'' + st.id + '\',\'' + ds + '\')"';
         cells += '<div ' + click + ' style="height:30px;display:grid;place-items:center;border-radius:7px;'
           + (tooFar ? 'cursor:default;' : 'cursor:pointer;')
-          + 'font-size:12px;font-weight:600;background:' + bg + ';color:' + col + '">' + d + '</div>';
+          + ring + 'font-size:12px;font-weight:600;background:' + bg + ';color:' + col + '">' + d + '</div>';
       }
       const dows = ['Mo','Tu','We','Th','Fr','Sa','Su'].map((w) =>
         '<div style="height:22px;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--faintest)">' + w + '</div>').join('');

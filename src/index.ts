@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
 import { DEFAULT_PROVIDER_SELECTION_JSON, getDb, getMatchesCount, isPaymentReady, localDay, TOPUP_ENABLED, touchProfileActivity, warnOnSplitApifyTokens } from './db';
-import { shortcuts, activeShortcut, parseStatusParam, listStatuses, TYPE_META, STATUS_TYPES } from './statuses';
+import { shortcuts, activeShortcut, parseStatusParam, listStatuses, todayIn, TYPE_META, STATUS_TYPES } from './statuses';
 import type { ProfileRow, SessionRow } from './db';
 import { authRouter, SESSION_COOKIE, SESSION_DAYS, hashToken } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -130,8 +130,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const pid = req.profile.id;
   const db  = getDb();
   const s = db.prepare(
-    'SELECT profile_description, schedule_group_ids, use_jh_credits, credits_balance, user_openai_api_key, user_apify_api_token FROM settings WHERE profile_id = ?'
-  ).get(pid) as { profile_description: string; schedule_group_ids: string; use_jh_credits: number; credits_balance: number; user_openai_api_key: string; user_apify_api_token: string } | undefined;
+    'SELECT profile_description, schedule_group_ids, use_jh_credits, credits_balance, user_openai_api_key, user_apify_api_token, timezone FROM settings WHERE profile_id = ?'
+  ).get(pid) as { profile_description: string; schedule_group_ids: string; use_jh_credits: number; credits_balance: number; user_openai_api_key: string; user_apify_api_token: string; timezone: string } | undefined;
   const hasRole = !!db.prepare(
     'SELECT 1 FROM search_groups WHERE profile_id = ? LIMIT 1'
   ).get(pid);
@@ -170,6 +170,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     .slice()
     .sort((a, b) => STATUS_TYPES.indexOf(a.type) - STATUS_TYPES.indexOf(b.type))
     .map((st) => ({ id: st.id, name: st.name, type: st.type, typeLabel: TYPE_META[st.type].label, order: st.sort_order }));
+  // "Today" in the profile's timezone — the day the server judges status dates by. The shared
+  // calendar rings it and greys what lies past it from this, not from the browser's clock.
+  res.locals.profileToday = todayIn(s?.timezone || 'UTC');
   res.locals.activeShortcut = req.path === '/jobs'
     ? activeShortcut(shortcutList, parseStatusParam(pid, String(req.query.status || '')), req.query.ever === '1')
     : null;

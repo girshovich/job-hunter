@@ -60,7 +60,7 @@ const _isNewJob = _curType === 'new';
 // changed or deleted, and it carries no elapsed counter on either surface (D35, D37).
 const _ended = _curType === 'rejected';
 const _showGdprHelp = _ended && !(_cur && String(_cur.name || '').trim().toLowerCase() === 'i declined');
-const _elapsed = Number(locals.elapsedDays);
+const _elapsed = locals.elapsedDays == null ? NaN : Number(locals.elapsedDays);
 // A status the log has no step for — a job migrated from the old three-state column. It is drawn
 // as the closing step with no date, because there is no honest date to draw (D8). It opens no
 // editor: there is no row behind it to edit. The first real move writes one and it becomes an
@@ -74,8 +74,10 @@ const _showCredit = locals.showMakerCredit !== false;
 const _showStatus = detailVerdict === 'STRONG_MATCH' || _curType !== 'new';
 // The rail heading answers "how long has this been sitting". Set today, the answer repeats the
 // date on the chip beside it, so it says nothing at all (D48).
-const _ageLong = (_ended || !Number.isFinite(_elapsed) || _elapsed < 0) ? ''
-  : _elapsed === 0 ? '' : _elapsed === 1 ? 'for 1 day' : 'for ' + _elapsed + ' days';
+// A step dated ahead counts down instead: `in 9 days`.
+const _ageLong = (_ended || !Number.isFinite(_elapsed)) ? ''
+  : _elapsed === 0 ? '' : _elapsed === 1 ? 'for 1 day' : _elapsed === -1 ? 'in 1 day'
+  : _elapsed < 0 ? 'in ' + (-_elapsed) + ' days' : 'for ' + _elapsed + ' days';
 const _statusExit = {};
 _statuses.forEach(function (st) { if (!_statusExit[st.type]) _statusExit[st.type] = st; });
 function _stepDate(iso) {
@@ -419,7 +421,7 @@ function renderLinks(raw) {
           you are standing on, which is the one anyone actually asks about (D31, MB1). %>
       <% const _nowStep = _hist.length ? _hist[_hist.length - 1] : null; %>
       <% const _sinceMobile = _derived ? '' : (_nowStep && !_ended)
-           ? 'since ' + _stepDate(_nowStep.changed_at) + (_ageLong ? ' · ' + _ageLong.replace(/^for /, '') : '')
+           ? (_elapsed < 0 ? 'from ' : 'since ') + _stepDate(_nowStep.changed_at) + (_ageLong ? ' · ' + _ageLong.replace(/^for /, '') : '')
            : (_nowStep ? _stepDate(_nowStep.changed_at) : ''); %>
       <div class="hist-hd">
         <span class="hist-l">Status history</span>

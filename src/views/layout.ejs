@@ -778,13 +778,13 @@
     .stepedit .eb.del { background: var(--red-soft); color: var(--red-ink); border: 1px solid var(--red-border); }
     .stepedit .eb.ghost { background: transparent; color: var(--muted); margin-left: auto; }
     .stepedit .eb.pri { background: var(--accent); color: #fff; }
-    .stepedit .cal-back {
+    .stepedit .cal-back, .sp-cal .cal-back {
       display: inline-flex; align-items: center; gap: 6px; border: 0; background: none;
       padding: 2px 4px; border-radius: 6px; font-size: 11.5px; font-weight: 700;
       color: var(--muted); font-family: inherit; cursor: pointer;
     }
-    .stepedit .cal-back:hover { color: var(--accent); }
-    .stepedit .cal-note { font-size: 11px; color: var(--faintest); font-weight: 600; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
+    .stepedit .cal-back:hover, .sp-cal .cal-back:hover { color: var(--accent); }
+    .stepedit .cal-note, .sp-cal .cal-note { font-size: 11px; color: var(--faintest); font-weight: 600; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
 
     /* ── Job source picker table ───────────────────────────────── */
     @media (min-width: 768px) {
@@ -913,9 +913,10 @@
       },
       formatStatusAge(days, type) {
         if (String(type) === 'rejected') return '';
+        if (days === null || days === undefined || days === '') return '';
         const n = Number(days);
-        if (!Number.isFinite(n) || n < 0) return '';
-        return n === 0 ? 'today' : n + 'd';
+        if (!Number.isFinite(n)) return '';
+        return n === 0 ? 'today' : n < 0 ? 'in ' + (-n) + 'd' : n + 'd';
       },
       getVerdictChipStyle(value) {
         return window.JHUI_TOKENS.verdictChipStyles[String(value || '').trim().toUpperCase()] || window.JHUI_TOKENS.verdictChipFallback;
@@ -2087,7 +2088,9 @@
     .sp-lbl { font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
               color:var(--faintest); padding:6px 9px 3px; }
     .sp-sep { height:1px; background:var(--line); margin:5px 4px; }
+    .sp-cal { width:234px; padding:4px; }
     @media (max-width: 767px) {
+      .sp-cal { width:auto; }
       /* A bottom sheet, not a 148px menu — fifteen statuses need the room (MB2). */
       #status-picker-panel { left:0 !important; right:0; bottom:0; top:auto !important;
         max-height:70dvh; border-radius:16px 16px 0 0; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); }
@@ -3495,6 +3498,7 @@
     // offers first comes from the user's own order, never from a guess about what comes next
     // (D21). `New` never appears — it is written by the fetch and cannot be picked twice (D34).
     window.JH_STATUSES = <%- JSON.stringify(locals.statusList || []) %>;
+    window.JH_TODAY = <%- JSON.stringify(locals.profileToday || null) %>;
     let _statusBtn = null;
     let _statusOnPick = null;
 
@@ -3529,19 +3533,45 @@
       wrap.classList.remove('hidden');
       const mobile = window.innerWidth < 768;
       back.classList.toggle('hidden', !mobile);
-      if (!mobile) {
-        const rect = btn.getBoundingClientRect();
-        const w = panel.offsetWidth || 206;
-        let left = Math.min(rect.left, window.innerWidth - w - 12);
-        let top = rect.bottom + 4;
-        const h = panel.offsetHeight;
-        if (top + h + 12 > window.innerHeight && rect.top - h - 6 > 0) top = rect.top - h - 6;
-        panel.style.left = Math.max(8, left) + 'px';
-        panel.style.top  = top + 'px';
-      }
+      placeStatusPicker(btn);
       panel.querySelectorAll('[data-pick]').forEach(b => {
-        b.onclick = ev => { ev.stopPropagation(); setJobStatus(Number(b.dataset.pick)); };
+        b.onclick = ev => { ev.stopPropagation(); pickStatus(Number(b.dataset.pick)); };
       });
+    }
+
+    function placeStatusPicker(btn) {
+      if (window.innerWidth < 768) return;   // the phone sheet is placed by CSS
+      const panel = document.getElementById('status-picker-panel');
+      const rect = btn.getBoundingClientRect();
+      const w = panel.offsetWidth || 206;
+      let left = Math.min(rect.left, window.innerWidth - w - 12);
+      let top = rect.bottom + 4;
+      const h = panel.offsetHeight;
+      if (top + h + 12 > window.innerHeight && rect.top - h - 6 > 0) top = rect.top - h - 6;
+      panel.style.left = Math.max(8, left) + 'px';
+      panel.style.top  = top + 'px';
+    }
+
+    // An In Progress step asks for its day — an interview can be booked ahead, or have happened
+    // last week. The same surface swaps to the calendar, as the step editor does, so there is one
+    // dismiss layer. Every other status is written today, straight away.
+    function pickStatus(statusId) {
+      const s = (window.JH_STATUSES || []).find(x => x.id === statusId);
+      if (!s || s.type !== 'progress') { setJobStatus(statusId); return; }
+      const btn = _statusBtn, onPick = _statusOnPick;
+      const panel = document.getElementById('status-picker-panel');
+      panel.innerHTML = '<div class="date-cal sp-cal"></div>';
+      const cal = JHCal.attach({
+        root: panel.querySelector('.date-cal'),
+        from: null, to: null,   // nothing preselected, so today shows its ring rather than a fill
+        single: true,
+        allowFuture: true,
+        backLabel: 'Back to statuses',
+        onPick: d => setJobStatus(statusId, d),
+        onBack: () => openStatusPicker(btn, onPick),
+      });
+      cal.render();
+      placeStatusPicker(btn);
     }
 
     function closeStatusPicker() {
@@ -3587,7 +3617,7 @@
       });
     }
 
-    async function setJobStatus(statusId) {
+    async function setJobStatus(statusId, when) {
       const btn = _statusBtn;
       const after = _statusOnPick;
       if (!btn) return;
@@ -3597,14 +3627,14 @@
         const res = await fetch('/api/jobs/' + jobId + '/status', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status_id: statusId }),
+          body: JSON.stringify(when ? { status_id: statusId, changed_at: when } : { status_id: statusId }),
         });
         const data = await res.json();
         if (data.success) {
           updateMatchesBadge(data.matchesCount);
           updateShortcutCounts(data.shortcutCounts);
           if (after) { after(data); return; }
-          if (data.status) paintStatus(jobId, data.status, window.JHUI.formatStatusAge(0, data.status.type));
+          if (data.status) paintStatus(jobId, data.status, window.JHUI.formatStatusAge(data.statusDays, data.status.type));
           if (window.onStatusChanged) { try { window.onStatusChanged(jobId, data); } catch (e) {} }
           // The standalone /job/:id page has no pane to swap — the rail is the page, so it
           // re-renders the only way it can.
@@ -3678,16 +3708,15 @@
       if (st.cal) {
         p.innerHTML = '<div class="date-cal" style="width:234px"></div>';
         placeStepPop(p, anchorEl);
-        // JHCal in single-date mode (D47). `allowFuture` is left at its default, so future days
-        // are greyed and unclickable and the next-month chevron disables past today — the newest
-        // step IS the current status, so a date next Tuesday would make an unbooked interview
-        // today's status (D9).
+        // JHCal in single-date mode (D47). Future days are open: the newest step is the current
+        // status even when it is dated ahead (a booked interview), and Stats count it from its day.
         const cal = JHCal.attach({
           root: p.querySelector('.date-cal'),
           from: st.date, to: st.date,
           single: true,
+          allowFuture: true,
           backLabel: 'Back to the step',
-          note: 'Future dates are blocked — the newest step is the current status.',
+          note: 'Today is ringed. A later date counts in Stats from that day.',
           onPick: d => openStepEditor(anchorEl, Object.assign({}, st, { date: d, cal: false })),
           onBack: () => openStepEditor(anchorEl, Object.assign({}, st, { cal: false })),
         });

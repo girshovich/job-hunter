@@ -4,7 +4,7 @@
  *
  * Six things are worth a test here, and they are the six the doc calls out in §12.8: the migration
  * mapped 0/1/2 correctly; the applications count holds steady as a job advances *past* Applied; a
- * deleted history row recomputes the current status; a future date is refused; the 15-status cap
+ * deleted history row recomputes the current status; a future date is accepted but not counted; the 15-status cap
  * holds; and the quick filters agree with the Status control.
  *
  * Runs against the real DB. It mints its own session and deletes it **by exact token**, and it
@@ -244,21 +244,152 @@ test('deleting a step promotes the one below it; deleting them all returns the j
   expect(current()).toBe('new');
 });
 
-test('a future date is refused (D9, DP8)', async ({ request }) => {
-  const job = pickJob('applied');
-  const step = addStep(job, 'progress', '2026-09-02');
-  const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+// ── Steps dated ahead: shown as current at once, counted from their day ───────────────────────
 
+/** Today in the profile's timezone — the day the server judges "future" by. */
+function profileToday(): string {
+  const tz = (db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(PROFILE_ID) as { timezone?: string } | undefined)?.timezone || 'UTC';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+}
+function dayOffset(days: number): string {
+  return new Date(Date.parse(profileToday() + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
+}
+/** The newest step the app wrote for this job — recorded so afterAll removes exactly it. */
+function trackNewestEvent(jobId: number): number {
+  const row = db.prepare(
+    'SELECT id FROM job_status_events WHERE job_id = ? AND profile_id = ? ORDER BY id DESC LIMIT 1',
+  ).get(jobId, PROFILE_ID) as { id: number };
+  createdEvents.push(row.id);
+  return row.id;
+}
+/**
+ * Put a job back at once, rather than in afterAll: these specs move a job's current status, and
+ * later specs pick their fixture by current status — a moved job would hand them a different one.
+ */
+function restoreNow(jobId: number, eventIds: number[]): void {
+  for (const id of eventIds) {
+    db.prepare('DELETE FROM job_status_events WHERE id = ?').run(id);
+    createdEvents.splice(createdEvents.indexOf(id), 1);
+  }
+  const s = originalState.get(jobId)!;
+  db.prepare('UPDATE job_profile_states SET status_id = ?, applied = ? WHERE job_id = ? AND profile_id = ?')
+    .run(s.status_id, s.applied, jobId, PROFILE_ID);
+}
+function currentType(jobId: number): string {
+  return (db.prepare(`
+    SELECT s.type FROM job_profile_states jps JOIN statuses s ON s.id = jps.status_id
+    WHERE jps.job_id = ? AND jps.profile_id = ?
+  `).get(jobId, PROFILE_ID) as { type: string }).type;
+}
+/** An Applied job that has never progressed, so a Progressed count can only move because of us. */
+function pickUnprogressedApplied(): number {
+  const row = db.prepare(`
+    SELECT jps.job_id AS id FROM job_profile_states jps JOIN statuses s ON s.id = jps.status_id
+    WHERE jps.profile_id = ? AND s.type = 'applied' AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0
+      AND NOT EXISTS (SELECT 1 FROM job_status_events e JOIN statuses es ON es.id = e.status_id
+                      WHERE e.job_id = jps.job_id AND e.profile_id = jps.profile_id
+                        AND (es.type IN ('progress','offer') OR e.changed_at > ?))
+    ORDER BY jps.job_id LIMIT 1
+  `).get(PROFILE_ID, profileToday()) as { id: number } | undefined;
+  if (!row) throw new Error('No unprogressed Applied fixture job');
+  return row.id;
+}
+async function progressedOnStats(page: Page): Promise<number> {
+  await page.goto('/analytics');
+  const n = await page.locator('.sp-fnode', { hasText: 'Progressed' }).locator('.sp-fnode-n').textContent();
+  return Number(String(n).replace(/[^\d]/g, ''));
+}
+
+test('a step dated ahead is the current status at once, and counts in Stats only from its day', async ({ page, request }) => {
+  await auth(page);
+  const headers = { Cookie: `jh_session=${token}`, 'Content-Type': 'application/json' };
+  const job = pickUnprogressedApplied();
+  remember(job);
+  const before = await progressedOnStats(page);
+
+  // The picker sends a date with an In Progress status.
+  const res = await request.patch(`/api/jobs/${job}/status`, {
+    headers, data: { status_id: statusIdOfType('progress'), changed_at: dayOffset(7) },
+  });
+  expect(res.ok()).toBeTruthy();
+  const body = await res.json();
+  const step = trackNewestEvent(job);
+  expect(body.statusDays).toBe(-7);
+  expect(currentType(job)).toBe('progress');
+  expect(await progressedOnStats(page)).toBe(before);
+
+  // Re-dated to today in the step editor, it counts.
+  const res2 = await request.patch(`/api/history/${step}`, { headers, data: { changed_at: profileToday() } });
+  expect(res2.ok()).toBeTruthy();
+  expect(await progressedOnStats(page)).toBe(before + 1);
+  restoreNow(job, [step]);
+});
+
+test('the step editor accepts a date ahead of today (was D9)', async ({ request }) => {
+  const job = pickJob('applied');
+  remember(job);
+  const step = addStep(job, 'progress', '2026-09-02');
+  const future = dayOffset(7);
   const res = await request.patch(`/api/history/${step}`, {
     headers: { Cookie: `jh_session=${token}`, 'Content-Type': 'application/json' },
     data: { changed_at: future },
   });
-  expect(res.status()).toBe(400);
-  expect((await res.json()).error).toMatch(/future/i);
-
-  // And the row is untouched.
+  expect(res.ok()).toBeTruthy();
   const row = db.prepare('SELECT changed_at FROM job_status_events WHERE id = ?').get(step) as { changed_at: string };
-  expect(row.changed_at).toBe('2026-09-02');
+  expect(row.changed_at).toBe(future);
+  restoreNow(job, [step]);
+});
+
+test('a rejection is refused while a step is dated ahead of today', async ({ request }) => {
+  const job = pickJob('applied');
+  const ahead = addStep(job, 'progress', dayOffset(5));
+  const res = await request.patch(`/api/jobs/${job}/status`, {
+    headers: { Cookie: `jh_session=${token}`, 'Content-Type': 'application/json' },
+    data: { status_id: statusIdOfType('rejected') },
+  });
+  expect(res.status()).toBe(409);
+  expect((await res.json()).error).toMatch(/after today.*delete that step or change its date/i);
+  expect(currentType(job)).toBe('progress');
+  restoreNow(job, [ahead]);
+});
+
+test('only an In Progress move takes a date; every other status is written today', async ({ request }) => {
+  const headers = { Cookie: `jh_session=${token}`, 'Content-Type': 'application/json' };
+  const job = pickJob('applied');
+  remember(job);
+  const res = await request.patch(`/api/jobs/${job}/status`, {
+    headers, data: { status_id: statusIdOfType('offer'), changed_at: dayOffset(3) },
+  });
+  expect(res.ok()).toBeTruthy();
+  const step = trackNewestEvent(job);
+  const row = db.prepare('SELECT changed_at FROM job_status_events WHERE id = ?').get(step) as { changed_at: string };
+  expect(row.changed_at).toBe(profileToday());
+
+  // And an In Progress date before the job arrived is refused, as in the step editor.
+  const res2 = await request.patch(`/api/jobs/${job}/status`, {
+    headers, data: { status_id: statusIdOfType('progress'), changed_at: '2020-01-01' },
+  });
+  expect(res2.status()).toBe(400);
+  restoreNow(job, [step]);
+});
+
+test('picking an In Progress status asks for the day, with today ringed', async ({ page }) => {
+  await auth(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const job = pickJob('applied');
+  await page.goto(`/jobs?verdict=all&selected=${job}`);
+  await page.locator('#jh-pane .radd.status-btn').click();
+  const panel = page.locator('#status-picker-panel');
+  const progressName = (db.prepare('SELECT name FROM statuses WHERE id = ?').get(statusIdOfType('progress')) as { name: string }).name;
+  await panel.locator('.sp-row', { hasText: progressName }).first().click();
+
+  await expect(panel.locator('.sp-cal')).toBeVisible();
+  const ringed = panel.locator('.sp-cal [style*="inset 0 0 0 1.5px"], .sp-cal [style*="var(--accent)"]');
+  await expect(ringed.first()).toHaveText(String(Number(profileToday().slice(8))));
+  // Back returns to the list, and nothing was written.
+  await panel.locator('.cal-back').click();
+  await expect(panel.locator('.sp-row').first()).toBeVisible();
+  await page.keyboard.press('Escape');
 });
 
 test('a step cannot be dated before the job arrived', async ({ request }) => {

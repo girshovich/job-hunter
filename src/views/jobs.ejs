@@ -9,12 +9,13 @@ const exitStatuses = {};
 statusOptions.forEach(o => { if (!exitStatuses[o.type]) exitStatuses[o.type] = o; });
 // Elapsed days in the profile's timezone, or "today" reads wrong for anyone east of UTC (§5).
 const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: timezone || 'UTC' }).format(new Date());
+// Negative for a step dated ahead of today (`in 9d`); null when there is no date to count from.
 function daysSinceLocal(iso){
-  if (!iso) return -1;
+  if (!iso) return null;
   const a = Date.parse(String(iso).slice(0,10) + 'T00:00:00Z');
   const b = Date.parse(todayLocal + 'T00:00:00Z');
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return -1;
-  return Math.max(0, Math.round((b - a) / 86400000));
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.round((b - a) / 86400000);
 }
 // One selected status reads as its own name, several as a count — the idiom Role and Country
 // already use. Never a type or bucket name: those are not things the user can pick (D45, FL2).
@@ -361,7 +362,7 @@ window.__filterOpts = {
 window.onStatusChanged = function(jobId, data){
   if (!data || !data.status) return;
   const st = data.status;
-  const age = window.JHUI.formatStatusAge(0, st.type);   // just set, so: today (or nothing)
+  const age = window.JHUI.formatStatusAge(data.statusDays, st.type);   // today, or `in 9d` for a step dated ahead
   document.querySelectorAll('.jobcard[data-id="' + jobId + '"]').forEach(function(card){
     card.dataset.statusType = st.type;
     const strip = card.querySelector('.ctlstrip');

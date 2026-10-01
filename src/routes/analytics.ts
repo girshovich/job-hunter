@@ -17,7 +17,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type SearchGroupRow } from '../db';
-import { everAppliedSql, everProgressedSql, listStatuses, type StatusRow, type StatusType } from '../statuses';
+import { everAppliedSql, everProgressedSql, listStatuses, todayIn, profileTimezone, type StatusRow, type StatusType } from '../statuses';
 
 const router = Router();
 
@@ -35,6 +35,7 @@ interface JobRow {
   applied: number;
   progressed: number;
   first_app: string | null;   // 'YYYY-MM-DD' of the first application-counting event
+  has_future: number;         // a step is dated ahead of today, so the current status is not a fact yet
 }
 
 export interface Tile { label: string; applications: number; progressed: number; rate: number }
@@ -55,6 +56,9 @@ function tile(label: string, applications: number, progressed: number): Tile {
 router.get('/', (req: Request, res: Response) => {
   const db = getDb();
   const profileId = req.profile.id;
+  // Steps can be dated ahead (a booked interview). Every figure here counts only steps dated up to
+  // today in the profile's timezone; a future step joins the numbers on its day.
+  const today = todayIn(profileTimezone(profileId));
 
   // ── Q1 — one row per job ────────────────────────────────────────────────────────────────────
   const jobs = db.prepare<JobRow>(`
@@ -62,16 +66,20 @@ router.get('/', (req: Request, res: Response) => {
            CASE WHEN ${VISIBLE} THEN 1 ELSE 0 END AS is_visible,
            jps.is_duplicate AS is_dup,
            jps.ai_verdict AS verdict,
-           CASE WHEN ${everAppliedSql('jps')} THEN 1 ELSE 0 END AS applied,
-           CASE WHEN ${everProgressedSql('jps')} THEN 1 ELSE 0 END AS progressed,
+           CASE WHEN ${everAppliedSql(today, 'jps')} THEN 1 ELSE 0 END AS applied,
+           CASE WHEN ${everProgressedSql(today, 'jps')} THEN 1 ELSE 0 END AS progressed,
            (SELECT MIN(e.changed_at) FROM job_status_events e
               JOIN statuses es ON es.id = e.status_id
              WHERE e.job_id = jps.job_id AND e.profile_id = jps.profile_id
-               AND es.type IN ('applied','progress','offer','rejected')) AS first_app
+               AND es.type IN ('applied','progress','offer','rejected')
+               AND e.changed_at <= ?) AS first_app,
+           EXISTS (SELECT 1 FROM job_status_events f
+                    WHERE f.job_id = jps.job_id AND f.profile_id = jps.profile_id
+                      AND f.changed_at > ?) AS has_future
       FROM job_profile_states jps
       JOIN jobs j ON j.id = jps.job_id
      WHERE jps.profile_id = ?
-  `).all(profileId) as JobRow[];
+  `).all(today, today, profileId) as JobRow[];
 
   // ── Funnel ──────────────────────────────────────────────────────────────────────────────────
   const nonDup = jobs.filter((r) => r.is_dup === 0);
@@ -131,9 +139,9 @@ router.get('/', (req: Request, res: Response) => {
     reached.get(statusId)!.add(jobId);
   };
   for (const p of db.prepare<PairRow>(
-    'SELECT DISTINCT job_id, status_id FROM job_status_events WHERE profile_id = ?',
-  ).all(profileId) as PairRow[]) addPair(p.status_id, p.job_id);
-  for (const r of applications) if (r.status_id !== null) addPair(r.status_id, r.job_id);
+    'SELECT DISTINCT job_id, status_id FROM job_status_events WHERE profile_id = ? AND changed_at <= ?',
+  ).all(profileId, today) as PairRow[]) addPair(p.status_id, p.job_id);
+  for (const r of applications) if (r.status_id !== null && r.has_future === 0) addPair(r.status_id, r.job_id);
 
   // ── Columns: live statuses only, non-empty only, Applied → In Progress → Offer → Rejected ───
   // Archived statuses draw no column but still feed every total above (new_stats.md A3), which is

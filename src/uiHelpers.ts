@@ -203,13 +203,15 @@ export function formatScore(value: unknown): string {
  * The elapsed readout on a **list card**. The chip there carries no date of its own, so the count
  * is the only thing saying how long this has sat — `Recruiter · 13d`, and `Applied · today` when
  * it was set today. A Rejected-type status goes bare: the count means *how long have I been
- * waiting*, and a rejection is not a waiting room (D37, D48).
+ * waiting*, and a rejection is not a waiting room (D37, D48). A step dated ahead of today counts
+ * down instead — `Final · in 9d`. `null` means the date is unknown, and reads as nothing.
  */
 export function formatStatusAge(days: unknown, type: unknown): string {
   if (String(type) === 'rejected') return '';
+  if (days === null || days === undefined || days === '') return '';
   const n = Number(days);
-  if (!Number.isFinite(n) || n < 0) return '';
-  return n === 0 ? 'today' : `${n}d`;
+  if (!Number.isFinite(n)) return '';
+  return n === 0 ? 'today' : n < 0 ? `in ${-n}d` : `${n}d`;
 }
 
 export function formatRunStatusLabel(value: unknown): string {

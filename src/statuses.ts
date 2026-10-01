@@ -211,14 +211,8 @@ export function statusFilterSql(ids: number[], ever: boolean, jps = 'jps'): { sq
  *
  * `jps` is the alias of `job_profile_states` in the calling query.
  */
-export function everAppliedSql(jps = 'jps'): string {
-  const types = APPLIED_TYPES.map((t) => `'${t}'`).join(',');
-  return `(EXISTS (
-      SELECT 1 FROM job_status_events e JOIN statuses es ON es.id = e.status_id
-      WHERE e.job_id = ${jps}.job_id AND e.profile_id = ${jps}.profile_id AND es.type IN (${types})
-    ) OR EXISTS (
-      SELECT 1 FROM statuses cs WHERE cs.id = ${jps}.status_id AND cs.type IN (${types})
-    ))`;
+export function everAppliedSql(today: string, jps = 'jps'): string {
+  return everReachedSql(APPLIED_TYPES, today, jps);
 }
 
 /** The types that mean "this moved past being sent" — In Progress or an Offer. */
@@ -232,14 +226,33 @@ export const PROGRESSED_TYPES: StatusType[] = ['progress', 'offer'];
  * `archived_at` — a stage you stopped using still happened, and archiving a status must never
  * shrink a number that was already banked (new_stats.md A3).
  */
-export function everProgressedSql(jps = 'jps'): string {
-  const types = PROGRESSED_TYPES.map((t) => `'${t}'`).join(',');
+export function everProgressedSql(today: string, jps = 'jps'): string {
+  return everReachedSql(PROGRESSED_TYPES, today, jps);
+}
+
+/**
+ * The body of both "ever" checks. Only steps dated up to `today` (the profile's local day) count:
+ * a step can be dated ahead — an interview already booked — and it shows as the current status
+ * straight away, but it is not a fact yet, so no count includes it until its day comes. For the
+ * same reason the current-status half stands only when the job has no step ahead of today: with
+ * one, the current status IS that future step.
+ *
+ * `today` is inlined, not bound, so every caller keeps its own parameter list; it is checked
+ * against the date shape first, so nothing else can reach the SQL.
+ */
+function everReachedSql(typeList: StatusType[], today: string, jps: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) throw new Error(`Invalid day: ${today}`);
+  const types = typeList.map((t) => `'${t}'`).join(',');
   return `(EXISTS (
       SELECT 1 FROM job_status_events e JOIN statuses es ON es.id = e.status_id
       WHERE e.job_id = ${jps}.job_id AND e.profile_id = ${jps}.profile_id AND es.type IN (${types})
-    ) OR EXISTS (
+        AND e.changed_at <= '${today}'
+    ) OR (EXISTS (
       SELECT 1 FROM statuses cs WHERE cs.id = ${jps}.status_id AND cs.type IN (${types})
-    ))`;
+    ) AND NOT EXISTS (
+      SELECT 1 FROM job_status_events f
+      WHERE f.job_id = ${jps}.job_id AND f.profile_id = ${jps}.profile_id AND f.changed_at > '${today}'
+    )))`;
 }
 
 export interface HistoryStep {
@@ -279,13 +292,14 @@ export function profileTimezone(profileId: number): string {
 
 /**
  * Days between a history date and today, in the profile's timezone. Used by both elapsed
- * readouts — the card chip's `13d` and the rail heading's `for 13 days` (D37, D48).
+ * readouts — the card chip's `13d` and the rail heading's `for 13 days` (D37, D48). Negative for
+ * a step dated ahead of today, which reads as `in 9d`.
  */
 export function daysSince(dateStr: string, timezone: string): number {
   const a = Date.parse(String(dateStr).slice(0, 10) + 'T00:00:00Z');
   const b = Date.parse(todayIn(timezone) + 'T00:00:00Z');
   if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
-  return Math.max(0, Math.round((b - a) / 86400000));
+  return Math.round((b - a) / 86400000);
 }
 
 /**
@@ -306,6 +320,9 @@ export function setJobStatus(profileId: number, jobId: number, statusId: number,
     db.prepare(
       "INSERT INTO job_status_events (profile_id, job_id, status_id, changed_at, source) VALUES (?, ?, ?, ?, 'user')",
     ).run(profileId, jobId, statusId, when);
+    // `when` is not always the newest date in the log — an In Progress step can be dated back, and
+    // another step can be dated ahead — so the current status is re-read from the log, never assumed.
+    recomputeCurrent(profileId, jobId);
     return true;
   });
 }

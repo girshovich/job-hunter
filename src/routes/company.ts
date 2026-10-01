@@ -4,7 +4,7 @@
  */
 
 import { getDb } from '../db';
-import { everAppliedSql, idsOfTypes, APPLIED_TYPES } from '../statuses';
+import { everAppliedSql, idsOfTypes, APPLIED_TYPES, todayIn, profileTimezone } from '../statuses';
 
 export interface CompanyBasics {
   display_name: string | null;
@@ -66,7 +66,7 @@ export function getCompanyUserContext(profileId: number, key: string): CompanyUs
   return {
     allJobs: count(''),
     strongMatches: count("AND jps.ai_verdict = 'STRONG_MATCH' AND jps.is_duplicate = 0"),
-    applications: count(`AND ${everAppliedSql('jps')}`),
+    applications: count(`AND ${everAppliedSql(todayIn(profileTimezone(profileId)), 'jps')}`),
     note: note?.note || '',
     blacklisted: !!blacklisted,
   };
@@ -76,7 +76,7 @@ export function getCompanyUserContext(profileId: number, key: string): CompanyUs
 export function getCompanyAppliedCount(profileId: number, key: string): number {
   if (!key) return 0;
   return (getDb().prepare<{ c: number }>(
-    `SELECT COUNT(*) AS c ${COUNT_BASE} AND ${everAppliedSql('jps')}`,
+    `SELECT COUNT(*) AS c ${COUNT_BASE} AND ${everAppliedSql(todayIn(profileTimezone(profileId)), 'jps')}`,
   ).get(profileId, key)?.c) ?? 0;
 }
 

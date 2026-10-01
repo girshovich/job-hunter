@@ -32,7 +32,7 @@ import { fetchCompanyLogos } from '../pipeline/companyLogos';
 import { checkAndProfileCompany, type EnrichmentOutput } from '../pipeline/companyEnrichment';
 import { invalidateJobsDatesCache } from './jobs';
 import { getCompanyProfile, getCompanyUserContext, buildCompanyLinks } from './company';
-import { newStatusId, incomingStatusId, todayIn, profileTimezone, listStatuses, statusMap, setJobStatus, recomputeCurrent,
+import { newStatusId, incomingStatusId, todayIn, profileTimezone, daysSince, listStatuses, statusMap, setJobStatus, recomputeCurrent,
          jobHistory, shortcuts, idsOfTypes, legacyApplied, MAX_STATUSES, MAX_STATUS_NAME, STATUS_TYPES, ASSIGNABLE_TYPES, TYPE_META, type StatusType, type StatusRow } from '../statuses';
 import OpenAI from 'openai';
 
@@ -1064,6 +1064,9 @@ function statusPayload(profileId: number, jobId: number) {
     // The three sidebar shortcut counts, recomputed on the same request.
     shortcutCounts: shortcuts(profileId).map((sc) => ({ id: sc.id, count: sc.count })),
     status: current ? { id: current.id, name: current.name, type: current.type } : null,
+    // Days since the newest step — negative when it is dated ahead — so a chip repainted in place
+    // reads `in 9d` rather than assuming the move happened today.
+    statusDays: history.length ? daysSince(history[history.length - 1].changed_at, profileTimezone(profileId)) : 0,
     history,
   };
 }
@@ -1092,7 +1095,47 @@ router.patch('/jobs/:id/status', (req: Request, res: Response) => {
     return;
   }
 
-  const ok = setJobStatus(profileId, id, statusId, todayIn(profileTimezone(profileId)));
+  const db = getDb();
+  const today = todayIn(profileTimezone(profileId));
+  const target = db.prepare('SELECT type FROM statuses WHERE id = ? AND profile_id = ?')
+    .get(statusId, profileId) as { type: string } | undefined;
+
+  // A step dated ahead of today (a booked interview) would sit after a rejection written today,
+  // and a rejection has to be the last step (D35) — so it waits until that step is moved or gone.
+  if (target?.type === 'rejected') {
+    const ahead = db.prepare(`
+      SELECT s.name, e.changed_at FROM job_status_events e JOIN statuses s ON s.id = e.status_id
+      WHERE e.job_id = ? AND e.profile_id = ? AND e.changed_at > ?
+      ORDER BY e.changed_at DESC, e.id DESC LIMIT 1
+    `).get(id, profileId, today) as { name: string; changed_at: string } | undefined;
+    if (ahead) {
+      res.status(409).json({
+        success: false,
+        error: `"${ahead.name}" is dated ${ahead.changed_at}, after today. Open the job and delete that step or change its date first.`,
+      });
+      return;
+    }
+  }
+
+  // Only an In Progress move asks for a date — the picker offers a calendar for those and nothing
+  // else. Every other status is written today, whatever arrives.
+  let when = today;
+  const rawDate = (req.body as Record<string, unknown>).changed_at;
+  if (target?.type === 'progress' && rawDate !== undefined) {
+    when = String(rawDate).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(when)) { res.status(400).json({ success: false, error: 'Invalid date.' }); return; }
+    const arrival = db.prepare(`
+      SELECT e.changed_at FROM job_status_events e JOIN statuses s ON s.id = e.status_id
+      WHERE e.job_id = ? AND e.profile_id = ? AND s.type = 'new'
+      ORDER BY e.changed_at ASC, e.id ASC LIMIT 1
+    `).get(id, profileId) as { changed_at: string } | undefined;
+    if (arrival && when < arrival.changed_at) {
+      res.status(400).json({ success: false, error: `This job arrived on ${arrival.changed_at}. A step cannot be dated before that.` });
+      return;
+    }
+  }
+
+  const ok = setJobStatus(profileId, id, statusId, when);
   if (!ok) { res.status(403).json({ success: false, error: 'Forbidden' }); return; }
   // The Matches/All Jobs date list is cached per filter; a status move changes what a Status filter holds.
   invalidateJobsDatesCache(profileId);
@@ -1136,12 +1179,8 @@ router.patch('/history/:id', (req: Request, res: Response) => {
   }
   if (nextDate !== null) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) { res.status(400).json({ success: false, error: 'Invalid date.' }); return; }
-    // The newest step is the current status, so a date next Tuesday would make an unbooked
-    // interview today's status (D9).
-    if (nextDate > todayIn(profileTimezone(profileId))) {
-      res.status(400).json({ success: false, error: 'A step cannot be dated in the future.' });
-      return;
-    }
+    // A date ahead of today is allowed: the newest step is still the current status, so a booked
+    // interview shows straight away. Stats count it only from its day (everReachedSql).
   }
 
   // ── Two invariants the log has to keep, checked against the *prospective* state ──────────
