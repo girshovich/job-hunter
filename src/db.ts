@@ -3093,6 +3093,10 @@ function ensureProfileIndexes(db: Database): void {
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_match_fetch ON job_profile_states(profile_id, ai_verdict, is_duplicate, fetched_at, ai_score, job_id)`); } catch (_) {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_dedup ON job_profile_states(profile_id, is_duplicate)`); } catch (_) {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_job_id ON job_profile_states(job_id)`); } catch (_) {}
+  // Foreign-key lookups for deleting a job. Without them every deleted job scans both tables in
+  // full, which froze the event loop for minutes during the 03:00 UTC pool cleanup.
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jps_duplicate_of ON job_profile_states(duplicate_of_job_id)`); } catch (_) {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_jse_job_id ON job_status_events(job_id)`); } catch (_) {}
 }
 
 function seedSettings(db: Database): void {
