@@ -2495,6 +2495,13 @@
         description: 'Less valuable than LinkedIn, but cheaper.',
       },
       {
+        value: 'indeed-search',
+        label: 'Indeed: search',
+        pickerLabel: 'Indeed: search',
+        costPerThousand: '$4',
+        description: 'Off unless you tick it. Keeps a full description, a posted date, and a salary line.',
+      },
+      {
         value: 'stepstone',
         label: 'StepStone: valig',
         pickerLabel: 'StepStone: valig',
@@ -2984,7 +2991,7 @@
         }
 
         // Providers display
-        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig', indeed: 'Indeed: valig', stepstone: 'StepStone: valig', greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever', telegram: 'Telegram' };
+        const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig', indeed: 'Indeed: valig', 'indeed-search': 'Indeed: search', stepstone: 'StepStone: valig', greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever', telegram: 'Telegram' };
         const statusProviders = _scheduleData.scraping_providers || DEFAULT_PROVIDER_VALUES;
         document.getElementById('sched-status-providers').textContent =
           statusProviders.map(p => providerLabels[p] || p).join(', ');

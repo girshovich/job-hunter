@@ -29,7 +29,7 @@ const gate = new KeyedGate('apifyGate', APIFY_FALLBACK_CONCURRENCY);
  *
  * Keep in step with the imports of `apifyGate` across `pipeline/providers/`.
  */
-export const APIFY_PROVIDERS = new Set(['harvestapi', 'valig', 'indeed', 'stepstone']);
+export const APIFY_PROVIDERS = new Set(['harvestapi', 'valig', 'indeed', 'indeed-search', 'stepstone']);
 
 /**
  * Run `fn` against this token's budget. `limit` is the account's current ceiling, from

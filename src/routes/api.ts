@@ -117,7 +117,7 @@ router.post('/run', async (req: Request, res: Response) => {
   else if (b.dateRange === 'month') dateRange = 'month';
 
   // Parse optional providers override
-  const validProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby', 'lever', 'telegram'];
+  const validProviders = ['harvestapi', 'valig', 'indeed', 'indeed-search', 'stepstone', 'greenhouse', 'ashby', 'lever', 'telegram'];
   const providers = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validProviders.includes(p))
     : undefined;
@@ -591,7 +591,7 @@ router.post('/schedule/start', async (req: Request, res: Response) => {
   }
 
   // Parse and validate providers
-  const validSchedProviders = ['harvestapi', 'valig', 'indeed', 'stepstone', 'greenhouse', 'ashby', 'lever', 'telegram'];
+  const validSchedProviders = ['harvestapi', 'valig', 'indeed', 'indeed-search', 'stepstone', 'greenhouse', 'ashby', 'lever', 'telegram'];
   const rawSchedProviders = Array.isArray(b.providers)
     ? (b.providers as unknown[]).map(String).filter((p) => validSchedProviders.includes(p))
     : [];

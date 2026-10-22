@@ -9,6 +9,7 @@ import { fetchWithHarvestApi } from './providers/harvestapi';
 import { fetchWithValig } from './providers/valig';
 import { fetchWithStepStone }  from './providers/stepstone';
 import { fetchWithIndeed }     from './providers/indeed';
+import { fetchWithIndeedSearch } from './providers/indeed-search';
 import { fetchWithGreenhouse } from './providers/greenhouse';
 import { fetchWithAshby }      from './providers/ashby';
 import { fetchWithLever }      from './providers/lever';
@@ -23,6 +24,7 @@ export async function fetchJobs(
 ): Promise<FetchResult> {
   if (provider === 'valig')      return fetchWithValig(filters, apifyToken, dateRange, options);
   if (provider === 'indeed')     return fetchWithIndeed(filters, apifyToken, dateRange, options);
+  if (provider === 'indeed-search') return fetchWithIndeedSearch(filters, apifyToken, dateRange, options);
   if (provider === 'stepstone')  return fetchWithStepStone(filters, apifyToken, dateRange, options);
   if (provider === 'greenhouse') return fetchWithGreenhouse(filters, apifyToken, dateRange);
   if (provider === 'ashby')      return fetchWithAshby(filters, apifyToken, dateRange);

@@ -8,7 +8,7 @@
 export type JobSource = 'LinkedIn' | 'Indeed' | 'StepStone' | 'Greenhouse' | 'Ashby' | 'Lever' | 'Telegram' | 'Manual';
 
 export function providerToSource(provider: string): JobSource {
-  if (provider === 'indeed')      return 'Indeed';
+  if (provider === 'indeed' || provider === 'indeed-search') return 'Indeed';
   if (provider === 'stepstone')   return 'StepStone';
   if (provider === 'greenhouse')  return 'Greenhouse';
   if (provider === 'ashby')       return 'Ashby';

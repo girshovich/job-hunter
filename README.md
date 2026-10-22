@@ -44,7 +44,7 @@ Resource use per run varies by provider selection, number of roles, location bre
 - **Web** — Express 4 + EJS + Tailwind CSS
 - **Database** — SQLite via built-in `node:sqlite`
 - **AI** — OpenAI Responses API (soft model: `gpt-5.4-mini`; hard model: `gpt-5.6-terra`; both configurable per profile)
-- **Job sources** — HarvestAPI, Valig, Indeed, StepStone, Greenhouse, Ashby, Lever, Telegram
+- **Job sources** — HarvestAPI, Valig, Indeed, Indeed search (off unless selected), StepStone, Greenhouse, Ashby, Lever, Telegram
 - **Email** — Resend (OTP login + digests)
 - **Scheduler** — node-cron (in-process, survives restarts)
 
@@ -207,7 +207,7 @@ pm2 save
 
 ## Features
 
-- **Multiple job sources** — HarvestAPI, Valig, Indeed, StepStone, Greenhouse, Ashby, Lever, Telegram; mix providers per run
+- **Multiple job sources** — HarvestAPI, Valig, Indeed, Indeed search (off unless selected), StepStone, Greenhouse, Ashby, Lever, Telegram; mix providers per run
 - **Roles** — multiple search profiles per account, each with its own keywords, titles, locations, work modes, job types, and AI prompt
 - **Structured AI prompts** — each role configures profile description, scoring criteria, extra rejection rules, priority industries, and 100%-rejected industries; several rejection rules are derived automatically from your fields (country, language, job type)
 - **Profile description** — a top-level background/CV context field injected into every AI scoring call; can be shared across all roles or overridden per role
