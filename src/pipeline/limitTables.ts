@@ -23,8 +23,8 @@
  * descriptions, an assumed 6s per call, and a 0.6 utilisation factor carrying that assumption's
  * uncertainty. RPM binds first on small accounts, TPM on large ones.
  *
- * **The cap at 32 is deliberate and is what binds from Tier 2 up.** Uncapped, a Tier 3 account
- * would allow 96 — but the median run scores 11 jobs, so concurrency past ~32 buys seconds inside a
+ * **The cap at 32 is deliberate and is what binds from Build up on Luna-type models (Launch up on
+ * Terra-type).** Uncapped, a Launch account on Luna would allow 240 — but the median run scores 11 jobs, so concurrency past ~32 buys seconds inside a
  * 20-minute run while a 429 costs whole postings. Seconds gained against job data lost: stay low.
  */
 export function concurrencyFromLimits(rpm: number, tpm: number): number {
@@ -48,33 +48,32 @@ export function apifyConcurrencyFromCeiling(ceiling: number): number {
 // ── Naming what we measured ──────────────────────────────────────────────────
 
 /**
- * TPM per tier × model, read off platform.openai.com on 2026-09-08.
+ * TPM per tier × model. Build / Launch / Grow read off developers.openai.com (model pages and the
+ * rate-limits guide) on 2026-11-12, when OpenAI's paid tiers were Build, Launch and Grow.
  *
  * Used **only** to put a name on measured headers. Note the collision this avoids: 4M TPM means
- * Tier 3 on `gpt-5.4-mini` but Tier 4 on `gpt-5.6-terra`, so a tier can never be derived without
+ * Launch on `gpt-6.1-terra` but nothing on `gpt-6-luna`, so a tier can never be derived without
  * knowing which model reported it.
+ *
+ * No Free row: OpenAI's Free tier can no longer use any model we offer.
  */
 export const OPENAI_TIER_TPM: Record<string, Record<string, number>> = {
-  free:  { 'gpt-5.6-luna':      60_000, 'gpt-5.4-mini':     100_000, 'gpt-5.6-terra':     10_000 },
-  tier1: { 'gpt-5.6-luna':     500_000, 'gpt-5.4-mini':     200_000, 'gpt-5.6-terra':    500_000 },
-  tier2: { 'gpt-5.6-luna':   2_000_000, 'gpt-5.4-mini':   2_000_000, 'gpt-5.6-terra':  1_000_000 },
-  tier3: { 'gpt-5.6-luna':   4_000_000, 'gpt-5.4-mini':   4_000_000, 'gpt-5.6-terra':  2_000_000 },
-  tier4: { 'gpt-5.6-luna':  10_000_000, 'gpt-5.4-mini':  10_000_000, 'gpt-5.6-terra':  4_000_000 },
-  tier5: { 'gpt-5.6-luna': 180_000_000, 'gpt-5.4-mini': 180_000_000, 'gpt-5.6-terra': 40_000_000 },
+  build:  { 'gpt-6-luna':   2_000_000, 'gpt-6.1-terra':  1_000_000 },
+  launch: { 'gpt-6-luna':  10_000_000, 'gpt-6.1-terra':  4_000_000 },
+  grow:   { 'gpt-6-luna': 180_000_000, 'gpt-6.1-terra': 40_000_000 },
 };
 
 export const OPENAI_TIER_LABELS: Record<string, string> = {
-  free: 'Free tier', tier1: 'Tier 1', tier2: 'Tier 2', tier3: 'Tier 3', tier4: 'Tier 4', tier5: 'Tier 5',
+  build: 'Build tier', launch: 'Launch tier', grow: 'Grow tier',
 };
 
 /**
  * The tier every measured model agrees on, or `''` when they do not agree, when a model is not in
  * the table, or when nothing matches exactly.
  *
- * Unanimity is a free confidence check: three models independently landing on the same tier is
+ * Unanimity is a free confidence check: two models independently landing on the same tier is
  * strong evidence, and any disagreement means the account has bespoke limits — in which case we
- * print no tier rather than pick one. Verified against the operator's account, where mini (4M),
- * luna (4M) and terra (2M) all resolve to tier3.
+ * print no tier rather than pick one.
  */
 export function deriveOpenAiTier(perModel: Record<string, { tpm: number }>): string {
   const votes = new Set<string>();
@@ -109,7 +108,7 @@ export function deriveApifyPlan(ceiling: number): string {
 // ── Describing it to a person ────────────────────────────────────────────────
 
 export interface LimitLine {
-  /** "Tier 3", "Starter", or '' when the measurement matches no published plan. */
+  /** "Launch tier", "Starter", or '' when the measurement matches no published plan. */
   name: string;
   /** What it means in work we do, never in tokens. */
   capability: string;
@@ -140,8 +139,8 @@ export function describeAccountLimits(
   const measuredApify = limits.apifyConcurrencyDetected > 0 && !!limits.apifyCheckedAt;
   const scoring = limits.openAiConcurrencyFor(softModel);
 
-  // Per model, not per row. An account can have `gpt-5.4-mini` on file and have never been asked
-  // about `gpt-5.6-luna` — reading a row-level "checked at" would then date-stamp a number that is
+  // Per model, not per row. An account can have `gpt-6.1-terra` on file and have never been asked
+  // about `gpt-6-luna` — reading a row-level "checked at" would then date-stamp a number that is
   // really the fallback, which reads as a measurement and is not one.
   const softEntry = limits.openAiLimits[softModel];
   const measuredOpenAi = !!softEntry?.at;
@@ -161,11 +160,7 @@ export function describeAccountLimits(
         ? `up to ${scoring} job${scoring === 1 ? '' : 's'} scored at once`
         : `not measured yet — using a safe default of ${scoring}`,
       checkedAt: measuredOpenAi ? softEntry.at : '',
-      // The one case worth interrupting someone about: a free OpenAI account cannot finish a
-      // normal run, and no concurrency setting can fix that (APIlimits.md §3.1.1).
-      warning: limits.openAiTier === 'free'
-        ? 'Free OpenAI accounts also have a small daily cap, so larger runs may stop part-way. Adding credit to the account lifts both limits.'
-        : '',
+      warning: '',
     },
   };
 }

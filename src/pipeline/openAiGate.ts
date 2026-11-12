@@ -12,9 +12,9 @@
  * re-score would also raise the ceiling under another profile's scoring. Separate buckets are both
  * simpler and truer to the upstream limit.
  *
- * The consequence to keep in mind: "Tier 3 = 32" is 32 *per model*, so a key running scoring and
+ * The consequence to keep in mind: "Launch = 32" is 32 *per model*, so a key running scoring and
  * re-scoring at once can reach 64 in total. At ~2,500 tokens a call that is ~800K TPM per model
- * against 4M/2M budgets — comfortable. It is not an account-wide guarantee, and neither is it meant
+ * against 10M/4M (Launch) budgets — comfortable. It is not an account-wide guarantee, and neither is it meant
  * to be: `companyEnrichment` (3) and `telegramExtract` (5) still hold their own limiters
  * (APIlimits.md caveat C4).
  */

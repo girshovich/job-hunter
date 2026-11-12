@@ -20,7 +20,7 @@ import { FIXED_SCHEMA_PROMPT } from '../pipeline/telegramExtract';
 import { activeRuns, tryStartRun, createRun, endRun, cancelRun, listActiveRuns, emitToRun } from '../pipeline/atsRunState';
 import { refreshApifyLimits } from '../pipeline/apifyLimits';
 import { refreshOpenAiLimits } from '../pipeline/openAiLimits';
-import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, TOPUP_ENABLED, isPaymentReady, resolveSpendKeys, resolveLimits, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, FALLBACK_AI_MODEL, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
+import { getDb, getMatchesCount, createProfile, MIN_RUN_CREDITS, TOPUP_ENABLED, isPaymentReady, resolveSpendKeys, resolveLimits, PaymentError, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow, type JobWithState, type CvRow, DEFAULT_CV_COMPARISON_PROMPT, DEFAULT_PROVIDER_SELECTION, DEFAULT_PROVIDER_SELECTION_JSON, type ProfileRow } from '../db';
 import { resolveCountries, getCanonicalCountries, loadLocationData, labelsToCountrySet, lookupCountry, canonicalRegion, isSourceCountry, isRegionLabel } from '../pipeline/locationNormalizer';
 import { acquirePoolLock } from '../pipeline/poolLock';
 import { INDEED_CODE } from '../pipeline/providers/indeed';
@@ -315,7 +315,7 @@ router.post('/test/openai', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const settings = db.prepare('SELECT ai_model FROM settings WHERE profile_id = ?').get(req.profile.id) as { ai_model: string } | undefined;
-    const model = settings?.ai_model?.trim() || FALLBACK_AI_MODEL;
+    const model = settings?.ai_model ?? '';
 
     // The validity check *is* the measurement: a real call returns the account's rate-limit headers,
     // so testing a key also learns what it allows, at no extra cost and no extra call. Cached
@@ -1573,7 +1573,7 @@ router.post('/company/check', async (req: Request, res: Response) => {
   if (!openAiKey) { res.json({ status: 'unchecked', reason: 'failed', name: typed }); return; }
 
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow | undefined;
-  const model = settings?.ai_model_hard?.trim() || FALLBACK_AI_MODEL;
+  const model = settings?.ai_model_hard ?? '';
   const limits = resolveLimits(db, profileId);
 
   let checked: Awaited<ReturnType<typeof checkAndProfileCompany>>;
@@ -2013,7 +2013,7 @@ router.post('/jobs/:id/cv-compare', async (req: Request, res: Response) => {
   if (!openaiKey) { res.status(400).json({ error: 'OpenAI API key not configured.' }); return; }
 
   const prompt = settings?.cv_comparison_prompt?.trim() || DEFAULT_CV_COMPARISON_PROMPT;
-  const model = settings?.ai_model_hard?.trim() || FALLBACK_AI_MODEL;
+  const model = settings?.ai_model_hard ?? '';
   const jobText = `JOB TITLE: ${job.title}\nCOMPANY: ${job.company}\nLOCATION: ${job.location || 'N/A'}\nWORK MODE: ${job.work_mode || 'N/A'}\n\nDESCRIPTION:\n${(job.description || '').substring(0, 12000)}`;
 
   try {

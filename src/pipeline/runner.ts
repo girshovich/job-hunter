@@ -31,6 +31,8 @@ const RATE_LIMIT_ALERT_COOLDOWN_MS = 30 * 60_000;
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
 // cachedInput: prompt-cache read price (billed instead of input for cached tokens)
 const OPENAI_PRICING: Record<string, { input: number; cachedInput: number; output: number }> = {
+  'gpt-6.1-terra': { input: 1.00,  cachedInput: 0.05,  output: 5.00  },
+  'gpt-6-luna':    { input: 0.10,  cachedInput: 0.01,  output: 0.50  },
   'gpt-5.6-terra': { input: 2.00,  cachedInput: 0.20,  output: 12.00 },
   'gpt-5.6-luna':  { input: 0.20,  cachedInput: 0.02,  output: 1.20  },
   'gpt-5.4-mini':  { input: 0.75,  cachedInput: 0.075, output: 4.50  },

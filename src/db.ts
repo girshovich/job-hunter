@@ -144,15 +144,11 @@ export const DEFAULT_SUMMARY_PROMPT = `Analyze the job description and write a s
 // Soft model (batch job scoring + Telegram extraction). Written explicitly wherever a settings row
 // is created — the `ai_model` column default is 'gpt-5.4' on DBs built by the pre-split v17 schema,
 // so relying on it would silently put new profiles on the expensive model.
-export const DEFAULT_AI_MODEL = 'gpt-5.4-mini';
+export const DEFAULT_AI_MODEL = 'gpt-6-luna';
 
 // Hard model (semantic dedup, Strong Match re-scoring, CV comparison). Written explicitly for the
 // same reason: the `ai_model_hard` column default is 'gpt-5.4' on DBs migrated through v26.
-export const DEFAULT_AI_MODEL_HARD = 'gpt-5.6-terra';
-
-// Last resort when a configured model is missing or blank — the cheapest model we offer, so an
-// unconfigured path can never run up a bill on the expensive one.
-export const FALLBACK_AI_MODEL = 'gpt-5.6-luna';
+export const DEFAULT_AI_MODEL_HARD = 'gpt-6.1-terra';
 
 export const DEFAULT_CV_COMPARISON_PROMPT = `analyze and answer these questions in a very brief manner so i can read it in 1 min:
 - what's the area or product this role owns?
@@ -2293,6 +2289,39 @@ The full post text is stored as the job description — do not repeat or summari
     console.warn('[db] Migration v_gpt56_models failed (non-fatal):', (err as Error).message);
   }
 
+  // v_openai_tiers_2026_11: OpenAI replaced Tier 1–5 with Build / Launch / Grow and changed the
+  // per-model limits. Stored 'tier1'..'tier5' labels no longer exist, and every stored measurement
+  // predates the change — a stale entry for a model no longer in use would still vote in
+  // deriveOpenAiTier and hide the name for good. Clearing makes the next run (or "Test key")
+  // re-measure, which costs one ~$0.0003 probe per model.
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_openai_tiers_2026_11'`).get();
+    if (!done) {
+      db.exec(`UPDATE settings SET openai_tier = '', openai_limits_json = '', openai_limits_checked_at = ''`);
+      db.exec(`INSERT INTO _migrations VALUES ('v_openai_tiers_2026_11')`);
+      console.log('[db] Migration v_openai_tiers_2026_11: OpenAI limits cleared for re-measurement');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_openai_tiers_2026_11 failed (non-fatal):', (err as Error).message);
+  }
+
+  // v_gpt6_models: the GPT-6 family replaces every 5.x option, which leave the AI Setup dropdowns.
+  // Terra → GPT-6.1 Terra; Luna and mini → GPT-6 Luna. Both columns, regardless of how the value got
+  // there — a stored value with no matching option would render the wrong entry as selected.
+  try {
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v_gpt6_models'`).get();
+    if (!done) {
+      for (const col of ['ai_model', 'ai_model_hard']) {
+        db.exec(`UPDATE settings SET ${col} = 'gpt-6.1-terra' WHERE ${col} = 'gpt-5.6-terra'`);
+        db.exec(`UPDATE settings SET ${col} = 'gpt-6-luna'    WHERE ${col} IN ('gpt-5.6-luna', 'gpt-5.4-mini')`);
+      }
+      db.exec(`INSERT INTO _migrations VALUES ('v_gpt6_models')`);
+      console.log('[db] Migration v_gpt6_models: settings models remapped to GPT-6');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v_gpt6_models failed (non-fatal):', (err as Error).message);
+  }
+
   // v_admin_stats_index: composite (profile_id, ran_at) for Admin → Stats. The table already
   // carries idx_runs_profile and idx_runs_ran_at separately, which makes SQLite pick one and
   // scan the rest; the cohort join filters on both at once. Index only — no data is rewritten.
@@ -2375,8 +2404,8 @@ The full post text is stored as the job description — do not repeat or summari
       db.exec(`ALTER TABLE settings ADD COLUMN apify_limits_checked_at TEXT NOT NULL DEFAULT ''`);
       console.log('[db] Migration v_api_limits: settings.apify_limits_checked_at added');
     }
-    // Measured OpenAI limits, keyed by model: {"gpt-5.4-mini":{"rpm":5000,"tpm":4000000,…}}.
-    // Per model because the same tier gives `gpt-5.6-terra` half of `gpt-5.4-mini`'s TPM.
+    // Measured OpenAI limits, keyed by model: {"gpt-6-luna":{"rpm":10000,"tpm":10000000,…}}.
+    // Per model because the same tier gives `gpt-6.1-terra` less than half of `gpt-6-luna`'s TPM.
     if (!cols.some((c) => c.name === 'openai_limits_json')) {
       db.exec(`ALTER TABLE settings ADD COLUMN openai_limits_json TEXT NOT NULL DEFAULT ''`);
       console.log('[db] Migration v_api_limits: settings.openai_limits_json added');
@@ -2943,8 +2972,8 @@ function initSchema(db: Database): void {
       search_job_type        TEXT    NOT NULL DEFAULT 'fullTime',
       cron_schedule          TEXT    NOT NULL DEFAULT '0 7 * * *',
       ai_system_prompt       TEXT    NOT NULL DEFAULT '',
-      ai_model               TEXT    NOT NULL DEFAULT 'gpt-5.4-mini',
-      ai_model_hard          TEXT    NOT NULL DEFAULT 'gpt-5.6-terra',
+      ai_model               TEXT    NOT NULL DEFAULT 'gpt-6-luna',
+      ai_model_hard          TEXT    NOT NULL DEFAULT 'gpt-6.1-terra',
       dedup_system_prompt    TEXT    NOT NULL DEFAULT '',
       score_no_match_max     INTEGER NOT NULL DEFAULT 50,
       score_weak_match_max   INTEGER NOT NULL DEFAULT 70,
@@ -3704,7 +3733,7 @@ export interface SettingsRow {
   app_url: string;                 // deployment base URL used in email links (e.g. https://hunter.example.com)
   telegram_ingest_enabled: number;
   telegram_extract_prompt: string;
-  openai_tier: string;                  // 'free' | 'tier1'..'tier5' — see pipeline/limitTables.ts
+  openai_tier: string;                  // 'build' | 'launch' | 'grow' — see pipeline/limitTables.ts
   apify_plan: string;                   // 'free' | 'custom' | 'starter' | 'scale' | 'business'
   apify_concurrency_detected: number;   // last `maxConcurrentActorJobs` seen; 0 = never detected
   apify_limits_checked_at: string;      // ISO timestamp of that detection; '' = never

@@ -103,5 +103,5 @@ test('the tooltip reads correctly at one active user', async ({ page }) => {
 test('the days-active-per-week chart renders with the requested caption', async ({ page }) => {
   await expect(page.getByText('Days Active per Week')).toBeVisible();
   await expect(page.locator('#sp-weekdays-chart > div').first()).toBeVisible();
-  await expect(page.getByText('Avg. Active Days per User (7d Rolling)')).toBeVisible();
+  await expect(page.getByText('Avg. Active Days per User per Calendar Week')).toBeVisible();
 });

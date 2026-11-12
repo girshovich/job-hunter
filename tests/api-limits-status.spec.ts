@@ -58,7 +58,7 @@ const userToken = crypto.randomBytes(24).toString('hex');
 const userHash = crypto.createHash('sha256').update(userToken).digest('hex');
 
 /**
- * A measured Tier 3 account — 29 Apify slots, 4M TPM. Matches the operator's real figures.
+ * A measured Launch-tier account — 29 Apify slots, 10M TPM on a Luna-type soft model.
  *
  * Keyed by the row's *own* soft model: the OpenAI line describes the model that scores every job,
  * and an entry for some other model would correctly render as unmeasured.
@@ -68,9 +68,9 @@ const softModel = (db.prepare('SELECT ai_model FROM settings WHERE profile_id = 
 
 const MEASURED = {
   apify_plan: '', apify_concurrency_detected: 29, apify_limits_checked_at: new Date().toISOString(),
-  openai_tier: 'tier3', openai_limits_checked_at: new Date().toISOString(),
+  openai_tier: 'launch', openai_limits_checked_at: new Date().toISOString(),
   openai_limits_json: JSON.stringify({
-    [softModel]: { rpm: 5000, tpm: 4_000_000, concurrency: 32, at: new Date().toISOString() },
+    [softModel]: { rpm: 10_000, tpm: 10_000_000, concurrency: 32, at: new Date().toISOString() },
   }),
 };
 
@@ -102,14 +102,14 @@ test('admin General shows measured limits in plain terms, with a date', async ({
     const block = page.locator('.stg-limits');
     await expect(block).toBeVisible();
 
-    // Capability, never raw TPM — "4000000" must not reach a human.
+    // Capability, never raw TPM — "10000000" must not reach a human.
     await expect(block).toContainText('up to 28 job searches at once');
     await expect(block).toContainText('up to 32 jobs scored at once');
-    await expect(block).not.toContainText('4000000');
+    await expect(block).not.toContainText('10000000');
     await expect(block).not.toContainText('TPM');
 
     // 29 matches no published Apify plan, so no plan name is invented; OpenAI's tier is unambiguous.
-    await expect(block).toContainText('Tier 3');
+    await expect(block).toContainText('Launch tier');
     await expect(block).toContainText('Checked');
   } finally {
     writeCols(ADMIN_ID, adminBefore);
@@ -181,7 +181,7 @@ test('a credits user never receives the operator account figures', async ({ page
     const html = await page.content();
     expect(html).not.toContain('stg-limits');
     expect(html).not.toContain('job searches at once');
-    expect(html).not.toContain('Tier 3');
+    expect(html).not.toContain('Launch tier');
   } finally {
     writeCols(ADMIN_ID, adminBefore);
   }
@@ -191,7 +191,7 @@ test('a credits user never receives the operator account figures', async ({ page
  * Regression: a model with no measurement of its own must not borrow another model's date.
  *
  * The row carries one "checked at" for the whole account, but limits are per model — an account can
- * have `gpt-5.4-mini` on file and never have been asked about `gpt-5.6-luna`. Dating the fallback
+ * have `gpt-6.1-terra` on file and never have been asked about `gpt-6-luna`. Dating the fallback
  * number with the row-level timestamp presents a guess as a measurement.
  */
 test('an unmeasured model is not date-stamped with another model measurement', async ({ page, context }) => {

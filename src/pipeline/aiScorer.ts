@@ -459,31 +459,6 @@ async function callScoringLlmWithBackoff(
   }
 }
 
-/**
- * A Free-tier OpenAI account is capped hard in two independent ways, and neither is something a
- * concurrency gate can express or the 429 backoff can clear. The retries exhaust, the jobs land in
- * `failed`, and the run reports `partial_error` with nothing the user can act on. Name the cause.
- *
- * **Which cap was hit is read from the error, not assumed.** The Free tier's per-minute limit is as
- * reachable as its daily one — at concurrency 1 and ~6s a call we sit at roughly 10 requests a
- * minute, which is exactly where `gpt-5.4-mini` throttles — so a message that always blamed the
- * daily quota would be wrong a good share of the time, and wrong in a way that sends the user to
- * wait until tomorrow for something that would clear in sixty seconds.
- *
- * Deliberately unnumbered: the binding dimension differs per model (mini is request-capped, luna is
- * token-capped, terra is starved at 3 RPM), and a confidently wrong number is worse than none.
- */
-function freeTierQuotaNote(tier: string, model: string, jobCount: number, errorText: string): string {
-  if (tier !== 'free') return '';
-  const daily = /\b(RPD|TPD)\b|per\s+day|daily\s+(?:rate\s+)?limit/i.test(errorText);
-  const lead = ` — your OpenAI account is on the Free tier and this run needed ${jobCount} request(s) on ${model}.`;
-  return daily
-    ? `${lead} It hit the account's daily quota, which does not reset until the next day.`
-      + ' Adding credit to the OpenAI account moves it to Tier 1 and lifts the cap.'
-    : `${lead} Free-tier accounts are throttled hard per minute as well as per day.`
-      + ' Adding credit to the OpenAI account moves it to Tier 1 and lifts both.';
-}
-
 export async function scoreJobs(
   jobs: JobPosting[],
   settings: SettingsRow,
@@ -588,15 +563,8 @@ export async function scoreJobs(
     );
   }
 
-  // Widened deliberately: the assignments to `firstError` all happen inside the async workers
-  // above, which TypeScript's flow analysis does not follow, so it still believes the value is
-  // `null` here and narrows any append to `never`.
-  const reportedError: string | null = firstError;
-
   return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens }, rateLimited, failed,
-    firstError: rateLimited && reportedError
-      ? reportedError + freeTierQuotaNote(openAiTier, model, jobs.length, reportedError)
-      : reportedError };
+    firstError };
 }
 
 // ── Call 2: Dedup only (strong matches with existing same-company+title in DB) ──

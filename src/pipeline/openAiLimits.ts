@@ -11,7 +11,7 @@
  * reflect bespoke org limits a published table could never know. So we ask for them with a probe
  * that costs 16 output tokens, roughly $0.0003, once a month per account.
  *
- * **Per model, never per account.** `gpt-5.4-mini` and `gpt-5.6-terra` differ by 2x on the same
+ * **Per model, never per account.** `gpt-6-luna` and `gpt-6.1-terra` differ by 2–4.5x on the same
  * tier, so a single stored number applied to both would over-commit one of them.
  *
  * **What this cannot see:** the headers cover per-minute limits only. There is no RPD/TPD header,
