@@ -3554,12 +3554,13 @@
       panel.style.top  = top + 'px';
     }
 
-    // An In Progress step asks for its day — an interview can be booked ahead, or have happened
-    // last week. The same surface swaps to the calendar, as the step editor does, so there is one
-    // dismiss layer. Every other status is written today, straight away.
+    // An In Progress or Rejected step asks for its day — an interview can be booked ahead, or
+    // have happened last week; a rejection email may be read days late (never ahead, though). The
+    // same surface swaps to the calendar, as the step editor does, so there is one dismiss layer.
+    // Every other status is written today, straight away.
     function pickStatus(statusId) {
       const s = (window.JH_STATUSES || []).find(x => x.id === statusId);
-      if (!s || s.type !== 'progress') { setJobStatus(statusId); return; }
+      if (!s || (s.type !== 'progress' && s.type !== 'rejected')) { setJobStatus(statusId); return; }
       const btn = _statusBtn, onPick = _statusOnPick;
       const panel = document.getElementById('status-picker-panel');
       panel.innerHTML = '<div class="date-cal sp-cal"></div>';
@@ -3567,7 +3568,7 @@
         root: panel.querySelector('.date-cal'),
         from: null, to: null,   // nothing preselected, so today shows its ring rather than a fill
         single: true,
-        allowFuture: true,
+        allowFuture: s.type === 'progress',
         backLabel: 'Back to statuses',
         onPick: d => setJobStatus(statusId, d),
         onBack: () => openStatusPicker(btn, onPick),

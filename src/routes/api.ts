@@ -1100,30 +1100,18 @@ router.patch('/jobs/:id/status', (req: Request, res: Response) => {
   const target = db.prepare('SELECT type FROM statuses WHERE id = ? AND profile_id = ?')
     .get(statusId, profileId) as { type: string } | undefined;
 
-  // A step dated ahead of today (a booked interview) would sit after a rejection written today,
-  // and a rejection has to be the last step (D35) — so it waits until that step is moved or gone.
-  if (target?.type === 'rejected') {
-    const ahead = db.prepare(`
-      SELECT s.name, e.changed_at FROM job_status_events e JOIN statuses s ON s.id = e.status_id
-      WHERE e.job_id = ? AND e.profile_id = ? AND e.changed_at > ?
-      ORDER BY e.changed_at DESC, e.id DESC LIMIT 1
-    `).get(id, profileId, today) as { name: string; changed_at: string } | undefined;
-    if (ahead) {
-      res.status(409).json({
-        success: false,
-        error: `"${ahead.name}" is dated ${ahead.changed_at}, after today. Open the job and delete that step or change its date first.`,
-      });
-      return;
-    }
-  }
-
-  // Only an In Progress move asks for a date — the picker offers a calendar for those and nothing
-  // else. Every other status is written today, whatever arrives.
+  // Only In Progress and Rejected moves ask for a date — the picker offers a calendar for those
+  // and nothing else. Every other status is written today, whatever arrives.
   let when = today;
   const rawDate = (req.body as Record<string, unknown>).changed_at;
-  if (target?.type === 'progress' && rawDate !== undefined) {
+  if ((target?.type === 'progress' || target?.type === 'rejected') && rawDate !== undefined) {
     when = String(rawDate).slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(when)) { res.status(400).json({ success: false, error: 'Invalid date.' }); return; }
+    // An interview can be booked ahead; a rejection cannot arrive before it happens.
+    if (target.type === 'rejected' && when > today) {
+      res.status(400).json({ success: false, error: 'A rejection cannot be dated after today.' });
+      return;
+    }
     const arrival = db.prepare(`
       SELECT e.changed_at FROM job_status_events e JOIN statuses s ON s.id = e.status_id
       WHERE e.job_id = ? AND e.profile_id = ? AND s.type = 'new'
@@ -1131,6 +1119,24 @@ router.patch('/jobs/:id/status', (req: Request, res: Response) => {
     `).get(id, profileId) as { changed_at: string } | undefined;
     if (arrival && when < arrival.changed_at) {
       res.status(400).json({ success: false, error: `This job arrived on ${arrival.changed_at}. A step cannot be dated before that.` });
+      return;
+    }
+  }
+
+  // A step dated after the rejection's day (a booked interview, or a later step when the
+  // rejection is back-dated) would sit after it, and a rejection has to be the last step (D35) —
+  // so it waits until that step is moved or gone.
+  if (target?.type === 'rejected') {
+    const ahead = db.prepare(`
+      SELECT s.name, e.changed_at FROM job_status_events e JOIN statuses s ON s.id = e.status_id
+      WHERE e.job_id = ? AND e.profile_id = ? AND e.changed_at > ?
+      ORDER BY e.changed_at DESC, e.id DESC LIMIT 1
+    `).get(id, profileId, when) as { name: string; changed_at: string } | undefined;
+    if (ahead) {
+      res.status(409).json({
+        success: false,
+        error: `"${ahead.name}" is dated ${ahead.changed_at}, after ${when === today ? 'today' : when}. Open the job and delete that step or change its date first.`,
+      });
       return;
     }
   }
