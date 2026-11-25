@@ -1,9 +1,10 @@
 // ---- Prompt defaults ----
 
 const _DEFAULT_SCORING_CRITERIA = [
-  'Profile matches expected experience (up to 40): domain, complexity, results, skills;',
-  'Role description matches any of the Desired roles (up to 40): compelling scope and responsibilities, seniority, title, team size;',
-  'Preferred industry (up to 10);',
+  '0 (forced): Any absolute disqualifier is present',
+  'Experience relevance to profile (up to 30): domain, complexity, results, skills;',
+  'Role matches Desired roles (up to 40): responsibilities, seniority, title, team size, user base;',
+  'Preferred industry (up to 20);',
   'Company quality (up to 10): known brand, growth trajectory.',
 ].join('\n');
 
