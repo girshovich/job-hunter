@@ -2890,6 +2890,12 @@
         id: parseInt(g.id, 10),
         is_active: !!g.is_active,
       }));
+      if (!schedGroupStates.some(g => g.is_active)) {
+        msgEl.textContent = 'Select at least one role.';
+        msgEl.className = 'text-xs text-red-600';
+        msgEl.classList.remove('hidden');
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = 'Starting…';
@@ -2958,8 +2964,6 @@
         const tz = _scheduleData.timezone || '';
         const expr = _scheduleData.expression || '';
         const dr = _scheduleData.schedule_date_range || '24h';
-        const groups = _scheduleData.groups || [];
-        const groupIds = _scheduleData.schedule_group_ids || [];
 
         // Time from cron expression
         const parts = expr.split(' ');
@@ -2970,25 +2974,25 @@
         document.getElementById('sched-status-dr').textContent = dr === '7d' ? 'Last 7 days' : 'Last 24h';
         document.getElementById('sched-status-freq').textContent = getFrequencyLabel(expr);
 
-        // Roles display
-        if (groupIds.length === 0) {
-          document.getElementById('sched-status-roles').textContent = 'All active';
-        } else {
-          const selectedNames = groups.filter(g => groupIds.includes(g.id)).map(g => g.group_name || 'Role #' + g.id);
-          const activeCount = groups.filter(g => g.is_active).length;
-          if (selectedNames.length === activeCount && activeCount > 0) {
-            document.getElementById('sched-status-roles').textContent = 'All active';
-          } else {
-            document.getElementById('sched-status-roles').textContent = groupIds.length + ' of ' + groups.length + ' roles';
-          }
-        }
-
         // Providers display
         const providerLabels = { harvestapi: 'LinkedIn: harvestapi', valig: 'LinkedIn: valig', indeed: 'Indeed: valig', stepstone: 'StepStone: valig', greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever', telegram: 'Telegram' };
         const statusProviders = _scheduleData.scraping_providers || DEFAULT_PROVIDER_VALUES;
         document.getElementById('sched-status-providers').textContent =
           statusProviders.map(p => providerLabels[p] || p).join(', ');
       }
+
+      // Roles: the schedule's saved role ids, not the toggles. Fetched on every open so a role
+      // deleted since the page loaded drops out; groups arrive in Settings order (by id).
+      const rolesEl = document.getElementById('sched-status-roles');
+      rolesEl.textContent = 'Loading…';
+      rolesEl.style.color = '';
+      fetch('/api/schedule/status').then(r => r.json()).then(data => {
+        const ids = data.schedule_group_ids || [];
+        const names = (data.groups || []).filter(g => ids.includes(g.id)).map(g => g.group_name || 'Role #' + g.id);
+        rolesEl.textContent = names.length ? names.join(', ') : 'No roles — re-arm the schedule';
+        rolesEl.style.color = names.length ? '' : 'var(--red-ink)';
+      }).catch(() => { rolesEl.textContent = 'Could not load roles.'; });
+
       document.getElementById('schedule-status-modal').classList.remove('hidden');
     }
 
@@ -3291,8 +3295,8 @@
       msgEl.classList.add('hidden');
 
       try {
-        // Pass the selected roles explicitly, so the run uses them without depending on
-        // the is_active writes below having landed first.
+        // The selected roles apply to this run only — they are never written back to the
+        // role toggles, which Settings and the schedule own.
         const res = await fetch('/api/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3306,16 +3310,6 @@
           await showAlert(data.error || 'Failed to start pipeline.');
           return;
         }
-
-        // Only once the run is accepted, persist is_active (syncs with settings page) —
-        // a rejected run (e.g. one already in progress in another tab) must not overwrite it.
-        await Promise.all(groupStates.map(({ id, is_active }) =>
-          fetch('/api/groups/' + id, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_active }),
-          })
-        ));
 
         if (typeof _runCallback === 'function') {
           // Started from the Start page's own button — it shows the progress itself.
