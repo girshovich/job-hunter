@@ -3394,7 +3394,10 @@
       const ddW = 160;
       let left = rect.left;
       if (left + ddW > window.innerWidth - 8) left = window.innerWidth - ddW - 8;
-      dd.style.top  = (rect.bottom + 4) + 'px';
+      let top = rect.bottom + 4;
+      const h = dd.offsetHeight;
+      if (top + h + 12 > window.innerHeight && rect.top - h - 6 > 0) top = rect.top - h - 6;
+      dd.style.top  = top + 'px';
       dd.style.left = left + 'px';
     }
 
